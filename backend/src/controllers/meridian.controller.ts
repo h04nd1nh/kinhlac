@@ -70,6 +70,10 @@ export class MeridiansService {
     private readonly meridianRepo: Repository<MeridianSyndrome>,
   ) {}
 
+  private round2(n: number): number {
+    return Math.round(n * 100) / 100;
+  }
+
   async analyze(data: AnalyzeInputDto): Promise<AnalyzeOutputDto> {
     const leftChannels = [
       data.tieutruongtrai,
@@ -105,111 +109,88 @@ export class MeridiansService {
       throw new Error('Invalid input, must provide all 24 specific channels.');
     }
 
-    // --- Tính toán Toán học cho Khung Sinh Lý ---
+    // --- Bước 2.1: Tính Khung Sinh Lý (làm tròn 2 chữ số như code gốc) ---
     const calculateBounds = (leftArr: number[], rightArr: number[]) => {
       const allVals = [...leftArr, ...rightArr];
       const maxVal = Math.max(...allVals);
       const minVal = Math.min(...allVals);
-      const midPoint = (maxVal + minVal) / 2.0;
       const range = maxVal - minVal;
-      const dungSai = range / 6.0;
-      
+      const midPoint = this.round2((maxVal + minVal) / 2.0);
+      const dungSai = this.round2(range / 6.0);
+
       return {
-        maxVal, 
-        minVal, 
-        midPoint, 
-        range, 
+        midPoint,
         dungSai,
         upperLimit: midPoint + dungSai,
-        lowerLimit: midPoint - dungSai
+        lowerLimit: midPoint - dungSai,
       };
     };
 
-    const boundsUpper = calculateBounds(leftChannels.slice(0, 6), rightChannels.slice(0, 6)); // Tay (0-5)
-    const boundsLower = calculateBounds(leftChannels.slice(6, 12), rightChannels.slice(6, 12)); // Chân (6-11)
+    const boundsUpper = calculateBounds(leftChannels.slice(0, 6), rightChannels.slice(0, 6));
+    const boundsLower = calculateBounds(leftChannels.slice(6, 12), rightChannels.slice(6, 12));
 
-    // --- 2.2 Tính Toán Cờ Trạng Thái (Flags) ---
-    const flags: any[] = [];
+    // --- Bước 2.2: Tính Cờ Trạng Thái (Flags) ---
+    const flags: AnalyzeOutputDto['flags'] = [];
     for (let i = 0; i < 12; i++) {
-      const isUpper = i < 6;
-      const bounds = isUpper ? boundsUpper : boundsLower;
-      
+      const bounds = i < 6 ? boundsUpper : boundsLower;
+
       const L = leftChannels[i];
       const R = rightChannels[i];
-      const avg = (L + R) / 2.0;
+      const avg = this.round2((L + R) / 2.0);
 
-      // Cờ C10 (Trung bình)
-      let c10 = 0;
-      if (avg > bounds.midPoint) c10 = 1;
-      else if (avg < bounds.midPoint) c10 = -1;
+      // C10: col_10 = round(avg - midPoint, 2) rồi lấy dấu
+      const c10_val = this.round2(avg - bounds.midPoint);
+      const c10 = c10_val > 0 ? 1 : c10_val < 0 ? -1 : 0;
 
-      // Cờ C8 (Trái)
-      let c8 = 0;
-      if (L > bounds.upperLimit) c8 = 1;
-      else if (L < bounds.lowerLimit) c8 = -1;
+      // C8: trái so với giới hạn
+      const c8 = L > bounds.upperLimit ? 1 : L < bounds.lowerLimit ? -1 : 0;
 
-      // Cờ C11 (Phải)
-      let c11 = 0;
-      if (R > bounds.upperLimit) c11 = 1;
-      else if (R < bounds.lowerLimit) c11 = -1;
+      // C11: phải so với giới hạn
+      const c11 = R > bounds.upperLimit ? 1 : R < bounds.lowerLimit ? -1 : 0;
 
-      // Cờ C12 (Lệch 2 Bên)
-      let c12 = 0;
-      const diff = Math.abs(L - R);
-      if (diff > bounds.dungSai) {
-        c12 = L > R ? 1 : -1;
-      }
+      // C12: lệch 2 bên
+      const c12_val = this.round2(L - R);
+      const c12 = Math.abs(c12_val) > bounds.dungSai
+        ? (c12_val > 0 ? 1 : -1)
+        : 0;
 
       flags.push({ channelIndex: i, channelName: CHANNELS[i], L, R, Avg: avg, c8, c10, c11, c12 });
     }
 
-    // --- 3. Suy luận Âm-Dương & Khí-Huyết ---
-    // Âm-Dương (Đọc ở kinh số 8 - Đảm)
-    const c10_8 = flags[8].c10;
-    let am_duong = 'Bình thường';
-    if (c10_8 > 0) am_duong = 'Âm hư';
-    else if (c10_8 < 0) am_duong = 'Dương hư';
+    // --- Bước 3: Suy luận Âm-Dương & Khí-Huyết (khớp code gốc, luôn đếm) ---
+    const c10_dam = flags[8].c10;
+    const am_duong = c10_dam > 0 ? 'Âm hư' : c10_dam < 0 ? 'Dương hư' : 'Bình thường';
 
-    // Khí (Đếm số lượng Cờ C10 > 0 ở 6 kinh tay)
     const countKhi = flags.slice(0, 6).filter(f => f.c10 > 0).length;
-    let khi = 'Bình thường';
-    if (countKhi > 3) khi = 'Khí thịnh';
-    else if (countKhi < 3) khi = 'Khí hư';
+    const khi = countKhi > 3 ? 'Khí thịnh' : countKhi < 3 ? 'Khí hư' : 'Bình thường';
 
-    // Huyết (Đếm số lượng Cờ C10 > 0 ở 6 kinh chân)
     const countHuyet = flags.slice(6, 12).filter(f => f.c10 > 0).length;
-    let huyet = 'Bình thường';
-    if (countHuyet > 3) huyet = 'Huyết thịnh';
-    else if (countHuyet < 3) huyet = 'Huyết hư';
+    const huyet = countHuyet > 3 ? 'Huyết thịnh' : countHuyet < 3 ? 'Huyết hư' : 'Bình thường';
 
-    // --- 4. Suy Luận Lâm Sàng & Khớp CSDL ---
+    // --- Bước 4: Khớp CSDL bệnh chứng luận trị (có flag2 như code gốc) ---
     const allSyndromes = await this.meridianRepo.find();
-    
+
     const matchedSyndromes = allSyndromes.filter(dbRow => {
-      // Kiểm tra 12 kênh x 3 cột = 36 cột. Nếu cột nào !== 0 thì patient phải khớp.
+      let allMatch = true;
+      let hasCondition = false;
+
       for (let i = 0; i < 12; i++) {
-        const flagPatient = flags[i];
-        const chName = CHANNELS[i];
+        const f = flags[i];
+        const ch = CHANNELS[i];
 
-        // Khớp Cờ C8
-        const dbC8 = dbRow[`${chName}_c8` as keyof MeridianSyndrome] as number;
-        if (dbC8 !== 0 && dbC8 !== null && dbC8 !== undefined) {
-          if (dbC8 !== flagPatient.c8) return false;
-        }
+        const dbC8 = (dbRow[`${ch}_c8` as keyof MeridianSyndrome] as number) ?? 0;
+        const dbC10 = (dbRow[ch as keyof MeridianSyndrome] as number) ?? 0;
+        const dbC11 = (dbRow[`${ch}_c11` as keyof MeridianSyndrome] as number) ?? 0;
 
-        // Khớp Cờ C10
-        const dbC10 = dbRow[`${chName}` as keyof MeridianSyndrome] as number;
-        if (dbC10 !== 0 && dbC10 !== null && dbC10 !== undefined) {
-          if (dbC10 !== flagPatient.c10) return false;
-        }
-
-        // Khớp Cờ C11
-        const dbC11 = dbRow[`${chName}_c11` as keyof MeridianSyndrome] as number;
-        if (dbC11 !== 0 && dbC11 !== null && dbC11 !== undefined) {
-          if (dbC11 !== flagPatient.c11) return false;
+        if (dbC8 !== 0 || dbC10 !== 0 || dbC11 !== 0) {
+          hasCondition = true;
+          if (dbC8 !== 0 && dbC8 !== f.c8) { allMatch = false; break; }
+          if (dbC10 !== 0 && dbC10 !== f.c10) { allMatch = false; break; }
+          if (dbC11 !== 0 && dbC11 !== f.c11) { allMatch = false; break; }
         }
       }
-      return true; // Khớp tất cả các giá trị != 0
+
+      return hasCondition && allMatch;
     });
 
     return {

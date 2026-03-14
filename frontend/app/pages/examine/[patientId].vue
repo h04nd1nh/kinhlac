@@ -295,76 +295,74 @@ const statusClass = (val: string): string => {
           </div>
         </div>
 
-        <!-- Flags table -->
-        <div class="table-card">
-          <div class="table-card-header">
-            <UIcon name="i-lucide-table-2" class="card-header-icon" />
-            <h3 class="card-title">Chi tiết kinh lạc</h3>
+        <!-- Chi tiết & hội chứng: chỉ hiển thị khi có syndromes -->
+        <template v-if="result.syndromes.length > 0">
+          <!-- Flags table -->
+          <div class="table-card">
+            <div class="table-card-header">
+              <UIcon name="i-lucide-table-2" class="card-header-icon" />
+              <h3 class="card-title">Chi tiết kinh lạc</h3>
+            </div>
+            <table class="flags-table">
+              <thead>
+                <tr>
+                  <th>Kinh</th>
+                  <th>Trái</th>
+                  <th>Phải</th>
+                  <th>TB</th>
+                  <th>C8</th>
+                  <th>C10</th>
+                  <th>C11</th>
+                  <th>C12</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="flag in result.flags" :key="flag.channelIndex">
+                  <td class="cell-name">{{ CHANNEL_LABEL_MAP[flag.channelName] || flag.channelName }}</td>
+                  <td>{{ flag.L }}</td>
+                  <td>{{ flag.R }}</td>
+                  <td>{{ flag.Avg.toFixed(1) }}</td>
+                  <td><span class="flag-badge" :class="flagClass(flag.c8)">{{ flagLabel(flag.c8) }}</span></td>
+                  <td><span class="flag-badge" :class="flagClass(flag.c10)">{{ flagLabel(flag.c10) }}</span></td>
+                  <td><span class="flag-badge" :class="flagClass(flag.c11)">{{ flagLabel(flag.c11) }}</span></td>
+                  <td><span class="flag-badge" :class="flagClass(flag.c12)">{{ flagLabel(flag.c12) }}</span></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <table class="flags-table">
-            <thead>
-              <tr>
-                <th>Kinh</th>
-                <th>Trái</th>
-                <th>Phải</th>
-                <th>TB</th>
-                <th>C8</th>
-                <th>C10</th>
-                <th>C11</th>
-                <th>C12</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="flag in result.flags" :key="flag.channelIndex">
-                <td class="cell-name">{{ CHANNEL_LABEL_MAP[flag.channelName] || flag.channelName }}</td>
-                <td>{{ flag.L }}</td>
-                <td>{{ flag.R }}</td>
-                <td>{{ flag.Avg.toFixed(1) }}</td>
-                <td><span class="flag-badge" :class="flagClass(flag.c8)">{{ flagLabel(flag.c8) }}</span></td>
-                <td><span class="flag-badge" :class="flagClass(flag.c10)">{{ flagLabel(flag.c10) }}</span></td>
-                <td><span class="flag-badge" :class="flagClass(flag.c11)">{{ flagLabel(flag.c11) }}</span></td>
-                <td><span class="flag-badge" :class="flagClass(flag.c12)">{{ flagLabel(flag.c12) }}</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
 
-        <!-- Syndromes -->
-        <div v-if="result.syndromes.length > 0" class="table-card">
-          <div class="table-card-header">
-            <UIcon name="i-lucide-stethoscope" class="card-header-icon" />
-            <h3 class="card-title">Hội chứng phù hợp ({{ result.syndromes.length }})</h3>
-          </div>
-          <div class="syndromes-list">
-            <div v-for="(syn, idx) in result.syndromes" :key="idx" class="syndrome-item">
-              <div class="syndrome-header">
-                <span class="syndrome-index">#{{ idx + 1 }}</span>
-                <span v-if="syn.tieuket" class="syndrome-name">{{ syn.tieuket }}</span>
-              </div>
-              <div v-if="syn.trieuchung" class="syndrome-row">
-                <span class="syndrome-label">Triệu chứng:</span>
-                <span class="syndrome-text">{{ syn.trieuchung }}</span>
-              </div>
-              <div v-if="syn.benhly" class="syndrome-row">
-                <span class="syndrome-label">Bệnh lý:</span>
-                <span class="syndrome-text">{{ syn.benhly }}</span>
-              </div>
-              <div v-if="syn.phuyet_chamcuu" class="syndrome-row">
-                <span class="syndrome-label">Phụ huyệt châm cứu:</span>
-                <span class="syndrome-text">{{ syn.phuyet_chamcuu }}</span>
-              </div>
-              <div v-if="syn.giainghia_phuyet" class="syndrome-row">
-                <span class="syndrome-label">Giải nghĩa phụ huyệt:</span>
-                <span class="syndrome-text">{{ syn.giainghia_phuyet }}</span>
+          <!-- Syndromes -->
+          <div class="table-card">
+            <div class="table-card-header">
+              <UIcon name="i-lucide-stethoscope" class="card-header-icon" />
+              <h3 class="card-title">Hội chứng phù hợp ({{ result.syndromes.length }})</h3>
+            </div>
+            <div class="syndromes-list">
+              <div v-for="(syn, idx) in result.syndromes" :key="idx" class="syndrome-item">
+                <div class="syndrome-header">
+                  <span class="syndrome-index">#{{ idx + 1 }}</span>
+                  <span v-if="syn.tieuket" class="syndrome-name">{{ syn.tieuket }}</span>
+                </div>
+                <div v-if="syn.trieuchung" class="syndrome-row">
+                  <span class="syndrome-label">Triệu chứng:</span>
+                  <span class="syndrome-text">{{ syn.trieuchung }}</span>
+                </div>
+                <div v-if="syn.benhly" class="syndrome-row">
+                  <span class="syndrome-label">Bệnh lý:</span>
+                  <span class="syndrome-text">{{ syn.benhly }}</span>
+                </div>
+                <div v-if="syn.phuyet_chamcuu" class="syndrome-row">
+                  <span class="syndrome-label">Phụ huyệt châm cứu:</span>
+                  <span class="syndrome-text">{{ syn.phuyet_chamcuu }}</span>
+                </div>
+                <div v-if="syn.giainghia_phuyet" class="syndrome-row">
+                  <span class="syndrome-label">Giải nghĩa phụ huyệt:</span>
+                  <span class="syndrome-text">{{ syn.giainghia_phuyet }}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-
-        <div v-else class="no-syndromes">
-          <UIcon name="i-lucide-info" class="info-icon" />
-          <span>Không tìm thấy hội chứng phù hợp với các chỉ số đã nhập.</span>
-        </div>
+        </template>
 
         <!-- Notes -->
         <div v-if="result.notes" class="result-notes">
