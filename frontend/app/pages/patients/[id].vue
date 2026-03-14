@@ -315,6 +315,9 @@ const statusClass = (val: string): string => {
               <!-- Expanded detail -->
               <Transition name="slide">
                 <div v-if="expandedExamId === exam.id" class="exam-detail">
+                  <!-- Biểu đồ kinh lạc -->
+                  <MeridianChart :flags="exam.flags" />
+
                   <!-- Flags table -->
                   <table class="flags-table">
                     <thead>

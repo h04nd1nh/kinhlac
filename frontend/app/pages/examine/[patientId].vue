@@ -295,6 +295,9 @@ const statusClass = (val: string): string => {
           </div>
         </div>
 
+        <!-- Biểu đồ kinh lạc -->
+        <MeridianChart :flags="result.flags" />
+
         <!-- Chi tiết & hội chứng: chỉ hiển thị khi có syndromes -->
         <template v-if="result.syndromes.length > 0">
           <!-- Flags table -->
