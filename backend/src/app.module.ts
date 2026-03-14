@@ -9,14 +9,17 @@ import { AppService } from './app.service';
 
 // Models
 import { Admin } from './models/admin.model';
+import { MeridianSyndrome } from './models/meridian-syndrome.model';
 
 // Routers (NestJS Controllers)
 import { AdminsRouter } from './routers/admin.router';
 import { AuthRouter } from './routers/auth.router';
+import { MeridiansRouter } from './routers/meridian.router';
 
 // Controllers (NestJS Services)
 import { AdminsService } from './controllers/admin.controller';
 import { AuthService } from './controllers/auth.controller';
+import { MeridiansService } from './controllers/meridian.controller';
 
 // Middlewares (Strategies/Guards)
 import { JwtStrategy } from './middlewares/auth/jwt.strategy';
@@ -44,7 +47,7 @@ import { JwtStrategy } from './middlewares/auth/jwt.strategy';
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([Admin]),
+    TypeOrmModule.forFeature([Admin, MeridianSyndrome]),
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -55,7 +58,7 @@ import { JwtStrategy } from './middlewares/auth/jwt.strategy';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AppController, AdminsRouter, AuthRouter],
-  providers: [AppService, AdminsService, AuthService, JwtStrategy],
+  controllers: [AppController, AdminsRouter, AuthRouter, MeridiansRouter],
+  providers: [AppService, AdminsService, AuthService, JwtStrategy, MeridiansService],
 })
 export class AppModule {}
