@@ -6,9 +6,13 @@ useSeoMeta({
   description: 'Quản lý danh sách bệnh nhân'
 })
 
-const { fetchAll, remove } = usePatients()
+const { fetchPage, remove } = usePatients()
 
+const PAGE_SIZE = 10
 const patients = ref<Patient[]>([])
+const total = ref(0)
+const page = ref(1)
+const totalPages = ref(1)
 const isLoading = ref(true)
 const search = ref('')
 const showModal = ref(false)
@@ -17,24 +21,48 @@ const editingPatient = ref<Patient | undefined>(undefined)
 const loadPatients = async () => {
   isLoading.value = true
   try {
-    patients.value = await fetchAll()
+    const res = await fetchPage(page.value, PAGE_SIZE, search.value || undefined)
+    patients.value = res.data
+    total.value = res.total
+    totalPages.value = res.totalPages
   }
   catch {
     patients.value = []
+    total.value = 0
+    totalPages.value = 1
   }
   finally {
     isLoading.value = false
   }
 }
 
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
+watch(search, () => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => { page.value = 1 }, 300)
+})
+watch([page, search], () => loadPatients())
+
 await loadPatients()
 
-const filtered = computed(() => {
-  return patients.value.filter((p) => {
-    const matchSearch = p.fullName.toLowerCase().includes(search.value.toLowerCase())
-      || (p.phone ?? '').includes(search.value)
-    return matchSearch
-  })
+const rangeStart = computed(() => total.value === 0 ? 0 : (page.value - 1) * PAGE_SIZE + 1)
+const rangeEnd = computed(() => Math.min(page.value * PAGE_SIZE, total.value))
+
+const goToPage = (p: number) => {
+  if (p < 1 || p > totalPages.value) return
+  page.value = p
+  loadPatients()
+}
+
+const pageNumbers = computed(() => {
+  const n = totalPages.value
+  const current = page.value
+  const delta = 2
+  const range: number[] = []
+  for (let i = Math.max(1, current - delta); i <= Math.min(n, current + delta); i++) {
+    range.push(i)
+  }
+  return range
 })
 
 const getAge = (dob: string | null): string => {
@@ -130,7 +158,7 @@ const handleDelete = async (id: number, name: string) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-if="filtered.length === 0">
+          <tr v-if="patients.length === 0">
             <td colspan="7">
               <div class="empty-state">
                 <UIcon name="i-lucide-search-x" class="empty-icon" />
@@ -138,7 +166,7 @@ const handleDelete = async (id: number, name: string) => {
               </div>
             </td>
           </tr>
-          <tr v-for="patient in filtered" :key="patient.id" class="patient-row">
+          <tr v-for="patient in patients" :key="patient.id" class="patient-row">
             <td>
               <div class="patient-name-cell">
                 <div class="avatar">{{ patient.fullName.charAt(0) }}</div>
@@ -185,7 +213,36 @@ const handleDelete = async (id: number, name: string) => {
       </table>
 
       <div class="table-footer">
-        <span class="table-count">Hiển thị {{ filtered.length }} / {{ patients.length }} bệnh nhân</span>
+        <span class="table-count">
+          Hiển thị {{ rangeStart }}-{{ rangeEnd }} / {{ total }} bệnh nhân
+        </span>
+        <div v-if="totalPages > 1" class="pagination">
+          <button
+            class="pagination-btn"
+            :disabled="page <= 1"
+            :aria-disabled="page <= 1"
+            @click="goToPage(page - 1)"
+          >
+            <UIcon name="i-lucide-chevron-left" class="pagination-icon" />
+          </button>
+          <template v-for="n in pageNumbers" :key="n">
+            <button
+              class="pagination-btn pagination-num"
+              :class="{ 'pagination-num--active': n === page }"
+              @click="goToPage(n)"
+            >
+              {{ n }}
+            </button>
+          </template>
+          <button
+            class="pagination-btn"
+            :disabled="page >= totalPages"
+            :aria-disabled="page >= totalPages"
+            @click="goToPage(page + 1)"
+          >
+            <UIcon name="i-lucide-chevron-right" class="pagination-icon" />
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -429,10 +486,64 @@ a.action-btn { text-decoration: none; }
 
 /* Footer */
 .table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
   padding: 12px 16px;
   border-top: 1px solid #f1f5f9;
   background: #fafbfc;
 }
 
 .table-count { font-size: 0.8rem; color: #94a3b8; }
+
+/* Pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pagination-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  border-color: #1e88e5;
+  color: #1e88e5;
+  background: #f0f7ff;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-num--active {
+  border-color: #1e88e5;
+  background: #1e88e5;
+  color: #fff;
+}
+
+.pagination-num--active:hover {
+  background: #1565c0;
+  border-color: #1565c0;
+  color: #fff;
+}
+
+.pagination-icon { width: 18px; height: 18px; }
 </style>

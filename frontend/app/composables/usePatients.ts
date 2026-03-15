@@ -25,6 +25,14 @@ export interface CreatePatientDto {
   notes?: string
 }
 
+export interface PaginatedPatientsResult {
+  data: Patient[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
 export const usePatients = () => {
   const config = useRuntimeConfig()
   const { token } = useAuth()
@@ -39,6 +47,20 @@ export const usePatients = () => {
     return $fetch<Patient[]>('/patients', {
       baseURL,
       headers: authHeaders.value
+    })
+  }
+
+  const fetchPage = (
+    page: number,
+    limit: number,
+    search?: string
+  ): Promise<PaginatedPatientsResult> => {
+    const params: Record<string, string> = { page: String(page), limit: String(limit) }
+    if (search && search.trim()) params.search = search.trim()
+    return $fetch<PaginatedPatientsResult>('/patients', {
+      baseURL,
+      headers: authHeaders.value,
+      query: params
     })
   }
 
@@ -75,5 +97,5 @@ export const usePatients = () => {
     })
   }
 
-  return { fetchAll, fetchOne, create, update, remove }
+  return { fetchAll, fetchPage, fetchOne, create, update, remove }
 }

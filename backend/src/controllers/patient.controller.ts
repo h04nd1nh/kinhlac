@@ -4,6 +4,14 @@ import { Repository } from 'typeorm';
 import { Patient } from '../models/patient.model';
 import { CreatePatientDto, UpdatePatientDto } from '../models/patient.dto';
 
+export interface PaginatedPatients {
+  data: Patient[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 @Injectable()
 export class PatientsService {
   constructor(
@@ -13,6 +21,36 @@ export class PatientsService {
 
   findAll(): Promise<Patient[]> {
     return this.patientRepository.find({ order: { createdAt: 'DESC' } });
+  }
+
+  async findPaginated(
+    page: number = 1,
+    limit: number = 10,
+    search?: string
+  ): Promise<PaginatedPatients> {
+    const skip = (page - 1) * limit;
+
+    const qb = this.patientRepository
+      .createQueryBuilder('patient')
+      .orderBy('patient.createdAt', 'DESC');
+
+    if (search && search.trim()) {
+      const term = `%${search.trim()}%`;
+      qb.andWhere(
+        '(patient.fullName ILIKE :term OR patient.phone ILIKE :term OR patient.address ILIKE :term)',
+        { term }
+      );
+    }
+
+    const [data, total] = await qb.skip(skip).take(limit).getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1
+    };
   }
 
   async findOne(id: number): Promise<Patient> {

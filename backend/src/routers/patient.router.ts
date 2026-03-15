@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   ParseIntPipe,
   UseGuards,
   HttpCode,
@@ -21,7 +22,16 @@ export class PatientsRouter {
   constructor(private readonly patientsService: PatientsService) {}
 
   @Get()
-  findAll() {
+  findPatients(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 0;
+    const limitNum = limit ? parseInt(limit, 10) : 0;
+    if (pageNum > 0 && limitNum > 0) {
+      return this.patientsService.findPaginated(pageNum, limitNum, search);
+    }
     return this.patientsService.findAll();
   }
 
