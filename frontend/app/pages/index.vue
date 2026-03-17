@@ -34,7 +34,7 @@ onMounted(async () => {
 
     <!-- Stats cards -->
     <div class="stats-grid">
-      <div class="stat-card stat-card--blue">
+      <div class="stat-card stat-card--primary">
         <div class="stat-icon-wrap">
           <UIcon name="i-lucide-users" class="stat-icon" />
         </div>
@@ -124,7 +124,7 @@ onMounted(async () => {
 .date-icon {
   width: 16px;
   height: 16px;
-  color: #1e88e5;
+  color: var(--kl-secondary, #8B1A1A);
 }
 
 /* ─── Stats ─── */
@@ -162,11 +162,11 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.stat-card--blue .stat-icon-wrap { background: #e3f2fd; }
+.stat-card--primary .stat-icon-wrap { background: var(--kl-bg-light, #FBF8F1); }
 .stat-card--green .stat-icon-wrap { background: #e8f5e9; }
 .stat-card--purple .stat-icon-wrap { background: #f3e5f5; }
 
-.stat-card--blue .stat-icon { color: #1e88e5; }
+.stat-card--primary .stat-icon { color: var(--kl-secondary, #8B1A1A); }
 .stat-card--green .stat-icon { color: #43a047; }
 .stat-card--purple .stat-icon { color: #8e24aa; }
 
@@ -229,7 +229,7 @@ onMounted(async () => {
 }
 
 .action-card:hover {
-  border-color: #1e88e5;
+  border-color: var(--kl-secondary, #8B1A1A);
   background: #f0f7ff;
   transform: translateX(2px);
 }
@@ -237,7 +237,7 @@ onMounted(async () => {
 .action-icon {
   width: 20px;
   height: 20px;
-  color: #1e88e5;
+  color: var(--kl-secondary, #8B1A1A);
   flex-shrink: 0;
 }
 

@@ -45,7 +45,11 @@ export class AnalyzeOutputDto {
     c11: number;
     c12: number;
   }>;
-  syndromes: MeridianSyndrome[];
+  /**
+   * Danh sách mô hình bệnh lý gợi ý (đã xếp hạng theo % khớp)
+   * rate: tỉ lệ khớp (0..1) trên các điều kiện có trong mô hình
+   */
+  syndromes: Array<MeridianSyndrome & { rate?: number; matchScore?: number; totalInModel?: number }>;
 }
 
 const CHANNELS = [
@@ -157,15 +161,49 @@ export class MeridiansService {
       flags.push({ channelIndex: i, channelName: CHANNELS[i], L, R, Avg: avg, c8, c10, c11, c12 });
     }
 
-    // --- Bước 3: Suy luận Âm-Dương & Khí-Huyết (khớp code gốc, luôn đếm) ---
-    const c10_dam = flags[8].c10;
-    const am_duong = c10_dam > 0 ? 'Âm hư' : c10_dam < 0 ? 'Dương hư' : 'Bình thường';
+    // --- Bước 3: Suy luận Âm-Dương & Khí-Huyết (theo DiagnosisLogic) ---
+    // Đếm Hư / Thực ở chi trên (THỦ) và chi dưới (TÚC)
+    let thucTren = 0, huTren = 0, thucDuoi = 0, huDuoi = 0;
+    for (let i = 0; i < 12; i++) {
+      const bounds = i < 6 ? boundsUpper : boundsLower;
+      const L = leftChannels[i];
+      const R = rightChannels[i];
+      const isThuc = L > bounds.upperLimit || R > bounds.upperLimit;
+      const isHu = L < bounds.lowerLimit || R < bounds.lowerLimit;
+      if (i < 6) {
+        if (isThuc) thucTren++;
+        if (isHu) huTren++;
+      } else {
+        if (isThuc) thucDuoi++;
+        if (isHu) huDuoi++;
+      }
+    }
 
-    const countKhi = flags.slice(0, 6).filter(f => f.c10 > 0).length;
-    const khi = countKhi > 3 ? 'Khí thịnh' : countKhi < 3 ? 'Khí hư' : 'Bình thường';
+    // Âm / Dương toàn thân: so sánh trung vị THỦ vs TÚC (giống DiagnosisLogic)
+    const avg_tren = boundsUpper.midPoint;
+    const avg_duoi = boundsLower.midPoint;
+    const amDuongBody =
+      avg_tren > avg_duoi + 1 ? 'DƯƠNG THỊNH' :
+      avg_duoi > avg_tren + 1 ? 'ÂM THỊNH' :
+      'CÂN BẰNG';
 
-    const countHuyet = flags.slice(6, 12).filter(f => f.c10 > 0).length;
-    const huyet = countHuyet > 3 ? 'Huyết thịnh' : countHuyet < 3 ? 'Huyết hư' : 'Bình thường';
+    // Map về dạng lâm sàng: Âm hư / Dương hư / Cân bằng
+    const am_duong =
+      amDuongBody === 'DƯƠNG THỊNH' ? 'Âm hư' :
+      amDuongBody === 'ÂM THỊNH' ? 'Dương hư' :
+      'Cân bằng';
+
+    // Khí: dựa trên Hư / Thực ở chi trên
+    const khi =
+      thucTren > huTren ? 'Khí thịnh' :
+      thucTren < huTren ? 'Khí hư' :
+      'Bình thường';
+
+    // Huyết: dựa trên Hư / Thực ở chi dưới
+    const huyet =
+      thucDuoi > huDuoi ? 'Huyết thịnh' :
+      thucDuoi < huDuoi ? 'Huyết hư' :
+      'Bình thường';
 
     // --- Bước 4: Khớp CSDL bệnh chứng luận trị (có flag2 như code gốc) ---
     const allSyndromes = await this.meridianRepo.find();
@@ -193,12 +231,44 @@ export class MeridiansService {
       return hasCondition && allMatch;
     });
 
+    // --- Bước 4b: Gợi ý mô hình bệnh lý (giống webapp suggestRelatedModels) ---
+    // So khớp theo dấu thực đo của từng kinh (ưu tiên c8/c11), so với điều kiện mô hình (cột c10: tieutruong/tam/...)
+    const actualFor = (f: AnalyzeOutputDto['flags'][number]): -1 | 0 | 1 => {
+      const isThuc = f.c8 === 1 || f.c11 === 1;
+      const isHu = f.c8 === -1 || f.c11 === -1;
+      if (isThuc) return 1;
+      if (isHu) return -1;
+      return 0;
+    };
+
+    const suggested = allSyndromes.map(dbRow => {
+      let score = 0;
+      let total = 0;
+
+      for (let i = 0; i < 12; i++) {
+        const ch = CHANNELS[i];
+        const mv = (dbRow[ch as keyof MeridianSyndrome] as number) ?? 0; // điều kiện mô hình theo kinh
+        if (mv !== 0) {
+          total++;
+          const actual = actualFor(flags[i]);
+          if (mv === actual) score++;
+        }
+      }
+
+      const rate = total > 0 ? score / total : 0;
+      return Object.assign(dbRow, { rate, matchScore: score, totalInModel: total });
+    })
+    .filter(m => (m.totalInModel ?? 0) > 0 && (m.rate ?? 0) > 0.4)
+    .sort((a, b) => (b.rate ?? 0) - (a.rate ?? 0) || (b.matchScore ?? 0) - (a.matchScore ?? 0))
+    .slice(0, 12);
+
     return {
       am_duong,
       khi,
       huyet,
       flags,
-      syndromes: matchedSyndromes,
+      // Ưu tiên danh sách gợi ý có xếp hạng; nếu không có thì fallback sang khớp tuyệt đối
+      syndromes: suggested.length ? suggested : matchedSyndromes,
     };
   }
 }

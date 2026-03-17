@@ -50,7 +50,7 @@ const handleLogin = async () => {
         <div class="login-logo">
           <UIcon name="i-lucide-heart-pulse" class="login-logo-icon" />
         </div>
-        <h1 class="login-title">Cổng Bác Sĩ</h1>
+        <h1 class="login-title">Kinh Lạc</h1>
         <p class="login-subtitle">Đăng nhập để truy cập hệ thống quản lý y tế</p>
       </div>
 
@@ -152,7 +152,7 @@ const handleLogin = async () => {
   width: 64px;
   height: 64px;
   border-radius: 20px;
-  background: linear-gradient(135deg, #1565c0, #1e88e5);
+  background: linear-gradient(135deg, var(--kl-primary, #5B3A1A), var(--kl-secondary, #8B1A1A));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -228,7 +228,7 @@ const handleLogin = async () => {
 }
 
 .form-input:focus {
-  border-color: #1e88e5;
+  border-color: var(--kl-secondary, #8B1A1A);
   background: #ffffff;
   box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.12);
 }
@@ -259,7 +259,7 @@ const handleLogin = async () => {
 /* ─── Button ─── */
 .login-btn {
   padding: 13px;
-  background: linear-gradient(135deg, #1565c0, #1e88e5);
+  background: linear-gradient(135deg, var(--kl-primary, #5B3A1A), var(--kl-secondary, #8B1A1A));
   color: #ffffff;
   border: none;
   border-radius: 12px;

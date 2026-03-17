@@ -272,7 +272,7 @@ const handleSubmit = async () => {
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #1565c0, #1e88e5);
+  background: linear-gradient(135deg, var(--kl-primary, #5B3A1A), var(--kl-secondary, #8B1A1A));
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -348,7 +348,7 @@ const handleSubmit = async () => {
 .form-input:focus,
 .form-select:focus,
 .form-textarea:focus {
-  border-color: #1e88e5;
+  border-color: var(--kl-secondary, #8B1A1A);
   background: #ffffff;
   box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.1);
 }
@@ -388,8 +388,8 @@ const handleSubmit = async () => {
   cursor: pointer;
   transition: all 0.18s;
 }
-.gender-btn:hover { border-color: #1e88e5; color: #1e88e5; }
-.gender-btn--active { background: #1e88e5; border-color: #1e88e5; color: #ffffff; }
+.gender-btn:hover { border-color: var(--kl-secondary, #8B1A1A); color: var(--kl-secondary, #8B1A1A); }
+.gender-btn--active { background: var(--kl-secondary, #8B1A1A); border-color: var(--kl-secondary, #8B1A1A); color: #ffffff; }
 .gender-btn--female.gender-btn--active { background: #e91e8c; border-color: #e91e8c; }
 .gender-icon { width: 15px; height: 15px; }
 
@@ -435,7 +435,7 @@ const handleSubmit = async () => {
   align-items: center;
   gap: 8px;
   padding: 9px 22px;
-  background: linear-gradient(135deg, #1565c0, #1e88e5);
+  background: linear-gradient(135deg, var(--kl-primary, #5B3A1A), var(--kl-secondary, #8B1A1A));
   color: #ffffff;
   border: none;
   border-radius: 10px;

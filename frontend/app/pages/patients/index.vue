@@ -284,7 +284,7 @@ const handleDelete = async (id: number, name: string) => {
   align-items: center;
   gap: 8px;
   padding: 10px 18px;
-  background: linear-gradient(135deg, #1565c0, #1e88e5);
+  background: linear-gradient(135deg, var(--kl-primary, #5B3A1A), var(--kl-secondary, #8B1A1A));
   color: #fff;
   border: none;
   border-radius: 12px;
@@ -336,8 +336,8 @@ const handleDelete = async (id: number, name: string) => {
 }
 
 .search-input:focus {
-  border-color: #1e88e5;
-  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.1);
+  border-color: var(--kl-secondary, #8B1A1A);
+  box-shadow: 0 0 0 3px rgba(139, 26, 26, 0.1);
 }
 
 /* ─── Loading ─── */
@@ -407,7 +407,7 @@ const handleDelete = async (id: number, name: string) => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #1565c0, #1e88e5);
+  background: linear-gradient(135deg, var(--kl-primary, #5B3A1A), var(--kl-secondary, #8B1A1A));
   color: #fff;
   font-size: 0.875rem;
   font-weight: 600;
@@ -431,7 +431,7 @@ const handleDelete = async (id: number, name: string) => {
 /* Gender */
 .gender-cell { display: flex; align-items: center; gap: 6px; }
 .gender-icon { width: 15px; height: 15px; }
-.gender--male { color: #1e88e5; }
+.gender--male { color: var(--kl-secondary, #8B1A1A); }
 .gender--female { color: #e91e8c; }
 
 /* Action */
@@ -454,8 +454,8 @@ const handleDelete = async (id: number, name: string) => {
 a.action-btn { text-decoration: none; }
 
 .action-btn:hover {
-  border-color: #1e88e5;
-  color: #1e88e5;
+  border-color: var(--kl-secondary, #8B1A1A);
+  color: var(--kl-secondary, #8B1A1A);
   background: #f0f7ff;
 }
 
@@ -523,9 +523,9 @@ a.action-btn { text-decoration: none; }
 }
 
 .pagination-btn:hover:not(:disabled) {
-  border-color: #1e88e5;
-  color: #1e88e5;
-  background: #f0f7ff;
+  border-color: var(--kl-secondary, #8B1A1A);
+  color: var(--kl-secondary, #8B1A1A);
+  background: var(--kl-bg-light, #FBF8F1);
 }
 
 .pagination-btn:disabled {
@@ -534,14 +534,14 @@ a.action-btn { text-decoration: none; }
 }
 
 .pagination-num--active {
-  border-color: #1e88e5;
-  background: #1e88e5;
+  border-color: var(--kl-secondary, #8B1A1A);
+  background: var(--kl-secondary, #8B1A1A);
   color: #fff;
 }
 
 .pagination-num--active:hover {
-  background: #1565c0;
-  border-color: #1565c0;
+  background: var(--kl-primary, #5B3A1A);
+  border-color: var(--kl-primary, #5B3A1A);
   color: #fff;
 }
 

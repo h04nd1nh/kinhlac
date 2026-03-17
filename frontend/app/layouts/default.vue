@@ -68,19 +68,19 @@ const isActive = (path: string) => route.path === path
   width: 100%;
   min-height: 100vh;
   overflow-x: hidden;
-  background-color: #f0f7ff;
+  background-color: var(--kl-bg-light, #FBF8F1);
 }
 
-/* ─── Sidebar ─── */
+/* ─── Sidebar (nâu đậm như webapp) ─── */
 .sidebar {
   width: 72px;
   min-height: 100vh;
-  background: linear-gradient(180deg, #1565c0 0%, #1e88e5 100%);
+  background: var(--kl-sidebar, #3A2410);
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 16px 0;
-  box-shadow: 4px 0 20px rgba(21, 101, 192, 0.25);
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
   transition: width 0.25s ease;
   overflow: hidden;
@@ -97,7 +97,7 @@ const isActive = (path: string) => route.path === path
   justify-content: center;
   width: 100%;
   padding: 8px 0 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   margin-bottom: 12px;
 }
 
@@ -105,7 +105,7 @@ const isActive = (path: string) => route.path === path
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -115,7 +115,7 @@ const isActive = (path: string) => route.path === path
 .logo-icon-svg {
   width: 24px;
   height: 24px;
-  color: #ffffff;
+  color: #F0E8D8;
 }
 
 /* ─── Nav ─── */
@@ -131,7 +131,7 @@ const isActive = (path: string) => route.path === path
 .sidebar-footer {
   width: 100%;
   padding: 0 10px 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   padding-top: 10px;
 }
 
@@ -141,7 +141,7 @@ const isActive = (path: string) => route.path === path
   gap: 12px;
   padding: 12px;
   border-radius: 12px;
-  color: rgba(255, 255, 255, 0.8);
+  color: #C4B598;
   text-decoration: none;
   cursor: pointer;
   background: transparent;
@@ -155,20 +155,21 @@ const isActive = (path: string) => route.path === path
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
   transform: translateX(2px);
 }
 
 .nav-item--active {
-  background: rgba(255, 255, 255, 0.22);
-  color: #ffffff;
+  background: var(--kl-secondary, #8B1A1A);
+  color: #fff;
+  font-weight: 600;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .nav-item--logout:hover {
-  background: rgba(255, 82, 82, 0.25);
-  color: #ffcdd2;
+  background: rgba(200, 80, 80, 0.3);
+  color: #f0c0c0;
 }
 
 .nav-icon {

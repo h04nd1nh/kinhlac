@@ -412,7 +412,7 @@ const statusClass = (val: string): string => {
 .empty-icon { width: 48px; height: 48px; opacity: 0.5; }
 
 .back-link {
-  color: #1e88e5;
+  color: var(--kl-secondary, #8B1A1A);
   text-decoration: none;
   font-weight: 500;
   font-size: 0.875rem;
@@ -451,8 +451,8 @@ const statusClass = (val: string): string => {
 }
 
 .back-btn:hover {
-  border-color: #1e88e5;
-  color: #1e88e5;
+  border-color: var(--kl-secondary, #8B1A1A);
+  color: var(--kl-secondary, #8B1A1A);
   background: #f0f7ff;
 }
 
@@ -466,7 +466,7 @@ const statusClass = (val: string): string => {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #1565c0, #1e88e5);
+  background: linear-gradient(135deg, #1565c0, var(--kl-secondary, #8B1A1A));
   color: #fff;
   font-size: 1.2rem;
   font-weight: 600;
@@ -500,7 +500,7 @@ const statusClass = (val: string): string => {
   align-items: center;
   gap: 8px;
   padding: 10px 18px;
-  background: linear-gradient(135deg, #1565c0, #1e88e5);
+  background: linear-gradient(135deg, #1565c0, var(--kl-secondary, #8B1A1A));
   color: #fff;
   border: none;
   border-radius: 12px;
@@ -570,7 +570,7 @@ const statusClass = (val: string): string => {
 .card-header-icon {
   width: 18px;
   height: 18px;
-  color: #1e88e5;
+  color: var(--kl-secondary, #8B1A1A);
 }
 
 .card-title {
@@ -621,7 +621,7 @@ const statusClass = (val: string): string => {
 
 /* Gender */
 .gender-icon { width: 15px; height: 15px; }
-.gender--male { color: #1e88e5; }
+.gender--male { color: var(--kl-secondary, #8B1A1A); }
 .gender--female { color: #e91e8c; }
 
 /* ─── Meta ─── */
@@ -738,7 +738,7 @@ const statusClass = (val: string): string => {
 .exam-item-icon {
   width: 20px;
   height: 20px;
-  color: #1e88e5;
+  color: var(--kl-secondary, #8B1A1A);
   flex-shrink: 0;
 }
 
@@ -860,7 +860,7 @@ const statusClass = (val: string): string => {
 
 .flag--normal { background: #f1f5f9; color: #64748b; }
 .flag--high { background: #fff3e0; color: #e65100; }
-.flag--low { background: #e3f2fd; color: #1565c0; }
+.flag--low { background: #F5F0E8; color: var(--kl-status-minus, #1A5276); }
 
 .exam-syndromes {
   display: flex;
@@ -874,7 +874,7 @@ const statusClass = (val: string): string => {
   padding: 6px 10px;
   background: #fafbfc;
   border-radius: 8px;
-  border-left: 3px solid #1e88e5;
+  border-left: 3px solid var(--kl-secondary, #8B1A1A);
 }
 
 .exam-notes {

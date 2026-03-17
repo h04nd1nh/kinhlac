@@ -251,7 +251,7 @@ const hoveredIdx = ref<number | null>(null)
   margin-bottom: 20px;
 }
 
-.mc-title-icon { width: 20px; height: 20px; color: #1e88e5; }
+.mc-title-icon { width: 20px; height: 20px; color: var(--kl-secondary, #8B1A1A); }
 
 /* ─── Chart layout ─── */
 .mc-chart {
