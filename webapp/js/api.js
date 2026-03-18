@@ -1,5 +1,5 @@
 // api.js - Lớp mỏng tách UI khỏi NestJS backend
-const BASE_NEST = 'http://127.0.0.1:3001';
+const BASE_NEST = '';
 
 function _base() {
     return BASE_NEST;
