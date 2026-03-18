@@ -13,6 +13,11 @@ echo "=== 2. Build backend ==="
 cd "$(dirname "$0")/backend"
 npm ci
 npx tsc -p tsconfig.build.json
+if [ ! -f dist/main.js ]; then
+  echo "LỖI: Build thất bại - dist/main.js không tồn tại!"
+  exit 1
+fi
+echo "Build OK: dist/main.js đã tạo thành công"
 
 echo "=== 3. Khởi động backend bằng PM2 ==="
 pm2 delete medicine-backend 2>/dev/null || true
