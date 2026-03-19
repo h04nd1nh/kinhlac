@@ -212,12 +212,21 @@ function updateMeasureGuide(meridianId, side /* 'L' | 'R' */) {
         activeSvg.classList.remove('mg-flip');
     }
 
-    // Marker dùng tọa độ (g.x) theo một quy ước cố định.
-    // Sau khi chỉnh lật hiển thị, bên nào cần mirror trục X sẽ ngược nhau;
-    // hiện tại: chân trái đang bị mirror ngược => áp mirror cho 'L'.
+    // Marker: tự động căn theo trạng thái transform của SVG (scaleX(-1) sẽ cần mirror lại marker).
     if (marker) {
         marker.style.display = '';
-        const x = (side === 'L') ? (100 - g.x) : g.x;
+        let x = g.x;
+        const svgToMeasure = (g.part === 'hand') ? hand : foot;
+        if (svgToMeasure) {
+            const tr = window.getComputedStyle(svgToMeasure).transform;
+            // tr dạng: matrix(a,b,c,d,e,f)
+            // Với scaleX(-1): a < 0
+            const m = tr && tr !== 'none' ? tr.match(/matrix\(([-\d.]+),\s*([-\d.]+),\s*([-\d.]+),\s*([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\)/) : null;
+            if (m) {
+                const a = parseFloat(m[1]);
+                if (Number.isFinite(a) && a < 0) x = 100 - g.x;
+            }
+        }
         marker.style.left = x + '%';
         marker.style.top = g.y + '%';
     }
