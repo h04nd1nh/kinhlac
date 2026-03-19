@@ -206,17 +206,15 @@ function updateMeasureGuide(meridianId, side /* 'L' | 'R' */) {
     if (limbEl) limbEl.textContent = limbTxt;
     if (capNoteEl) capNoteEl.textContent = (g.part === 'hand') ? 'Sơ đồ bàn tay' : 'Sơ đồ bàn chân';
 
-    // Đảo gương theo bên trái/phải để người mới nhìn dễ hơn
-    const flip = side === 'R';
+    // Hiển thị đúng bên L/R theo dữ liệu, không đảo gương
     const activeSvg = g.part === 'hand' ? hand : foot;
     if (activeSvg) {
-        activeSvg.classList.toggle('mg-flip', flip);
+        activeSvg.classList.remove('mg-flip');
     }
 
     if (marker) {
         marker.style.display = '';
-        const x = flip ? (100 - g.x) : g.x;
-        marker.style.left = x + '%';
+        marker.style.left = g.x + '%';
         marker.style.top = g.y + '%';
     }
     if (sideEl) sideEl.textContent = sideShort;
