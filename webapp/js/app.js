@@ -2548,30 +2548,49 @@ async function selectModelForRecord(modelId) {
     const isAlready = !!_selectedRecordModels[mid];
 
     const btn = document.getElementById('btn-select-model-' + mid);
+    const originalText = btn ? btn.textContent : '';
 
     if (isAlready) {
         // Bỏ chọn
         if (!confirm('Bỏ chọn mô hình này khỏi phiếu khám?')) return;
         try {
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Đang bỏ chọn...';
+            }
             await apiRemoveRecordModel(phieukhamId, mid);
             delete _selectedRecordModels[mid];
             if (btn) {
                 btn.textContent = '+ Chọn mô hình này cho phiếu';
                 btn.style.background = '#2D5A27'; btn.style.color = 'white';
                 btn.style.border = '1px solid #1E4020';
+                btn.disabled = false;
             }
             renderSelectedModelsPanel(phieukhamId);
         } catch (e) {
             alert('Lỗi: ' + e.message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                if (!isAlready) btn.textContent = originalText || btn.textContent;
+            }
         }
     } else {
         // Chọn mô hình
         const m = diseaseModels.find(x => _modelId(x) == mid);
         const payload = { modelId: mid, duocChon: true, doPhuHop: 0 };
         try {
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Đang lưu...';
+            }
             const result = await apiSaveRecordModel(phieukhamId, payload);
             if (result && result.success === false) {
                 alert('Lỗi khi lưu: ' + (result.error || 'Không rõ lỗi'));
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = originalText || '+ Chọn mô hình này cho phiếu';
+                }
                 return;
             }
             _selectedRecordModels[mid] = { modelId: mid, ten: _modelName(m), phaptri: m?.phaptri || m?.phepchua || '', phuonghuyet: m?.phuonghuyet || m?.phuyet_chamcuu || '', trieuchung: m?.trieuchung || '' };
@@ -2579,10 +2598,19 @@ async function selectModelForRecord(modelId) {
                 btn.textContent = '✓ Đã chọn cho phiếu này';
                 btn.style.background = '#D4EDDA'; btn.style.color = '#155724';
                 btn.style.border = '1px solid #C3E6CB';
+                btn.disabled = false;
             }
             renderSelectedModelsPanel(phieukhamId);
         } catch (e) {
             alert('Lỗi khi lưu: ' + e.message);
+        } finally {
+            if (btn && btn.disabled) {
+                btn.disabled = false;
+                // nếu vì lý do nào đó text chưa được set ở các nhánh trên, trả lại text cũ
+                if (!isAlready && btn.textContent === 'Đang lưu...') {
+                    btn.textContent = originalText || '+ Chọn mô hình này cho phiếu';
+                }
+            }
         }
     }
 }
