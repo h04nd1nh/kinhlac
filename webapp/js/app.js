@@ -206,10 +206,10 @@ function updateMeasureGuide(meridianId, side /* 'L' | 'R' */) {
     if (limbEl) limbEl.textContent = limbTxt;
     if (capNoteEl) capNoteEl.textContent = (g.part === 'hand') ? 'Sơ đồ bàn tay' : 'Sơ đồ bàn chân';
 
-    // Hiển thị đúng bên L/R theo dữ liệu, không đảo gương
+    // Với sơ đồ bàn chân, lật gương khi chọn chân trái để đúng trực quan.
     const activeSvg = g.part === 'hand' ? hand : foot;
     if (activeSvg) {
-        activeSvg.classList.remove('mg-flip');
+        activeSvg.classList.toggle('mg-flip', g.part === 'foot' && side === 'L');
     }
 
     // Marker: tự động căn theo trạng thái transform của SVG (scaleX(-1) sẽ cần mirror lại marker).
@@ -308,7 +308,18 @@ function _mgSetFromPointer(clientX, clientY) {
     xDisp = Math.max(0, Math.min(100, xDisp));
     y = Math.max(0, Math.min(100, y));
 
-    const flip = _mgActive.side === 'R';
+    const activeSvg = _mgActive.meridianId ? (_getGuideFor(_mgActive.meridianId)?.part === 'hand'
+        ? document.getElementById('mg-hand')
+        : document.getElementById('mg-foot')) : null;
+    let flip = false;
+    if (activeSvg) {
+        const tr = window.getComputedStyle(activeSvg).transform;
+        const m = tr && tr !== 'none' ? tr.match(/matrix\(([-\d.]+),\s*([-\d.]+),\s*([-\d.]+),\s*([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\)/) : null;
+        if (m) {
+            const a = parseFloat(m[1]);
+            flip = Number.isFinite(a) && a < 0;
+        }
+    }
     const xBase = flip ? (100 - xDisp) : xDisp; // lưu theo hệ tọa độ gốc (chưa flip)
     _mgDraft = { x: xBase, y };
 
