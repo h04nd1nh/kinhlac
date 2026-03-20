@@ -998,25 +998,32 @@ function renderHistory(patientId) {
 // =========================================================
 // PHÂN TÍCH KINH LẠC
 // =========================================================
-function viewAnalysis(patientId, phieukhamId = null) {
-    if (!patientId && phieukhamId) {
-        // Tìm patientId từ recordData nếu chỉ có phieukhamId
-        const rec = recordData.find(r => r.phieukhamId == phieukhamId);
-        if (rec) patientId = rec.benhnhanId;
+async function viewAnalysis(patientId, phieukhamId = null) {
+    if (!phieukhamId && !patientId) return;
+
+    // Luôn fetch data mới nhất từ server cho phiếu này
+    let target = null;
+    if (phieukhamId) {
+        target = await apiGetRecord(phieukhamId);
+        if (target) patientId = target.benhnhanId;
     }
-    const recs = recordData.filter(r => r.benhnhanId == patientId);
-    if (!recs.length) { 
-        if (phieukhamId) {
-            alert(`Không tìm thấy dữ liệu cho phiếu khám #${phieukhamId}. Có thể bạn cần làm mới trang để cập nhật.`);
-        } else {
-            alert('Chưa có dữ liệu đo kinh lạc cho bệnh nhân này.'); 
+
+    if (!target && patientId) {
+        // Nếu không có phieukhamId, lấy phiếu mới nhất của bệnh nhân từ recordData cục bộ
+        const recs = recordData.filter(r => r.benhnhanId == patientId);
+        if (recs.length) {
+            target = recs.sort((a, b) => b.phieukhamId - a.phieukhamId)[0];
         }
-        return; 
     }
-    _selectedPatientIdForNewRecord = patientId;
-    const target = phieukhamId
-        ? recs.find(r => r.phieukhamId == phieukhamId)
-        : recs.sort((a, b) => b.phieukhamId - a.phieukhamId)[0];
+
+    if (!target) {
+        if (phieukhamId) {
+            alert(`Không tìm thấy dữ liệu cho phiếu khám #${phieukhamId}.`);
+        } else {
+            alert('Chưa có dữ liệu đo kinh lạc cho bệnh nhân này.');
+        }
+        return;
+    }
     activeAnalysisRecord = target;
     _editingRecordId = null;
     _selectedRecordModels = {};

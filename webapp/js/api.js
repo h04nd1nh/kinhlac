@@ -247,6 +247,13 @@ async function apiGetRecords() {
     return Array.isArray(rows) ? rows.map(_mapNestExamToLegacy) : [];
 }
 
+async function apiGetRecord(id) {
+    const res = await fetch(_base() + '/examinations/' + id);
+    if (!res.ok) return null;
+    const row = await res.json();
+    return _mapNestExamToLegacy(row);
+}
+
 async function apiSaveRecord(payload, isEditing) {
     const id = payload.phieukhamId;
     const url = isEditing ? (_base() + '/examinations/' + id) : (_base() + '/examinations');
