@@ -10,6 +10,9 @@ let activeAnalysisRecord = null;
 let _selectedPatientIdForNewRecord = null;
 let _editingRecordId = null;
 let _editingPatientId = null;
+let phuongHuyetData = [];
+let baiThuocData = [];
+let trieuChungData = [];
 let _newRecTimer = null;
 let _newRecWeatherTimer = null;
 
@@ -441,10 +444,19 @@ async function loadData() {
             console.warn('Không tải được kl_tinhthanh.json', e);
         }
 
+        // Tải dữ liệu 3 tab mới: Phương huyệt, Bài thuốc, Triệu chứng
+        status.innerText = 'Đang tải danh mục phương huyệt, bài thuốc, triệu chứng...';
+        try { phuongHuyetData = await apiGetPhuongHuyet(); } catch (e) { console.warn('Không tải được phương huyệt', e); phuongHuyetData = []; }
+        try { baiThuocData = await apiGetBaiThuoc(); } catch (e) { console.warn('Không tải được bài thuốc', e); baiThuocData = []; }
+        try { trieuChungData = await apiGetTrieuChung(); } catch (e) { console.warn('Không tải được triệu chứng', e); trieuChungData = []; }
+
         updateDashboardStats();
         renderRecentPatients();
         renderFullPatients();
         renderDiseaseModels();
+        renderPhuongHuyet();
+        renderBaiThuoc();
+        renderTrieuChung();
         loader.remove();
     } catch (err) {
         console.error(err);
@@ -519,6 +531,9 @@ const _sections = {
     analysis:       { title: 'Phân tích',        parent: 'patient-profile' },
     reports:        { title: 'Báo cáo',          parent: 'dashboard' },
     models:         { title: 'Mô hình bệnh',    parent: 'dashboard' },
+    'phuong-huyet': { title: 'Phương huyệt',     parent: 'dashboard' },
+    'bai-thuoc':    { title: 'Bài thuốc',        parent: 'dashboard' },
+    'trieu-chung':  { title: 'Triệu chứng',      parent: 'dashboard' },
 };
 
 function _sectionLabel(id) {
@@ -578,6 +593,9 @@ function _updateBreadcrumb(currentId) {
         analysis: `/analysis/${activeAnalysisRecord?.phieukhamId || ''}`,
         reports: '/reports',
         models: '/models',
+        'phuong-huyet': '/phuong-huyet',
+        'bai-thuoc': '/bai-thuoc',
+        'trieu-chung': '/trieu-chung',
     };
     const hash = hashMap[currentId] || '/' + currentId;
     if (window.location.hash.replace('#', '') !== hash) {
@@ -3374,3 +3392,192 @@ function formatDate(dateStr) {
         return new Date(dateStr).toLocaleDateString('vi-VN');
     } catch(e) { return dateStr; }
 }
+
+// =========================================================
+// QUẢN LÝ PHƯƠNG HUYỆT - BÀI THUỐC - TRIỆU CHỨNG
+// =========================================================
+
+let _simpleCrudActiveType = null; // 'ph' | 'bt' | 'tc'
+let _simpleCrudActiveId = null;
+
+function renderSimpleList(listId, data, type) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    list.innerHTML = data.map(item => {
+        let val = '';
+        if (type === 'ph') val = item.phuong_huyet;
+        if (type === 'bt') val = item.ten_bai_thuoc;
+        if (type === 'tc') val = item.ten_trieu_chung;
+
+        return `
+            <tr>
+                <td>#${item.id}</td>
+                <td style="font-weight:600;">${val || '—'}</td>
+                <td style="text-align:center;">
+                    <button class="btn btn-sm" style="border:1px solid #D4C5A0;" onclick="openSimpleEditor('${type}', ${item.id})">Sửa</button>
+                    <button class="btn btn-sm" style="border:1px solid #E6B0AA;background:#FDECEA;color:#B03A2E;margin-left:4px;" onclick="deleteSimple('${type}', ${item.id})">Xóa</button>
+                </td>
+            </tr>`;
+    }).join('');
+}
+
+function renderPhuongHuyet(data = phuongHuyetData) { renderSimpleList('phuong-huyet-list', data, 'ph'); }
+function renderBaiThuoc(data = baiThuocData) { renderSimpleList('bai-thuoc-list', data, 'bt'); }
+function renderTrieuChung(data = trieuChungData) { renderSimpleList('trieu-chung-list', data, 'tc'); }
+
+function filterPhuongHuyet() {
+    const q = document.getElementById('phuong-huyet-search').value.toLowerCase();
+    const filtered = phuongHuyetData.filter(x => (x.phuong_huyet || '').toLowerCase().includes(q) || String(x.id).includes(q));
+    renderPhuongHuyet(filtered);
+}
+function filterBaiThuoc() {
+    const q = document.getElementById('bai-thuoc-search').value.toLowerCase();
+    const filtered = baiThuocData.filter(x => (x.ten_bai_thuoc || '').toLowerCase().includes(q) || String(x.id).includes(q));
+    renderBaiThuoc(filtered);
+}
+function filterTrieuChung() {
+    const q = document.getElementById('trieu-chung-search').value.toLowerCase();
+    const filtered = trieuChungData.filter(x => (x.ten_trieu_chung || '').toLowerCase().includes(q) || String(x.id).includes(q));
+    renderTrieuChung(filtered);
+}
+
+function openSimpleEditor(type, id = null) {
+    _simpleCrudActiveType = type;
+    _simpleCrudActiveId = id;
+
+    const modal = document.getElementById('simple-crud-modal');
+    const title = document.getElementById('simple-crud-title');
+    const label = document.getElementById('simple-crud-label');
+    const input = document.getElementById('simple-crud-value');
+    const error = document.getElementById('simple-crud-error');
+
+    if (!modal || !title || !input) return;
+
+    error.textContent = '';
+    input.value = '';
+
+    let typeName = '';
+    if (type === 'ph') { typeName = 'Phương huyệt'; label.textContent = 'Phương huyệt (nhiều huyệt cách nhau bằng dấu phẩy)'; }
+    if (type === 'bt') { typeName = 'Bài thuốc'; label.textContent = 'Tên bài thuốc'; }
+    if (type === 'tc') { typeName = 'Triệu chứng'; label.textContent = 'Tên triệu chứng'; }
+
+    title.textContent = (id ? 'Cập nhật ' : 'Thêm ') + typeName;
+
+    if (id) {
+        let item = null;
+        if (type === 'ph') item = phuongHuyetData.find(x => x.id === id);
+        if (type === 'bt') item = baiThuocData.find(x => x.id === id);
+        if (type === 'tc') item = trieuChungData.find(x => x.id === id);
+
+        if (item) {
+            if (type === 'ph') input.value = item.phuong_huyet || '';
+            if (type === 'bt') input.value = item.ten_bai_thuoc || '';
+            if (type === 'tc') input.value = item.ten_trieu_chung || '';
+        }
+    }
+
+    modal.style.display = 'flex';
+    input.focus();
+}
+
+// Export functions to global scope (for index.html onclick)
+window.openPhuongHuyetEditor = () => openSimpleEditor('ph');
+window.openBaiThuocEditor = () => openSimpleEditor('bt');
+window.openTrieuChungEditor = () => openSimpleEditor('tc');
+
+function closeSimpleCrudModal() {
+    const modal = document.getElementById('simple-crud-modal');
+    if (modal) modal.style.display = 'none';
+    _simpleCrudActiveType = null;
+    _simpleCrudActiveId = null;
+}
+
+async function saveSimpleCrud() {
+    const type = _simpleCrudActiveType;
+    const id = _simpleCrudActiveId;
+    const val = document.getElementById('simple-crud-value').value.trim();
+    const error = document.getElementById('simple-crud-error');
+
+    if (!val) {
+        error.textContent = 'Vui lòng nhập giá trị';
+        return;
+    }
+
+    try {
+        let res = null;
+        let payload = {};
+
+        if (type === 'ph') payload = { phuong_huyet: val };
+        if (type === 'bt') payload = { ten_bai_thuoc: val };
+        if (type === 'tc') payload = { ten_trieu_chung: val };
+
+        if (id) {
+            if (type === 'ph') res = await apiUpdatePhuongHuyet(id, payload);
+            if (type === 'bt') res = await apiUpdateBaiThuoc(id, payload);
+            if (type === 'tc') res = await apiUpdateTrieuChung(id, payload);
+        } else {
+            if (type === 'ph') res = await apiCreatePhuongHuyet(payload);
+            if (type === 'bt') res = await apiCreateBaiThuoc(payload);
+            if (type === 'tc') res = await apiCreateTrieuChung(payload);
+        }
+
+        if (res && res.success) {
+            // Update local data
+            if (id) {
+                if (type === 'ph') { const i = phuongHuyetData.findIndex(x => x.id === id); if (i >= 0) phuongHuyetData[i] = res.data; }
+                if (type === 'bt') { const i = baiThuocData.findIndex(x => x.id === id); if (i >= 0) baiThuocData[i] = res.data; }
+                if (type === 'tc') { const i = trieuChungData.findIndex(x => x.id === id); if (i >= 0) trieuChungData[i] = res.data; }
+            } else {
+                if (type === 'ph') phuongHuyetData.unshift(res.data);
+                if (type === 'bt') baiThuocData.unshift(res.data);
+                if (type === 'tc') trieuChungData.unshift(res.data);
+            }
+
+            // Re-render
+            if (type === 'ph') renderPhuongHuyet();
+            if (type === 'bt') renderBaiThuoc();
+            if (type === 'tc') renderTrieuChung();
+
+            closeSimpleCrudModal();
+        } else {
+            error.textContent = res ? res.error : 'Lỗi không xác định';
+        }
+    } catch (e) {
+        error.textContent = 'Lỗi kết nối: ' + e.message;
+    }
+}
+
+async function deleteSimple(type, id) {
+    let typeName = '';
+    if (type === 'ph') typeName = 'phương huyệt';
+    if (type === 'bt') typeName = 'bài thuốc';
+    if (type === 'tc') typeName = 'triệu chứng';
+
+    if (!confirm(`Bạn có chắc muốn xóa ${typeName} này không?`)) return;
+
+    try {
+        let res = null;
+        if (type === 'ph') res = await apiDeletePhuongHuyet(id);
+        if (type === 'bt') res = await apiDeleteBaiThuoc(id);
+        if (type === 'tc') res = await apiDeleteTrieuChung(id);
+
+        if (res && res.success) {
+            if (type === 'ph') { phuongHuyetData = phuongHuyetData.filter(x => x.id !== id); renderPhuongHuyet(); }
+            if (type === 'bt') { baiThuocData = baiThuocData.filter(x => x.id !== id); renderBaiThuoc(); }
+            if (type === 'tc') { trieuChungData = trieuChungData.filter(x => x.id !== id); renderTrieuChung(); }
+        } else {
+            alert('Xóa thất bại: ' + (res ? res.error : 'không rõ'));
+        }
+    } catch (e) {
+        alert('Lỗi kết nối khi xóa: ' + e.message);
+    }
+}
+
+window.openSimpleEditor = openSimpleEditor;
+window.deleteSimple = deleteSimple;
+window.closeSimpleCrudModal = closeSimpleCrudModal;
+window.saveSimpleCrud = saveSimpleCrud;
+window.filterPhuongHuyet = filterPhuongHuyet;
+window.filterBaiThuoc = filterBaiThuoc;
+window.filterTrieuChung = filterTrieuChung;
+

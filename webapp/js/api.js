@@ -448,3 +448,111 @@ async function apiSummarizeSelectedModels(phieukhamId) {
     const text = await res.text();
     try { return JSON.parse(text); } catch { return { success: false, error: text || res.status }; }
 }
+
+// ---- PHƯƠNG HUYỆT ----
+
+async function apiGetPhuongHuyet() {
+    const res = await fetch(_base() + '/phuong-huyet');
+    if (!res.ok) throw new Error('Không tải được danh sách phương huyệt');
+    return res.json();
+}
+
+async function apiCreatePhuongHuyet(payload) {
+    const res = await fetch(_base() + '/phuong-huyet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Tạo phương huyệt thất bại') };
+    const data = await res.json();
+    return { success: true, id: data.id, data };
+}
+
+async function apiUpdatePhuongHuyet(id, payload) {
+    const res = await fetch(_base() + '/phuong-huyet/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Cập nhật phương huyệt thất bại') };
+    const data = await res.json();
+    return { success: true, id: data.id, data };
+}
+
+async function apiDeletePhuongHuyet(id) {
+    const res = await fetch(_base() + '/phuong-huyet/' + id, { method: 'DELETE' });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Xóa phương huyệt thất bại') };
+    return { success: true };
+}
+
+// ---- BÀI THUỐC ----
+
+async function apiGetBaiThuoc() {
+    const res = await fetch(_base() + '/bai-thuoc');
+    if (!res.ok) throw new Error('Không tải được danh sách bài thuốc');
+    return res.json();
+}
+
+async function apiCreateBaiThuoc(payload) {
+    const res = await fetch(_base() + '/bai-thuoc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Tạo bài thuốc thất bại') };
+    const data = await res.json();
+    return { success: true, id: data.id, data };
+}
+
+async function apiUpdateBaiThuoc(id, payload) {
+    const res = await fetch(_base() + '/bai-thuoc/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Cập nhật bài thuốc thất bại') };
+    const data = await res.json();
+    return { success: true, id: data.id, data };
+}
+
+async function apiDeleteBaiThuoc(id) {
+    const res = await fetch(_base() + '/bai-thuoc/' + id, { method: 'DELETE' });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Xóa bài thuốc thất bại') };
+    return { success: true };
+}
+
+// ---- TRIỆU CHỨNG ----
+
+async function apiGetTrieuChung() {
+    const res = await fetch(_base() + '/trieu-chung');
+    if (!res.ok) throw new Error('Không tải được danh sách triệu chứng');
+    return res.json();
+}
+
+async function apiCreateTrieuChung(payload) {
+    const res = await fetch(_base() + '/trieu-chung', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Tạo triệu chứng thất bại') };
+    const data = await res.json();
+    return { success: true, id: data.id, data };
+}
+
+async function apiUpdateTrieuChung(id, payload) {
+    const res = await fetch(_base() + '/trieu-chung/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Cập nhật triệu chứng thất bại') };
+    const data = await res.json();
+    return { success: true, id: data.id, data };
+}
+
+async function apiDeleteTrieuChung(id) {
+    const res = await fetch(_base() + '/trieu-chung/' + id, { method: 'DELETE' });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Xóa triệu chứng thất bại') };
+    return { success: true };
+}

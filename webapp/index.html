@@ -246,6 +246,9 @@
                     <li><a href="#" class="nav-link active" onclick="showSection('dashboard')">Trang chủ</a></li>
                     <li><a href="#" class="nav-link" onclick="showSection('patients')">Bệnh nhân</a></li>
                     <li><a href="#" class="nav-link" onclick="showSection('models')">Mô hình bệnh</a></li>
+                    <li><a href="#" class="nav-link" onclick="showSection('phuong-huyet')">Phương huyệt</a></li>
+                    <li><a href="#" class="nav-link" onclick="showSection('bai-thuoc')">Bài thuốc</a></li>
+                    <li><a href="#" class="nav-link" onclick="showSection('trieu-chung')">Triệu chứng</a></li>
                 </ul>
             </nav>
             <div id="sidebar-user" style="padding:12px 20px;border-top:1px solid rgba(255,255,255,0.15);font-size:0.8rem;color:rgba(255,255,255,0.7);display:none;">
@@ -729,6 +732,109 @@
                                 <!-- Data injected here -->
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phương Huyệt Section -->
+            <div id="phuong-huyet-section" class="section-content" style="display: none;">
+                <div class="section">
+                    <div class="section-header" style="display:flex;align-items:center;gap:10px;justify-content:space-between;">
+                        <h2 style="color: var(--secondary); margin:0;">Danh mục Phương huyệt</h2>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <input type="text" id="phuong-huyet-search" placeholder="Tìm phương huyệt..."
+                                style="padding: 0.5rem; border: 1px solid #ccc; width: 260px;" onkeyup="filterPhuongHuyet()">
+                            <button class="btn btn-primary" onclick="openPhuongHuyetEditor()">+ Thêm phương huyệt</button>
+                        </div>
+                    </div>
+                    <div class="data-table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:80px;">ID</th>
+                                    <th>Phương huyệt</th>
+                                    <th style="width: 150px; text-align: center;">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="phuong-huyet-list">
+                                <!-- Data injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bài Thuốc Section -->
+            <div id="bai-thuoc-section" class="section-content" style="display: none;">
+                <div class="section">
+                    <div class="section-header" style="display:flex;align-items:center;gap:10px;justify-content:space-between;">
+                        <h2 style="color: var(--secondary); margin:0;">Danh mục Bài thuốc</h2>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <input type="text" id="bai-thuoc-search" placeholder="Tìm bài thuốc..."
+                                style="padding: 0.5rem; border: 1px solid #ccc; width: 260px;" onkeyup="filterBaiThuoc()">
+                            <button class="btn btn-primary" onclick="openBaiThuocEditor()">+ Thêm bài thuốc</button>
+                        </div>
+                    </div>
+                    <div class="data-table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:80px;">ID</th>
+                                    <th>Tên bài thuốc</th>
+                                    <th style="width: 150px; text-align: center;">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bai-thuoc-list">
+                                <!-- Data injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Triệu Chứng Section -->
+            <div id="trieu-chung-section" class="section-content" style="display: none;">
+                <div class="section">
+                    <div class="section-header" style="display:flex;align-items:center;gap:10px;justify-content:space-between;">
+                        <h2 style="color: var(--secondary); margin:0;">Danh mục Triệu chứng</h2>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <input type="text" id="trieu-chung-search" placeholder="Tìm triệu chứng..."
+                                style="padding: 0.5rem; border: 1px solid #ccc; width: 260px;" onkeyup="filterTrieuChung()">
+                            <button class="btn btn-primary" onclick="openTrieuChungEditor()">+ Thêm triệu chứng</button>
+                        </div>
+                    </div>
+                    <div class="data-table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:80px;">ID</th>
+                                    <th>Tên triệu chứng</th>
+                                    <th style="width: 150px; text-align: center;">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trieu-chung-list">
+                                <!-- Data injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CRUD Modal chung cho Phương huyệt / Bài thuốc / Triệu chứng -->
+            <div id="simple-crud-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:2000;align-items:center;justify-content:center;">
+                <div style="background:#FFFDF7;border-radius:8px;padding:16px 20px;min-width:420px;max-width:520px;border:1px solid #D4C5A0;box-shadow:0 6px 20px rgba(0,0,0,0.25);font-size:0.85rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <h3 id="simple-crud-title" style="margin:0;color:#8B1A1A;font-size:1rem;">Thêm/Sửa</h3>
+                        <button class="btn" onclick="closeSimpleCrudModal()" style="padding:2px 8px;">✕</button>
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <label id="simple-crud-label" style="font-size:0.82rem;color:#5B3A1A;font-weight:600;">Giá trị</label><br>
+                        <textarea id="simple-crud-value" rows="4" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;resize:vertical;font-size:0.85rem;margin-top:4px;box-sizing:border-box;"></textarea>
+                    </div>
+                    <div id="simple-crud-error" style="color:#B03A2E;font-size:0.78rem;min-height:16px;margin-bottom:6px;"></div>
+                    <div style="text-align:right;">
+                        <button class="btn" onclick="closeSimpleCrudModal()" style="margin-right:6px;">Hủy</button>
+                        <button class="btn btn-primary" onclick="saveSimpleCrud()">Lưu</button>
                     </div>
                 </div>
             </div>
