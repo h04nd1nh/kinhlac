@@ -95,30 +95,43 @@ function _mapLegacyPatientToNest(payload) {
 }
 
 function _mapNestExamToLegacy(exam) {
-    let rawInput = exam.inputData || {};
+    if (!exam) return null;
+
+    // Tìm trường chứa dữ liệu đo (inputData), chấp nhận mọi kiểu viết hoa/thường
+    let rawInput = {};
+    const inputField = Object.keys(exam).find(k => k.toLowerCase() === 'inputdata');
+    if (inputField) {
+        rawInput = exam[inputField] || {};
+    } else {
+        // Có thể backend trả về dạng phẳng (flattened)
+        rawInput = exam; 
+    }
     
-    // Nếu rawInput là chuỗi JSON (trường hợp DB trả về text thay vì jsonb hoặc parse lỗi)
+    // Nếu là chuỗi JSON
     if (typeof rawInput === 'string') {
         try {
             rawInput = JSON.parse(rawInput);
         } catch (e) {
-            console.error('Lỗi parse inputData:', e, rawInput);
             rawInput = {};
         }
     }
 
-    // Chuẩn hóa key về lowercase để xử lý cả camelCase (tyTrai) và lowercase (tytrai)
+    // Chuẩn hóa key của các chỉ số đo về lowercase
     const input = {};
     for (const key in rawInput) {
         input[key.toLowerCase()] = rawInput[key];
     }
 
+    // Lấy ID phiếu và ID bệnh nhân (chấp nhận cả id/patientId/patientid)
+    const phieukhamId = exam.id || exam.phieukhamId || exam.phieukham_id;
+    const benhnhanId = exam.patientId || exam.patientid || exam.benhnhanId;
+
     return {
-        phieukhamId: exam.id,
-        benhnhanId: exam.patientId,
-        ngaykham: _toLegacyTicks(exam.createdAt) || exam.createdAt,
-        giokham: _toLegacyTime(exam.createdAt),
-        nhietdoMoitruong: null,
+        phieukhamId: phieukhamId,
+        benhnhanId: benhnhanId,
+        ngaykham: _toLegacyTicks(exam.createdAt || exam.createdat) || (exam.createdAt || exam.createdat),
+        giokham: _toLegacyTime(exam.createdAt || exam.createdat),
+        nhietdoMoitruong: Number(input.nhietdomoitruong ?? 0),
         tieutruongTrai: Number(input.tieutruongtrai ?? 0),
         tieutruongPhai: Number(input.tieutruongphai ?? 0),
         tamTrai: Number(input.tamtrai ?? 0),
