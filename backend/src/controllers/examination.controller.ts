@@ -66,7 +66,21 @@ export class ExaminationsService {
       notes: dto.notes ?? null,
     });
 
-    return this.examinationRepository.save(examination);
+    try {
+      return await this.examinationRepository.save(examination);
+    } catch (error) {
+      // 23505 is PostgreSQL unique_violation.
+      // If it's a conflict on the primary key, we try to fix the sequence and retry.
+      if (
+        error.code === '23505' &&
+        (error.detail?.includes('Key (id)') || error.constraint?.includes('PK_'))
+      ) {
+        console.warn('Primary key sequence out of sync, fixing and retrying...');
+        await this.fixSequence();
+        return await this.examinationRepository.save(examination);
+      }
+      throw error;
+    }
   }
 
   async update(id: number, dto: UpdateExaminationDto): Promise<Examination> {
@@ -137,5 +151,26 @@ export class ExaminationsService {
   async remove(id: number): Promise<void> {
     const examination = await this.findOne(id);
     await this.examinationRepository.remove(examination);
+  }
+
+  async fixSequence(): Promise<any> {
+    try {
+      const tables = [
+        { name: 'examinations', seq: 'examinations_id_seq' },
+        { name: 'patients', seq: 'patients_id_seq' },
+        { name: 'meridian_syndromes', seq: 'meridian_syndromes_id_seq' },
+      ];
+
+      for (const table of tables) {
+        await this.examinationRepository.query(
+          `SELECT setval('${table.seq}', (SELECT COALESCE(MAX(id), 0) + 1 FROM ${table.name}), false)`,
+        );
+      }
+      
+      return { success: true, message: 'Sequences fixed for multiple tables' };
+    } catch (error) {
+      console.error('Failed to fix sequences:', error);
+      return { success: false, error: error.message };
+    }
   }
 }

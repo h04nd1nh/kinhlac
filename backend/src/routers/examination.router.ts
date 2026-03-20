@@ -22,6 +22,11 @@ export class ExaminationsRouter {
     return this.examinationsService.findAll();
   }
 
+  @Post('fix-sequence')
+  fixSequence() {
+    return this.examinationsService.fixSequence();
+  }
+
   @Post()
   create(@Body() dto: CreateExaminationDto) {
     return this.examinationsService.create(dto);
