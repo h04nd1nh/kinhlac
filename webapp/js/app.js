@@ -210,7 +210,9 @@ function updateMeasureGuide(meridianId, side /* 'L' | 'R' */) {
     // Lật theo nhóm SVG (`mg-foot-g`) để ổn định hơn trên các trình duyệt.
     const activeSvg = g.part === 'hand' ? hand : foot;
     const isFootLeft = g.part === 'foot' && side === 'L';
+    const isHandLeft = g.part === 'hand' && side === 'L';
     const footG = document.getElementById('mg-foot-g');
+    const handG = document.getElementById('mg-hand-g');
     if (hand) hand.style.transform = 'none';
     if (foot) foot.style.transform = 'none';
     if (footG) {
@@ -218,13 +220,17 @@ function updateMeasureGuide(meridianId, side /* 'L' | 'R' */) {
         footG.setAttribute('transform', isFootLeft ? 'translate(300 0) scale(-1 1)' : 'none');
         if (!isFootLeft) footG.removeAttribute('transform');
     }
+    if (handG) {
+        handG.setAttribute('transform', isHandLeft ? 'translate(300 0) scale(-1 1)' : 'none');
+        if (!isHandLeft) handG.removeAttribute('transform');
+    }
     // (mg-flip trong CSS đã được vô hiệu để tránh lật kép)
     if (activeSvg) activeSvg.classList.toggle('mg-flip', false);
 
     // Marker: mirror theo cùng logic lật gương của bàn chân.
     if (marker) {
         marker.style.display = '';
-        const x = isFootLeft ? (100 - g.x) : g.x;
+        const x = (isFootLeft || isHandLeft) ? (100 - g.x) : g.x;
         marker.style.left = x + '%';
         marker.style.top = g.y + '%';
     }
@@ -307,7 +313,7 @@ function _mgSetFromPointer(clientX, clientY) {
     y = Math.max(0, Math.min(100, y));
 
     const g = _getGuideFor(_mgActive.meridianId);
-    const flip = !!(g && g.part === 'foot' && _mgActive.side === 'L');
+    const flip = !!(g && (_mgActive.side === 'L') && (g.part === 'foot' || g.part === 'hand'));
     const xBase = flip ? (100 - xDisp) : xDisp; // lưu theo hệ tọa độ gốc (không lật)
     _mgDraft = { x: xBase, y };
 
