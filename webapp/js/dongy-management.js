@@ -13,6 +13,10 @@ let _dongyData = {
 // Mỗi dòng = 1 huyệt (tương tự cách bạn muốn ở danh mục vị thuốc)
 let _dhDraftPhuongHuyet = [];
 
+// Draft danh sách "phương huyệt" đang được chỉnh trong modal tab "Phương huyệt"
+// Mỗi dòng = 1 huyệt
+let _pdDraftPhuongHuyet = [];
+
 // ─── Khởi tạo ─────────────────────────────────────────────
 async function initDongyManagement() {
     await loadAllDongyData();
@@ -556,29 +560,231 @@ function renderPhacDoTab(el) {
 
 function openPhacDoForm(id) {
     const item = id ? _dongyData.phacDo.find(x => (x.idPhacDo == id || x.id == id)) : null;
-    const benhOpts = _dongyData.benhDongY.map(b => {
+    const initialBenhId = item ? (item.idBenh ?? item.id_benh) : null;
+
+    _pdDraftPhuongHuyet = [];
+    if (Number.isFinite(initialBenhId)) {
+        _pdDraftPhuongHuyet = (_dongyData.phacDo || [])
+            .filter(p => (p.idBenh ?? p.id_benh) == initialBenhId)
+            .map(p => ({
+                idHuyet: p.idHuyet ?? p.id_huyet,
+                phuong_phap_tac_dong: p.phuong_phap_tac_dong || '',
+                vai_tro_huyet: p.vai_tro_huyet || '',
+                ghi_chu_ky_thuat: p.ghi_chu_ky_thuat || '',
+            }))
+            .filter(d => Number.isFinite(d.idHuyet));
+    }
+
+    const benhOpts = (_dongyData.benhDongY || []).map(b => {
         const bid = b.modelId || b.id || b.id_benh;
         const bname = b.ten || b.tieuket || 'Bệnh không tên';
-        const selected = item && (item.idBenh == bid || item.id_benh == bid) ? 'selected' : '';
+        const selected = Number.isFinite(initialBenhId) && (initialBenhId == bid) ? 'selected' : '';
         return `<option value="${bid}" ${selected}>${escHtml(bname)}</option>`;
     }).join('');
-    const hvOpts = _dongyData.huyetVi.map(h => {
-        const hid = h.idHuyet || h.id;
-        const hname = h.ten_huyet || h.name || 'Huyệt không tên';
-        const selected = item && (item.idHuyet == hid || item.id == hid) ? 'selected' : '';
-        return `<option value="${hid}" ${selected}>${escHtml(hname)}</option>`;
-    }).join('');
+
     showTayyModal('Phương huyệt', `
-        <label class="tayy-form-label">Bệnh đông y<br><select id="pd-inp-benh" class="tayy-form-input">${benhOpts}</select></label>
-        <label class="tayy-form-label">Huyệt vị<br><select id="pd-inp-hv" class="tayy-form-input">${hvOpts}</select></label>
-        <label class="tayy-form-label">Vai trò<br><input id="pd-inp-role" type="text" class="tayy-form-input" value="${item?escHtml(item.vai_tro_huyet):''}"></label>
-        <div class="tayy-form-actions"><button class="btn" onclick="closeTayyModal()">Hủy</button><button class="btn btn-primary" onclick="savePhacDo(${id||0})">Lưu</button></div>
-    `);
+        <label class="tayy-form-label">Bệnh đông y<br>
+            <select id="pd-inp-benh" class="tayy-form-input" onchange="pdOnBenhChanged()">${benhOpts}</select>
+        </label>
+
+        <div style="margin-top:12px;">
+            <label class="tayy-form-label" style="margin:0 0 8px 0;">
+                Thêm huyệt (mỗi huyệt 1 dòng)
+                <div style="position:relative; margin-top:6px;">
+                    <input id="pd-ph-hv-search" type="text" class="tayy-form-input"
+                        placeholder="Gõ tên huyệt để thêm..."
+                        oninput="pdOnHuyetViSearchInput(this.value)">
+                    <div id="pd-ph-hv-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 6px);
+                        background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
+                        box-shadow:0 10px 30px rgba(0,0,0,0.12);
+                        max-height:220px; overflow-y:auto; z-index:2500; display:none;"></div>
+                </div>
+            </label>
+
+            <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                <thead>
+                    <tr>
+                        <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:30%;">Tên huyệt</th>
+                        <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:35%;">Phương pháp tác động</th>
+                        <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:25%;">Vai trò</th>
+                        <th style="text-align:center; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:10%;">Xóa</th>
+                    </tr>
+                </thead>
+                <tbody id="pd-phuong-huyet-tbody" style="background:#FBF8F1;">
+                    ${pdRenderPhuongHuyetRowsHtml()}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="tayy-form-actions">
+            <button class="btn" onclick="closeTayyModal()">Hủy</button>
+            <button class="btn btn-primary" onclick="savePhacDo()">Lưu</button>
+        </div>
+    `, 'wide');
 }
-async function savePhacDo(id) {
-    const payload = { id_benh: parseInt(document.getElementById('pd-inp-benh').value), id_huyet: parseInt(document.getElementById('pd-inp-hv').value), vai_tro_huyet: document.getElementById('pd-inp-role').value };
-    await (id ? apiUpdatePhacDo(id, payload) : apiCreatePhacDo(payload));
-    closeTayyModal(); await loadAllDongyData(); renderDongySection();
+
+function pdGetHuyetViById(idHuyet) {
+    return (_dongyData.huyetVi || []).find(h => (h.idHuyet ?? h.id) == idHuyet) || null;
+}
+
+function pdRenderPhuongHuyetRowsHtml() {
+    if (!_pdDraftPhuongHuyet || _pdDraftPhuongHuyet.length === 0) {
+        return `<tr><td colspan="4" style="text-align:center; color:#A09580; padding:12px; border:1px solid #E2D4B8;">Chưa thêm huyệt</td></tr>`;
+    }
+
+    return (_pdDraftPhuongHuyet || []).map(d => {
+        const hv = pdGetHuyetViById(d.idHuyet);
+        const ten = hv?.ten_huyet || hv?.name || d?.ten_huyet || 'Huyệt';
+        const phuongPhap = d?.phuong_phap_tac_dong || '';
+        const vaiTro = d?.vai_tro_huyet || '';
+
+        return `
+            <tr>
+                <td style="border:1px solid #E2D4B8; padding:8px;">
+                    <div style="font-weight:700; color:#5B3A1A; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px;">
+                        ${escHtml(ten)}
+                    </div>
+                </td>
+                <td style="border:1px solid #E2D4B8; padding:8px;">
+                    <input type="text"
+                        style="width:100%; padding:6px 8px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.85rem;"
+                        placeholder="ví dụ: bổ, tả, cứu..."
+                        value="${escHtml(phuongPhap)}"
+                        oninput="pdUpdatePhuongPhap(${d.idHuyet}, this.value)">
+                </td>
+                <td style="border:1px solid #E2D4B8; padding:8px;">
+                    <input type="text"
+                        style="width:100%; padding:6px 8px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.85rem;"
+                        placeholder="ví dụ: Quân, Thần, Tá, Sứ..."
+                        value="${escHtml(vaiTro)}"
+                        oninput="pdUpdateVaiTro(${d.idHuyet}, this.value)">
+                </td>
+                <td style="border:1px solid #E2D4B8; padding:8px; text-align:center;">
+                    <button class="btn btn-sm btn-danger"
+                        style="padding:2px 7px; font-size:0.72rem; height:24px;"
+                        type="button"
+                        onclick="pdRemovePhuongHuyet(${d.idHuyet})">✕</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function pdRerenderPhuongHuyetRows() {
+    const tbody = document.getElementById('pd-phuong-huyet-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = pdRenderPhuongHuyetRowsHtml();
+}
+
+function pdOnHuyetViSearchInput(query) {
+    const inpVal = (query || '').trim().toLowerCase();
+    const suggestEl = document.getElementById('pd-ph-hv-suggest');
+    if (!suggestEl) return;
+
+    if (!inpVal) {
+        suggestEl.style.display = 'none';
+        suggestEl.innerHTML = '';
+        return;
+    }
+
+    const selectedIds = new Set((_pdDraftPhuongHuyet || []).map(d => d.idHuyet));
+    const matches = (_dongyData.huyetVi || [])
+        .filter(h => (h?.ten_huyet || '').toLowerCase().includes(inpVal))
+        .filter(h => !selectedIds.has(h.idHuyet ?? h.id))
+        .slice(0, 10);
+
+    if (matches.length === 0) {
+        suggestEl.style.display = 'block';
+        suggestEl.innerHTML = `<div style="padding:10px; color:#A09580; font-size:0.82rem;">Không tìm thấy</div>`;
+        return;
+    }
+
+    suggestEl.style.display = 'block';
+    suggestEl.innerHTML = matches.map(h => `
+        <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+            onmouseover="this.style.background='#F5F0E8'"
+            onmouseout="this.style.background='transparent'"
+            onclick="pdAddPhuongHuyet(${h.idHuyet ?? h.id})">
+            <div style="font-weight:700; color:#5B3A1A; font-size:0.82rem;">${escHtml(h.ten_huyet || h.name || '')}</div>
+        </div>
+    `).join('');
+}
+
+function pdAddPhuongHuyet(idHuyet) {
+    if (!Number.isFinite(idHuyet)) return;
+    const selected = (_pdDraftPhuongHuyet || []).some(d => d.idHuyet == idHuyet);
+    if (selected) return;
+
+    _pdDraftPhuongHuyet.push({
+        idHuyet,
+        phuong_phap_tac_dong: '',
+        vai_tro_huyet: '',
+        ghi_chu_ky_thuat: ''
+    });
+    pdRerenderPhuongHuyetRows();
+}
+
+function pdRemovePhuongHuyet(idHuyet) {
+    _pdDraftPhuongHuyet = (_pdDraftPhuongHuyet || []).filter(d => d.idHuyet != idHuyet);
+    pdRerenderPhuongHuyetRows();
+}
+
+function pdUpdatePhuongPhap(idHuyet, value) {
+    const target = (_pdDraftPhuongHuyet || []).find(d => d.idHuyet == idHuyet);
+    if (!target) return;
+    target.phuong_phap_tac_dong = value ?? '';
+}
+
+function pdUpdateVaiTro(idHuyet, value) {
+    const target = (_pdDraftPhuongHuyet || []).find(d => d.idHuyet == idHuyet);
+    if (!target) return;
+    target.vai_tro_huyet = value ?? '';
+}
+
+function pdOnBenhChanged() {
+    const benhId = parseInt(document.getElementById('pd-inp-benh')?.value);
+    if (!Number.isFinite(benhId)) return;
+
+    _pdDraftPhuongHuyet = (_dongyData.phacDo || [])
+        .filter(p => (p.idBenh ?? p.id_benh) == benhId)
+        .map(p => ({
+            idHuyet: p.idHuyet ?? p.id_huyet,
+            phuong_phap_tac_dong: p.phuong_phap_tac_dong || '',
+            vai_tro_huyet: p.vai_tro_huyet || '',
+            ghi_chu_ky_thuat: p.ghi_chu_ky_thuat || '',
+        }))
+        .filter(d => Number.isFinite(d.idHuyet));
+
+    pdRerenderPhuongHuyetRows();
+    const suggestEl = document.getElementById('pd-ph-hv-suggest');
+    if (suggestEl) { suggestEl.style.display = 'none'; suggestEl.innerHTML = ''; }
+}
+
+async function savePhacDo() {
+    const benhId = parseInt(document.getElementById('pd-inp-benh')?.value);
+    if (!Number.isFinite(benhId)) return alert('Thiếu bệnh đông y');
+
+    const existing = (_dongyData.phacDo || []).filter(p => (p.idBenh ?? p.id_benh) == benhId);
+    for (const p of existing) {
+        const pid = p.idPhacDo ?? p.id;
+        if (Number.isFinite(pid)) await apiDeletePhacDo(pid);
+    }
+
+    for (const d of _pdDraftPhuongHuyet || []) {
+        if (!Number.isFinite(d.idHuyet)) continue;
+        const payload = {
+            id_benh: benhId,
+            id_huyet: d.idHuyet,
+            phuong_phap_tac_dong: (d.phuong_phap_tac_dong || '').trim() || undefined,
+            vai_tro_huyet: (d.vai_tro_huyet || '').trim() || undefined,
+            ghi_chu_ky_thuat: (d.ghi_chu_ky_thuat || '').trim() || undefined,
+        };
+        await apiCreatePhacDo(payload);
+    }
+
+    closeTayyModal();
+    await loadAllDongyData();
+    renderDongySection();
 }
 async function deletePhacDo(id) { if(confirm('Xóa?')) { await apiDeletePhacDo(id); await loadAllDongyData(); renderDongySection(); } }
 
