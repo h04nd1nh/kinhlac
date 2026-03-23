@@ -7,8 +7,6 @@ import {
   Param,
   Body,
   ParseIntPipe,
-  HttpCode,
-  HttpStatus,
 } from '@nestjs/common';
 import { BenhTayYService } from '../controllers/benh-tay-y.controller';
 import { CreateBenhTayYDto, UpdateBenhTayYDto } from '../models/benh-tay-y.dto';
@@ -28,21 +26,23 @@ export class BenhTayYRouter {
   }
 
   @Post()
-  create(@Body() dto: CreateBenhTayYDto) {
-    return this.service.create(dto);
+  async create(@Body() dto: CreateBenhTayYDto) {
+    const item = await this.service.create(dto);
+    return { success: true, id: item.id, data: item };
   }
 
   @Put(':id')
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateBenhTayYDto,
   ) {
-    return this.service.update(id, dto);
+    const item = await this.service.update(id, dto);
+    return { success: true, data: item };
   }
 
-  @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.service.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    await this.service.remove(id);
+    return { success: true };
   }
 }

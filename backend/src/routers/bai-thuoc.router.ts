@@ -17,17 +17,20 @@ export class BaiThuocRouter {
   }
 
   @Post()
-  create(@Body() dto: CreateBaiThuocDto) {
-    return this.service.create(dto);
+  async create(@Body() dto: CreateBaiThuocDto) {
+    const item = await this.service.create(dto);
+    return { success: true, id: item.id, data: item };
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateBaiThuocDto) {
-    return this.service.update(+id, dto);
+  async update(@Param('id') id: string, @Body() dto: UpdateBaiThuocDto) {
+    const item = await this.service.update(+id, dto);
+    return { success: true, data: item };
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.service.remove(+id);
+  async remove(@Param('id') id: string) {
+    await this.service.remove(+id);
+    return { success: true };
   }
 }

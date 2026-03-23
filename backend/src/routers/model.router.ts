@@ -25,17 +25,20 @@ export class ModelsRouter {
   }
 
   @Post()
-  create(@Body() body: any) {
-    return this.modelsService.create(body);
+  async create(@Body() body: any) {
+    const item = await this.modelsService.create(body);
+    return { success: true, id: item.id, data: item };
   }
 
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
-    return this.modelsService.update(id, body);
+  async update(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
+    const item = await this.modelsService.update(id, body);
+    return { success: true, id, data: item };
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.modelsService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    await this.modelsService.remove(id);
+    return { success: true };
   }
 }

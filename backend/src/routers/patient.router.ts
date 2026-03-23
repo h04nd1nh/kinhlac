@@ -8,8 +8,6 @@ import {
   Body,
   Query,
   ParseIntPipe,
-  HttpCode,
-  HttpStatus
 } from '@nestjs/common';
 import { PatientsService } from '../controllers/patient.controller';
 import { CreatePatientDto, UpdatePatientDto } from '../models/patient.dto';
@@ -38,21 +36,23 @@ export class PatientsRouter {
   }
 
   @Post()
-  create(@Body() dto: CreatePatientDto) {
-    return this.patientsService.create(dto);
+  async create(@Body() dto: CreatePatientDto) {
+    const item = await this.patientsService.create(dto);
+    return { success: true, id: item.id, data: item };
   }
 
   @Put(':id')
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdatePatientDto
   ) {
-    return this.patientsService.update(id, dto);
+    const item = await this.patientsService.update(id, dto);
+    return { success: true, id, data: item };
   }
 
-  @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.patientsService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    await this.patientsService.remove(id);
+    return { success: true };
   }
 }

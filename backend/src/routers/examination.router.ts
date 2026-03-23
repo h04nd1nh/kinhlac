@@ -7,8 +7,6 @@ import {
   Param,
   Body,
   ParseIntPipe,
-  HttpCode,
-  HttpStatus
 } from '@nestjs/common';
 import { ExaminationsService } from '../controllers/examination.controller';
 import { CreateExaminationDto, UpdateExaminationDto } from '../models/examination.dto';
@@ -28,16 +26,18 @@ export class ExaminationsRouter {
   }
 
   @Post()
-  create(@Body() dto: CreateExaminationDto) {
-    return this.examinationsService.create(dto);
+  async create(@Body() dto: CreateExaminationDto) {
+    const item = await this.examinationsService.create(dto);
+    return { success: true, id: item.id, data: item };
   }
 
   @Put(':id')
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateExaminationDto
   ) {
-    return this.examinationsService.update(id, dto);
+    const item = await this.examinationsService.update(id, dto);
+    return { success: true, id, data: item };
   }
 
   @Get('patient/:patientId')
@@ -50,9 +50,9 @@ export class ExaminationsRouter {
     return this.examinationsService.findOne(id);
   }
 
-  @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.examinationsService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    await this.examinationsService.remove(id);
+    return { success: true };
   }
 }

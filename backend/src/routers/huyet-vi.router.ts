@@ -8,8 +8,6 @@ import {
   Body,
   Query,
   ParseIntPipe,
-  HttpCode,
-  HttpStatus,
 } from '@nestjs/common';
 import { HuyetViService } from '../controllers/huyet-vi.controller';
 import { CreateHuyetViDto, UpdateHuyetViDto } from '../models/huyet-vi.dto';
@@ -32,18 +30,20 @@ export class HuyetViRouter {
   }
 
   @Post()
-  create(@Body() dto: CreateHuyetViDto) {
-    return this.service.create(dto);
+  async create(@Body() dto: CreateHuyetViDto) {
+    const item = await this.service.create(dto);
+    return { success: true, id: item.id, data: item };
   }
 
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateHuyetViDto) {
-    return this.service.update(id, dto);
+  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateHuyetViDto) {
+    const item = await this.service.update(id, dto);
+    return { success: true, data: item };
   }
 
-  @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.service.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    await this.service.remove(id);
+    return { success: true };
   }
 }
