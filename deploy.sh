@@ -31,20 +31,26 @@ WEBAPP_PATH=$(cd "$WEBAPP_PATH" && pwd)
 sudo tee /etc/nginx/sites-available/medicine > /dev/null <<NGINX
 server {
     listen 80;
-    server_name _;
+    server_name kinhlac.brandmaster.net.vn;
 
     root ${WEBAPP_PATH};
     index index.html;
 
-    location / {
-        try_files \$uri \$uri/ /index.html;
-    }
-
+    # Backend API
     location /api/ {
         proxy_pass http://127.0.0.1:3001/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # Tránh lỗi 405 khi proxy lỗi
+        proxy_intercept_errors on;
+    }
+
+    # Webapp static files
+    location / {
+        try_files \$uri \$uri/ /index.html;
     }
 }
 NGINX
