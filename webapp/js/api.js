@@ -675,6 +675,7 @@ async function apiDeletePhacDo(id) {
 // ---- VI THUOC ----
 async function apiGetViThuoc() {
     const res = await fetch(_base() + '/vi-thuoc');
+    if (!res.ok) return [];
     return res.json();
 }
 async function apiCreateViThuoc(payload) {
@@ -683,7 +684,9 @@ async function apiCreateViThuoc(payload) {
         headers: _authHeaders(),
         body: JSON.stringify(payload)
     });
-    return res.json();
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Tạo vị thuốc thất bại') };
+    const data = await res.json();
+    return { success: true, id: data.id, data };
 }
 async function apiUpdateViThuoc(id, payload) {
     const res = await fetch(_base() + '/vi-thuoc/' + id, {
@@ -691,16 +694,20 @@ async function apiUpdateViThuoc(id, payload) {
         headers: _authHeaders(),
         body: JSON.stringify(payload)
     });
-    return res.json();
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Cập nhật vị thuốc thất bại') };
+    const data = await res.json();
+    return { success: true, data };
 }
 async function apiDeleteViThuoc(id) {
     const res = await fetch(_base() + '/vi-thuoc/' + id, { method: 'DELETE', headers: _authHeaders() });
-    return res.json();
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Xóa vị thuốc thất bại') };
+    return { success: true };
 }
 
 // ---- BAI THUOC ----
 async function apiGetBaiThuoc() {
     const res = await fetch(_base() + '/bai-thuoc');
+    if (!res.ok) return [];
     return res.json();
 }
 async function apiCreateBaiThuoc(payload) {
@@ -709,7 +716,9 @@ async function apiCreateBaiThuoc(payload) {
         headers: _authHeaders(),
         body: JSON.stringify(payload)
     });
-    return res.json();
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Tạo bài thuốc thất bại') };
+    const data = await res.json();
+    return { success: true, id: data.id, data };
 }
 async function apiUpdateBaiThuoc(id, payload) {
     const res = await fetch(_base() + '/bai-thuoc/' + id, {
@@ -717,11 +726,14 @@ async function apiUpdateBaiThuoc(id, payload) {
         headers: _authHeaders(),
         body: JSON.stringify(payload)
     });
-    return res.json();
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Cập nhật bài thuốc thất bại') };
+    const data = await res.json();
+    return { success: true, data };
 }
 async function apiDeleteBaiThuoc(id) {
     const res = await fetch(_base() + '/bai-thuoc/' + id, { method: 'DELETE', headers: _authHeaders() });
-    return res.json();
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Xóa bài thuốc thất bại') };
+    return { success: true };
 }
 
 
