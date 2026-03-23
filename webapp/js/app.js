@@ -520,6 +520,7 @@ const _sections = {
     reports:        { title: 'Báo cáo',          parent: 'dashboard' },
     models:         { title: 'Mô hình bệnh',    parent: 'dashboard' },
     tayy:           { title: 'Bệnh Tây Y',       parent: 'dashboard' },
+    dongy:          { title: 'Bệnh Đông Y',       parent: 'dashboard' },
 };
 
 function _sectionLabel(id) {
@@ -580,6 +581,7 @@ function _updateBreadcrumb(currentId) {
         reports: '/reports',
         models: '/models',
         tayy: '/tayy',
+        dongy: '/dongy',
     };
     const hash = hashMap[currentId] || '/' + currentId;
     if (window.location.hash.replace('#', '') !== hash) {
@@ -613,6 +615,9 @@ function _showSectionInternal(id) {
 
     if (id === 'tayy') {
         if (typeof initTayyManagement === 'function') initTayyManagement();
+    }
+    if (id === 'dongy') {
+        if (typeof initDongyManagement === 'function') initDongyManagement();
     }
 
     if (id === 'new-record') {

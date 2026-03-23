@@ -40,7 +40,7 @@ server {
         try_files \$uri \$uri/ /index.html;
     }
 
-    location ~ ^/(patients|examinations|auth|meridian|admins|models|records)(/.*)?$ {
+    location ~ ^/(patients|examinations|auth|meridian|admins|models|records|chung-benh|benh-tay-y|phuong-thuoc|trieu-chung|kinh-mach|huyet-vi|phac-do-dieu-tri)(/.*)?$ {
         proxy_pass http://127.0.0.1:3001;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;

@@ -605,3 +605,110 @@ async function apiDeleteTrieuChung(id) {
     return { success: true };
 }
 
+// ---- KINH MẠCH ----
+
+async function apiGetKinhMach() {
+    const res = await fetch(_base() + '/kinh-mach');
+    if (!res.ok) throw new Error('Không tải được danh sách kinh mạch');
+    return res.json();
+}
+
+async function apiCreateKinhMach(payload) {
+    const res = await fetch(_base() + '/kinh-mach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Tạo kinh mạch thất bại') };
+    return { success: true, data: await res.json() };
+}
+
+async function apiUpdateKinhMach(id, payload) {
+    const res = await fetch(_base() + '/kinh-mach/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Cập nhật kinh mạch thất bại') };
+    return { success: true, data: await res.json() };
+}
+
+async function apiDeleteKinhMach(id) {
+    const res = await fetch(_base() + '/kinh-mach/' + id, { method: 'DELETE' });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Xóa kinh mạch thất bại') };
+    return { success: true };
+}
+
+// ---- HUYỆT VỊ ----
+
+async function apiGetHuyetVi(kinhMachId = null) {
+    let url = _base() + '/huyet-vi';
+    if (kinhMachId) url += '?kinh_mach=' + kinhMachId;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Không tải được danh sách huyệt vị');
+    return res.json();
+}
+
+async function apiCreateHuyetVi(payload) {
+    const res = await fetch(_base() + '/huyet-vi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Tạo huyệt vị thất bại') };
+    return { success: true, data: await res.json() };
+}
+
+async function apiUpdateHuyetVi(id, payload) {
+    const res = await fetch(_base() + '/huyet-vi/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Cập nhật huyệt vị thất bại') };
+    return { success: true, data: await res.json() };
+}
+
+async function apiDeleteHuyetVi(id) {
+    const res = await fetch(_base() + '/huyet-vi/' + id, { method: 'DELETE' });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Xóa huyệt vị thất bại') };
+    return { success: true };
+}
+
+// ---- PHÁC ĐỒ ĐIỀU TRỊ ----
+
+async function apiGetPhacDo(benhId = null) {
+    let url = _base() + '/phac-do-dieu-tri';
+    if (benhId) url += '?benh=' + benhId;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Không tải được phác đồ điều trị');
+    return res.json();
+}
+
+async function apiCreatePhacDo(payload) {
+    const res = await fetch(_base() + '/phac-do-dieu-tri', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Tạo phác đồ thất bại') };
+    return { success: true, data: await res.json() };
+}
+
+async function apiUpdatePhacDo(id, payload) {
+    const res = await fetch(_base() + '/phac-do-dieu-tri/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Cập nhật phác đồ thất bại') };
+    return { success: true, data: await res.json() };
+}
+
+async function apiDeletePhacDo(id) {
+    const res = await fetch(_base() + '/phac-do-dieu-tri/' + id, { method: 'DELETE' });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Xóa phác đồ thất bại') };
+    return { success: true };
+}
+
+
