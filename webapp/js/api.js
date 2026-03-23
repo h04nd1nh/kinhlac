@@ -1,10 +1,7 @@
 // api.js - Lớp mỏng tách UI khỏi NestJS backend
-const BASE_NEST = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:3001'
-    : '';
-
 function _base() {
-    return BASE_NEST;
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    return isLocal ? 'http://localhost:3001' : (window.location.origin + '/api');
 }
 
 // ---- AUTH ----
