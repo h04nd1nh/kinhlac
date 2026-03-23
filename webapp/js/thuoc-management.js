@@ -210,7 +210,7 @@ function openBaiThuocForm(id) {
             </div>
 
             <div style="font-size:0.8rem; color:#8B7355; margin-top:8px;">
-                Mẹo: gõ tên để tìm, bấm để thêm; mỗi chip có ô nhập `liều_lượng`.
+                Mẹo: gõ tên để tìm, bấm để thêm; mỗi chip có ô nhập liều_lượng.
             </div>
         </label>
 
