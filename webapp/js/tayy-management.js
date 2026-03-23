@@ -79,18 +79,22 @@ function renderTayyTabContent() {
 // TAB: CHỦNG BỆNH
 // ═══════════════════════════════════════════════════════════
 function renderChungBenhTab(el) {
-    const rows = _tayyData.chungBenh.map(item => `
-        <tr>
-            <td style="text-align:center;width:60px;">${item.id}</td>
-            <td>${escHtml(item.ten_chung_benh)}</td>
-            <td style="text-align:center;width:160px;">
-                <div class="table-actions">
-                    <button class="btn btn-sm btn-outline" onclick="editChungBenh(${item.id})">✏ Sửa</button>
-                    <button class="btn btn-sm btn-danger" onclick="deleteChungBenh(${item.id})">🗑 Xóa</button>
-                </div>
-            </td>
-        </tr>
-    `).join('');
+    const rows = _tayyData.chungBenh.map(item => {
+        const id = item.id || item.id_chung_benh || item.ID || '';
+        const ten = item.ten_chung_benh || item.name || '';
+        return `
+            <tr>
+                <td style="text-align:center;width:60px;">${id}</td>
+                <td><strong>${escHtml(ten)}</strong></td>
+                <td style="text-align:center;width:160px;">
+                    <div class="table-actions">
+                        <button class="btn btn-sm btn-outline" onclick="openChungBenhForm(${id})">✏ Sửa</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteChungBenh(${id})">🗑 Xóa</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
 
     el.innerHTML = `
         <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
@@ -152,20 +156,22 @@ async function deleteChungBenh(id) {
 // ═══════════════════════════════════════════════════════════
 function renderBenhTayYTab(el) {
     const rows = _tayyData.benhTayY.map(item => {
-        const chungBenhName = item.chungBenh ? escHtml(item.chungBenh.ten_chung_benh) : '—';
-        const ptNames = (item.phuongThuocList || []).map(p => escHtml(p.ten_phuong_thuoc)).join(', ') || '—';
-        const tcNames = (item.trieuChungList || []).map(t => escHtml(t.ten_trieu_chung)).join(', ') || '—';
+        const id = item.id || item.id_benh || '';
+        const ten = item.ten_benh || item.name || '';
+        const chungBenhName = item.chungBenh ? (item.chungBenh.ten_chung_benh || item.chungBenh.name) : '—';
+        const ptNames = (item.phuongThuocList || []).map(p => escHtml(p.ten_phuong_thuoc || p.name)).join(', ') || '—';
+        const tcNames = (item.trieuChungList || []).map(t => escHtml(t.ten_trieu_chung || t.name)).join(', ') || '—';
         return `
             <tr>
-                <td style="text-align:center;width:50px;">${item.id}</td>
-                <td><strong>${escHtml(item.ten_benh)}</strong></td>
-                <td><span style="color:#8B7355;">${chungBenhName}</span></td>
-                <td style="font-size:0.82rem;">${ptNames}</td>
-                <td style="font-size:0.82rem;">${tcNames}</td>
+                <td style="text-align:center;width:50px;">${id}</td>
+                <td><strong>${escHtml(ten)}</strong></td>
+                <td><span style="color:#8B7355;">${escHtml(chungBenhName)}</span></td>
+                <td style="font-size:0.82rem; max-width:200px; overflow:hidden; text-overflow:ellipsis;">${ptNames}</td>
+                <td style="font-size:0.82rem; max-width:200px; overflow:hidden; text-overflow:ellipsis;">${tcNames}</td>
                 <td style="text-align:center;width:160px;">
                     <div class="table-actions">
-                        <button class="btn btn-sm btn-outline" onclick="editBenhTayY(${item.id})">✏ Sửa</button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteBenhTayY(${item.id})">🗑 Xóa</button>
+                        <button class="btn btn-sm btn-outline" onclick="openBenhTayYForm(${id})">✏ Sửa</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteBenhTayY(${id})">🗑 Xóa</button>
                     </div>
                 </td>
             </tr>

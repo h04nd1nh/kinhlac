@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+
 echo "=== 1. Cài Node 20, Nginx, PM2 ==="
 if ! command -v node &> /dev/null; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -10,7 +12,7 @@ sudo apt install -y nginx
 sudo npm i -g pm2
 
 echo "=== 2. Build backend ==="
-cd "$(dirname "$0")/backend"
+cd "$PROJECT_ROOT/backend"
 npm ci
 npx tsc -p tsconfig.build.json
 if [ ! -f dist/main.js ]; then
@@ -25,8 +27,7 @@ pm2 start dist/main.js --name medicine-backend
 pm2 save
 
 echo "=== 4. Cấu hình Nginx ==="
-WEBAPP_PATH="$(dirname "$0")/webapp"
-WEBAPP_PATH=$(cd "$WEBAPP_PATH" && pwd)
+WEBAPP_PATH="$PROJECT_ROOT/webapp"
 
 sudo tee /etc/nginx/sites-available/medicine > /dev/null <<NGINX
 server {
@@ -36,15 +37,13 @@ server {
     root ${WEBAPP_PATH};
     index index.html;
 
-    # Backend API
-    location /api/ {
+    # Backend API (Siêu ưu tiên)
+    location ^~ /api/ {
         proxy_pass http://127.0.0.1:3001/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        
-        # Tránh lỗi 405 khi proxy lỗi
         proxy_intercept_errors on;
     }
 

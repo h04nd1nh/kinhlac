@@ -78,20 +78,28 @@ function renderDongyTabContent() {
 // TAB: DANH MỤC BỆNH (BENH DONG Y)
 // ═══════════════════════════════════════════════════════════
 function renderBenhDongYTab(el) {
-    const rows = _dongyData.benhDongY.map(item => `
-        <tr>
-            <td style="text-align:center;width:60px;">${item.id}</td>
-            <td><strong>${escHtml(item.tieuket)}</strong></td>
-            <td>${escHtml(item.nhomChinh || item.nhomid)}</td>
-            <td style="font-size:0.8rem;">${escHtml(item.trieuchung)}</td>
-            <td style="text-align:center;width:160px;">
-                <div class="table-actions">
-                    <button class="btn btn-sm btn-outline" onclick="editBenhDongY(${item.id})">✏ Sửa</button>
-                    <button class="btn btn-sm btn-danger" onclick="deleteBenhDongY(${item.id})">🗑 Xóa</button>
-                </div>
-            </td>
-        </tr>
-    `).join('');
+    const rows = _dongyData.benhDongY.map(item => {
+        const id = item.id !== undefined ? item.id : (item.id_benh || item.ID_benh || '');
+        const nhom = item.nhomid || item.nhomChinh || '';
+        const ten = item.tieuket || '';
+        
+        return `
+            <tr>
+                <td style="text-align:center;width:60px;">${id}</td>
+                <td><strong>${escHtml(ten)}</strong></td>
+                <td>${escHtml(nhom)}</td>
+                <td style="font-size:0.8rem; max-height: 80px; overflow-y: auto; display: block; border:none;">
+                    ${item.trieuchung || ''}
+                </td>
+                <td style="text-align:center;width:160px;">
+                    <div class="table-actions" style="border:none;">
+                        <button class="btn btn-sm btn-outline" onclick="openBenhDongYForm(${id})">✏ Sửa</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteBenhDongY(${id})">🗑 Xóa</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
 
     el.innerHTML = `
         <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
@@ -112,22 +120,25 @@ function renderBenhDongYTab(el) {
     `;
 }
 
-function openBenhDongYForm(id) {
-    const item = id ? _dongyData.benhDongY.find(x => x.id === id) : null;
+function openBenhDongYForm(givenId) {
+    // Tìm kiếm ID linh hoạt
+    const item = givenId ? _dongyData.benhDongY.find(x => (x.id == givenId || x.id_benh == givenId || x.ID_benh == givenId)) : null;
+    const realId = item ? (item.id || item.id_benh || item.ID_benh) : null;
+    
     const title = item ? 'Sửa bệnh đông y' : 'Thêm bệnh đông y mới';
     showTayyModal(title, `
         <label class="tayy-form-label">Tên bệnh (Tiêu kết)<br>
             <input id="dy-inp-tieuket" type="text" class="tayy-form-input" value="${item ? escHtml(item.tieuket) : ''}" placeholder="Nhập tên bệnh...">
         </label>
-        <label class="tayy-form-label">Nhóm bệnh<br>
-            <input id="dy-inp-nhom" type="text" class="tayy-form-input" value="${item ? escHtml(item.nhomChinh || item.nhomid) : ''}" placeholder="Nhập nhóm bệnh...">
+        <label class="tayy-form-label">Nhóm bệnh (ID nhóm)<br>
+            <input id="dy-inp-nhom" type="number" class="tayy-form-input" value="${item ? (item.nhomid || item.nhomChinh || '') : ''}" placeholder="Nhập ID nhóm...">
         </label>
         <label class="tayy-form-label">Triệu chứng chính<br>
-            <textarea id="dy-inp-tc" class="tayy-form-input" rows="3">${item ? escHtml(item.trieuchung) : ''}</textarea>
+            <textarea id="dy-inp-tc" class="tayy-form-input" rows="5">${item ? escHtml(item.trieuchung) : ''}</textarea>
         </label>
         <div class="tayy-form-actions">
             <button class="btn" onclick="closeTayyModal()">Hủy</button>
-            <button class="btn btn-primary" onclick="saveBenhDongY(${id || 0})">Lưu</button>
+            <button class="btn btn-primary" onclick="saveBenhDongY(${realId || 0})">Lưu</button>
         </div>
     `, 'wide');
 }
@@ -137,7 +148,7 @@ async function saveBenhDongY(id) {
     if (!tieuket) return alert('Vui lòng nhập tên bệnh');
     const payload = {
         tieuket,
-        nhomChinh: document.getElementById('dy-inp-nhom')?.value.trim(),
+        nhomid: parseInt(document.getElementById('dy-inp-nhom')?.value.trim()) || 0,
         trieuchung: document.getElementById('dy-inp-tc')?.value.trim(),
     };
     let res;
