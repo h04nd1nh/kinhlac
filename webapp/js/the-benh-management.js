@@ -202,23 +202,42 @@ function tbOpenAddTheBenhModal(parentId) {
 }
 
 async function tbSaveNewTheBenh(benhId, parentId) {
+    const btn = document.querySelector('.tayy-form-actions .btn-primary');
+    if (btn) {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = 'Đang lưu...';
+    }
+
     const ten = document.getElementById('tb-inp-ten')?.value.trim();
     const mota = document.getElementById('tb-inp-mota')?.value.trim();
-    if (!ten) return alert('Thiếu tên thể bệnh!');
+    if (!ten) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Lưu'; }
+        return alert('Thiếu tên thể bệnh!');
+    }
 
     const payload = {
         id_benh: benhId,
         parent_id: parentId || null,
         ten_the_benh: ten,
         mo_ta: mota || null,
-        thu_tu: _tbState.theBenh.filter(x => x.idBenh == benhId && !x.parentId).length,
+        thu_tu: _tbState.theBenh.filter(x => (x.idBenh == benhId || x.id_benh == benhId) && !(x.parentId || x.parent_id)).length,
     };
 
-    const res = await apiCreateTheBenh(payload);
-    if (!res.success && res.error) return alert('Lỗi: ' + res.error);
-    closeTayyModal();
-    await tbLoadForBenh(benhId);
-    tbRerenderTree();
+    try {
+        const res = await apiCreateTheBenh(payload);
+        if (!res.success && res.error) {
+            alert('Lỗi: ' + res.error);
+        } else {
+            closeTayyModal();
+            await tbLoadForBenh(benhId);
+            tbRerenderTree();
+        }
+    } catch (e) {
+        alert('Lỗi kết nối: ' + e.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Lưu'; }
+    }
 }
 
 function tbOpenEditTheBenhModal(theBenhId) {
@@ -241,18 +260,39 @@ function tbOpenEditTheBenhModal(theBenhId) {
 }
 
 async function tbSaveEditTheBenh(theBenhId) {
+    const btn = document.querySelector('.tayy-form-actions .btn-primary');
+    if (btn) {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = 'Đang lưu...';
+    }
+
     const ten = document.getElementById('tb-edit-ten')?.value.trim();
     const mota = document.getElementById('tb-edit-mota')?.value.trim();
-    if (!ten) return alert('Thiếu tên thể bệnh!');
+    if (!ten) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Lưu'; }
+        return alert('Thiếu tên thể bệnh!');
+    }
 
-    const res = await apiUpdateTheBenh(theBenhId, { ten_the_benh: ten, mo_ta: mota || null });
-    if (res.success === false) return alert('Lỗi: ' + (res.error || ''));
-    closeTayyModal();
-
-    // Cập nhật local state
-    const idx = _tbState.theBenh.findIndex(x => x.id === theBenhId);
-    if (idx >= 0) { _tbState.theBenh[idx].ten_the_benh = ten; _tbState.theBenh[idx].mo_ta = mota; }
-    tbRerenderTree();
+    try {
+        const res = await apiUpdateTheBenh(theBenhId, { ten_the_benh: ten, mo_ta: mota || null });
+        if (res.success === false) {
+            alert('Lỗi: ' + (res.error || ''));
+        } else {
+            closeTayyModal();
+            // Cập nhật local state
+            const idx = _tbState.theBenh.findIndex(x => x.id === theBenhId);
+            if (idx >= 0) { 
+                _tbState.theBenh[idx].ten_the_benh = ten; 
+                _tbState.theBenh[idx].mo_ta = mota; 
+            }
+            tbRerenderTree();
+        }
+    } catch (e) {
+        alert('Lỗi kết nối: ' + e.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Lưu'; }
+    }
 }
 
 async function tbDeleteTheBenh(theBenhId) {
