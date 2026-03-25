@@ -136,17 +136,28 @@ function renderBenhDongYTab(el) {
 }
 
 function openBenhDongYForm(givenId) {
-    const item = givenId ? _dongyData.benhDongY.find(x => (x.id == givenId || x.id_benh == givenId)) : null;
-    const realId = item ? (item.id || item.id_benh) : null;
+    const item = givenId ? _dongyData.benhDongY.find(x => (x.id == givenId || x.id_benh == givenId || x.modelId == givenId)) : null;
+    const realId = item ? (item.id || item.id_benh || item.modelId) : null;
     
-    // Nạp danh sách bài thuốc dùng chung (từ _thuocData trong thuoc-management.js)
+    // Helper lấy giá trị linh hoạt giống render table
+    const getV = (obj, ...keys) => {
+        if (!obj) return '';
+        const lowerKeys = keys.map(k => k.toLowerCase());
+        for (let k in obj) { if (lowerKeys.includes(k.toLowerCase())) return obj[k]; }
+        return '';
+    };
+
+    const valTen = getV(item, 'ten', 'tieuket', 'ten_benh', 'name');
+    const valNhom = getV(item, 'nhomid', 'nhomChinh', 'nhom_benh');
+    const valTc = getV(item, 'trieuchung', 'trieu_chung_chinh');
+
+    // Nạp danh sách bài thuốc/triệu chứng liên quan
     const allBT = (typeof _thuocData !== 'undefined') ? _thuocData.baiThuoc : [];
     const btChecks = allBT.map(bt => {
         const checked = item && (item.baiThuocList || []).some(x => x.id === bt.id) ? 'checked' : '';
         return `<label class="tayy-check-label"><input type="checkbox" name="dy-bt-ids" value="${bt.id}" ${checked}> ${escHtml(bt.ten_bai_thuoc)}</label>`;
     }).join('');
 
-    // Nạp danh sách triệu chứng dùng chung (từ _trieuchungData trong trieuchung-management.js)
     const allTC = (typeof _trieuchungData !== 'undefined') ? _trieuchungData.trieuChung : [];
     const tcChecks = allTC.map(tc => {
         const checked = item && (item.trieuChungList || []).some(x => x.id === tc.id) ? 'checked' : '';
@@ -154,9 +165,9 @@ function openBenhDongYForm(givenId) {
     }).join('');
 
     showTayyModal(item ? 'Sửa bệnh đông y' : 'Thêm bệnh đông y', `
-        <label class="tayy-form-label">Tên bệnh (Tiêu kết)<br><input id="dy-inp-tieuket" type="text" class="tayy-form-input" value="${item ? escHtml(item.tieuket) : ''}"></label>
-        <label class="tayy-form-label">ID Nhóm<br><input id="dy-inp-nhom" type="number" class="tayy-form-input" value="${item ? (item.nhomid || 0) : ''}"></label>
-        <label class="tayy-form-label">Mô tả triệu chứng (Ghi chú)<br><textarea id="dy-inp-tc" class="tayy-form-input" rows="3">${item ? escHtml(item.trieuchung) : ''}</textarea></label>
+        <label class="tayy-form-label">Tên bệnh (Tiêu kết)<br><input id="dy-inp-tieuket" type="text" class="tayy-form-input" value="${escHtml(valTen)}"></label>
+        <label class="tayy-form-label">ID Nhóm<br><input id="dy-inp-nhom" type="number" class="tayy-form-input" value="${valNhom || ''}"></label>
+        <label class="tayy-form-label">Mô tả triệu chứng (Ghi chú)<br><textarea id="dy-inp-tc" class="tayy-form-input" rows="3">${escHtml(valTc)}</textarea></label>
         
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:15px;">
             <div class="tayy-form-label">Triệu chứng hệ thống
@@ -189,7 +200,6 @@ function openBenhDongYForm(givenId) {
         </div>
     `, 'wide');
 
-    // Load thể bệnh bất đồng bộ sau khi modal đã render
     if (realId && typeof tbLoadForBenh === 'function') {
         setTimeout(async () => {
             await tbLoadForBenh(realId);
@@ -203,24 +213,15 @@ async function saveBenhDongY(id) {
     const tcIds = Array.from(document.querySelectorAll('input[name="dy-tc-ids"]:checked')).map(c => parseInt(c.value));
     
     const payload = {
-        tieuket: document.getElementById('dy-inp-tieuket').value.trim(),
-        nhomid: parseInt(document.getElementById('dy-inp-nhom').value) || 0,
+        ten: document.getElementById('dy-inp-tieuket').value.trim(),
+        nhom_chinh: parseInt(document.getElementById('dy-inp-nhom').value) || 0,
         trieuchung: document.getElementById('dy-inp-tc').value.trim(),
         bai_thuoc_ids: btIds,
         trieu_chung_ids: tcIds
     };
-    if (!payload.tieuket) return alert('Thiếu tên bệnh');
+    if (!payload.ten) return alert('Thiếu tên bệnh');
     const res = id ? await apiUpdateModel(id, payload) : await apiCreateModel(payload);
     if (!res.success) return alert('Lỗi: ' + res.error);
-
-    // Đồng bộ phương huyệt theo bệnh
-    const benhId = id ? id : res.id;
-    try {
-        await dhSyncPhuongHuyetForBenh(benhId);
-    } catch (e) {
-        console.error('Lỗi đồng bộ phương huyệt:', e);
-        alert('Lỗi đồng bộ phương huyệt: ' + (e?.message || e));
-    }
 
     closeTayyModal(); await loadAllDongyData(); renderDongySection();
 }
