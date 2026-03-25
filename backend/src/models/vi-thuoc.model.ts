@@ -16,7 +16,13 @@ export class ViThuoc {
   bo_phan_dung: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  tinh_vi: string; // Khí vị: Hàn, nhiệt, ôn, lương...
+  tinh_vi: string; // Cũ – giữ để tương thích
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  tinh: string; // Tính: Hàn, Nhiệt, Ôn, Lương, Bình
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  vi: string; // Vị: Chua, Đắng, Ngọt, Cay, Mặn, Nhạt
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   quy_kinh: string; // Quy vào kinh nào: Phế, Can, Tỳ...

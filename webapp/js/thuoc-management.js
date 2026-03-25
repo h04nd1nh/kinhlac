@@ -4,6 +4,7 @@
 let _thuocData = {
     viThuoc: [],
     baiThuoc: [],
+    kinhMach: [],
     activeTab: 'vi-thuoc',
 };
 
@@ -19,12 +20,14 @@ async function initThuocManagement() {
 
 async function loadAllThuocData() {
     try {
-        const [vt, bt] = await Promise.all([
+        const [vt, bt, km] = await Promise.all([
             apiGetViThuoc(),
             apiGetBaiThuoc(),
+            apiGetKinhMach(),
         ]);
         _thuocData.viThuoc = vt || [];
         _thuocData.baiThuoc = bt || [];
+        _thuocData.kinhMach = km || [];
     } catch (e) {
         console.error('Lỗi tải dữ liệu Thuốc:', e);
     }
@@ -76,9 +79,10 @@ function renderViThuocTab(el) {
     const rows = _thuocData.viThuoc.map(item => `
         <tr>
             <td><strong>${escHtml(item.ten_vi_thuoc)}</strong></td>
-            <td style="text-align:center;">${escHtml(item.tinh_vi)}</td>
-            <td style="text-align:center;">${escHtml(item.quy_kinh)}</td>
-            <td style="font-size:0.8rem;">${escHtml(item.cong_dung)}</td>
+            <td style="text-align:center;">${escHtml(item.tinh || '')}</td>
+            <td style="text-align:center;">${escHtml(item.vi || '')}</td>
+            <td style="text-align:center;">${escHtml(item.quy_kinh || '')}</td>
+            <td style="font-size:0.8rem;">${escHtml(item.cong_dung || '')}</td>
             <td style="text-align:center;width:130px;">
                 <div class="table-actions" style="justify-content:center;">
                     <button class="btn btn-sm btn-outline" onclick="openViThuocForm(${item.id})">✏ Sửa</button>
@@ -93,20 +97,51 @@ function renderViThuocTab(el) {
         </div>
         <div class="data-table-container">
             <table>
-                <thead><tr><th>Tên vị thuốc</th><th style="text-align:center;">Khí vị</th><th style="text-align:center;">Quy kinh</th><th>Công dụng</th><th style="width:130px; text-align:center;">Thao tác</th></tr></thead>
-                <tbody>${rows || '<tr><td colspan="5" style="text-align:center;">Chưa có dữ liệu</td></tr>'}</tbody>
+                <thead><tr><th>Tên vị thuốc</th><th style="text-align:center;">Tính</th><th style="text-align:center;">Vị</th><th style="text-align:center;">Quy kinh</th><th>Công dụng</th><th style="width:130px; text-align:center;">Thao tác</th></tr></thead>
+                <tbody>${rows || '<tr><td colspan="6" style="text-align:center;">Chưa có dữ liệu</td></tr>'}</tbody>
             </table>
         </div>`;
 }
 
 function openViThuocForm(id) {
     const item = id ? _thuocData.viThuoc.find(x => x.id == id) : null;
+    // Build dropdown for quy_kinh
+    const kmOpts = (_thuocData.kinhMach || []).map(k => {
+        const val = k.ten_kinh_mach || '';
+        const sel = item && item.quy_kinh === val ? 'selected' : '';
+        return `<option value="${escHtml(val)}" ${sel}>${escHtml(val)}</option>`;
+    }).join('');
     showTayyModal('Vị thuốc', `
         <label class="tayy-form-label">Tên vị thuốc<br><input id="vt-inp-ten" type="text" class="tayy-form-input" value="${item ? escHtml(item.ten_vi_thuoc) : ''}"></label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <label class="tayy-form-label">Khí vị<br><input id="vt-inp-tinhvi" type="text" class="tayy-form-input" value="${item ? escHtml(item.tinh_vi) : ''}"></label>
-            <label class="tayy-form-label">Quy kinh<br><input id="vt-inp-quykinh" type="text" class="tayy-form-input" value="${item ? escHtml(item.quy_kinh) : ''}"></label>
+            <label class="tayy-form-label">Tính (khí)<br>
+                <select id="vt-inp-tinh" class="tayy-form-input">
+                    <option value="">-- Chọn --</option>
+                    <option value="Hàn" ${item && item.tinh === 'Hàn' ? 'selected' : ''}>Hàn</option>
+                    <option value="Nhiệt" ${item && item.tinh === 'Nhiệt' ? 'selected' : ''}>Nhiệt</option>
+                    <option value="Ôn" ${item && item.tinh === 'Ôn' ? 'selected' : ''}>Ôn</option>
+                    <option value="Lương" ${item && item.tinh === 'Lương' ? 'selected' : ''}>Lương</option>
+                    <option value="Bình" ${item && item.tinh === 'Bình' ? 'selected' : ''}>Bình</option>
+                </select>
+            </label>
+            <label class="tayy-form-label">Vị (ngũ vị)<br>
+                <select id="vt-inp-vi" class="tayy-form-input">
+                    <option value="">-- Chọn --</option>
+                    <option value="Chua" ${item && item.vi === 'Chua' ? 'selected' : ''}>Chua</option>
+                    <option value="Đắng" ${item && item.vi === 'Đắng' ? 'selected' : ''}>Đắng</option>
+                    <option value="Ngọt" ${item && item.vi === 'Ngọt' ? 'selected' : ''}>Ngọt</option>
+                    <option value="Cay" ${item && item.vi === 'Cay' ? 'selected' : ''}>Cay</option>
+                    <option value="Mặn" ${item && item.vi === 'Mặn' ? 'selected' : ''}>Mặn</option>
+                    <option value="Nhạt" ${item && item.vi === 'Nhạt' ? 'selected' : ''}>Nhạt</option>
+                </select>
+            </label>
         </div>
+        <label class="tayy-form-label">Quy kinh<br>
+            <select id="vt-inp-quykinh" class="tayy-form-input">
+                <option value="">-- Chọn kinh mạch --</option>
+                ${kmOpts}
+            </select>
+        </label>
         <label class="tayy-form-label">Công dụng<br><textarea id="vt-inp-congdung" class="tayy-form-input" rows="3">${item ? escHtml(item.cong_dung) : ''}</textarea></label>
         <div class="tayy-form-actions">
             <button class="btn" onclick="closeTayyModal()">Hủy</button>
@@ -118,7 +153,8 @@ function openViThuocForm(id) {
 async function saveViThuoc(id) {
     const payload = { 
         ten_vi_thuoc: document.getElementById('vt-inp-ten').value.trim(), 
-        tinh_vi: document.getElementById('vt-inp-tinhvi').value.trim(), 
+        tinh: document.getElementById('vt-inp-tinh').value.trim(),
+        vi: document.getElementById('vt-inp-vi').value.trim(),
         quy_kinh: document.getElementById('vt-inp-quykinh').value.trim(), 
         cong_dung: document.getElementById('vt-inp-congdung').value.trim() 
     };
@@ -183,7 +219,8 @@ function openBaiThuocForm(id) {
             lieu_luong: d?.lieu_luong ?? '',
             vai_tro: d?.vai_tro ?? '',
             ghi_chu: d?.ghi_chu ?? '',
-            tinh_vi: d?.tinh_vi ?? d?.viThuoc?.tinh_vi ?? '',
+            tinh: d?.tinh ?? d?.viThuoc?.tinh ?? '',
+            vi: d?.vi ?? d?.viThuoc?.vi ?? '',
             quy_kinh: d?.quy_kinh ?? d?.viThuoc?.quy_kinh ?? '',
         };
     }).filter(x => Number.isFinite(x.idViThuoc));
@@ -210,11 +247,12 @@ function openBaiThuocForm(id) {
                 <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                     <thead>
                         <tr>
-                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:26%;">Tên vị thuốc</th>
-                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:18%;">Liều lượng</th>
-                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:18%;">Vai trò</th>
-                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:19%;">Ngũ vị</th>
-                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:19%;">Quy kinh</th>
+                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:24%;">Tên vị thuốc</th>
+                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:14%;">Liều lượng</th>
+                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:14%;">Vai trò</th>
+                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:12%;">Tính</th>
+                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:12%;">Vị</th>
+                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:24%;">Quy kinh</th>
                         </tr>
                     </thead>
                     <tbody id="bt-ingredient-tbody" style="background:#FBF8F1;">
@@ -241,7 +279,6 @@ async function saveBaiThuoc(id) {
     const chi_tiet = (_btDraftChiTiet || []).map(d => {
         const idViThuoc = d?.idViThuoc;
         const obj = {
-            // gửi cả 2 key để tránh lệch mapping (idViThuoc vs id_vi_thuoc)
             id_vi_thuoc: idViThuoc,
             idViThuoc: idViThuoc,
         };
@@ -254,8 +291,11 @@ async function saveBaiThuoc(id) {
         const ghiChu = (d?.ghi_chu || '').trim();
         if (ghiChu) obj.ghi_chu = ghiChu;
 
-        const tinhVi = (d?.tinh_vi || '').trim();
-        if (tinhVi) obj.tinh_vi = tinhVi;
+        const tinh = (d?.tinh || '').trim();
+        if (tinh) obj.tinh = tinh;
+
+        const vi = (d?.vi || '').trim();
+        if (vi) obj.vi = vi;
 
         const quyKinh = (d?.quy_kinh || '').trim();
         if (quyKinh) obj.quy_kinh = quyKinh;
@@ -289,7 +329,7 @@ function btGetViThuocById(idViThuoc) {
 
 function btRenderBaiThuocChiTietRowsHtml() {
     if (!_btDraftChiTiet || _btDraftChiTiet.length === 0) {
-        return `<tr><td colspan="5" style="text-align:center; color:#A09580; padding:12px; border:1px solid #E2D4B8;">Chưa thêm vị thuốc</td></tr>`;
+        return `<tr><td colspan="6" style="text-align:center; color:#A09580; padding:12px; border:1px solid #E2D4B8;">Chưa thêm vị thuốc</td></tr>`;
     }
 
     return _btDraftChiTiet.map(d => {
@@ -297,8 +337,16 @@ function btRenderBaiThuocChiTietRowsHtml() {
         const ten = vt?.ten_vi_thuoc || d?.ten_vi_thuoc || 'Vị thuốc';
         const lieu = d?.lieu_luong || '';
         const vaiTro = d?.vai_tro || '';
-        const ngu_vi = (d?.tinh_vi || vt?.tinh_vi || '');
+        const tinh = (d?.tinh || vt?.tinh || '');
+        const vi = (d?.vi || vt?.vi || '');
         const quy_kinh = (d?.quy_kinh || vt?.quy_kinh || '');
+
+        // Build dropdown options for quy_kinh
+        const kmOpts = (_thuocData.kinhMach || []).map(k => {
+            const kname = k.ten_kinh_mach || '';
+            const sel = quy_kinh === kname ? 'selected' : '';
+            return `<option value="${escHtml(kname)}" ${sel}>${escHtml(kname)}</option>`;
+        }).join('');
 
         return `
             <tr>
@@ -327,19 +375,35 @@ function btRenderBaiThuocChiTietRowsHtml() {
                         value="${escHtml(vaiTro)}"
                         oninput="btUpdateBaiThuocChipVaiTro(${d.idViThuoc}, this.value)">
                 </td>
-                <td style="border:1px solid #E2D4B8; padding:8px;">
-                    <input type="text"
-                        style="width:100%; padding:6px 8px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.85rem;"
-                        placeholder="ví dụ: Hàn, nhiệt, ôn..."
-                        value="${escHtml(ngu_vi || '')}"
-                        oninput="btUpdateBaiThuocChipTinhVi(${d.idViThuoc}, this.value)">
+                <td style="border:1px solid #E2D4B8; padding:6px;">
+                    <select style="width:100%; padding:5px 6px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.82rem;"
+                        onchange="btUpdateBaiThuocChipTinh(${d.idViThuoc}, this.value)">
+                        <option value="">--</option>
+                        <option value="Hàn" ${tinh === 'Hàn' ? 'selected' : ''}>Hàn</option>
+                        <option value="Nhiệt" ${tinh === 'Nhiệt' ? 'selected' : ''}>Nhiệt</option>
+                        <option value="Ôn" ${tinh === 'Ôn' ? 'selected' : ''}>Ôn</option>
+                        <option value="Lương" ${tinh === 'Lương' ? 'selected' : ''}>Lương</option>
+                        <option value="Bình" ${tinh === 'Bình' ? 'selected' : ''}>Bình</option>
+                    </select>
                 </td>
-                <td style="border:1px solid #E2D4B8; padding:8px;">
-                    <input type="text"
-                        style="width:100%; padding:6px 8px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.85rem;"
-                        placeholder="ví dụ: Phế, Can, Tỳ..."
-                        value="${escHtml(quy_kinh || '')}"
-                        oninput="btUpdateBaiThuocChipQuyKinh(${d.idViThuoc}, this.value)">
+                <td style="border:1px solid #E2D4B8; padding:6px;">
+                    <select style="width:100%; padding:5px 6px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.82rem;"
+                        onchange="btUpdateBaiThuocChipVi(${d.idViThuoc}, this.value)">
+                        <option value="">--</option>
+                        <option value="Chua" ${vi === 'Chua' ? 'selected' : ''}>Chua</option>
+                        <option value="Đắng" ${vi === 'Đắng' ? 'selected' : ''}>Đắng</option>
+                        <option value="Ngọt" ${vi === 'Ngọt' ? 'selected' : ''}>Ngọt</option>
+                        <option value="Cay" ${vi === 'Cay' ? 'selected' : ''}>Cay</option>
+                        <option value="Mặn" ${vi === 'Mặn' ? 'selected' : ''}>Mặn</option>
+                        <option value="Nhạt" ${vi === 'Nhạt' ? 'selected' : ''}>Nhạt</option>
+                    </select>
+                </td>
+                <td style="border:1px solid #E2D4B8; padding:6px;">
+                    <select style="width:100%; padding:5px 6px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.82rem;"
+                        onchange="btUpdateBaiThuocChipQuyKinh(${d.idViThuoc}, this.value)">
+                        <option value="">-- Chọn kinh --</option>
+                        ${kmOpts}
+                    </select>
                 </td>
             </tr>
         `;
@@ -399,7 +463,8 @@ function btAddViThuocChip(viThuocId) {
         lieu_luong: '',
         vai_tro: '',
         ghi_chu: '',
-        tinh_vi: vt?.tinh_vi || '',
+        tinh: vt?.tinh || '',
+        vi: vt?.vi || '',
         quy_kinh: vt?.quy_kinh || '',
         ten_vi_thuoc: vt?.ten_vi_thuoc || ''
     });
@@ -429,10 +494,16 @@ function btUpdateBaiThuocChipVaiTro(viThuocId, vaiValue) {
     target.vai_tro = vaiValue ?? '';
 }
 
-function btUpdateBaiThuocChipTinhVi(viThuocId, tinhValue) {
+function btUpdateBaiThuocChipTinh(viThuocId, tinhValue) {
     const target = (_btDraftChiTiet || []).find(d => d.idViThuoc === viThuocId);
     if (!target) return;
-    target.tinh_vi = tinhValue ?? '';
+    target.tinh = tinhValue ?? '';
+}
+
+function btUpdateBaiThuocChipVi(viThuocId, viValue) {
+    const target = (_btDraftChiTiet || []).find(d => d.idViThuoc === viThuocId);
+    if (!target) return;
+    target.vi = viValue ?? '';
 }
 
 function btUpdateBaiThuocChipQuyKinh(viThuocId, quyValue) {

@@ -4,6 +4,8 @@ export class CreateViThuocDto {
   ten_khoa_hoc?: string;
   bo_phan_dung?: string;
   tinh_vi?: string;
+  tinh?: string;
+  vi?: string;
   quy_kinh?: string;
   cong_dung?: string;
   lieu_dung?: string;
@@ -24,6 +26,8 @@ export class CreateBaiThuocDto {
     vai_tro?: string;
     ghi_chu?: string;
     tinh_vi?: string;
+    tinh?: string;
+    vi?: string;
     quy_kinh?: string;
   }[];
 }

@@ -22,9 +22,15 @@ export class BaiThuocChiTiet {
   @Column({ type: 'text', nullable: true })
   ghi_chu: string; // Tẩm rượu, sao vàng...
 
-  // Tinh vị/quy kinh có thể khác nhau theo từng bài thuốc khi cùng 1 vị thuốc được dùng theo bối cảnh riêng
+  // Tính/vị/quy kinh có thể khác nhau theo từng bài thuốc
   @Column({ type: 'varchar', length: 255, nullable: true })
-  tinh_vi: string;
+  tinh_vi: string; // Cũ – giữ để không mất dữ liệu
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  tinh: string; // Tính: Hàn, Nhiệt, Ôn, Lương, Bình
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  vi: string; // Vị: Chua, Đắng, Ngọt, Cay, Mặn, Nhạt
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   quy_kinh: string;
