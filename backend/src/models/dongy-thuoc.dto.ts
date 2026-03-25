@@ -6,7 +6,7 @@ export class CreateViThuocDto {
   tinh_vi?: string;
   tinh?: string;
   vi?: string;
-  quy_kinh?: string;
+  quy_kinh?: string; // Supports multiple via comma
   cong_dung?: string;
   lieu_dung?: string;
   luu_y?: string;
@@ -25,10 +25,8 @@ export class CreateBaiThuocDto {
     lieu_luong?: string;
     vai_tro?: string;
     ghi_chu?: string;
-    tinh_vi?: string;
-    tinh?: string;
-    vi?: string;
-    quy_kinh?: string;
+    tinh_vi?: string; // Legacy
+    quy_kinh?: string; // Supports multiple via comma
   }[];
 }
 export class UpdateBaiThuocDto extends CreateBaiThuocDto {}

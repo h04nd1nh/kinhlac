@@ -5,6 +5,7 @@ let _thuocData = {
     viThuoc: [],
     baiThuoc: [],
     kinhMach: [],
+    huyetVi: [], // Thêm Huyệt vị
     activeTab: 'vi-thuoc',
 };
 
@@ -20,14 +21,16 @@ async function initThuocManagement() {
 
 async function loadAllThuocData() {
     try {
-        const [vt, bt, km] = await Promise.all([
+        const [vt, bt, km, hv] = await Promise.all([
             apiGetViThuoc(),
             apiGetBaiThuoc(),
             apiGetKinhMach(),
+            apiGetHuyetVi(),
         ]);
         _thuocData.viThuoc = vt || [];
         _thuocData.baiThuoc = bt || [];
         _thuocData.kinhMach = km || [];
+        _thuocData.huyetVi = hv || [];
     } catch (e) {
         console.error('Lỗi tải dữ liệu Thuốc:', e);
     }
@@ -105,12 +108,6 @@ function renderViThuocTab(el) {
 
 function openViThuocForm(id) {
     const item = id ? _thuocData.viThuoc.find(x => x.id == id) : null;
-    // Build dropdown for quy_kinh
-    const kmOpts = (_thuocData.kinhMach || []).map(k => {
-        const val = k.ten_kinh_mach || '';
-        const sel = item && item.quy_kinh === val ? 'selected' : '';
-        return `<option value="${escHtml(val)}" ${sel}>${escHtml(val)}</option>`;
-    }).join('');
     showTayyModal('Vị thuốc', `
         <label class="tayy-form-label">Tên vị thuốc<br><input id="vt-inp-ten" type="text" class="tayy-form-input" value="${item ? escHtml(item.ten_vi_thuoc) : ''}"></label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -136,12 +133,20 @@ function openViThuocForm(id) {
                 </select>
             </label>
         </div>
-        <label class="tayy-form-label">Quy kinh<br>
-            <select id="vt-inp-quykinh" class="tayy-form-input">
-                <option value="">-- Chọn kinh mạch --</option>
-                ${kmOpts}
-            </select>
+        <label class="tayy-form-label">Quy kinh (chọn nhiều)<br>
+            <div style="position:relative;">
+                <input id="vt-inp-quykinh" type="text" class="tayy-form-input" 
+                    placeholder="Gõ tên kinh mạch hoặc huyệt để thêm..." 
+                    value="${item ? escHtml(item.quy_kinh || '') : ''}"
+                    oninput="vtOnQuyKinhSearchInput(this.value)">
+                <div id="vt-quykinh-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 2px);
+                    background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
+                    box-shadow:0 10px 30px rgba(0,0,0,0.12);
+                    max-height:200px; overflow-y:auto; z-index:2500; display:none;"></div>
+            </div>
+            <small style="color:#8B7355;">Gợi ý: Phế, Can, Tỳ, Hợp cốc... (Có thể nhập nhiều, cách nhau bằng dấu phẩy)</small>
         </label>
+
         <label class="tayy-form-label">Công dụng<br><textarea id="vt-inp-congdung" class="tayy-form-input" rows="3">${item ? escHtml(item.cong_dung) : ''}</textarea></label>
         <div class="tayy-form-actions">
             <button class="btn" onclick="closeTayyModal()">Hủy</button>
@@ -150,12 +155,57 @@ function openViThuocForm(id) {
     `);
 }
 
+function vtOnQuyKinhSearchInput(val) {
+    const suggestEl = document.getElementById('vt-quykinh-suggest');
+    if (!suggestEl) return;
+
+    // Lấy phần text cuối cùng sau dấu phẩy
+    const parts = val.split(',').map(s => s.trim());
+    const lastPart = parts[parts.length - 1].toLowerCase();
+
+    if (!lastPart) {
+        suggestEl.style.display = 'none';
+        return;
+    }
+
+    const matchesKM = (_thuocData.kinhMach || []).filter(k => (k.ten_kinh_mach || '').toLowerCase().includes(lastPart));
+    const matchesHV = (_thuocData.huyetVi || []).filter(h => (h.ten_huyet || '').toLowerCase().includes(lastPart));
+    const allMatches = [...matchesKM.map(k => k.ten_kinh_mach), ...matchesHV.map(h => h.ten_huyet)].slice(0, 10);
+
+    if (allMatches.length === 0) {
+        suggestEl.style.display = 'none';
+        return;
+    }
+
+    suggestEl.style.display = 'block';
+    suggestEl.innerHTML = allMatches.map(m => `
+        <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+             onmouseover="this.style.background='#F5F0E8'"
+             onmouseout="this.style.background='transparent'"
+             onclick="vtSelectQuyKinh('${escHtml(m)}')">
+            ${escHtml(m)}
+        </div>
+    `).join('');
+}
+
+function vtSelectQuyKinh(name) {
+    const inp = document.getElementById('vt-inp-quykinh');
+    if (!inp) return;
+    const parts = inp.value.split(',').map(s => s.trim());
+    parts[parts.length - 1] = name;
+    // Lọc bỏ trùng lặp
+    const unique = [...new Set(parts.filter(Boolean))];
+    inp.value = unique.join(', ') + ', ';
+    document.getElementById('vt-quykinh-suggest').style.display = 'none';
+    inp.focus();
+}
+
 async function saveViThuoc(id) {
     const payload = { 
         ten_vi_thuoc: document.getElementById('vt-inp-ten').value.trim(), 
         tinh: document.getElementById('vt-inp-tinh').value.trim(),
         vi: document.getElementById('vt-inp-vi').value.trim(),
-        quy_kinh: document.getElementById('vt-inp-quykinh').value.trim(), 
+        quy_kinh: document.getElementById('vt-inp-quykinh').value.trim().replace(/,$/, ''), 
         cong_dung: document.getElementById('vt-inp-congdung').value.trim() 
     };
     if(!payload.ten_vi_thuoc) return alert('Thiếu tên vị thuốc');
@@ -219,8 +269,6 @@ function openBaiThuocForm(id) {
             lieu_luong: d?.lieu_luong ?? '',
             vai_tro: d?.vai_tro ?? '',
             ghi_chu: d?.ghi_chu ?? '',
-            tinh: d?.tinh ?? d?.viThuoc?.tinh ?? '',
-            vi: d?.vi ?? d?.viThuoc?.vi ?? '',
             quy_kinh: d?.quy_kinh ?? d?.viThuoc?.quy_kinh ?? '',
         };
     }).filter(x => Number.isFinite(x.idViThuoc));
@@ -246,13 +294,10 @@ function openBaiThuocForm(id) {
             <div style="margin-top:12px;">
                 <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                     <thead>
-                        <tr>
-                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:24%;">Tên vị thuốc</th>
-                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:14%;">Liều lượng</th>
-                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:14%;">Vai trò</th>
-                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:12%;">Tính</th>
-                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:12%;">Vị</th>
-                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:24%;">Quy kinh</th>
+                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:25%;">Tên vị thuốc</th>
+                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:20%;">Liều lượng</th>
+                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:20%;">Vai trò</th>
+                            <th style="text-align:left; background:#F5F0E8; color:#5B3A1A; border:1px solid #E2D4B8; padding:8px; width:35%;">Quy kinh</th>
                         </tr>
                     </thead>
                     <tbody id="bt-ingredient-tbody" style="background:#FBF8F1;">
@@ -291,14 +336,8 @@ async function saveBaiThuoc(id) {
         const ghiChu = (d?.ghi_chu || '').trim();
         if (ghiChu) obj.ghi_chu = ghiChu;
 
-        const tinh = (d?.tinh || '').trim();
-        if (tinh) obj.tinh = tinh;
-
-        const vi = (d?.vi || '').trim();
-        if (vi) obj.vi = vi;
-
         const quyKinh = (d?.quy_kinh || '').trim();
-        if (quyKinh) obj.quy_kinh = quyKinh;
+        if (quyKinh) obj.quy_kinh = quyKinh.replace(/,$/, '');
 
         return obj;
     }).filter(d => Number.isFinite(d.id_vi_thuoc));
@@ -329,7 +368,7 @@ function btGetViThuocById(idViThuoc) {
 
 function btRenderBaiThuocChiTietRowsHtml() {
     if (!_btDraftChiTiet || _btDraftChiTiet.length === 0) {
-        return `<tr><td colspan="6" style="text-align:center; color:#A09580; padding:12px; border:1px solid #E2D4B8;">Chưa thêm vị thuốc</td></tr>`;
+        return `<tr><td colspan="4" style="text-align:center; color:#A09580; padding:12px; border:1px solid #E2D4B8;">Chưa thêm vị thuốc</td></tr>`;
     }
 
     return _btDraftChiTiet.map(d => {
@@ -337,16 +376,7 @@ function btRenderBaiThuocChiTietRowsHtml() {
         const ten = vt?.ten_vi_thuoc || d?.ten_vi_thuoc || 'Vị thuốc';
         const lieu = d?.lieu_luong || '';
         const vaiTro = d?.vai_tro || '';
-        const tinh = (d?.tinh || vt?.tinh || '');
-        const vi = (d?.vi || vt?.vi || '');
         const quy_kinh = (d?.quy_kinh || vt?.quy_kinh || '');
-
-        // Build dropdown options for quy_kinh
-        const kmOpts = (_thuocData.kinhMach || []).map(k => {
-            const kname = k.ten_kinh_mach || '';
-            const sel = quy_kinh === kname ? 'selected' : '';
-            return `<option value="${escHtml(kname)}" ${sel}>${escHtml(kname)}</option>`;
-        }).join('');
 
         return `
             <tr>
@@ -371,43 +401,71 @@ function btRenderBaiThuocChiTietRowsHtml() {
                 <td style="border:1px solid #E2D4B8; padding:8px;">
                     <input type="text"
                         style="width:100%; padding:6px 8px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.85rem;"
-                        placeholder="ví dụ: Quân, Thần, Tá, Sứ..."
+                        placeholder="Quân, Thần..."
                         value="${escHtml(vaiTro)}"
                         oninput="btUpdateBaiThuocChipVaiTro(${d.idViThuoc}, this.value)">
                 </td>
-                <td style="border:1px solid #E2D4B8; padding:6px;">
-                    <select style="width:100%; padding:5px 6px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.82rem;"
-                        onchange="btUpdateBaiThuocChipTinh(${d.idViThuoc}, this.value)">
-                        <option value="">--</option>
-                        <option value="Hàn" ${tinh === 'Hàn' ? 'selected' : ''}>Hàn</option>
-                        <option value="Nhiệt" ${tinh === 'Nhiệt' ? 'selected' : ''}>Nhiệt</option>
-                        <option value="Ôn" ${tinh === 'Ôn' ? 'selected' : ''}>Ôn</option>
-                        <option value="Lương" ${tinh === 'Lương' ? 'selected' : ''}>Lương</option>
-                        <option value="Bình" ${tinh === 'Bình' ? 'selected' : ''}>Bình</option>
-                    </select>
-                </td>
-                <td style="border:1px solid #E2D4B8; padding:6px;">
-                    <select style="width:100%; padding:5px 6px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.82rem;"
-                        onchange="btUpdateBaiThuocChipVi(${d.idViThuoc}, this.value)">
-                        <option value="">--</option>
-                        <option value="Chua" ${vi === 'Chua' ? 'selected' : ''}>Chua</option>
-                        <option value="Đắng" ${vi === 'Đắng' ? 'selected' : ''}>Đắng</option>
-                        <option value="Ngọt" ${vi === 'Ngọt' ? 'selected' : ''}>Ngọt</option>
-                        <option value="Cay" ${vi === 'Cay' ? 'selected' : ''}>Cay</option>
-                        <option value="Mặn" ${vi === 'Mặn' ? 'selected' : ''}>Mặn</option>
-                        <option value="Nhạt" ${vi === 'Nhạt' ? 'selected' : ''}>Nhạt</option>
-                    </select>
-                </td>
-                <td style="border:1px solid #E2D4B8; padding:6px;">
-                    <select style="width:100%; padding:5px 6px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.82rem;"
-                        onchange="btUpdateBaiThuocChipQuyKinh(${d.idViThuoc}, this.value)">
-                        <option value="">-- Chọn kinh --</option>
-                        ${kmOpts}
-                    </select>
+                <td style="border:1px solid #E2D4B8; padding:8px; position:relative;">
+                    <input id="bt-quykinh-${d.idViThuoc}" type="text"
+                        style="width:100%; padding:6px 8px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.85rem;"
+                        placeholder="Phế, Can, Tỳ..."
+                        value="${escHtml(quy_kinh)}"
+                        oninput="btOnQuyKinhTableSearchInput(${d.idViThuoc}, this.value)">
+                    <div id="bt-quykinh-suggest-${d.idViThuoc}" style="position:absolute; left:8px; right:8px; top:calc(100% + 2px);
+                        background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
+                        box-shadow:0 5px 15px rgba(0,0,0,0.1);
+                        max-height:150px; overflow-y:auto; z-index:3000; display:none;"></div>
                 </td>
             </tr>
         `;
     }).join('');
+}
+
+function btOnQuyKinhTableSearchInput(viThuocId, val) {
+    const suggestEl = document.getElementById(`bt-quykinh-suggest-${viThuocId}`);
+    if (!suggestEl) return;
+
+    btUpdateBaiThuocChipQuyKinh(viThuocId, val);
+
+    const parts = val.split(',').map(s => s.trim());
+    const lastPart = parts[parts.length - 1].toLowerCase();
+
+    if (!lastPart) {
+        suggestEl.style.display = 'none';
+        return;
+    }
+
+    const matchesKM = (_thuocData.kinhMach || []).filter(k => (k.ten_kinh_mach || '').toLowerCase().includes(lastPart));
+    const matchesHV = (_thuocData.huyetVi || []).filter(h => (h.ten_huyet || '').toLowerCase().includes(lastPart));
+    const allMatches = [...matchesKM.map(k => k.ten_kinh_mach), ...matchesHV.map(h => h.ten_huyet)].slice(0, 10);
+
+    if (allMatches.length === 0) {
+        suggestEl.style.display = 'none';
+        return;
+    }
+
+    suggestEl.style.display = 'block';
+    suggestEl.innerHTML = allMatches.map(m => `
+        <div style="padding:6px 8px; cursor:pointer; border-bottom:1px solid #F0E8D8; font-size:0.82rem;"
+             onmouseover="this.style.background='#F5F0E8'"
+             onmouseout="this.style.background='transparent'"
+             onclick="btSelectQuyKinhTable(${viThuocId}, '${escHtml(m)}')">
+            ${escHtml(m)}
+        </div>
+    `).join('');
+}
+
+function btSelectQuyKinhTable(viThuocId, name) {
+    const inp = document.getElementById(`bt-quykinh-${viThuocId}`);
+    if (!inp) return;
+    const parts = inp.value.split(',').map(s => s.trim());
+    parts[parts.length - 1] = name;
+    const unique = [...new Set(parts.filter(Boolean))];
+    const finalVal = unique.join(', ') + ', ';
+    inp.value = finalVal;
+    btUpdateBaiThuocChipQuyKinh(viThuocId, finalVal);
+    document.getElementById(`bt-quykinh-suggest-${viThuocId}`).style.display = 'none';
+    inp.focus();
 }
 
 function btRerenderBaiThuocChiTietRows() {
@@ -463,8 +521,6 @@ function btAddViThuocChip(viThuocId) {
         lieu_luong: '',
         vai_tro: '',
         ghi_chu: '',
-        tinh: vt?.tinh || '',
-        vi: vt?.vi || '',
         quy_kinh: vt?.quy_kinh || '',
         ten_vi_thuoc: vt?.ten_vi_thuoc || ''
     });
@@ -494,16 +550,8 @@ function btUpdateBaiThuocChipVaiTro(viThuocId, vaiValue) {
     target.vai_tro = vaiValue ?? '';
 }
 
-function btUpdateBaiThuocChipTinh(viThuocId, tinhValue) {
-    const target = (_btDraftChiTiet || []).find(d => d.idViThuoc === viThuocId);
-    if (!target) return;
-    target.tinh = tinhValue ?? '';
-}
-
 function btUpdateBaiThuocChipVi(viThuocId, viValue) {
-    const target = (_btDraftChiTiet || []).find(d => d.idViThuoc === viThuocId);
-    if (!target) return;
-    target.vi = viValue ?? '';
+    // No-op - Tình/Vị removed from UI
 }
 
 function btUpdateBaiThuocChipQuyKinh(viThuocId, quyValue) {

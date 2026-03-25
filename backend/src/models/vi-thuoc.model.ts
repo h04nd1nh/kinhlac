@@ -24,8 +24,8 @@ export class ViThuoc {
   @Column({ type: 'varchar', length: 100, nullable: true })
   vi: string; // Vị: Chua, Đắng, Ngọt, Cay, Mặn, Nhạt
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  quy_kinh: string; // Quy vào kinh nào: Phế, Can, Tỳ...
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  quy_kinh: string; // Quy vào kinh nào: Phế, Can, Tỳ... (chọn nhiều cách nhau bởi dấu phẩy)
 
   @Column({ type: 'text', nullable: true })
   cong_dung: string;

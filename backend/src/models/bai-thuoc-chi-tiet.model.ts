@@ -22,18 +22,12 @@ export class BaiThuocChiTiet {
   @Column({ type: 'text', nullable: true })
   ghi_chu: string; // Tẩm rượu, sao vàng...
 
-  // Tính/vị/quy kinh có thể khác nhau theo từng bài thuốc
+  // Tính/vị hiện bỏ, quy kinh cho phép nhiều giá trị (comma-separated)
   @Column({ type: 'varchar', length: 255, nullable: true })
-  tinh_vi: string; // Cũ – giữ để không mất dữ liệu
+  tinh_vi: string; // Legacy
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  tinh: string; // Tính: Hàn, Nhiệt, Ôn, Lương, Bình
-
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  vi: string; // Vị: Chua, Đắng, Ngọt, Cay, Mặn, Nhạt
-
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  quy_kinh: string;
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  quy_kinh: string; // Có thể chứa nhiều kinh mạch/huyệt vị cách nhau bởi dấu phẩy
 
   @ManyToOne(() => BaiThuoc, (bt) => bt.chiTietViThuoc, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'id_bai_thuoc' })
