@@ -12,18 +12,35 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Define custom colors based on Web App CSS
+    const Color primaryBrown = Color(0xFF5B3A1A); // --primary
+    const Color bgLightYellow = Color(0xFFFBF8F1); // --bg-light
+    const Color accentBrown = Color(0xFF8B7355); // --accent
+
     return MaterialApp(
       title: 'Medicine Patient App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-        primaryColor: Colors.teal,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: primaryBrown,
+          primary: primaryBrown,
+          background: bgLightYellow,
+          surface: Colors.white,
+        ),
+        scaffoldBackgroundColor: bgLightYellow,
+        primaryColor: primaryBrown,
         useMaterial3: true,
         fontFamily: 'Inter',
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.teal,
-          foregroundColor: Colors.white,
+          backgroundColor: primaryBrown,
+          foregroundColor: bgLightYellow,
           elevation: 0,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF8B1A1A), // --secondary (Đỏ đô)
+            foregroundColor: Colors.white,
+          ),
         ),
       ),
       home: const InitialScreen(),

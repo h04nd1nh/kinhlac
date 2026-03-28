@@ -4,7 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   // Use 10.0.2.2 for Android emulator to connect to localhost, or your server IP.
-  static const String baseUrl = 'http://103.56.163.42:3001/api';
+  // Note: Nginx listens on port 80 and strips the /api prefix before forwarding to NestJS.
+  static const String baseUrl = 'http://103.56.163.42/api';
 
   static Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
