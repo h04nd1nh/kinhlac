@@ -401,7 +401,8 @@ function tbPhAddGhiChu() {
 }
 
 function tbPhOnSearchInput(query) {
-    const inpVal = (query || '').trim().toLowerCase();
+    const exactVal = (query || '').trim();
+    const inpVal = exactVal.toLowerCase();
     const suggestEl = document.getElementById('tb-ph-suggest');
     if (!suggestEl) return;
 
@@ -415,22 +416,79 @@ function tbPhOnSearchInput(query) {
         .filter(h => !usedIds.has(h.idHuyet ?? h.id))
         .slice(0, 12);
 
-    if (matches.length === 0) {
-        suggestEl.style.display = 'block';
-        suggestEl.innerHTML = `<div style="padding:10px; color:#A09580; font-size:0.82rem;">Không tìm thấy</div>`;
-        return;
+    const hasExactMatch = matches.some(h => (h?.ten_huyet || h?.name || '').toLowerCase() === inpVal);
+
+    let html = '';
+
+    if (matches.length > 0) {
+        html += matches.map(h => `
+            <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+                onmouseover="this.style.background='#F5F0E8'"
+                onmouseout="this.style.background='transparent'"
+                onclick="tbPhAddHuyet(${h.idHuyet ?? h.id}, '${escHtml((h.ten_huyet || '').replace(/'/g, ''))}')">
+                <span style="font-weight:700; color:#5B3A1A; font-size:0.82rem;">${escHtml(h.ten_huyet)}</span>
+                ${h.kinhMach ? `<span style="color:#A09580; font-size:0.75rem; margin-left:6px;">${escHtml(h.kinhMach.ten_kinh_mach || '')}</span>` : ''}
+            </div>
+        `).join('');
+    } else {
+        html += `<div style="padding:10px; color:#A09580; font-size:0.82rem;">Không tìm thấy huyệt vị có sẵn</div>`;
+    }
+
+    if (!hasExactMatch && exactVal) {
+        html += `
+            <div style="padding:8px 10px; cursor:pointer; background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px;"
+                 onmouseover="this.style.background='#EFE8D8'"
+                 onmouseout="this.style.background='#FAF6EE'"
+                 onclick="tbSoftCreateHuyetVi('${escHtml(exactVal)}')">
+                <div style="font-weight:700; color:#CA6222; font-size:0.82rem; display:flex; align-items:center; gap:6px;">
+                    <span style="font-size:1.2rem; line-height:1;">+</span> Thêm huyệt "${escHtml(exactVal)}"
+                </div>
+            </div>
+        `;
     }
 
     suggestEl.style.display = 'block';
-    suggestEl.innerHTML = matches.map(h => `
-        <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
-            onmouseover="this.style.background='#F5F0E8'"
-            onmouseout="this.style.background='transparent'"
-            onclick="tbPhAddHuyet(${h.idHuyet ?? h.id}, '${escHtml((h.ten_huyet || '').replace(/'/g, ''))}')">
-            <span style="font-weight:700; color:#5B3A1A; font-size:0.82rem;">${escHtml(h.ten_huyet)}</span>
-            ${h.kinhMach ? `<span style="color:#A09580; font-size:0.75rem; margin-left:6px;">${escHtml(h.kinhMach.ten_kinh_mach || '')}</span>` : ''}
-        </div>
-    `).join('');
+    suggestEl.innerHTML = html;
+}
+
+async function tbSoftCreateHuyetVi(name) {
+    if (!name) return;
+
+    const inp = document.getElementById('tb-ph-search');
+    const suggestEl = document.getElementById('tb-ph-suggest');
+    const oldVal = inp ? inp.value : '';
+    
+    if (inp) {
+        inp.disabled = true;
+        inp.value = 'Đang thêm...';
+    }
+    if (suggestEl) suggestEl.style.display = 'none';
+
+    const payload = { ten_huyet: name };
+    const res = await apiCreateHuyetVi(payload);
+
+    if (inp) {
+        inp.disabled = false;
+        inp.value = '';
+        inp.focus();
+    }
+
+    if (!res.success) {
+        alert('Lỗi khi thêm huyệt mới: ' + (res.error || 'Vui lòng thử lại sau.'));
+        if (inp) inp.value = oldVal;
+        return;
+    }
+
+    const resData = res.data || {};
+    const newId = resData.idHuyet || resData.id;
+    if (!newId) return;
+
+    const newItem = { id: newId, idHuyet: newId, ...payload, ...resData };
+    if (typeof _dongyData !== 'undefined' && _dongyData.huyetVi) {
+        _dongyData.huyetVi.push(newItem);
+    }
+
+    tbPhAddHuyet(newId, name);
 }
 
 function tbPhAddHuyet(idHuyet, tenHuyet) {
