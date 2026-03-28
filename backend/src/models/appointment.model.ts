@@ -23,6 +23,12 @@ export class Appointment {
   @Column({ type: 'varchar', length: 50, default: 'PENDING' })
   status: string; // PENDING, CONFIRMED, COMPLETED, CANCELLED
 
+  @Column({ type: 'varchar', length: 20, default: 'SINGLE' })
+  type: string; // SINGLE, WEEKLY
+
+  @Column({ type: 'varchar', nullable: true })
+  groupId: string | null; // Group ID for weekly appointments
+
   @Column({ type: 'text', nullable: true })
   reason: string | null;
 

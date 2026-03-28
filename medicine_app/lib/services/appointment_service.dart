@@ -12,13 +12,18 @@ class AppointmentService {
     return [];
   }
 
-  static Future<bool> createAppointment(String date, String time, String notes) async {
-    final response = await ApiService.post('/appointments/my-appointments', {
+  static Future<bool> createAppointment(String date, String time, String notes, {String type = 'SINGLE', int? weeks}) async {
+    final body = <String, dynamic>{
       'appointmentDate': date,
       'appointmentTime': time,
       'reason': notes, // mapped to reason
       'notes': notes,
-    });
+      'type': type,
+    };
+    if (weeks != null) {
+      body['weeks'] = weeks;
+    }
+    final response = await ApiService.post('/appointments/my-appointments', body);
     
     return response.statusCode == 200 || response.statusCode == 201;
   }

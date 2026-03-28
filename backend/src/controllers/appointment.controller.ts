@@ -55,9 +55,33 @@ export class AppointmentsService {
     return appointment;
   }
 
-  create(dto: CreateAppointmentDto): Promise<Appointment> {
-    const appointment = this.appointmentRepository.create(dto);
-    return this.appointmentRepository.save(appointment);
+  async create(dto: CreateAppointmentDto): Promise<Appointment[]> {
+    const isWeekly = dto.type === 'WEEKLY' && dto.weeks && dto.weeks > 1;
+    const count = isWeekly ? dto.weeks! : 1;
+    let groupId: string | null = null;
+    
+    if (isWeekly) {
+      const crypto = require('crypto');
+      groupId = crypto.randomUUID();
+    }
+
+    const appointments: Appointment[] = [];
+    const baseDate = new Date(dto.appointmentDate);
+
+    for (let i = 0; i < count; i++) {
+      const currentDate = new Date(baseDate);
+      currentDate.setDate(currentDate.getDate() + i * 7);
+      
+      const appointment = this.appointmentRepository.create({
+        ...dto,
+        appointmentDate: currentDate.toISOString().split('T')[0],
+        type: isWeekly ? 'WEEKLY' : 'SINGLE',
+        groupId,
+      });
+      appointments.push(appointment);
+    }
+
+    return this.appointmentRepository.save(appointments);
   }
 
   async update(id: number, dto: UpdateAppointmentDto): Promise<Appointment> {

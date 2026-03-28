@@ -4,6 +4,8 @@ export class CreateAppointmentDto {
   appointmentTime: string;
   reason?: string;
   notes?: string;
+  type?: string; // e.g. 'SINGLE', 'WEEKLY'
+  weeks?: number; // How many weeks to repeat if type is WEEKLY
 }
 
 export class UpdateAppointmentDto {

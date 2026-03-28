@@ -45,8 +45,8 @@ export class AppointmentsRouter {
   async createMy(@Request() req: any, @Body() dto: CreateAppointmentDto) {
     // Add patient id mapping from token
     dto.patientId = req.user.id;
-    const item = await this.appointmentsService.create(dto);
-    return { success: true, id: item.id, data: item };
+    const items = await this.appointmentsService.create(dto);
+    return { success: true, count: items.length, data: items };
   }
 
   @UseGuards(JwtAuthGuard)

@@ -6,8 +6,23 @@ let _appointmentsData = [];
 let _appointmentsPage = 1;
 const _appointmentsLimit = 50;
 
+let _viewMode = 'table'; // 'table' or 'calendar'
+let _calendarApptInstance = null;
+
 async function initAppointmentsManagement() {
     await loadAppointments();
+}
+
+function toggleAppointmentView() {
+    _viewMode = _viewMode === 'table' ? 'calendar' : 'table';
+    document.getElementById('btn-toggle-calendar').innerText = _viewMode === 'table' ? 'Hiển thị Lịch' : 'Hiển thị Bảng';
+    
+    document.getElementById('appointments-table-view').style.display = _viewMode === 'table' ? 'block' : 'none';
+    document.getElementById('appointments-calendar-view').style.display = _viewMode === 'calendar' ? 'block' : 'none';
+
+    if (_viewMode === 'calendar') {
+        renderAppointmentsCalendar(_appointmentsData);
+    }
 }
 
 async function loadAppointments(page = 1) {
@@ -17,7 +32,12 @@ async function loadAppointments(page = 1) {
     _appointmentsPage = page;
     const res = await apiGetAppointments(page, _appointmentsLimit);
     _appointmentsData = res.data || [];
+    
     renderAppointmentsTable(_appointmentsData);
+
+    if (_viewMode === 'calendar') {
+        renderAppointmentsCalendar(_appointmentsData);
+    }
 }
 
 function renderAppointmentsTable(data) {
@@ -112,4 +132,77 @@ function _formatDateAppt(isoDate) {
     } catch (e) {
         return isoDate;
     }
+}
+
+// FullCalendar integration
+function renderAppointmentsCalendar(data) {
+    const calendarEl = document.getElementById('calendar');
+    if (!calendarEl || typeof FullCalendar === 'undefined') return;
+
+    if (_calendarApptInstance) {
+        _calendarApptInstance.destroy();
+    }
+
+    const events = data.map(app => {
+        const patient = patientData.find(p => p.benhnhanId === app.patientId);
+        const patientName = patient ? patient.hoten : `BN#${app.patientId}`;
+        
+        let color = '#7F8C8D';
+        switch(app.status) {
+            case 'PENDING': color = '#E67E22'; break;
+            case 'CONFIRMED': color = '#27AE60'; break;
+            case 'COMPLETED': color = '#2980B9'; break;
+            case 'CANCELLED': color = '#E74C3C'; break;
+        }
+
+        const dateStr = app.appointmentDate; // YYYY-MM-DD
+        const timeStr = app.appointmentTime || '00:00:00';
+        const startDateTime = `${dateStr}T${timeStr}`;
+
+        return {
+            id: app.id,
+            title: `${patientName} - ${app.status}`,
+            start: startDateTime,
+            backgroundColor: color,
+            borderColor: color,
+            extendedProps: {
+                status: app.status,
+                reason: app.reason || 'Không có lý do',
+                patientId: app.patientId,
+                patientName: patientName
+            }
+        };
+    });
+
+    _calendarApptInstance = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'vi',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        buttonText: {
+            today: 'Hôm nay',
+            month: 'Tháng',
+            week: 'Tuần',
+            day: 'Ngày'
+        },
+        events: events,
+        eventClick: function(info) {
+            const ev = info.event;
+            const props = ev.extendedProps;
+            const p = confirm(`Lịch khám: ${ev.title}\nBệnh nhân: ${props.patientName}\nLý do: ${props.reason}\n\nTrạng thái hiện tại: ${props.status}\nBạn có muốn XÁC NHẬN lịch này? (OK: Xác nhận, Cancel: Bỏ qua)`);
+            if (p) {
+                if(props.status === 'PENDING') {
+                   changeAppointmentStatus(ev.id, 'CONFIRMED');
+                } else if(props.status === 'CONFIRMED') {
+                   const f = confirm(`Lịch đã xác nhận, chuyển thành KHÁM XONG?`);
+                   if(f) changeAppointmentStatus(ev.id, 'COMPLETED');
+                }
+            }
+        }
+    });
+
+    _calendarApptInstance.render();
 }

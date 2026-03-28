@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:add_2_calendar/add_2_calendar.dart';
 import '../../services/appointment_service.dart';
 
 class BookAppointmentScreen extends StatefulWidget {
@@ -12,6 +13,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   TimeOfDay? _selectedTime;
   final _notesController = TextEditingController();
   bool _isLoading = false;
+  String _appointmentType = 'SINGLE';
+  int _weeksCount = 4;
 
   void _pickDate() async {
     final date = await showDatePicker(
@@ -46,16 +49,45 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
     final timeStr = '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
 
-    final success = await AppointmentService.createAppointment(dateStr, timeStr, _notesController.text.trim());
+    final success = await AppointmentService.createAppointment(
+      dateStr, 
+      timeStr, 
+      _notesController.text.trim(),
+      type: _appointmentType,
+      weeks: _appointmentType == 'WEEKLY' ? _weeksCount : null,
+    );
     setState(() => _isLoading = false);
 
     if (success) {
       if (mounted) {
+        // Sync to Calendar
+        final startDate = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day, _selectedTime!.hour, _selectedTime!.minute);
+        final endDate = startDate.add(Duration(hours: 1)); // Default 1 hour
+
+        final Event event = Event(
+          title: 'Khám Bệnh Đông Y',
+          description: _notesController.text.trim(),
+          location: 'Phòng khám Kinh Lạc',
+          startDate: startDate,
+          endDate: endDate,
+          iosParams: IOSParams(
+            reminder: Duration(hours: 1),
+          ),
+          recurrence: _appointmentType == 'WEEKLY' 
+            ? Recurrence(
+                frequency: Frequency.weekly,
+                ocurrences: _weeksCount,
+              )
+            : null,
+        );
+
+        Add2Calendar.addEvent2Cal(event);
+
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
             title: Text('Thành công'),
-            content: Text('Bạn đã gửi yêu cầu đặt lịch khám thành công. Vui lòng chờ xác nhận.'),
+            content: Text('Bạn đã gửi yêu cầu đặt lịch khám thành công. Lịch vừa được đề xuất thêm vào ứng dụng Lịch của bạn.'),
             actions: [
               TextButton(
                 onPressed: () {
@@ -110,6 +142,42 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                 ),
               ],
             ),
+            SizedBox(height: 24),
+            Row(
+              children: [
+                Text('Loại lịch:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                SizedBox(width: 16),
+                DropdownButton<String>(
+                  value: _appointmentType,
+                  items: [
+                    DropdownMenuItem(value: 'SINGLE', child: Text('Một lần')),
+                    DropdownMenuItem(value: 'WEEKLY', child: Text('Hàng tuần')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) setState(() => _appointmentType = val);
+                  },
+                ),
+              ],
+            ),
+            if (_appointmentType == 'WEEKLY') ...[
+              SizedBox(height: 16),
+              Row(
+                children: [
+                  Text('Số tuần lặp:', style: TextStyle(fontWeight: FontWeight.w600)),
+                  Expanded(
+                    child: Slider(
+                      value: _weeksCount.toDouble(),
+                      min: 2,
+                      max: 12,
+                      divisions: 10,
+                      label: _weeksCount.toString(),
+                      onChanged: (val) => setState(() => _weeksCount = val.toInt()),
+                    ),
+                  ),
+                  Text('$_weeksCount tuần', style: TextStyle(color: Colors.blue)),
+                ],
+              ),
+            ],
             SizedBox(height: 24),
             TextField(
               controller: _notesController,
