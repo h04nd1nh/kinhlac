@@ -112,25 +112,30 @@ function openViThuocForm(id) {
         <label class="tayy-form-label">Tên vị thuốc<br><input id="vt-inp-ten" type="text" class="tayy-form-input" value="${item ? escHtml(item.ten_vi_thuoc) : ''}"></label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
             <label class="tayy-form-label">Tính (khí)<br>
-                <select id="vt-inp-tinh" class="tayy-form-input">
-                    <option value="">-- Chọn --</option>
-                    <option value="Hàn" ${item && item.tinh === 'Hàn' ? 'selected' : ''}>Hàn</option>
-                    <option value="Nhiệt" ${item && item.tinh === 'Nhiệt' ? 'selected' : ''}>Nhiệt</option>
-                    <option value="Ôn" ${item && item.tinh === 'Ôn' ? 'selected' : ''}>Ôn</option>
-                    <option value="Lương" ${item && item.tinh === 'Lương' ? 'selected' : ''}>Lương</option>
-                    <option value="Bình" ${item && item.tinh === 'Bình' ? 'selected' : ''}>Bình</option>
-                </select>
+                <div style="position:relative;">
+                    <input id="vt-inp-tinh" type="text" class="tayy-form-input" 
+                        value="${item ? escHtml(item.tinh || '') : ''}" 
+                        placeholder="Chọn hoặc nhập tính..."
+                        onfocus="vtOnTinhSearchInput(this.value)"
+                        oninput="vtOnTinhSearchInput(this.value)">
+                    <div id="vt-tinh-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px);
+                        background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
+                        box-shadow:0 10px 30px rgba(0,0,0,0.12);
+                        max-height:160px; overflow-y:auto; z-index:2500; display:none;"></div>
+                </div>
             </label>
             <label class="tayy-form-label">Vị (ngũ vị)<br>
-                <select id="vt-inp-vi" class="tayy-form-input">
-                    <option value="">-- Chọn --</option>
-                    <option value="Chua" ${item && item.vi === 'Chua' ? 'selected' : ''}>Chua</option>
-                    <option value="Đắng" ${item && item.vi === 'Đắng' ? 'selected' : ''}>Đắng</option>
-                    <option value="Ngọt" ${item && item.vi === 'Ngọt' ? 'selected' : ''}>Ngọt</option>
-                    <option value="Cay" ${item && item.vi === 'Cay' ? 'selected' : ''}>Cay</option>
-                    <option value="Mặn" ${item && item.vi === 'Mặn' ? 'selected' : ''}>Mặn</option>
-                    <option value="Nhạt" ${item && item.vi === 'Nhạt' ? 'selected' : ''}>Nhạt</option>
-                </select>
+                <div style="position:relative;">
+                    <input id="vt-inp-vi" type="text" class="tayy-form-input" 
+                        value="${item ? escHtml(item.vi || '') : ''}" 
+                        placeholder="Chọn hoặc nhập vị..."
+                        onfocus="vtOnViSearchInput(this.value)"
+                        oninput="vtOnViSearchInput(this.value)">
+                    <div id="vt-vi-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px);
+                        background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
+                        box-shadow:0 10px 30px rgba(0,0,0,0.12);
+                        max-height:160px; overflow-y:auto; z-index:2500; display:none;"></div>
+                </div>
             </label>
         </div>
         <label class="tayy-form-label">Quy kinh (chọn nhiều)<br>
@@ -159,6 +164,82 @@ function openViThuocForm(id) {
     // Khởi tạo chips
     _vtCurrentQuyKinh = (item?.quy_kinh || '').split(',').map(s => s.trim()).filter(Boolean);
     vtRenderQuyKinhChips();
+
+    // Đóng gợi ý khi click ra ngoài
+    const closeModalSuggestions = (e) => {
+        if (!e.target.closest('.tayy-form-label')) {
+            ['vt-tinh-suggest', 'vt-vi-suggest', 'vt-quykinh-suggest'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+        }
+    };
+    document.addEventListener('click', closeModalSuggestions, { once: true });
+}
+
+// gợi ý Tính/Vị
+const _TINH_DEFAULTS = ['Hàn', 'Nhiệt', 'Ôn', 'Lương', 'Bình'];
+const _VI_DEFAULTS = ['Chua', 'Đắng', 'Ngọt', 'Cay', 'Mặn', 'Nhạt'];
+
+function vtOnTinhSearchInput(val) {
+    const suggestEl = document.getElementById('vt-tinh-suggest');
+    const query = val.trim().toLowerCase();
+    
+    // Tổng hợp từ mặc định + dữ liệu đang có
+    const existingValues = [...new Set(_thuocData.viThuoc.map(v => v.tinh).filter(Boolean))];
+    const all = [...new Set([..._TINH_DEFAULTS, ...existingValues])];
+    
+    const matches = all.filter(x => x.toLowerCase().includes(query));
+    if (matches.length === 0 && !val) {
+        suggestEl.style.display = 'none';
+        return;
+    }
+
+    suggestEl.style.display = 'block';
+    suggestEl.innerHTML = matches.map(m => `
+        <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+             onmouseover="this.style.background='#F5F0E8'"
+             onmouseout="this.style.background='transparent'"
+             onclick="vtSelectTinh('${escHtml(m)}')">
+            ${escHtml(m)}
+        </div>
+    `).join('') || `<div style="padding:8px 10px; color:#A09580; font-size:0.82rem;">Bấm Enter hoặc tiếp tục nhập để tạo mới</div>`;
+}
+
+function vtSelectTinh(val) {
+    const inp = document.getElementById('vt-inp-tinh');
+    if (inp) inp.value = val;
+    document.getElementById('vt-tinh-suggest').style.display = 'none';
+}
+
+function vtOnViSearchInput(val) {
+    const suggestEl = document.getElementById('vt-vi-suggest');
+    const query = val.trim().toLowerCase();
+    
+    const existingValues = [...new Set(_thuocData.viThuoc.map(v => v.vi).filter(Boolean))];
+    const all = [...new Set([..._VI_DEFAULTS, ...existingValues])];
+    
+    const matches = all.filter(x => x.toLowerCase().includes(query));
+    if (matches.length === 0 && !val) {
+        suggestEl.style.display = 'none';
+        return;
+    }
+
+    suggestEl.style.display = 'block';
+    suggestEl.innerHTML = matches.map(m => `
+        <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+             onmouseover="this.style.background='#F5F0E8'"
+             onmouseout="this.style.background='transparent'"
+             onclick="vtSelectVi('${escHtml(m)}')">
+            ${escHtml(m)}
+        </div>
+    `).join('') || `<div style="padding:8px 10px; color:#A09580; font-size:0.82rem;">Bấm Enter hoặc tiếp tục nhập để tạo mới</div>`;
+}
+
+function vtSelectVi(val) {
+    const inp = document.getElementById('vt-inp-vi');
+    if (inp) inp.value = val;
+    document.getElementById('vt-vi-suggest').style.display = 'none';
 }
 
 let _vtCurrentQuyKinh = [];
