@@ -6,7 +6,7 @@ class Examination {
   final String huyet;
   final List<dynamic>? syndromes;
   final Map<String, dynamic>? inputData;
-  final Map<String, dynamic>? flags;
+  final dynamic flags; // Sửa từ Map<String, dynamic>? thành dynamic vì API thường trả về mảng []
   final String? notes;
 
   Examination({
@@ -24,13 +24,13 @@ class Examination {
   factory Examination.fromJson(Map<String, dynamic> json) {
     return Examination(
       id: json['id'],
-      createdAt: json['createdAt'],
+      createdAt: json['createdAt'] ?? '',
       amDuong: json['amDuong'] ?? '',
       khi: json['khi'] ?? '',
       huyet: json['huyet'] ?? '',
-      syndromes: json['syndromes'],
+      syndromes: json['syndromes'] as List<dynamic>?,
       inputData: json['inputData'] as Map<String, dynamic>?,
-      flags: json['flags'] as Map<String, dynamic>?,
+      flags: json['flags'], // Không ép kiểu cứng nữa
       notes: json['notes'] as String?,
     );
   }

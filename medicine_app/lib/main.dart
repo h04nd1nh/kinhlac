@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/dashboard/home_screen.dart';
+import 'screens/dashboard/app_shell.dart';
 import 'services/auth_service.dart';
 
 void main() {
@@ -18,7 +18,7 @@ class MyApp extends StatelessWidget {
     const Color accentBrown = Color(0xFF8B7355); // --accent
 
     return MaterialApp(
-      title: 'Medicine Patient App',
+      title: 'Kinh lạc Gia Minh',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -66,9 +66,9 @@ class _InitialScreenState extends State<InitialScreen> {
     final isLoggedIn = await AuthService.isLoggedIn();
     if (mounted) {
       if (isLoggedIn) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => HomeScreen()),
-        );
+        Navigator.of(
+          context,
+        ).pushReplacement(MaterialPageRoute(builder: (context) => AppShell()));
       } else {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => LoginScreen()),
@@ -79,10 +79,6 @@ class _InitialScreenState extends State<InitialScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
