@@ -305,6 +305,7 @@
     <script src="js/tayy-management.js"></script>
     <script src="js/the-benh-management.js"></script>
     <script src="js/dongy-management.js"></script>
+    <script src="js/appointment-management.js"></script>
     <!-- Ionicons for icons -->
     <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
     <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
@@ -323,6 +324,7 @@
                 <ul style="list-style:none;">
                     <li><a href="#" class="nav-link active" onclick="showSection('dashboard')">Trang chủ</a></li>
                     <li><a href="#" class="nav-link" onclick="showSection('patients')">Bệnh nhân</a></li>
+                    <li><a href="#" class="nav-link" onclick="showSection('appointments')">Quản lý Lịch Khám</a></li>
                     <li><a href="#" class="nav-link" onclick="showSection('models')">Mô hình bệnh</a></li>
                     <li><a href="#" class="nav-link" onclick="showSection('tayy')">Bệnh Tây Y</a></li>
                     <li><a href="#" class="nav-link" onclick="showSection('dongy')">Bệnh Đông Y</a></li>
@@ -769,6 +771,35 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Appointments Management Section -->
+            <div id="appointments-section" class="section-content" style="display: none;">
+                <div class="section">
+                    <div class="section-header" style="display:flex;align-items:center;gap:10px;justify-content:space-between;">
+                        <h2 style="color: var(--secondary); margin:0;">Quản lý Lịch Khám</h2>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <button class="btn btn-outline" onclick="loadAppointments()">🔄 Làm mới</button>
+                        </div>
+                    </div>
+                    <div class="data-table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">Mã</th>
+                                    <th>Thông tin Bệnh Nhân</th>
+                                    <th>Ngày & Giờ</th>
+                                    <th>Triệu Chứng</th>
+                                    <th>Trạng Thái</th>
+                                    <th style="width: 140px; text-align: center;">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="appointments-list">
+                                <!-- Data will be injected here -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

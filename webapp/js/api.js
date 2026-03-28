@@ -785,3 +785,23 @@ async function apiDeleteTheBenhPhuongHuyet(id) {
     return { success: true };
 }
 
+// ---- LỊCH KHÁM (APPOINTMENTS) ----
+async function apiGetAppointments(page = 1, limit = 50) {
+    // Gọi API chung cho bác sĩ/admin (sử dụng findPaginated)
+    const res = await fetch(_base() + `/appointments?page=${page}&limit=${limit}`, {
+        headers: _authHeaders()
+    });
+    if (!res.ok) return { data: [], total: 0 };
+    return res.json();
+}
+
+async function apiUpdateAppointmentStatus(id, newStatus) {
+    const res = await fetch(_base() + '/appointments/' + id, {
+        method: 'PUT',
+        headers: _authHeaders(),
+        body: JSON.stringify({ status: newStatus })
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Cập nhật trạng thái thất bại') };
+    return { success: true };
+}
+

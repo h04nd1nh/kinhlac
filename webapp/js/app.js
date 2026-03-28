@@ -521,6 +521,7 @@ const _sections = {
     models:         { title: 'Mô hình bệnh',    parent: 'dashboard' },
     tayy:           { title: 'Bệnh Tây Y',       parent: 'dashboard' },
     dongy:          { title: 'Bệnh Đông Y',       parent: 'dashboard' },
+    appointments:   { title: 'Quản lý Lịch Khám', parent: 'dashboard' },
 };
 
 function _sectionLabel(id) {
@@ -582,6 +583,7 @@ function _updateBreadcrumb(currentId) {
         models: '/models',
         tayy: '/tayy',
         dongy: '/dongy',
+        appointments: '/appointments',
     };
     const hash = hashMap[currentId] || '/' + currentId;
     if (window.location.hash.replace('#', '') !== hash) {
@@ -625,6 +627,9 @@ function _showSectionInternal(id) {
             break;
         case 'trieuchung':
             if (typeof initTrieuchungManagement === 'function') initTrieuchungManagement();
+            break;
+        case 'appointments':
+            if (typeof initAppointmentsManagement === 'function') initAppointmentsManagement();
             break;
         case 'settings':
             if (typeof renderSettings === 'function') renderSettings();
