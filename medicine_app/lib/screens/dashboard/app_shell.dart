@@ -17,7 +17,6 @@ class _AppShellState extends State<AppShell> {
     HomeScreen(),
     MedicalRecordsScreen(),
     AppointmentListScreen(),
-    const Scaffold(body: Center(child: Text('Cài đặt'))),
   ];
 
   @override
@@ -62,11 +61,6 @@ class _AppShellState extends State<AppShell> {
               icon: Icon(Icons.calendar_today_outlined),
               activeIcon: Icon(Icons.calendar_today),
               label: 'Lịch hẹn',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Hồ sơ',
             ),
           ],
         ),
