@@ -1,11 +1,15 @@
 // tayy-management.js — Quản lý Bệnh Tây Y (CRUD Frontend)
-// Bao gồm: Chủng bệnh, Bệnh tây y, Phương thuốc, Triệu chứng
+// Bao gồm: Chủng bệnh, Bệnh tây y
 
 let _tayyData = {
     chungBenh: [],
     benhTayY: [],
+    baiThuoc: [], // local copy for bài thuốc lookup
     activeTab: 'chung-benh',
 };
+
+// Draft chips cho bài thuốc đang được chọn trong form bệnh tây y
+let _tyDraftBaiThuoc = []; // array of { id, ten_bai_thuoc }
 
 // ─── Khởi tạo ─────────────────────────────────────────────
 async function initTayyManagement() {
@@ -15,12 +19,14 @@ async function initTayyManagement() {
 
 async function loadAllTayyData() {
     try {
-        const [cb, bty] = await Promise.all([
+        const [cb, bty, bt] = await Promise.all([
             apiGetChungBenh(),
             apiGetBenhTayY(),
+            apiGetBaiThuoc(),
         ]);
         _tayyData.chungBenh = cb || [];
         _tayyData.benhTayY = bty || [];
+        _tayyData.baiThuoc = bt || [];
     } catch (e) {
         console.error('Lỗi tải dữ liệu Tây y:', e);
     }
@@ -143,19 +149,35 @@ async function deleteChungBenh(id) {
 // ═══════════════════════════════════════════════════════════
 // TAB: BỆNH TÂY Y
 // ═══════════════════════════════════════════════════════════
+
+// Lấy triệu chứng từ bài thuốc (dựa trên bài thuốc đã chọn)
+function _tyGetTrieuChungFromBaiThuoc(baiThuocList) {
+    if (!baiThuocList || baiThuocList.length === 0) return '—';
+    const allTC = [];
+    for (const bt of baiThuocList) {
+        const tc = bt.trieu_chung || '';
+        if (tc) {
+            tc.split(',').map(s => s.trim()).filter(Boolean).forEach(s => {
+                if (!allTC.includes(s)) allTC.push(s);
+            });
+        }
+    }
+    return allTC.length > 0 ? allTC.join(', ') : '—';
+}
+
 function renderBenhTayYTab(el) {
     const rows = _tayyData.benhTayY.map(item => {
         const id = item.id || item.id_benh || '';
         const ten = item.ten_benh || item.name || '';
         const chungBenhName = item.chungBenh ? (item.chungBenh.ten_chung_benh || item.chungBenh.name) : '—';
         const btNames = (item.baiThuocList || []).map(p => escHtml(p.ten_bai_thuoc || p.name)).join(', ') || '—';
-        const tcNames = (item.trieuChungList || []).map(t => escHtml(t.ten_trieu_chung || t.name)).join(', ') || '—';
+        const tcFromBT = _tyGetTrieuChungFromBaiThuoc(item.baiThuocList || []);
         return `
             <tr>
                 <td><strong>${escHtml(ten)}</strong></td>
                 <td><span style="color:#8B7355;">${escHtml(chungBenhName)}</span></td>
                 <td style="font-size:0.82rem; max-width:200px; overflow:hidden; text-overflow:ellipsis;">${btNames}</td>
-                <td style="font-size:0.82rem; max-width:200px; overflow:hidden; text-overflow:ellipsis;">${tcNames}</td>
+                <td style="font-size:0.82rem; max-width:200px; overflow:hidden; text-overflow:ellipsis;">${escHtml(tcFromBT)}</td>
                 <td style="text-align:center;width:160px;">
                     <div class="table-actions">
                         <button class="btn btn-sm btn-outline" onclick="openBenhTayYForm(${id})">✏ Sửa</button>
@@ -176,7 +198,7 @@ function renderBenhTayYTab(el) {
                     <th>Tên bệnh</th>
                     <th>Chủng bệnh</th>
                     <th>Bài thuốc</th>
-                    <th>Triệu chứng</th>
+                    <th>Triệu chứng (từ bài thuốc)</th>
                     <th style="width:160px;">Thao tác</th>
                 </tr></thead>
                 <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:#A09580;">Chưa có dữ liệu</td></tr>'}</tbody>
@@ -191,18 +213,11 @@ function openBenhTayYForm(id) {
 
     const cbOptions = _tayyData.chungBenh.map(c => `<option value="${c.id}" ${item && item.idChungBenh === c.id ? 'selected' : ''}>${escHtml(c.ten_chung_benh)}</option>`).join('');
 
-    const allBT = (typeof _thuocData !== 'undefined') ? _thuocData.baiThuoc : [];
-    const btChecks = allBT.map(p => {
-        const checked = item && (item.baiThuocList || []).some(x => x.id === p.id) ? 'checked' : '';
-        return `<label class="tayy-check-label"><input type="checkbox" name="ty-bt-ids" value="${p.id}" ${checked}> ${escHtml(p.ten_bai_thuoc)}</label>`;
-    }).join('');
-
-    // Nạp danh sách triệu chứng (Lấy từ module trieuchung-management tập trung)
-    const allTC = (typeof _trieuchungData !== 'undefined') ? _trieuchungData.trieuChung : [];
-    const tcChecks = allTC.map(tc => {
-        const checked = item && (item.trieuChungList || []).some(x => x.id === tc.id) ? 'checked' : '';
-        return `<label class="tayy-check-label"><input type="checkbox" name="tayy-tc-ids" value="${tc.id}" ${checked}> ${escHtml(tc.ten_trieu_chung)}</label>`;
-    }).join('');
+    // Khởi tạo draft bài thuốc từ dữ liệu hiện có
+    _tyDraftBaiThuoc = (item?.baiThuocList || []).map(bt => ({
+        id: bt.id,
+        ten_bai_thuoc: bt.ten_bai_thuoc || bt.name || '',
+    }));
 
     showTayyModal(title, `
         <label class="tayy-form-label">Tên bệnh<br>
@@ -214,22 +229,43 @@ function openBenhTayYForm(id) {
                 ${cbOptions}
             </select>
         </label>
-        <div class="tayy-form-label">Bài thuốc liên quan
-            <div id="tayy-bt-checks" class="tayy-check-grid" style="max-height:120px; overflow-y:auto; border:1px solid #D4C5A0; padding:8px; border-radius:8px;">
-                ${btChecks || '<span style="color:#A09580;font-size:0.82rem;">Chưa có bài thuốc nào trong danh mục chung</span>'}
+
+        <!-- Bài thuốc liên quan — chip-based with soft create -->
+        <label class="tayy-form-label">
+            Bài thuốc liên quan
+            <div style="position:relative; margin-top:6px;">
+                <div id="tayy-bt-chips" class="chips-container" onclick="document.getElementById('tayy-inp-bt-search').focus()">
+                    <input id="tayy-inp-bt-search" type="text" class="chip-input"
+                        placeholder="Gõ tên bài thuốc để thêm..."
+                        oninput="tyOnBaiThuocSearchInput(this.value)"
+                        onkeydown="if(event.key==='Enter' && this.value.trim()){event.preventDefault();}">
+                </div>
+                <div id="tayy-bt-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px);
+                    background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
+                    box-shadow:0 10px 30px rgba(0,0,0,0.12);
+                    max-height:220px; overflow-y:auto; z-index:2500; display:none;"></div>
+            </div>
+        </label>
+
+        <!-- Triệu chứng (read-only, từ bài thuốc đã chọn) -->
+        <div class="tayy-form-label">Triệu chứng <span style="font-weight:400; color:#A09580; font-size:0.82rem;">(tự động lấy từ bài thuốc)</span>
+            <div id="tayy-trieuchung-preview" style="min-height:36px; border:1px solid #D4C5A0; padding:10px; border-radius:8px; background:#F5F0E8; color:#5B3A1A; font-size:0.85rem; line-height:1.5;">
+                ${escHtml(_tyGetTrieuChungFromDraft())}
             </div>
         </div>
-        <div class="tayy-form-label">Triệu chứng
-            <div id="tayy-tc-checks" class="tayy-check-grid" style="max-height:120px; overflow-y:auto; border:1px solid #D4C5A0; padding:8px; border-radius:8px;">
-                ${tcChecks || '<span style="color:#A09580;font-size:0.82rem;">Chưa có triệu chứng nào</span>'}
-            </div>
-        </div>
+
         <div class="tayy-form-actions">
             <button class="btn" onclick="closeTayyModal()">Hủy</button>
             <button class="btn btn-primary" onclick="saveBenhTayY(${id || 0})">Lưu</button>
         </div>
     `, 'wide');
-    setTimeout(() => document.getElementById('tayy-inp-tenbenh')?.focus(), 100);
+
+    // Render chips sau khi modal đã mở
+    setTimeout(() => {
+        tyRenderBaiThuocChips();
+        tyUpdateTrieuChungPreview();
+        document.getElementById('tayy-inp-tenbenh')?.focus();
+    }, 100);
 }
 
 function editBenhTayY(id) { openBenhTayYForm(id); }
@@ -242,14 +278,13 @@ async function saveBenhTayY(id) {
     if (!tenBenh) return alert('Vui lòng nhập tên bệnh');
     if (!idChungBenh) return alert('Vui lòng chọn chủng bệnh');
 
-    const btIds = Array.from(document.querySelectorAll('#tayy-bt-checks input:checked')).map(c => parseInt(c.value));
-    const tcIds = Array.from(document.querySelectorAll('#tayy-tc-checks input:checked')).map(c => parseInt(c.value));
+    const btIds = _tyDraftBaiThuoc.map(bt => bt.id);
 
     const payload = {
         ten_benh: tenBenh,
         id_chung_benh: idChungBenh,
         bai_thuoc_ids: btIds,
-        trieu_chung_ids: tcIds,
+        trieu_chung_ids: [], // Triệu chứng giờ lấy từ bài thuốc, không lưu riêng
     };
 
     let result;
@@ -273,10 +308,139 @@ async function deleteBenhTayY(id) {
     renderTayySection();
 }
 
+// ═══════════════════════════════════════════════════════════
+// BÀI THUỐC CHIPS — search, select, soft create, remove
+// ═══════════════════════════════════════════════════════════
+function tyRenderBaiThuocChips() {
+    const container = document.getElementById('tayy-bt-chips');
+    const input = document.getElementById('tayy-inp-bt-search');
+    if (!container || !input) return;
+    container.querySelectorAll('.chip').forEach(c => c.remove());
+    _tyDraftBaiThuoc.forEach(bt => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerHTML = `${escHtml(bt.ten_bai_thuoc)} <span class="chip-remove" onclick="tyRemoveBaiThuocChip(${bt.id}); event.stopPropagation();">×</span>`;
+        container.insertBefore(chip, input);
+    });
+}
 
+function tyRemoveBaiThuocChip(btId) {
+    _tyDraftBaiThuoc = _tyDraftBaiThuoc.filter(x => x.id !== btId);
+    tyRenderBaiThuocChips();
+    tyUpdateTrieuChungPreview();
+    // Re-render suggestions nếu đang mở
+    const inp = document.getElementById('tayy-inp-bt-search');
+    if (inp && inp.value) tyOnBaiThuocSearchInput(inp.value);
+}
+
+function tySelectBaiThuoc(btId) {
+    if (_tyDraftBaiThuoc.some(x => x.id === btId)) return;
+    const bt = _tayyData.baiThuoc.find(x => x.id === btId);
+    if (!bt) return;
+    _tyDraftBaiThuoc.push({ id: bt.id, ten_bai_thuoc: bt.ten_bai_thuoc });
+    const inp = document.getElementById('tayy-inp-bt-search');
+    if (inp) { inp.value = ''; inp.focus(); }
+    tyRenderBaiThuocChips();
+    tyUpdateTrieuChungPreview();
+    const suggestEl = document.getElementById('tayy-bt-suggest');
+    if (suggestEl) suggestEl.style.display = 'none';
+}
+
+function tyOnBaiThuocSearchInput(val) {
+    const suggestEl = document.getElementById('tayy-bt-suggest');
+    if (!suggestEl) return;
+    const query = (val || '').trim().toLowerCase();
+    if (!query) { suggestEl.style.display = 'none'; return; }
+
+    const selectedIds = new Set(_tyDraftBaiThuoc.map(bt => bt.id));
+    const matches = (_tayyData.baiThuoc || [])
+        .filter(bt => (bt.ten_bai_thuoc || '').toLowerCase().includes(query))
+        .filter(bt => !selectedIds.has(bt.id))
+        .slice(0, 10);
+
+    const hasExactMatch = (_tayyData.baiThuoc || []).some(bt => (bt.ten_bai_thuoc || '').toLowerCase() === query);
+
+    let html = '';
+    if (matches.length > 0) {
+        html += matches.map(bt => `
+            <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+                 onmouseover="this.style.background='#F5F0E8'"
+                 onmouseout="this.style.background='transparent'"
+                 onclick="tySelectBaiThuoc(${bt.id})">
+                <div style="font-weight:700; color:#5B3A1A; font-size:0.82rem;">${escHtml(bt.ten_bai_thuoc)}</div>
+                ${bt.trieu_chung ? `<div style="font-size:0.75rem; color:#A09580; margin-top:2px;">TC: ${escHtml(bt.trieu_chung)}</div>` : ''}
+            </div>
+        `).join('');
+    } else {
+        html += `<div style="padding:10px; color:#A09580; font-size:0.82rem;">Không tìm thấy bài thuốc có sẵn</div>`;
+    }
+
+    // Soft-create option
+    if (!hasExactMatch && val.trim()) {
+        html += `
+            <div style="padding:8px 10px; cursor:pointer; background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px;"
+                 onmouseover="this.style.background='#EFE8D8'"
+                 onmouseout="this.style.background='#FAF6EE'"
+                 onclick="tySoftCreateBaiThuoc('${escHtml(val.trim())}')">
+                <div style="font-weight:700; color:#CA6222; font-size:0.82rem; display:flex; align-items:center; gap:6px;">
+                    <span style="font-size:1.2rem; line-height:1;">+</span> Thêm bài thuốc "${escHtml(val.trim())}"
+                </div>
+            </div>
+        `;
+    }
+
+    suggestEl.style.display = 'block';
+    suggestEl.innerHTML = html;
+}
+
+async function tySoftCreateBaiThuoc(name) {
+    if (!name) return;
+    const inp = document.getElementById('tayy-inp-bt-search');
+    const suggestEl = document.getElementById('tayy-bt-suggest');
+    if (inp) { inp.disabled = true; inp.value = 'Đang thêm...'; }
+    if (suggestEl) suggestEl.style.display = 'none';
+
+    const payload = { ten_bai_thuoc: name };
+    const res = await apiCreateBaiThuoc(payload);
+
+    if (inp) { inp.disabled = false; inp.value = ''; inp.focus(); }
+    if (!res.success) {
+        alert('Lỗi khi thêm bài thuốc mới: ' + (res.error || ''));
+        return;
+    }
+
+    const newBT = { id: res.id, ten_bai_thuoc: name, ...(res.data || {}) };
+    _tayyData.baiThuoc.push(newBT);
+    // Cập nhật cả _thuocData nếu tồn tại
+    if (typeof _thuocData !== 'undefined') {
+        _thuocData.baiThuoc.push(newBT);
+    }
+    tySelectBaiThuoc(res.id);
+}
+
+// Lấy triệu chứng meta từ draft bài thuốc
+function _tyGetTrieuChungFromDraft() {
+    if (!_tyDraftBaiThuoc || _tyDraftBaiThuoc.length === 0) return '(Chưa chọn bài thuốc)';
+    const allTC = [];
+    for (const draft of _tyDraftBaiThuoc) {
+        // Tìm bài thuốc đầy đủ từ _tayyData
+        const bt = _tayyData.baiThuoc.find(x => x.id === draft.id);
+        const tc = bt?.trieu_chung || '';
+        if (tc) {
+            tc.split(',').map(s => s.trim()).filter(Boolean).forEach(s => {
+                if (!allTC.includes(s)) allTC.push(s);
+            });
+        }
+    }
+    return allTC.length > 0 ? allTC.join(', ') : '(Bài thuốc chưa có triệu chứng)';
+}
+
+function tyUpdateTrieuChungPreview() {
+    const el = document.getElementById('tayy-trieuchung-preview');
+    if (el) el.textContent = _tyGetTrieuChungFromDraft();
+}
 
 // ═══════════════════════════════════════════════════════════
-// TAB: TRIỆU CHỨNG
 // MODAL CHUNG
 // ═══════════════════════════════════════════════════════════
 function showTayyModal(title, bodyHtml, widthClass) {
