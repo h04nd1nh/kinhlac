@@ -224,7 +224,7 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
                             if (isConfirmed)
                               TextButton.icon(
                                 onPressed: () => _addToCalendar(apt),
-                                icon: Icon(Icons.calendar_add_on, color: Colors.green),
+                                icon: Icon(Icons.calendar_month, color: Colors.green),
                                 label: Text('Thêm vào lịch', style: TextStyle(color: Colors.green)),
                               ),
                             TextButton.icon(
