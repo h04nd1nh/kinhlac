@@ -210,11 +210,12 @@ function vtOnTinhSearchInput(val) {
     const query = (val || '').trim().toLowerCase();
     if (!suggestEl) return;
 
+    // Lấy từ dữ liệu thuốc hiện có ( deduplicate )
     const existingValues = [...new Set(_thuocData.viThuoc.map(v => v.tinh).filter(Boolean).flatMap(s => s.split(',').map(x => x.trim())))];
     const all = [...new Set([..._TINH_DEFAULTS, ...existingValues])];
     
-    const filtered = all.filter(x => x.toLowerCase().includes(query)).slice(0, 8);
-    const hasExact = all.some(x => x.toLowerCase() === query);
+    const filtered = all.filter(x => (x || '').toLowerCase().includes(query)).slice(0, 10);
+    const hasExact = all.some(x => (x || '').toLowerCase() === query);
 
     let html = '';
     if (filtered.length > 0) {
@@ -254,11 +255,12 @@ function vtOnViSearchInput(val) {
     const query = (val || '').trim().toLowerCase();
     if (!suggestEl) return;
 
+    // Lấy từ dữ liệu thuốc hiện có ( deduplicate )
     const existingValues = [...new Set(_thuocData.viThuoc.map(v => v.vi).filter(Boolean).flatMap(s => s.split(',').map(x => x.trim())))];
     const all = [...new Set([..._VI_DEFAULTS, ...existingValues])];
     
-    const filtered = all.filter(x => x.toLowerCase().includes(query)).slice(0, 8);
-    const hasExact = all.some(x => x.toLowerCase() === query);
+    const filtered = all.filter(x => (x || '').toLowerCase().includes(query)).slice(0, 10);
+    const hasExact = all.some(x => (x || '').toLowerCase() === query);
 
     let html = '';
     if (filtered.length > 0) {
@@ -367,6 +369,9 @@ function vtSelectQuyKinh(name) {
         inp.focus();
     }
     vtRenderQuyKinhChips();
+    document.getElementById('vt-quykinh-suggest').style.display = 'none';
+}
+
     document.getElementById('vt-quykinh-suggest').style.display = 'none';
 }
 
