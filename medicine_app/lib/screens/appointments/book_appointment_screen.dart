@@ -13,192 +13,305 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   TimeOfDay? _selectedTime;
   final _notesController = TextEditingController();
   bool _isLoading = false;
-  String _appointmentType = 'SINGLE';
-  int _weeksCount = 4;
+  bool _isWeekly = false;
+  final int _defaultWeeksCount = 4; // Default duration hidden from UI
 
-  void _pickDate() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().add(Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(Duration(days: 30)),
-    );
-    if (date != null) {
-      setState(() => _selectedDate = date);
-    }
+  // Selection for Days of Week: Mon=0, Tue=1, ..., Sun=6
+  final List<bool> _selectedDays = List.generate(7, (index) => false);
+  final List<String> _dayLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = DateTime.now().add(Duration(days: 1));
+    _selectedTime = TimeOfDay(hour: 8, minute: 0);
   }
 
-  void _pickTime() async {
+  Future<void> _pickDate() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now().add(Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(Duration(days: 90)),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: ColorScheme.light(primary: const Color(0xFF5B3A1A)),
+        ),
+        child: child!,
+      ),
+    );
+    if (date != null) setState(() => _selectedDate = date);
+  }
+
+  Future<void> _pickTime() async {
     final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay(hour: 8, minute: 0),
+      initialTime: _selectedTime ?? TimeOfDay(hour: 8, minute: 0),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: ColorScheme.light(primary: const Color(0xFF5B3A1A)),
+        ),
+        child: child!,
+      ),
     );
-    if (time != null) {
-      setState(() => _selectedTime = time);
-    }
+    if (time != null) setState(() => _selectedTime = time);
   }
 
   void _submit() async {
-    if (_selectedDate == null || _selectedTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Vui lòng chọn ngày và giờ.')));
-      return;
-    }
+    if (_selectedDate == null || _selectedTime == null) return;
 
     setState(() => _isLoading = true);
 
-    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-    final timeStr = '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
+    final String timeStr =
+        '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
+    final String notes = _notesController.text.trim();
 
-    final success = await AppointmentService.createAppointment(
-      dateStr, 
-      timeStr, 
-      _notesController.text.trim(),
-      type: _appointmentType,
-      weeks: _appointmentType == 'WEEKLY' ? _weeksCount : null,
-    );
+    bool anyFailure = false;
+
+    if (!_isWeekly) {
+      final success = await AppointmentService.createAppointment(
+        DateFormat('yyyy-MM-dd').format(_selectedDate!),
+        timeStr,
+        notes,
+        type: 'SINGLE',
+      );
+      if (!success) anyFailure = true;
+    } else {
+      bool daySelected = _selectedDays.any((selected) => selected);
+      if (!daySelected) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Vui lòng chọn ít nhất một thứ trong tuần.')),
+        );
+        return;
+      }
+
+      for (int i = 0; i < 7; i++) {
+        if (_selectedDays[i]) {
+          int targetWeekday = i + 1;
+          DateTime now = DateTime.now();
+          int daysDiff = (targetWeekday - now.weekday + 7) % 7;
+          if (daysDiff == 0 && now.hour >= _selectedTime!.hour) daysDiff = 7;
+
+          DateTime nextOccurrence = now.add(Duration(days: daysDiff));
+          final success = await AppointmentService.createAppointment(
+            DateFormat('yyyy-MM-dd').format(nextOccurrence),
+            timeStr,
+            notes,
+            type: 'WEEKLY',
+            weeks: _defaultWeeksCount,
+          );
+          if (!success) anyFailure = true;
+        }
+      }
+    }
+
     setState(() => _isLoading = false);
 
-    if (success) {
+    if (!anyFailure) {
       if (mounted) {
-        // Sync to Calendar
-        final startDate = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day, _selectedTime!.hour, _selectedTime!.minute);
-        final endDate = startDate.add(Duration(hours: 1)); // Default 1 hour
-
-        final Event event = Event(
-          title: 'Khám Bệnh Đông Y',
-          description: _notesController.text.trim(),
-          location: 'Phòng khám Kinh Lạc',
-          startDate: startDate,
-          endDate: endDate,
-          iosParams: IOSParams(
-            reminder: Duration(hours: 1),
-          ),
-          recurrence: _appointmentType == 'WEEKLY' 
-            ? Recurrence(
-                frequency: Frequency.weekly,
-                ocurrences: _weeksCount,
-              )
-            : null,
-        );
-
-        Add2Calendar.addEvent2Cal(event);
-
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('Thành công'),
-            content: Text('Bạn đã gửi yêu cầu đặt lịch khám thành công. Lịch vừa được đề xuất thêm vào ứng dụng Lịch của bạn.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // dismiss dialog
-                  Navigator.of(context).pop(); // return to previous screen
-                },
-                child: Text('OK'),
-              )
-            ],
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Đặt lịch thành công!')));
+        Navigator.pop(context);
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Không thể đặt lịch. Vui lòng thử lại sau.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Có lỗi xảy ra khi đặt lịch. Vui lòng thử lại.'),
+          ),
+        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    const Color primaryColor = Color(0xFF5B3A1A);
+    const Color secondaryColor = Color(0xFF8B1A1A);
+    const Color bgColor = Color(0xFFFBF8F1);
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text('Đặt Lịch Khám'),
+        title: Text(
+          'Đặt Lịch Khám',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Nhập thông tin lịch hẹn', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            SizedBox(height: 24),
+            Text(
+              'Thông tin lịch hẹn',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: primaryColor,
+              ),
+            ),
+            SizedBox(height: 16),
+
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickDate,
-                    icon: Icon(Icons.calendar_today),
-                    label: Text(_selectedDate == null ? 'Chọn ngày' : DateFormat('dd/MM/yyyy').format(_selectedDate!)),
-                    style: OutlinedButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 16)),
+                  child: _buildPickerButton(
+                    onTap: _pickDate,
+                    icon: Icons.calendar_today,
+                    label: _selectedDate == null
+                        ? 'Chọn ngày'
+                        : DateFormat('dd/MM/yyyy').format(_selectedDate!),
                   ),
                 ),
-                SizedBox(width: 16),
+                SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickTime,
-                    icon: Icon(Icons.access_time),
-                    label: Text(_selectedTime == null ? 'Chọn giờ' : _selectedTime!.format(context)),
-                    style: OutlinedButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 16)),
+                  child: _buildPickerButton(
+                    onTap: _pickTime,
+                    icon: Icons.access_time,
+                    label: _selectedTime == null
+                        ? 'Chọn giờ'
+                        : _selectedTime!.format(context),
                   ),
                 ),
               ],
             ),
+
             SizedBox(height: 24),
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Loại lịch:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                SizedBox(width: 16),
-                DropdownButton<String>(
-                  value: _appointmentType,
-                  items: [
-                    DropdownMenuItem(value: 'SINGLE', child: Text('Một lần')),
-                    DropdownMenuItem(value: 'WEEKLY', child: Text('Hàng tuần')),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) setState(() => _appointmentType = val);
-                  },
+                Text(
+                  'Lặp lại hàng tuần',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                Switch(
+                  value: _isWeekly,
+                  activeColor: primaryColor,
+                  onChanged: (val) => setState(() => _isWeekly = val),
                 ),
               ],
             ),
-            if (_appointmentType == 'WEEKLY') ...[
-              SizedBox(height: 16),
-              Row(
-                children: [
-                  Text('Số tuần lặp:', style: TextStyle(fontWeight: FontWeight.w600)),
-                  Expanded(
-                    child: Slider(
-                      value: _weeksCount.toDouble(),
-                      min: 2,
-                      max: 12,
-                      divisions: 10,
-                      label: _weeksCount.toString(),
-                      onChanged: (val) => setState(() => _weeksCount = val.toInt()),
+
+            if (_isWeekly) ...[
+              SizedBox(height: 12),
+              Text(
+                'Chọn thứ trong tuần:',
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: List.generate(7, (index) {
+                  return FilterChip(
+                    label: Text(_dayLabels[index]),
+                    selected: _selectedDays[index],
+                    onSelected: (val) =>
+                        setState(() => _selectedDays[index] = val),
+                    selectedColor: primaryColor.withOpacity(0.2),
+                    checkmarkColor: primaryColor,
+                    labelStyle: TextStyle(
+                      color: _selectedDays[index]
+                          ? primaryColor
+                          : Colors.black87,
+                      fontWeight: _selectedDays[index]
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
-                  ),
-                  Text('$_weeksCount tuần', style: TextStyle(color: Colors.blue)),
-                ],
+                  );
+                }),
               ),
             ],
+
             SizedBox(height: 24),
+            Text(
+              'Ghi chú tình trạng',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: primaryColor,
+              ),
+            ),
+            SizedBox(height: 12),
             TextField(
               controller: _notesController,
               maxLines: 4,
               decoration: InputDecoration(
-                labelText: 'Mô tả triệu chứng / Ghi chú (Tùy chọn)',
-                alignLabelWithHint: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                hintText: 'Nhập triệu chứng hoặc lưu ý...',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
               ),
             ),
-            SizedBox(height: 32),
+
+            SizedBox(height: 40),
             ElevatedButton(
               onPressed: _isLoading ? null : _submit,
               style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                backgroundColor: Theme.of(context).primaryColor,
+                padding: EdgeInsets.symmetric(vertical: 18),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                backgroundColor: secondaryColor,
               ),
               child: _isLoading
-                  ? SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white))
-                  : Text('XÁC NHẬN ĐẶT LỊCH', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                  ? SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Text(
+                      'XÁC NHẬN ĐẶT LỊCH',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPickerButton({
+    required VoidCallback onTap,
+    required IconData icon,
+    required String label,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: const Color(0xFF5B3A1A)),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 15, color: Colors.black87),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
