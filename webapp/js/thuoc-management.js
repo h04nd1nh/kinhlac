@@ -5,13 +5,19 @@ let _thuocData = {
     viThuoc: [],
     baiThuoc: [],
     kinhMach: [],
-    huyetVi: [], // Thêm Huyệt vị
+    huyetVi: [],
+    bienChung: [],
+    phapTri: [],
+    trieuChung: [],
     activeTab: 'vi-thuoc',
 };
 
 // Draft de chi_tiet (thành phần vị thuốc) đang được chỉnh trong modal bài thuốc
-// Mục tiêu: UI nhập bằng chips, khi lưu sẽ gửi đúng `chi_tiet` lên backend.
 let _btDraftChiTiet = [];
+// Draft chips cho biện chứng, triệu chứng, pháp trị
+let _btDraftBienChung = [];
+let _btDraftTrieuChung = [];
+let _btDraftPhapTri = [];
 
 // ─── Khởi tạo ─────────────────────────────────────────────
 async function initThuocManagement() {
@@ -21,16 +27,22 @@ async function initThuocManagement() {
 
 async function loadAllThuocData() {
     try {
-        const [vt, bt, km, hv] = await Promise.all([
+        const [vt, bt, km, hv, bc, pt, tc] = await Promise.all([
             apiGetViThuoc(),
             apiGetBaiThuoc(),
             apiGetKinhMach(),
             apiGetHuyetVi(),
+            apiGetBienChung(),
+            apiGetPhapTri(),
+            apiGetTrieuChung(),
         ]);
         _thuocData.viThuoc = vt || [];
         _thuocData.baiThuoc = bt || [];
         _thuocData.kinhMach = km || [];
         _thuocData.huyetVi = hv || [];
+        _thuocData.bienChung = bc || [];
+        _thuocData.phapTri = pt || [];
+        _thuocData.trieuChung = tc || [];
     } catch (e) {
         console.error('Lỗi tải dữ liệu Thuốc:', e);
     }
@@ -351,10 +363,16 @@ function renderBaiThuocTab(el) {
             const lieu = (d?.lieu_luong || '').trim();
             return lieu ? `${ten} (${lieu})` : ten;
         }).filter(Boolean).join(', ');
+        const bienChungStr = escHtml(item.bien_chung || '—');
+        const trieuChungStr = escHtml(item.trieu_chung || '—');
+        const phapTriStr = escHtml(item.phap_tri || '—');
         return `
             <tr>
                 <td><strong>${escHtml(item.ten_bai_thuoc)}</strong></td>
                 <td>${escHtml(item.nguon_goc || '—')}</td>
+                <td style="font-size:0.8rem;">${bienChungStr}</td>
+                <td style="font-size:0.8rem;">${trieuChungStr}</td>
+                <td style="font-size:0.8rem;">${phapTriStr}</td>
                 <td style="font-size:0.8rem;">${escHtml(ingredients || 'Chưa có vị thuốc')}</td>
                 <td style="text-align:center;width:130px;">
                     <div class="table-actions" style="justify-content:center;">
@@ -371,8 +389,8 @@ function renderBaiThuocTab(el) {
         </div>
         <div class="data-table-container">
             <table>
-                <thead><tr><th>Tên bài thuốc</th><th>Nguồn gốc</th><th>Thành phần</th><th style="width:130px; text-align:center;">Thao tác</th></tr></thead>
-                <tbody>${rows || '<tr><td colspan="4" style="text-align:center;">Chưa có dữ liệu</td></tr>'}</tbody>
+                <thead><tr><th>Tên bài thuốc</th><th>Nguồn gốc</th><th>Biện chứng</th><th>Triệu chứng</th><th>Pháp trị</th><th>Thành phần</th><th style="width:130px; text-align:center;">Thao tác</th></tr></thead>
+                <tbody>${rows || '<tr><td colspan="7" style="text-align:center;">Chưa có dữ liệu</td></tr>'}</tbody>
             </table>
         </div>`;
 }
@@ -392,11 +410,67 @@ function openBaiThuocForm(id) {
         };
     }).filter(x => Number.isFinite(x.idViThuoc));
 
+    // Khởi tạo draft chips cho biện chứng, triệu chứng, pháp trị
+    _btDraftBienChung = (item?.bien_chung || '').split(',').map(s => s.trim()).filter(Boolean);
+    _btDraftTrieuChung = (item?.trieu_chung || '').split(',').map(s => s.trim()).filter(Boolean);
+    _btDraftPhapTri = (item?.phap_tri || '').split(',').map(s => s.trim()).filter(Boolean);
+
     const rowsHtml = btRenderBaiThuocChiTietRowsHtml();
     showTayyModal('Bài thuốc', `
         <label class="tayy-form-label">Tên bài thuốc<br><input id="bt-inp-ten" type="text" class="tayy-form-input" value="${item ? escHtml(item.ten_bai_thuoc) : ''}"></label>
         <label class="tayy-form-label">Nguồn gốc/Cổ phương<br><input id="bt-inp-source" type="text" class="tayy-form-input" value="${item ? escHtml(item.nguon_goc) : ''}"></label>
         <label class="tayy-form-label">Cách dùng<br><textarea id="bt-inp-usage" class="tayy-form-input" rows="3">${item ? escHtml(item.cach_dung) : ''}</textarea></label>
+
+        <!-- Biện chứng -->
+        <label class="tayy-form-label">
+            Biện chứng
+            <div style="position:relative; margin-top:6px;">
+                <div id="bt-bienchung-chips" class="chips-container" onclick="document.getElementById('bt-inp-bienchung').focus()">
+                    <input id="bt-inp-bienchung" type="text" class="chip-input"
+                        placeholder="Thêm biện chứng..."
+                        oninput="btOnBienChungSearchInput(this.value)"
+                        onkeydown="if(event.key==='Enter' && this.value.trim()){btSelectBienChung(this.value.trim()); event.preventDefault();}">
+                </div>
+                <div id="bt-bienchung-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px);
+                    background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
+                    box-shadow:0 10px 30px rgba(0,0,0,0.12);
+                    max-height:200px; overflow-y:auto; z-index:2500; display:none;"></div>
+            </div>
+        </label>
+
+        <!-- Triệu chứng -->
+        <label class="tayy-form-label">
+            Triệu chứng
+            <div style="position:relative; margin-top:6px;">
+                <div id="bt-trieuchung-chips" class="chips-container" onclick="document.getElementById('bt-inp-trieuchung').focus()">
+                    <input id="bt-inp-trieuchung" type="text" class="chip-input"
+                        placeholder="Thêm triệu chứng..."
+                        oninput="btOnTrieuChungSearchInput(this.value)"
+                        onkeydown="if(event.key==='Enter' && this.value.trim()){btSelectTrieuChung(this.value.trim()); event.preventDefault();}">
+                </div>
+                <div id="bt-trieuchung-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px);
+                    background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
+                    box-shadow:0 10px 30px rgba(0,0,0,0.12);
+                    max-height:200px; overflow-y:auto; z-index:2500; display:none;"></div>
+            </div>
+        </label>
+
+        <!-- Pháp trị -->
+        <label class="tayy-form-label">
+            Pháp trị
+            <div style="position:relative; margin-top:6px;">
+                <div id="bt-phaptri-chips" class="chips-container" onclick="document.getElementById('bt-inp-phaptri').focus()">
+                    <input id="bt-inp-phaptri" type="text" class="chip-input"
+                        placeholder="Thêm pháp trị..."
+                        oninput="btOnPhapTriSearchInput(this.value)"
+                        onkeydown="if(event.key==='Enter' && this.value.trim()){btSelectPhapTri(this.value.trim()); event.preventDefault();}">
+                </div>
+                <div id="bt-phaptri-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px);
+                    background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
+                    box-shadow:0 10px 30px rgba(0,0,0,0.12);
+                    max-height:200px; overflow-y:auto; z-index:2500; display:none;"></div>
+            </div>
+        </label>
 
         <label class="tayy-form-label">
             Thành phần vị thuốc
@@ -433,8 +507,11 @@ function openBaiThuocForm(id) {
         </div>
     `, 'wide');
 
-    // Khởi tạo UI suggestion cho modal mới
+    // Khởi tạo UI chips và suggestion cho modal mới
     setTimeout(() => {
+        btRenderBienChungChips();
+        btRenderTrieuChungChips();
+        btRenderPhapTriChips();
         btOnViThuocSearchInput('');
         btRerenderBaiThuocChiTietRows();
     }, 0);
@@ -464,6 +541,9 @@ async function saveBaiThuoc(id) {
         ten_bai_thuoc: document.getElementById('bt-inp-ten').value.trim(),
         nguon_goc: document.getElementById('bt-inp-source').value.trim(),
         cach_dung: document.getElementById('bt-inp-usage').value.trim(),
+        bien_chung: _btDraftBienChung.join(', '),
+        trieu_chung: _btDraftTrieuChung.join(', '),
+        phap_tri: _btDraftPhapTri.join(', '),
         chi_tiet
     };
     if (!payload.ten_bai_thuoc) return alert('Thiếu tên bài thuốc');
@@ -675,4 +755,259 @@ function btUpdateBaiThuocChipVaiTro(viThuocId, vaiValue) {
 
 function btUpdateBaiThuocChipVi(viThuocId, viValue) {
     // No-op - Tình/Vị removed from UI
+}
+
+// ═══════════════════════════════════════════════════════════
+// BIỆN CHỨNG — chips + soft create
+// ═══════════════════════════════════════════════════════════
+function btRenderBienChungChips() {
+    const container = document.getElementById('bt-bienchung-chips');
+    const input = document.getElementById('bt-inp-bienchung');
+    if (!container || !input) return;
+    container.querySelectorAll('.chip').forEach(c => c.remove());
+    _btDraftBienChung.forEach(name => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerHTML = `${escHtml(name)} <span class="chip-remove" onclick="btRemoveBienChungChip('${escHtml(name)}'); event.stopPropagation();">×</span>`;
+        container.insertBefore(chip, input);
+    });
+}
+
+function btRemoveBienChungChip(name) {
+    _btDraftBienChung = _btDraftBienChung.filter(x => x !== name);
+    btRenderBienChungChips();
+}
+
+function btSelectBienChung(name) {
+    if (!name || _btDraftBienChung.includes(name)) return;
+    _btDraftBienChung.push(name);
+    const inp = document.getElementById('bt-inp-bienchung');
+    if (inp) { inp.value = ''; inp.focus(); }
+    btRenderBienChungChips();
+    const suggestEl = document.getElementById('bt-bienchung-suggest');
+    if (suggestEl) suggestEl.style.display = 'none';
+}
+
+function btOnBienChungSearchInput(val) {
+    const suggestEl = document.getElementById('bt-bienchung-suggest');
+    if (!suggestEl) return;
+    const query = (val || '').trim().toLowerCase();
+    if (!query) { suggestEl.style.display = 'none'; return; }
+
+    const allNames = (_thuocData.bienChung || []).map(b => b.ten_bien_chung);
+    const filtered = allNames.filter(n => n.toLowerCase().includes(query) && !_btDraftBienChung.includes(n)).slice(0, 10);
+    const hasExact = allNames.some(n => n.toLowerCase() === query);
+
+    let html = '';
+    if (filtered.length > 0) {
+        html += filtered.map(m => `
+            <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+                 onmouseover="this.style.background='#F5F0E8'"
+                 onmouseout="this.style.background='transparent'"
+                 onclick="btSelectBienChung('${escHtml(m)}')">
+                ${escHtml(m)}
+            </div>
+        `).join('');
+    } else {
+        html += `<div style="padding:10px; color:#A09580; font-size:0.82rem;">Không tìm thấy biện chứng có sẵn</div>`;
+    }
+    if (!hasExact && val.trim()) {
+        html += `
+            <div style="padding:8px 10px; cursor:pointer; background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px;"
+                 onmouseover="this.style.background='#EFE8D8'"
+                 onmouseout="this.style.background='#FAF6EE'"
+                 onclick="btSoftCreateBienChung('${escHtml(val.trim())}')">
+                <div style="font-weight:700; color:#CA6222; font-size:0.82rem; display:flex; align-items:center; gap:6px;">
+                    <span style="font-size:1.2rem; line-height:1;">+</span> Thêm biện chứng "${escHtml(val.trim())}"
+                </div>
+            </div>
+        `;
+    }
+    suggestEl.style.display = 'block';
+    suggestEl.innerHTML = html;
+}
+
+async function btSoftCreateBienChung(name) {
+    if (!name) return;
+    const inp = document.getElementById('bt-inp-bienchung');
+    const suggestEl = document.getElementById('bt-bienchung-suggest');
+    if (inp) { inp.disabled = true; inp.value = 'Đang thêm...'; }
+    if (suggestEl) suggestEl.style.display = 'none';
+
+    const res = await apiCreateBienChung({ ten_bien_chung: name });
+    if (inp) { inp.disabled = false; inp.value = ''; inp.focus(); }
+    if (!res.success) { alert('Lỗi khi thêm biện chứng: ' + (res.error || '')); return; }
+
+    _thuocData.bienChung.push({ id: res.id, ten_bien_chung: name, ...(res.data || {}) });
+    btSelectBienChung(name);
+}
+
+// ═══════════════════════════════════════════════════════════
+// TRIỆU CHỨNG — chips + soft create
+// ═══════════════════════════════════════════════════════════
+function btRenderTrieuChungChips() {
+    const container = document.getElementById('bt-trieuchung-chips');
+    const input = document.getElementById('bt-inp-trieuchung');
+    if (!container || !input) return;
+    container.querySelectorAll('.chip').forEach(c => c.remove());
+    _btDraftTrieuChung.forEach(name => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerHTML = `${escHtml(name)} <span class="chip-remove" onclick="btRemoveTrieuChungChip('${escHtml(name)}'); event.stopPropagation();">×</span>`;
+        container.insertBefore(chip, input);
+    });
+}
+
+function btRemoveTrieuChungChip(name) {
+    _btDraftTrieuChung = _btDraftTrieuChung.filter(x => x !== name);
+    btRenderTrieuChungChips();
+}
+
+function btSelectTrieuChung(name) {
+    if (!name || _btDraftTrieuChung.includes(name)) return;
+    _btDraftTrieuChung.push(name);
+    const inp = document.getElementById('bt-inp-trieuchung');
+    if (inp) { inp.value = ''; inp.focus(); }
+    btRenderTrieuChungChips();
+    const suggestEl = document.getElementById('bt-trieuchung-suggest');
+    if (suggestEl) suggestEl.style.display = 'none';
+}
+
+function btOnTrieuChungSearchInput(val) {
+    const suggestEl = document.getElementById('bt-trieuchung-suggest');
+    if (!suggestEl) return;
+    const query = (val || '').trim().toLowerCase();
+    if (!query) { suggestEl.style.display = 'none'; return; }
+
+    const allNames = (_thuocData.trieuChung || []).map(t => t.ten_trieu_chung);
+    const filtered = allNames.filter(n => n.toLowerCase().includes(query) && !_btDraftTrieuChung.includes(n)).slice(0, 10);
+    const hasExact = allNames.some(n => n.toLowerCase() === query);
+
+    let html = '';
+    if (filtered.length > 0) {
+        html += filtered.map(m => `
+            <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+                 onmouseover="this.style.background='#F5F0E8'"
+                 onmouseout="this.style.background='transparent'"
+                 onclick="btSelectTrieuChung('${escHtml(m)}')">
+                ${escHtml(m)}
+            </div>
+        `).join('');
+    } else {
+        html += `<div style="padding:10px; color:#A09580; font-size:0.82rem;">Không tìm thấy triệu chứng có sẵn</div>`;
+    }
+    if (!hasExact && val.trim()) {
+        html += `
+            <div style="padding:8px 10px; cursor:pointer; background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px;"
+                 onmouseover="this.style.background='#EFE8D8'"
+                 onmouseout="this.style.background='#FAF6EE'"
+                 onclick="btSoftCreateTrieuChung('${escHtml(val.trim())}')">
+                <div style="font-weight:700; color:#CA6222; font-size:0.82rem; display:flex; align-items:center; gap:6px;">
+                    <span style="font-size:1.2rem; line-height:1;">+</span> Thêm triệu chứng "${escHtml(val.trim())}"
+                </div>
+            </div>
+        `;
+    }
+    suggestEl.style.display = 'block';
+    suggestEl.innerHTML = html;
+}
+
+async function btSoftCreateTrieuChung(name) {
+    if (!name) return;
+    const inp = document.getElementById('bt-inp-trieuchung');
+    const suggestEl = document.getElementById('bt-trieuchung-suggest');
+    if (inp) { inp.disabled = true; inp.value = 'Đang thêm...'; }
+    if (suggestEl) suggestEl.style.display = 'none';
+
+    const res = await apiCreateTrieuChung({ ten_trieu_chung: name });
+    if (inp) { inp.disabled = false; inp.value = ''; inp.focus(); }
+    if (!res.success) { alert('Lỗi khi thêm triệu chứng: ' + (res.error || '')); return; }
+
+    _thuocData.trieuChung.push({ id: res.id, ten_trieu_chung: name, ...(res.data || {}) });
+    btSelectTrieuChung(name);
+}
+
+// ═══════════════════════════════════════════════════════════
+// PHÁP TRỊ — chips + soft create
+// ═══════════════════════════════════════════════════════════
+function btRenderPhapTriChips() {
+    const container = document.getElementById('bt-phaptri-chips');
+    const input = document.getElementById('bt-inp-phaptri');
+    if (!container || !input) return;
+    container.querySelectorAll('.chip').forEach(c => c.remove());
+    _btDraftPhapTri.forEach(name => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerHTML = `${escHtml(name)} <span class="chip-remove" onclick="btRemovePhapTriChip('${escHtml(name)}'); event.stopPropagation();">×</span>`;
+        container.insertBefore(chip, input);
+    });
+}
+
+function btRemovePhapTriChip(name) {
+    _btDraftPhapTri = _btDraftPhapTri.filter(x => x !== name);
+    btRenderPhapTriChips();
+}
+
+function btSelectPhapTri(name) {
+    if (!name || _btDraftPhapTri.includes(name)) return;
+    _btDraftPhapTri.push(name);
+    const inp = document.getElementById('bt-inp-phaptri');
+    if (inp) { inp.value = ''; inp.focus(); }
+    btRenderPhapTriChips();
+    const suggestEl = document.getElementById('bt-phaptri-suggest');
+    if (suggestEl) suggestEl.style.display = 'none';
+}
+
+function btOnPhapTriSearchInput(val) {
+    const suggestEl = document.getElementById('bt-phaptri-suggest');
+    if (!suggestEl) return;
+    const query = (val || '').trim().toLowerCase();
+    if (!query) { suggestEl.style.display = 'none'; return; }
+
+    const allNames = (_thuocData.phapTri || []).map(p => p.ten_phap_tri);
+    const filtered = allNames.filter(n => n.toLowerCase().includes(query) && !_btDraftPhapTri.includes(n)).slice(0, 10);
+    const hasExact = allNames.some(n => n.toLowerCase() === query);
+
+    let html = '';
+    if (filtered.length > 0) {
+        html += filtered.map(m => `
+            <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+                 onmouseover="this.style.background='#F5F0E8'"
+                 onmouseout="this.style.background='transparent'"
+                 onclick="btSelectPhapTri('${escHtml(m)}')">
+                ${escHtml(m)}
+            </div>
+        `).join('');
+    } else {
+        html += `<div style="padding:10px; color:#A09580; font-size:0.82rem;">Không tìm thấy pháp trị có sẵn</div>`;
+    }
+    if (!hasExact && val.trim()) {
+        html += `
+            <div style="padding:8px 10px; cursor:pointer; background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px;"
+                 onmouseover="this.style.background='#EFE8D8'"
+                 onmouseout="this.style.background='#FAF6EE'"
+                 onclick="btSoftCreatePhapTri('${escHtml(val.trim())}')">
+                <div style="font-weight:700; color:#CA6222; font-size:0.82rem; display:flex; align-items:center; gap:6px;">
+                    <span style="font-size:1.2rem; line-height:1;">+</span> Thêm pháp trị "${escHtml(val.trim())}"
+                </div>
+            </div>
+        `;
+    }
+    suggestEl.style.display = 'block';
+    suggestEl.innerHTML = html;
+}
+
+async function btSoftCreatePhapTri(name) {
+    if (!name) return;
+    const inp = document.getElementById('bt-inp-phaptri');
+    const suggestEl = document.getElementById('bt-phaptri-suggest');
+    if (inp) { inp.disabled = true; inp.value = 'Đang thêm...'; }
+    if (suggestEl) suggestEl.style.display = 'none';
+
+    const res = await apiCreatePhapTri({ ten_phap_tri: name });
+    if (inp) { inp.disabled = false; inp.value = ''; inp.focus(); }
+    if (!res.success) { alert('Lỗi khi thêm pháp trị: ' + (res.error || '')); return; }
+
+    _thuocData.phapTri.push({ id: res.id, ten_phap_tri: name, ...(res.data || {}) });
+    btSelectPhapTri(name);
 }

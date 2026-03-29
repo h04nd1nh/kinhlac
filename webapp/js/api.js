@@ -704,6 +704,70 @@ async function apiDeleteViThuoc(id) {
     return { success: true };
 }
 
+// ---- BIỆN CHỨNG ----
+async function apiGetBienChung() {
+    const res = await fetch(_base() + '/bien-chung');
+    if (!res.ok) return [];
+    return res.json();
+}
+async function apiCreateBienChung(payload) {
+    const res = await fetch(_base() + '/bien-chung', {
+        method: 'POST',
+        headers: _authHeaders(),
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Tạo biện chứng thất bại') };
+    const data = await res.json();
+    return { success: true, id: data.id, data };
+}
+async function apiUpdateBienChung(id, payload) {
+    const res = await fetch(_base() + '/bien-chung/' + id, {
+        method: 'PUT',
+        headers: _authHeaders(),
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Cập nhật biện chứng thất bại') };
+    const data = await res.json();
+    return { success: true, data };
+}
+async function apiDeleteBienChung(id) {
+    const res = await fetch(_base() + '/bien-chung/' + id, { method: 'DELETE', headers: _authHeaders() });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Xóa biện chứng thất bại') };
+    return { success: true };
+}
+
+// ---- PHÁP TRỊ ----
+async function apiGetPhapTri() {
+    const res = await fetch(_base() + '/phap-tri');
+    if (!res.ok) return [];
+    return res.json();
+}
+async function apiCreatePhapTri(payload) {
+    const res = await fetch(_base() + '/phap-tri', {
+        method: 'POST',
+        headers: _authHeaders(),
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Tạo pháp trị thất bại') };
+    const data = await res.json();
+    return { success: true, id: data.id, data };
+}
+async function apiUpdatePhapTri(id, payload) {
+    const res = await fetch(_base() + '/phap-tri/' + id, {
+        method: 'PUT',
+        headers: _authHeaders(),
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Cập nhật pháp trị thất bại') };
+    const data = await res.json();
+    return { success: true, data };
+}
+async function apiDeletePhapTri(id) {
+    const res = await fetch(_base() + '/phap-tri/' + id, { method: 'DELETE', headers: _authHeaders() });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Xóa pháp trị thất bại') };
+    return { success: true };
+}
+
 // ---- BAI THUOC ----
 async function apiGetBaiThuoc() {
     const res = await fetch(_base() + '/bai-thuoc');

@@ -21,6 +21,15 @@ export class BaiThuoc {
   @Column({ type: 'text', nullable: true })
   ghi_chu: string;
 
+  @Column({ type: 'text', nullable: true })
+  bien_chung: string; // Biện chứng (comma-separated)
+
+  @Column({ type: 'text', nullable: true })
+  trieu_chung: string; // Triệu chứng (comma-separated)
+
+  @Column({ type: 'text', nullable: true })
+  phap_tri: string; // Pháp trị (comma-separated)
+
   @OneToMany(() => BaiThuocChiTiet, (detail) => detail.baiThuoc)
   chiTietViThuoc: BaiThuocChiTiet[];
 }
