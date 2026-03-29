@@ -91,21 +91,29 @@ function renderThuocTabContent() {
 // TAB: VỊ THUỐC
 // ═══════════════════════════════════════════════════════════
 function renderViThuocTab(el) {
-    const rows = _thuocData.viThuoc.map(item => `
-        <tr>
-            <td><strong>${escHtml(item.ten_vi_thuoc)}</strong></td>
-            <td style="text-align:center;">${escHtml(item.tinh || '')}</td>
-            <td style="text-align:center;">${escHtml(item.vi || '')}</td>
-            <td style="text-align:center;">${escHtml(item.quy_kinh || '')}</td>
-            <td style="font-size:0.8rem;">${escHtml(item.cong_dung || '')}</td>
-            <td style="text-align:center;width:130px;">
-                <div class="table-actions" style="justify-content:center;">
-                    <button class="btn btn-sm btn-outline" onclick="openViThuocForm(${item.id})">✏ Sửa</button>
-                    <button class="btn btn-sm btn-danger" onclick="deleteViThuoc(${item.id})">🗑 Xóa</button>
-                </div>
-            </td>
-        </tr>
-    `).join('');
+    const rows = _thuocData.viThuoc.map(item => {
+        const aliasStr = item.ten_goi_khac ? `<div style="font-size:0.75rem; color:#A09580; font-style:italic;">(${escHtml(item.ten_goi_khac)})</div>` : '';
+        const congDungHtml = (item.cong_dung || '').split('; ').filter(Boolean).map(cd => `• ${escHtml(cd)}`).join('<br>');
+        
+        return `
+            <tr>
+                <td>
+                    <div style="font-weight:700; color:#5B3A1A;">${escHtml(item.ten_vi_thuoc)}</div>
+                    ${aliasStr}
+                </td>
+                <td style="text-align:center;">${escHtml(item.tinh || '')}</td>
+                <td style="text-align:center;">${escHtml(item.vi || '')}</td>
+                <td style="text-align:center;">${escHtml(item.quy_kinh || '')}</td>
+                <td style="font-size:0.78rem; line-height:1.4;">${congDungHtml}</td>
+                <td style="text-align:center;width:130px;">
+                    <div class="table-actions" style="justify-content:center;">
+                        <button class="btn btn-sm btn-outline" onclick="openViThuocForm(${item.id})">✏ Sửa</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteViThuoc(${item.id})">🗑 Xóa</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
     el.innerHTML = `
         <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
             <button class="btn btn-primary" onclick="openViThuocForm()">+ Thêm vị thuốc</button>
@@ -121,61 +129,65 @@ function renderViThuocTab(el) {
 function openViThuocForm(id) {
     const item = id ? _thuocData.viThuoc.find(x => x.id == id) : null;
     showTayyModal('Vị thuốc', `
-        <label class="tayy-form-label">Tên vị thuốc<br><input id="vt-inp-ten" type="text" class="tayy-form-input" value="${item ? escHtml(item.ten_vi_thuoc) : ''}"></label>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:10px;">
+            <label class="tayy-form-label">Tên vị thuốc<br><input id="vt-inp-ten" type="text" class="tayy-form-input" value="${item ? escHtml(item.ten_vi_thuoc) : ''}"></label>
+            <label class="tayy-form-label">Tên gọi khác<br><input id="vt-inp-alias" type="text" class="tayy-form-input" value="${item ? escHtml(item.ten_goi_khac || '') : ''}" placeholder="VD: Sâm cao ly..."></label>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
             <label class="tayy-form-label">Tính (khí)<br>
                 <div style="position:relative;">
                     <input id="vt-inp-tinh" type="text" class="tayy-form-input" 
                         value="${item ? escHtml(item.tinh || '') : ''}" 
-                        placeholder="Chọn hoặc nhập tính..."
+                        oninput="vtOnTinhSearchInput(this.value)"
                         onfocus="vtOnTinhSearchInput(this.value)"
-                        oninput="vtOnTinhSearchInput(this.value)">
-                    <div id="vt-tinh-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px);
-                        background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
-                        box-shadow:0 10px 30px rgba(0,0,0,0.12);
-                        max-height:160px; overflow-y:auto; z-index:2500; display:none;"></div>
+                        placeholder="Chọn hoặc nhập tính...">
+                    <div id="vt-tinh-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px); background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.12); max-height:160px; overflow-y:auto; z-index:2500; display:none;"></div>
                 </div>
             </label>
             <label class="tayy-form-label">Vị (ngũ vị)<br>
                 <div style="position:relative;">
                     <input id="vt-inp-vi" type="text" class="tayy-form-input" 
                         value="${item ? escHtml(item.vi || '') : ''}" 
-                        placeholder="Chọn hoặc nhập vị..."
+                        oninput="vtOnViSearchInput(this.value)"
                         onfocus="vtOnViSearchInput(this.value)"
-                        oninput="vtOnViSearchInput(this.value)">
-                    <div id="vt-vi-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px);
-                        background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
-                        box-shadow:0 10px 30px rgba(0,0,0,0.12);
-                        max-height:160px; overflow-y:auto; z-index:2500; display:none;"></div>
+                        placeholder="Chọn hoặc nhập vị...">
+                    <div id="vt-vi-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px); background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.12); max-height:160px; overflow-y:auto; z-index:2500; display:none;"></div>
                 </div>
             </label>
         </div>
+
         <label class="tayy-form-label">Quy kinh (chọn nhiều)<br>
             <div style="position:relative;">
                 <div id="vt-quykinh-chips" class="chips-container" onclick="document.getElementById('vt-inp-quykinh').focus()">
-                    <!-- Chips will be rendered here -->
                     <input id="vt-inp-quykinh" type="text" class="chip-input" 
                         placeholder="Thêm kinh mạch..." 
                         oninput="vtOnQuyKinhSearchInput(this.value)"
                         onkeydown="if(event.key==='Enter' && this.value){vtSelectQuyKinh(this.value); event.preventDefault();} if(event.key==='Backspace' && !this.value) vtRemoveLastQuyKinhChip()">
                 </div>
-                <div id="vt-quykinh-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px);
-                    background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
-                    box-shadow:0 10px 30px rgba(0,0,0,0.12);
-                    max-height:200px; overflow-y:auto; z-index:2500; display:none;"></div>
+                <div id="vt-quykinh-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px); background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.12); max-height:200px; overflow-y:auto; z-index:2500; display:none;"></div>
             </div>
         </label>
 
-        <label class="tayy-form-label">Công dụng<br><textarea id="vt-inp-congdung" class="tayy-form-input" rows="3">${item ? escHtml(item.cong_dung) : ''}</textarea></label>
+        <label class="tayy-form-label">Công dụng (mỗi dòng một công dụng)<br>
+            <div id="vt-congdung-list" style="display:flex; flex-direction:column; gap:8px;">
+                <!-- Inputs added here -->
+            </div>
+            <button class="btn btn-sm btn-outline" style="margin-top:8px;" onclick="vtAddCongDungInput()">+ Thêm công dụng</button>
+        </label>
         <div class="tayy-form-actions">
             <button class="btn" onclick="closeTayyModal()">Hủy</button>
             <button class="btn btn-primary" onclick="saveViThuoc(${id || 0})">Lưu</button>
         </div>
     `);
 
-    // Khởi tạo chips
+    // Khởi tạo chips & lists
     _vtCurrentQuyKinh = (item?.quy_kinh || '').split(',').map(s => s.trim()).filter(Boolean);
+    _vtCurrentCongDung = (item?.cong_dung || '').split('; ').map(s => s.trim()).filter(Boolean);
+    if (_vtCurrentCongDung.length === 0) _vtCurrentCongDung = [''];
+
     vtRenderQuyKinhChips();
+    vtRenderCongDungList();
 
     // Đóng gợi ý khi click ra ngoài
     const closeModalSuggestions = (e) => {
@@ -195,29 +207,42 @@ const _VI_DEFAULTS = ['Chua', 'Đắng', 'Ngọt', 'Cay', 'Mặn', 'Nhạt'];
 
 function vtOnTinhSearchInput(val) {
     const suggestEl = document.getElementById('vt-tinh-suggest');
-    const query = val.trim().toLowerCase();
-    
-    // Tổng hợp từ mặc định + dữ liệu đang có
-    const existingValues = [...new Set(_thuocData.viThuoc.map(v => v.tinh).filter(Boolean))];
+    const query = (val || '').trim().toLowerCase();
+    if (!suggestEl) return;
+
+    const existingValues = [...new Set(_thuocData.viThuoc.map(v => v.tinh).filter(Boolean).flatMap(s => s.split(',').map(x => x.trim())))];
     const all = [...new Set([..._TINH_DEFAULTS, ...existingValues])];
     
-    const matches = all.filter(x => x.toLowerCase().includes(query));
-    if (matches.length === 0 && !val) {
-        suggestEl.style.display = 'none';
-        return;
+    const filtered = all.filter(x => x.toLowerCase().includes(query)).slice(0, 8);
+    const hasExact = all.some(x => x.toLowerCase() === query);
+
+    let html = '';
+    if (filtered.length > 0) {
+        html = filtered.map(m => `
+            <div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid #F0E8D8; transition:background 0.2s;"
+                 onmouseover="this.style.background='#F5F0E8'"
+                 onmouseout="this.style.background='transparent'"
+                 onclick="vtSelectTinh('${escHtml(m)}')">
+                <div style="font-weight:700; color:#5B3A1A; font-size:0.82rem;">${escHtml(m)}</div>
+            </div>
+        `).join('');
     }
 
-    suggestEl.style.display = 'block';
-    suggestEl.innerHTML = matches.map(m => `
-        <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
-             onmouseover="this.style.background='#F5F0E8'"
-             onmouseout="this.style.background='transparent'"
-             onclick="vtSelectTinh('${escHtml(m)}')">
-            ${escHtml(m)}
-        </div>
-    `).join('') || `<div style="padding:8px 10px; color:#A09580; font-size:0.82rem;">Bấm Enter hoặc tiếp tục nhập để tạo mới</div>`;
+    if (!hasExact && query) {
+        html += `
+            <div style="padding:8px 12px; cursor:pointer; background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px;"
+                 onmouseover="this.style.background='#EFE8D8'"
+                 onmouseout="this.style.background='#FAF6EE'"
+                 onclick="vtSelectTinh('${escHtml(val.trim())}')">
+                <div style="font-weight:700; color:#CA6222; font-size:0.82rem; display:flex; align-items:center; gap:6px;">
+                    <span style="font-size:1.2rem; line-height:1;">+</span> Thêm "${escHtml(val.trim())}"
+                </div>
+            </div>
+        `;
+    }
+    suggestEl.style.display = html ? 'block' : 'none';
+    suggestEl.innerHTML = html;
 }
-
 function vtSelectTinh(val) {
     const inp = document.getElementById('vt-inp-tinh');
     if (inp) inp.value = val;
@@ -226,28 +251,42 @@ function vtSelectTinh(val) {
 
 function vtOnViSearchInput(val) {
     const suggestEl = document.getElementById('vt-vi-suggest');
-    const query = val.trim().toLowerCase();
-    
-    const existingValues = [...new Set(_thuocData.viThuoc.map(v => v.vi).filter(Boolean))];
+    const query = (val || '').trim().toLowerCase();
+    if (!suggestEl) return;
+
+    const existingValues = [...new Set(_thuocData.viThuoc.map(v => v.vi).filter(Boolean).flatMap(s => s.split(',').map(x => x.trim())))];
     const all = [...new Set([..._VI_DEFAULTS, ...existingValues])];
     
-    const matches = all.filter(x => x.toLowerCase().includes(query));
-    if (matches.length === 0 && !val) {
-        suggestEl.style.display = 'none';
-        return;
+    const filtered = all.filter(x => x.toLowerCase().includes(query)).slice(0, 8);
+    const hasExact = all.some(x => x.toLowerCase() === query);
+
+    let html = '';
+    if (filtered.length > 0) {
+        html = filtered.map(m => `
+            <div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid #F0E8D8; transition:background 0.2s;"
+                 onmouseover="this.style.background='#F5F0E8'"
+                 onmouseout="this.style.background='transparent'"
+                 onclick="vtSelectVi('${escHtml(m)}')">
+                <div style="font-weight:700; color:#5B3A1A; font-size:0.82rem;">${escHtml(m)}</div>
+            </div>
+        `).join('');
     }
 
-    suggestEl.style.display = 'block';
-    suggestEl.innerHTML = matches.map(m => `
-        <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
-             onmouseover="this.style.background='#F5F0E8'"
-             onmouseout="this.style.background='transparent'"
-             onclick="vtSelectVi('${escHtml(m)}')">
-            ${escHtml(m)}
-        </div>
-    `).join('') || `<div style="padding:8px 10px; color:#A09580; font-size:0.82rem;">Bấm Enter hoặc tiếp tục nhập để tạo mới</div>`;
+    if (!hasExact && query) {
+        html += `
+            <div style="padding:8px 12px; cursor:pointer; background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px;"
+                 onmouseover="this.style.background='#EFE8D8'"
+                 onmouseout="this.style.background='#FAF6EE'"
+                 onclick="vtSelectVi('${escHtml(val.trim())}')">
+                <div style="font-weight:700; color:#CA6222; font-size:0.82rem; display:flex; align-items:center; gap:6px;">
+                    <span style="font-size:1.2rem; line-height:1;">+</span> Thêm "${escHtml(val.trim())}"
+                </div>
+            </div>
+        `;
+    }
+    suggestEl.style.display = html ? 'block' : 'none';
+    suggestEl.innerHTML = html;
 }
-
 function vtSelectVi(val) {
     const inp = document.getElementById('vt-inp-vi');
     if (inp) inp.value = val;
@@ -309,11 +348,11 @@ function vtOnQuyKinhSearchInput(val) {
 
     suggestEl.style.display = 'block';
     suggestEl.innerHTML = filteredMatches.map(m => `
-        <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+        <div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid #F0E8D8; transition:background 0.2s;"
              onmouseover="this.style.background='#F5F0E8'"
              onmouseout="this.style.background='transparent'"
              onclick="vtSelectQuyKinh('${escHtml(m)}')">
-            ${escHtml(m)}
+            <div style="font-weight:700; color:#5B3A1A; font-size:0.82rem;">${escHtml(m)}</div>
         </div>
     `).join('');
 }
@@ -331,13 +370,40 @@ function vtSelectQuyKinh(name) {
     document.getElementById('vt-quykinh-suggest').style.display = 'none';
 }
 
+let _vtCurrentCongDung = [];
+function vtRenderCongDungList() {
+    const container = document.getElementById('vt-congdung-list');
+    if (!container) return;
+    container.innerHTML = _vtCurrentCongDung.map((txt, idx) => `
+        <div style="display:flex; gap:6px;">
+            <input type="text" class="tayy-form-input" style="margin-top:0;" value="${escHtml(txt)}" 
+                oninput="_vtCurrentCongDung[${idx}] = this.value" placeholder="Nhập công dụng...">
+            <button class="btn btn-sm" style="background:#FDECEA; color:#B03A2E; padding:0 10px;" onclick="vtRemoveCongDungInput(${idx})">×</button>
+        </div>
+    `).join('');
+}
+function vtAddCongDungInput() {
+    _vtCurrentCongDung.push('');
+    vtRenderCongDungList();
+}
+function vtRemoveCongDungInput(idx) {
+    if (_vtCurrentCongDung.length > 1) {
+        _vtCurrentCongDung.splice(idx, 1);
+        vtRenderCongDungList();
+    } else {
+        _vtCurrentCongDung[0] = '';
+        vtRenderCongDungList();
+    }
+}
+
 async function saveViThuoc(id) {
     const payload = {
         ten_vi_thuoc: document.getElementById('vt-inp-ten').value.trim(),
+        ten_goi_khac: document.getElementById('vt-inp-alias').value.trim(),
         tinh: document.getElementById('vt-inp-tinh').value.trim(),
         vi: document.getElementById('vt-inp-vi').value.trim(),
         quy_kinh: _vtCurrentQuyKinh.join(', '),
-        cong_dung: document.getElementById('vt-inp-congdung').value.trim()
+        cong_dung: _vtCurrentCongDung.map(s => s.trim()).filter(Boolean).join('; ')
     };
     if (!payload.ten_vi_thuoc) return alert('Thiếu tên vị thuốc');
     const res = id ? await apiUpdateViThuoc(id, payload) : await apiCreateViThuoc(payload);

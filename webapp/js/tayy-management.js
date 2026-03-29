@@ -407,7 +407,7 @@ function tyOnChungBenhSearchInput(val) {
     let html = '';
     if (matches.length > 0) {
         html = matches.map(cb => `
-            <div class="tayy-suggest-item" 
+            <div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid #F0E8D8; transition:background 0.2s;"
                  onmouseover="this.style.background='#F5F0E8'"
                  onmouseout="this.style.background='transparent'"
                  onclick="tySelectChungBenh(${cb.id})">
@@ -511,7 +511,7 @@ function tyOnBaiThuocSearchInput(val) {
     let html = '';
     if (matches.length > 0) {
         html += matches.map(bt => `
-            <div class="tayy-suggest-item" 
+            <div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid #F0E8D8; transition:background 0.2s;"
                  onmouseover="this.style.background='#F5F0E8'"
                  onmouseout="this.style.background='transparent'"
                  onclick="tySelectBaiThuoc(${bt.id})">
@@ -525,7 +525,7 @@ function tyOnBaiThuocSearchInput(val) {
 
     if (!hasExactMatch && query) {
         html += `
-            <div class="tayy-suggest-item" style="background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px;"
+            <div style="padding:8px 12px; cursor:pointer; background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px; transition:background 0.2s;"
                  onmouseover="this.style.background='#EFE8D8'"
                  onmouseout="this.style.background='#FAF6EE'"
                  onclick="tySoftCreateBaiThuoc('${escHtml(query)}')">
@@ -628,7 +628,7 @@ function tyOnThietChanSearchInput(val) {
     let html = '';
     if (filtered.length > 0) {
         html = filtered.map(m => `
-            <div class="tayy-suggest-item" 
+            <div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid #F0E8D8; transition:background 0.2s;"
                  onmouseover="this.style.background='#F5F0E8'"
                  onmouseout="this.style.background='transparent'"
                  onclick="tySelectThietChan('${escHtml(m)}')">
@@ -641,7 +641,7 @@ function tyOnThietChanSearchInput(val) {
 
     if (!hasExact && query) {
         html += `
-            <div class="tayy-suggest-item" style="background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px;"
+            <div style="padding:8px 12px; cursor:pointer; background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px; transition:background 0.2s;"
                  onmouseover="this.style.background='#EFE8D8'"
                  onmouseout="this.style.background='#FAF6EE'"
                  onclick="tySelectThietChan('${escHtml(query)}')">
@@ -696,7 +696,7 @@ function tyOnMachChanSearchInput(val) {
     let html = '';
     if (filtered.length > 0) {
         html = filtered.map(m => `
-            <div class="tayy-suggest-item" 
+            <div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid #F0E8D8; transition:background 0.2s;"
                  onmouseover="this.style.background='#F5F0E8'"
                  onmouseout="this.style.background='transparent'"
                  onclick="tySelectMachChan('${escHtml(m)}')">
@@ -709,7 +709,7 @@ function tyOnMachChanSearchInput(val) {
 
     if (!hasExact && query) {
         html += `
-            <div class="tayy-suggest-item" style="background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px;"
+            <div style="padding:8px 12px; cursor:pointer; background:#FAF6EE; border-top:1px dashed #D4C5A0; margin-top:4px; transition:background 0.2s;"
                  onmouseover="this.style.background='#EFE8D8'"
                  onmouseout="this.style.background='#FAF6EE'"
                  onclick="tySelectMachChan('${escHtml(query)}')">
