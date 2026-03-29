@@ -38,7 +38,7 @@ export class HuyetViService {
   create(dto: CreateHuyetViDto): Promise<HuyetVi> {
     const entity = this.repo.create({
       ten_huyet: dto.ten_huyet,
-      idKinhMach: dto.id_kinh_mach,
+      idKinhMach: dto.id_kinh_mach || dto.idKinhMach,
       ma_huyet: dto.ma_huyet,
       vi_tri_giai_phau: dto.vi_tri_giai_phau,
       loai_huyet: dto.loai_huyet,
@@ -49,13 +49,28 @@ export class HuyetViService {
 
   async update(id: number, dto: UpdateHuyetViDto): Promise<HuyetVi> {
     const item = await this.findOne(id);
+    
     if (dto.ten_huyet !== undefined) item.ten_huyet = dto.ten_huyet;
-    if (dto.id_kinh_mach !== undefined) item.idKinhMach = dto.id_kinh_mach;
+    
+    // Check both potential field names
+    const newKinhMachId = dto.id_kinh_mach ?? dto.idKinhMach;
+    if (newKinhMachId !== undefined) {
+      // Critical fix: Nullify the relation object so TypeORM doesn't return the cached one
+      if (item.idKinhMach !== newKinhMachId) {
+        (item as any).kinhMach = null;
+        item.idKinhMach = newKinhMachId;
+      }
+    }
+    
     if (dto.ma_huyet !== undefined) item.ma_huyet = dto.ma_huyet;
     if (dto.vi_tri_giai_phau !== undefined) item.vi_tri_giai_phau = dto.vi_tri_giai_phau;
     if (dto.loai_huyet !== undefined) item.loai_huyet = dto.loai_huyet;
     if (dto.chong_chi_dinh !== undefined) item.chong_chi_dinh = dto.chong_chi_dinh;
-    return this.repo.save(item);
+    
+    await this.repo.save(item);
+    
+    // Final verification: Reload to ensure relations are fresh
+    return this.findOne(id);
   }
 
   async remove(id: number): Promise<void> {

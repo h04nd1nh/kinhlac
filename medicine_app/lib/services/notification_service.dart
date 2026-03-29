@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 import 'api_service.dart';
 import 'auth_service.dart';
 
@@ -9,14 +10,17 @@ class NotificationService {
   static final FlutterLocalNotificationsPlugin _localNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
   static Future<void> initialize() async {
-    // 1. Initialize Firebase Messaging
+    // 1. Initialize Timezones
+    tz.initializeTimeZones();
+
+    // 2. Initialize Firebase Messaging
     await FirebaseMessaging.instance.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
 
-    // 2. Setup Foreground Notification Handling
+    // 3. Setup Foreground Notification Handling
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'high_importance_channel', // id
       'Lịch hẹn', // title
@@ -55,13 +59,42 @@ class NotificationService {
       }
     });
 
-    // 3. Sync Token
+    // 4. Sync Token
     await syncToken();
     
     // Listen for Token Refresh
     FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
       syncToken(token: newToken);
     });
+  }
+
+  static Future<void> scheduleNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
+  }) async {
+    await _localNotificationsPlugin.zonedSchedule(
+      id,
+      title,
+      body,
+      tz.TZDateTime.from(scheduledDate, tz.local),
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'appointment_reminders',
+          'Nhắc hẹn',
+          channelDescription: 'Thông báo nhắc nhở lịch hẹn khám bệnh',
+          importance: Importance.max,
+          priority: Priority.high,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
+
+  static Future<void> cancelNotification(int id) async {
+    await _localNotificationsPlugin.cancel(id);
   }
 
   static Future<void> syncToken({String? token}) async {

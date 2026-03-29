@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/appointment.dart';
 import '../../services/appointment_service.dart';
 import 'package:intl/intl.dart';
+import 'package:add_2_calendar/add_2_calendar.dart';
 
 class AppointmentListScreen extends StatefulWidget {
   @override
@@ -55,6 +56,46 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi khi hủy lịch')));
         }
       }
+    }
+  }
+
+  void _addToCalendar(Appointment apt) {
+    try {
+      // Parse date and time
+      // apt.date is "YYYY-MM-DD"
+      // apt.time is "HH:mm"
+      final dateParts = apt.date.split('-');
+      final timeParts = apt.time.split(':');
+      
+      final start = DateTime(
+        int.parse(dateParts[0]),
+        int.parse(dateParts[1]),
+        int.parse(dateParts[2]),
+        int.parse(timeParts[0]),
+        int.parse(timeParts[1]),
+      );
+      
+      final end = start.add(Duration(minutes: 60));
+
+      final Event event = Event(
+        title: 'Lịch khám bệnh - Kinh Lạc Gia Minh',
+        description: 'Lịch khám bệnh đã hẹn trước. Ghi chú: ${apt.notes ?? ""}',
+        location: 'Phòng khám Kinh Lạc Gia Minh',
+        startDate: start,
+        endDate: end,
+        iosParams: IOSParams(
+          reminder: Duration(minutes: 30),
+        ),
+        androidParams: AndroidParams(
+          emailInvites: [],
+        ),
+      );
+
+      Add2Calendar.addEvent2Cal(event);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể thêm vào lịch. Vui lòng kiểm tra định dạng thời gian.'))
+      );
     }
   }
 
@@ -134,6 +175,7 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
             itemBuilder: (context, index) {
               final apt = appointments[index];
               final isCancellable = apt.status == 'PENDING' || apt.status == 'CONFIRMED';
+              final isConfirmed = apt.status == 'CONFIRMED';
               
               return Card(
                 elevation: 2,
@@ -176,13 +218,21 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
                       ],
                       if (isCancellable) ...[
                         Divider(height: 24),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () => _cancelAppointment(apt.id),
-                            icon: Icon(Icons.cancel, color: Colors.red),
-                            label: Text('Hủy Lịch', style: TextStyle(color: Colors.red)),
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            if (isConfirmed)
+                              TextButton.icon(
+                                onPressed: () => _addToCalendar(apt),
+                                icon: Icon(Icons.calendar_add_on, color: Colors.green),
+                                label: Text('Thêm vào lịch', style: TextStyle(color: Colors.green)),
+                              ),
+                            TextButton.icon(
+                              onPressed: () => _cancelAppointment(apt.id),
+                              icon: Icon(Icons.cancel, color: Colors.red),
+                              label: Text('Hủy Lịch', style: TextStyle(color: Colors.red)),
+                            ),
+                          ],
                         )
                       ]
                     ],
