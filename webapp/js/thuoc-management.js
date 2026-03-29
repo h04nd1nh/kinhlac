@@ -361,7 +361,11 @@ function renderBaiThuocTab(el) {
         const ingredients = (item.chiTietViThuoc || []).map(d => {
             const ten = d?.viThuoc?.ten_vi_thuoc || '';
             const lieu = (d?.lieu_luong || '').trim();
-            return lieu ? `${ten} (${lieu})` : ten;
+            let displayLieu = lieu;
+            if (lieu === '*') displayLieu = 'Dùng lượng tương đối nhỏ từ 1.5g - 3g ( xấp xỉ 1 tiền )';
+            else if (lieu === '#') displayLieu = 'Dùng lượng tương đối lớn từ 15g - 30g ( tương đương 5 tiền đến 1 lượng )';
+            else if (!lieu) displayLieu = 'Dùng lượng từ 4.5g - 9g ( tương đương 1.5 ~ 3 tiền )';
+            return `${ten} (${displayLieu})`;
         }).filter(Boolean).join(', ');
         const bienChungStr = escHtml(item.bien_chung || '—');
         const trieuChungStr = escHtml(item.trieu_chung || '—');
@@ -417,6 +421,11 @@ function openBaiThuocForm(id) {
 
     const rowsHtml = btRenderBaiThuocChiTietRowsHtml();
     showTayyModal('Bài thuốc', `
+        <datalist id="bt-lieu-datalist">
+            <option value="*"></option>
+            <option value="#"></option>
+        </datalist>
+
         <label class="tayy-form-label">Tên bài thuốc<br><input id="bt-inp-ten" type="text" class="tayy-form-input" value="${item ? escHtml(item.ten_bai_thuoc) : ''}"></label>
         <label class="tayy-form-label">Nguồn gốc/Cổ phương<br><input id="bt-inp-source" type="text" class="tayy-form-input" value="${item ? escHtml(item.nguon_goc) : ''}"></label>
         <label class="tayy-form-label">Cách dùng<br><textarea id="bt-inp-usage" class="tayy-form-input" rows="3">${item ? escHtml(item.cach_dung) : ''}</textarea></label>
@@ -572,11 +581,17 @@ function btRenderBaiThuocChiTietRowsHtml() {
     return _btDraftChiTiet.map(d => {
         const vt = btGetViThuocById(d.idViThuoc);
         const ten = vt?.ten_vi_thuoc || d?.ten_vi_thuoc || 'Vị thuốc';
-        const lieu = d?.lieu_luong || '';
-        const vaiTro = d?.vai_tro || '';
-        const tinh = vt?.tinh || '-';
-        const vi = vt?.vi || '-';
-        const vtQuyKinh = vt?.quy_kinh || '-';
+        // Extract value and unit naturally for the 2 inputs
+        const rawLieu = d?.lieu_luong || '';
+        let val = rawLieu;
+        let unit = '';
+        if (rawLieu.trim().endsWith(' tiền')) {
+            val = rawLieu.replace('tiền', '').trim();
+            unit = 'tiền';
+        } else if (rawLieu.trim().endsWith(' lượng')) {
+            val = rawLieu.replace('lượng', '').trim();
+            unit = 'lượng';
+        }
 
         return `
             <tr>
@@ -592,11 +607,21 @@ function btRenderBaiThuocChiTietRowsHtml() {
                     </div>
                 </td>
                 <td style="border:1px solid #E2D4B8; padding:8px;">
-                    <input type="text"
-                        style="width:100%; padding:6px 8px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.85rem;"
-                        placeholder="liều..."
-                        value="${escHtml(lieu)}"
-                        oninput="btUpdateBaiThuocChipLieu(${d.idViThuoc}, this.value)">
+                    <div style="display:flex; gap:4px; max-width:140px;">
+                        <input type="text"
+                            style="flex:1; width:50%; padding:6px 6px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.85rem;"
+                            placeholder="Số, *, #"
+                            list="bt-lieu-datalist"
+                            value="${escHtml(val)}"
+                            oninput="btUpdateBaiThuocChipLieuCompound(${d.idViThuoc}, this.value, this.nextElementSibling.value)">
+                        <select
+                            style="flex:1; width:50%; padding:6px 2px; border:1px solid #D4C5A0; border-radius:6px; background:#FBF8F1; font-size:0.8rem;"
+                            onchange="btUpdateBaiThuocChipLieuCompound(${d.idViThuoc}, this.previousElementSibling.value, this.value)">
+                            <option value="" ${unit === '' ? 'selected' : ''}>-</option>
+                            <option value="tiền" ${unit === 'tiền' ? 'selected' : ''}>tiền</option>
+                            <option value="lượng" ${unit === 'lượng' ? 'selected' : ''}>lượng</option>
+                        </select>
+                    </div>
                 </td>
                 <td style="border:1px solid #E2D4B8; padding:8px;">
                     <input type="text"
@@ -747,10 +772,26 @@ function btUpdateBaiThuocChipLieu(viThuocId, lieuValue) {
     target.lieu_luong = lieuValue ?? '';
 }
 
-function btUpdateBaiThuocChipVaiTro(viThuocId, vaiValue) {
-    const target = (_btDraftChiTiet || []).find(d => d.idViThuoc === viThuocId);
-    if (!target) return;
-    target.vai_tro = vaiValue ?? '';
+function btUpdateBaiThuocChipVaiTro(viThuocId, vaiTro) {
+    const target = (_btDraftChiTiet || []).find(d => d.idViThuoc == viThuocId);
+    if (target) {
+        target.vai_tro = vaiTro;
+    }
+}
+
+function btUpdateBaiThuocChipLieuCompound(viThuocId, val, unit) {
+    const target = (_btDraftChiTiet || []).find(d => d.idViThuoc == viThuocId);
+    if (target) {
+        const v = (val || '').trim();
+        const u = (unit || '').trim();
+        if (!v) {
+            target.lieu_luong = '';
+        } else if (v === '*' || v === '#') {
+            target.lieu_luong = v;
+        } else {
+            target.lieu_luong = u ? `${v} ${u}` : v;
+        }
+    }
 }
 
 function btUpdateBaiThuocChipVi(viThuocId, viValue) {
