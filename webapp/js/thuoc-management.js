@@ -362,9 +362,25 @@ function renderBaiThuocTab(el) {
             const ten = d?.viThuoc?.ten_vi_thuoc || '';
             const lieu = (d?.lieu_luong || '').trim();
             let displayLieu = lieu;
-            if (lieu === '*') displayLieu = 'Dùng lượng tương đối nhỏ từ 1.5g - 3g ( xấp xỉ 1 tiền )';
-            else if (lieu === '#') displayLieu = 'Dùng lượng tương đối lớn từ 15g - 30g ( tương đương 5 tiền đến 1 lượng )';
-            else if (!lieu) displayLieu = 'Dùng lượng từ 4.5g - 9g ( tương đương 1.5 ~ 3 tiền )';
+            
+            if (lieu === '*') {
+                displayLieu = '1.5g - 3g';
+            } else if (lieu === '#') {
+                displayLieu = '15g - 30g';
+            } else if (!lieu) {
+                displayLieu = '4.5g - 9g';
+            } else {
+                const lower = lieu.toLowerCase();
+                if (lower.includes('tiền') || lower.includes('lượng') || lower.includes('chỉ') || lower.includes('lạng')) {
+                    displayLieu = lower.replace(/([\d.,]+)\s*(lượng|lạng)/gi, (match, p1) => {
+                        const val = parseFloat(p1.replace(',', '.'));
+                        return isNaN(val) ? match : `${Math.round(val * 30 * 100) / 100}g`;
+                    }).replace(/([\d.,]+)\s*(tiền|chỉ)/gi, (match, p1) => {
+                        const val = parseFloat(p1.replace(',', '.'));
+                        return isNaN(val) ? match : `${Math.round(val * 3 * 100) / 100}g`;
+                    });
+                }
+            }
             return `${ten} (${displayLieu})`;
         }).filter(Boolean).join(', ');
         const bienChungStr = escHtml(item.bien_chung || '—');
