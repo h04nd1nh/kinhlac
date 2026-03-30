@@ -4,6 +4,8 @@ import { Repository, In } from 'typeorm';
 import { BenhTayY } from '../models/benh-tay-y.model';
 import { BaiThuoc } from '../models/bai-thuoc.model';
 import { TrieuChung } from '../models/trieu-chung.model';
+import { ThietChan } from '../models/thiet-chan.model';
+import { MachChan } from '../models/mach-chan.model';
 import { CreateBenhTayYDto, UpdateBenhTayYDto } from '../models/benh-tay-y.dto';
 
 @Injectable()
@@ -15,11 +17,15 @@ export class BenhTayYService {
     private readonly baiThuocRepo: Repository<BaiThuoc>,
     @InjectRepository(TrieuChung)
     private readonly trieuChungRepo: Repository<TrieuChung>,
+    @InjectRepository(ThietChan)
+    private readonly thietChanRepo: Repository<ThietChan>,
+    @InjectRepository(MachChan)
+    private readonly machChanRepo: Repository<MachChan>,
   ) {}
 
   findAll(): Promise<BenhTayY[]> {
     return this.repo.find({
-      relations: ['chungBenh', 'baiThuocList', 'trieuChungList'],
+      relations: ['chungBenh', 'baiThuocList', 'trieuChungList', 'thietChanList', 'machChanList'],
       order: { id: 'ASC' },
     });
   }
@@ -27,7 +33,7 @@ export class BenhTayYService {
   async findOne(id: number): Promise<BenhTayY> {
     const item = await this.repo.findOne({
       where: { id },
-      relations: ['chungBenh', 'baiThuocList', 'trieuChungList'],
+      relations: ['chungBenh', 'baiThuocList', 'trieuChungList', 'thietChanList', 'machChanList'],
     });
     if (!item) {
       throw new NotFoundException(`Bệnh tây y #${id} không tồn tại`);
@@ -39,8 +45,6 @@ export class BenhTayYService {
     const entity = this.repo.create({
       ten_benh: dto.ten_benh,
       idChungBenh: dto.id_chung_benh,
-      thiet_chan: dto.thiet_chan,
-      mach_chan: dto.mach_chan,
     });
 
     if (dto.bai_thuoc_ids && dto.bai_thuoc_ids.length > 0) {
@@ -55,6 +59,18 @@ export class BenhTayYService {
       });
     }
 
+    if (dto.thiet_chan_ids && dto.thiet_chan_ids.length > 0) {
+      entity.thietChanList = await this.thietChanRepo.findBy({
+        id: In(dto.thiet_chan_ids),
+      });
+    }
+
+    if (dto.mach_chan_ids && dto.mach_chan_ids.length > 0) {
+      entity.machChanList = await this.machChanRepo.findBy({
+        id: In(dto.mach_chan_ids),
+      });
+    }
+
     return this.repo.save(entity);
   }
 
@@ -63,8 +79,6 @@ export class BenhTayYService {
 
     if (dto.ten_benh !== undefined) item.ten_benh = dto.ten_benh;
     if (dto.id_chung_benh !== undefined) item.idChungBenh = dto.id_chung_benh;
-    if (dto.thiet_chan !== undefined) item.thiet_chan = dto.thiet_chan;
-    if (dto.mach_chan !== undefined) item.mach_chan = dto.mach_chan;
 
     if (dto.bai_thuoc_ids !== undefined) {
       item.baiThuocList = dto.bai_thuoc_ids.length > 0
@@ -75,6 +89,18 @@ export class BenhTayYService {
     if (dto.trieu_chung_ids !== undefined) {
       item.trieuChungList = dto.trieu_chung_ids.length > 0
         ? await this.trieuChungRepo.findBy({ id: In(dto.trieu_chung_ids) })
+        : [];
+    }
+
+    if (dto.thiet_chan_ids !== undefined) {
+      item.thietChanList = dto.thiet_chan_ids.length > 0
+        ? await this.thietChanRepo.findBy({ id: In(dto.thiet_chan_ids) })
+        : [];
+    }
+
+    if (dto.mach_chan_ids !== undefined) {
+      item.machChanList = dto.mach_chan_ids.length > 0
+        ? await this.machChanRepo.findBy({ id: In(dto.mach_chan_ids) })
         : [];
     }
 

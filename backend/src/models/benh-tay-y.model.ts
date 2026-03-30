@@ -10,6 +10,8 @@ import {
 import { ChungBenh } from './chung-benh.model';
 import { TrieuChung } from './trieu-chung.model';
 import { BaiThuoc } from './bai-thuoc.model';
+import { ThietChan } from './thiet-chan.model';
+import { MachChan } from './mach-chan.model';
 
 @Entity('benh_tay_y')
 export class BenhTayY {
@@ -22,11 +24,21 @@ export class BenhTayY {
   @Column({ type: 'varchar', length: 255 })
   ten_benh: string;
 
-  @Column({ type: 'text', nullable: true })
-  thiet_chan: string;
+  @ManyToMany(() => ThietChan)
+  @JoinTable({
+    name: 'benh_tay_y_thiet_chan',
+    joinColumn: { name: 'id_benh_tay_y', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'id_thiet_chan', referencedColumnName: 'id' },
+  })
+  thietChanList: ThietChan[];
 
-  @Column({ type: 'text', nullable: true })
-  mach_chan: string;
+  @ManyToMany(() => MachChan)
+  @JoinTable({
+    name: 'benh_tay_y_mach_chan',
+    joinColumn: { name: 'id_benh_tay_y', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'id_mach_chan', referencedColumnName: 'id' },
+  })
+  machChanList: MachChan[];
 
   @ManyToOne(() => ChungBenh, (c) => c.benhTayYList, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'id_chung_benh' })
