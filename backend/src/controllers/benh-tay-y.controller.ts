@@ -80,8 +80,8 @@ export class BenhTayYService {
     if (dto.ten_benh !== undefined) item.ten_benh = dto.ten_benh;
     if (dto.id_chung_benh !== undefined) {
       item.idChungBenh = dto.id_chung_benh;
-      // Trích xuất entity liên quan để TypeORM cập nhật đúng quan hệ
-      delete item.chungBenh; 
+      // Trích xuất entity liên quan để TypeORM cập nhật đúng quan hệ bằng ID mới
+      (item as any).chungBenh = undefined;
     }
 
     if (dto.bai_thuoc_ids !== undefined) {
