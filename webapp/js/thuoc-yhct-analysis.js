@@ -1,7 +1,7 @@
 // thuoc-yhct-analysis.js — Load LAST trong index.html
 // Ghi đè openViThuocForm, saveViThuoc, renderViThuocTab, renderBaiThuocTab
 // Schema vị thuốc khớp mẫu Excel (11 cột nghiệp vụ).
-// _vtCurrentQuyKinh khai báo trong thuoc-management.js
+// _vtCurrentQuyKinh, _vtCurrentVi, _VT_VI_OPTIONS khai báo trong thuoc-management.js
 
 const YHCT_KINH_ORDER = [
     'Tâm','Can','Tỳ','Phế','Thận','Tâm Bào',
@@ -51,6 +51,68 @@ function yhctDisplayNhomLon(item) {
     return d.nhom_lon || '—';
 }
 
+/** Tính vị thuốc — chỉ các giá trị mặc định (dropdown). */
+const _VT_TINH_OPTIONS = ['Bình', 'Đại Hàn', 'Hàn', 'Hơi Hàn', 'Hơi Ôn', 'Lương', 'Nóng', 'Ôn'];
+
+function yhctCanonicalTinh(raw) {
+    const t = (raw || '').trim();
+    if (!t) return '';
+    const hit = _VT_TINH_OPTIONS.find(o => o.toLowerCase() === t.toLowerCase());
+    return hit || '';
+}
+
+function yhctSanitizeVtTinh(v) {
+    const t = (v || '').trim();
+    if (!t) return '';
+    return _VT_TINH_OPTIONS.includes(t) ? t : '';
+}
+
+function yhctVtTinhSelectOptionsHtml(currentRaw) {
+    const canon = yhctCanonicalTinh(currentRaw);
+    const raw = (currentRaw || '').trim();
+    const legacy = !canon && !!raw && !_VT_TINH_OPTIONS.includes(raw);
+    const selected = canon || (legacy ? raw : '');
+
+    let html = `<option value=""${selected === '' && !legacy ? ' selected' : ''}>— Chọn tính —</option>`;
+    for (const o of _VT_TINH_OPTIONS) {
+        html += `<option value="${escHtml(o)}"${selected === o ? ' selected' : ''}>${escHtml(o)}</option>`;
+    }
+    if (legacy) {
+        html += `<option value="${escHtml(raw)}" selected>${escHtml(raw)} (cần đổi)</option>`;
+    }
+    return html;
+}
+
+const VT_VI_MAX = 5;
+
+function yhctCanonicalViToken(token) {
+    const t = (token || '').trim();
+    if (!t) return '';
+    const opts = typeof _VT_VI_OPTIONS !== 'undefined' ? _VT_VI_OPTIONS : ['Chua', 'Đắng', 'Ngọt', 'Cay', 'Mặn'];
+    return opts.find(o => o.toLowerCase() === t.toLowerCase()) || '';
+}
+
+/** Chuỗi lưu DB: tối đa 5 vị, ngăn cách dấu phẩy; bỏ trùng; chỉ giữ 5 giá trị mặc định. */
+function yhctNormalizeViString(raw) {
+    const parts = String(raw || '').split(/[,，;]/).map(s => s.trim()).filter(Boolean);
+    const seen = new Set();
+    const out = [];
+    for (const p of parts) {
+        const c = yhctCanonicalViToken(p);
+        if (!c || seen.has(c)) continue;
+        seen.add(c);
+        out.push(c);
+        if (out.length >= VT_VI_MAX) break;
+    }
+    return out.join(', ');
+}
+
+function yhctParseViToList(raw) {
+    const s = yhctNormalizeViString(raw);
+    if (!s) return [];
+    return s.split(/\s*,\s*/).map(x => x.trim()).filter(Boolean);
+}
+
 function openViThuocForm(id) {
     const item = id ? _thuocData.viThuoc.find(x => x.id == id) : null;
 
@@ -83,21 +145,14 @@ function openViThuocForm(id) {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
             <label class="tayy-form-label">Tính<br>
+                <select id="vt-inp-tinh" class="tayy-form-input">${yhctVtTinhSelectOptionsHtml(item ? item.tinh : '')}</select></label>
+            <label class="tayy-form-label">Vị <span style="font-weight:400;color:#A09580;font-size:0.68rem;">(tối đa 5: Chua, Đắng, Ngọt, Cay, Mặn)</span><br>
                 <div style="position:relative;">
-                    <input id="vt-inp-tinh" type="text" class="tayy-form-input"
-                        value="${item?escHtml(item.tinh||''):''}"
-                        oninput="vtOnTinhSearchInput(this.value)" onfocus="vtOnTinhSearchInput(this.value)"
-                        placeholder="VD: Ôn">
-                    <div id="vt-tinh-suggest" style="position:absolute;left:0;right:0;top:calc(100% + 4px);
-                        background:#FFFDF7;border:1px solid #D4C5A0;border-radius:8px;
-                        box-shadow:0 8px 24px rgba(0,0,0,0.1);max-height:160px;overflow-y:auto;z-index:2500;display:none;"></div>
-                </div></label>
-            <label class="tayy-form-label">Vị<br>
-                <div style="position:relative;">
-                    <input id="vt-inp-vi" type="text" class="tayy-form-input"
-                        value="${item?escHtml(item.vi||''):''}"
-                        oninput="vtOnViSearchInput(this.value)" onfocus="vtOnViSearchInput(this.value)"
-                        placeholder="VD: Cay, Đắng">
+                    <div id="vt-vi-chips" class="chips-container" onclick="document.getElementById('vt-inp-vi').focus()">
+                        <input id="vt-inp-vi" type="text" class="chip-input" placeholder="Chọn vị…"
+                            oninput="vtOnViSearchInput(this.value)" onfocus="vtOnViSearchInput(this.value)"
+                            onkeydown="if(event.key==='Enter'&&this.value){vtSelectViByInput(this.value);event.preventDefault();}if(event.key==='Backspace'&&!this.value)vtRemoveLastViChip()">
+                    </div>
                     <div id="vt-vi-suggest" style="position:absolute;left:0;right:0;top:calc(100% + 4px);
                         background:#FFFDF7;border:1px solid #D4C5A0;border-radius:8px;
                         box-shadow:0 8px 24px rgba(0,0,0,0.1);max-height:160px;overflow-y:auto;z-index:2500;display:none;"></div>
@@ -131,6 +186,8 @@ function openViThuocForm(id) {
 
     _vtCurrentQuyKinh = (item?.quy_kinh||'').split(',').map(s=>s.trim()).filter(Boolean);
     vtRenderQuyKinhChips();
+    _vtCurrentVi = yhctParseViToList(item?.vi || '');
+    vtRenderViChips();
     setTimeout(() => yhctSyncNhomLonField(), 0);
 }
 
@@ -210,8 +267,8 @@ async function saveViThuoc(id) {
         ten_goi_khac:   (document.getElementById('vt-inp-alias')?.value||'').trim(),
         nhom_lon:       (document.getElementById('vt-inp-nhomlon')?.value||'').trim(),
         nhom_duoc_ly:   (document.getElementById('vt-inp-nhomduocly')?.value||'').trim(),
-        tinh:           (document.getElementById('vt-inp-tinh')?.value||'').trim(),
-        vi:             (document.getElementById('vt-inp-vi')?.value||'').trim(),
+        tinh:           yhctSanitizeVtTinh(document.getElementById('vt-inp-tinh')?.value),
+        vi:             yhctNormalizeViString((typeof _vtCurrentVi !== 'undefined' && _vtCurrentVi.length) ? _vtCurrentVi.join(',') : ''),
         lieu_dung:      (document.getElementById('vt-inp-lieudung')?.value||'').trim(),
         quy_kinh:       _vtCurrentQuyKinh.join(', '),
         cong_dung:      (document.getElementById('vt-ta-congdung')?.value||'').trim(),
@@ -481,8 +538,8 @@ function yhctViThuocPayloadFromRow(r) {
         ten_vi_thuoc: yhctDevPick(r, ['Tên vị thuốc', 'Ten vi thuoc']),
         ten_goi_khac: yhctDevPick(r, ['Tên gọi khác', 'Ten goi khac']),
         nhom_duoc_ly: nhomDL,
-        tinh: yhctDevPick(r, ['Tính', 'Tinh']),
-        vi: yhctDevPick(r, ['Vị', 'Vi']),
+        tinh: yhctCanonicalTinh(yhctDevPick(r, ['Tính', 'Tinh'])),
+        vi: yhctNormalizeViString(yhctDevPick(r, ['Vị', 'Vi'])),
         quy_kinh: yhctDevPick(r, ['Quy kinh', 'Quy Kinh']),
         lieu_dung: yhctDevPick(r, ['Liều dùng', 'Lieu dung', 'Liều lượng']),
         cong_dung: yhctDevPick(r, ['Công dụng', 'Cong dung']),

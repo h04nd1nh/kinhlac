@@ -1,6 +1,10 @@
 // thuoc-management.js — Quản lý Thuốc tập trung (Vị thuốc, Bài thuốc)
 // Dùng chung cho cả Tây y và Đông y
 
+// Vị ngũ vị — chips (tối đa 5), đồng bộ thuoc-yhct-analysis.js
+var _VT_VI_OPTIONS = ['Chua', 'Đắng', 'Ngọt', 'Cay', 'Mặn'];
+var _vtCurrentVi = [];
+
 // State quy kinh (đồng bộ với thuoc-yhct-analysis.js — file đó load sau và gán lại)
 var _vtCurrentQuyKinh = [];
 var _vtCurrentCongDung = [];
@@ -388,6 +392,74 @@ function vtSelectQuyKinhByLabel(label) {
     vtSelectQuyKinh(km ? km.ten_kinh_mach : label);
 }
 
+function vtRenderViChips() {
+    const container = document.getElementById('vt-vi-chips');
+    const input = document.getElementById('vt-inp-vi');
+    if (!container || !input) return;
+    container.querySelectorAll('.chip').forEach(c => c.remove());
+    _vtCurrentVi.forEach(name => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerHTML = `${escHtml(name)} <span class="chip-remove" onclick="vtRemoveViChip(${JSON.stringify(name)}); event.stopPropagation();">×</span>`;
+        container.insertBefore(chip, input);
+    });
+}
+
+function vtRemoveViChip(name) {
+    _vtCurrentVi = _vtCurrentVi.filter(x => x !== name);
+    vtRenderViChips();
+}
+
+function vtRemoveLastViChip() {
+    if (_vtCurrentVi.length > 0) {
+        _vtCurrentVi.pop();
+        vtRenderViChips();
+    }
+}
+
+function vtSelectVi(name) {
+    if (_vtCurrentVi.length >= 5) return;
+    if (_vtCurrentVi.includes(name)) return;
+    _vtCurrentVi.push(name);
+    const inp = document.getElementById('vt-inp-vi');
+    if (inp) { inp.value = ''; inp.focus(); }
+    vtRenderViChips();
+    const s = document.getElementById('vt-vi-suggest');
+    if (s) s.style.display = 'none';
+}
+
+function vtSelectViByInput(val) {
+    const opts = typeof _VT_VI_OPTIONS !== 'undefined' ? _VT_VI_OPTIONS : ['Chua', 'Đắng', 'Ngọt', 'Cay', 'Mặn'];
+    const q = (val || '').trim();
+    if (!q) return;
+    const hit = opts.find(o => o.toLowerCase() === q.toLowerCase());
+    if (hit) vtSelectVi(hit);
+}
+
+function vtOnViSearchInput(val) {
+    const suggestEl = document.getElementById('vt-vi-suggest');
+    if (!suggestEl) return;
+    const opts = typeof _VT_VI_OPTIONS !== 'undefined' ? _VT_VI_OPTIONS : ['Chua', 'Đắng', 'Ngọt', 'Cay', 'Mặn'];
+    if (_vtCurrentVi.length >= 5) {
+        suggestEl.style.display = 'none';
+        return;
+    }
+    const query = (val || '').trim().toLowerCase();
+    const available = opts.filter(o => !_vtCurrentVi.includes(o));
+    const filtered = !query
+        ? available
+        : available.filter(o => o.toLowerCase().includes(query));
+    if (filtered.length === 0) { suggestEl.style.display = 'none'; return; }
+    suggestEl.style.display = 'block';
+    suggestEl.innerHTML = filtered.map(o => `
+        <div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+             onmouseover="this.style.background='#F5F0E8'" onmouseout="this.style.background='transparent'"
+             onclick='vtSelectVi(${JSON.stringify(o)})'>
+            <div style="font-weight:700; color:#5B3A1A; font-size:0.82rem;">${escHtml(o)}</div>
+        </div>
+    `).join('');
+}
+
 // ── Công dụng với ghi chú ─────────────────────────────────
 function vtRenderCongDungList() {
     const container = document.getElementById('vt-congdung-list');
@@ -489,7 +561,13 @@ async function saveViThuoc(id) {
         nhom_lon: (document.getElementById('vt-inp-nhomlon')?.value || '').trim(),
         nhom_duoc_ly: (document.getElementById('vt-inp-nhomduocly')?.value || '').trim(),
         tinh: (document.getElementById('vt-inp-tinh')?.value || '').trim(),
-        vi: (document.getElementById('vt-inp-vi')?.value || '').trim(),
+        vi: (typeof _vtCurrentVi !== 'undefined' && _vtCurrentVi.length)
+            ? (typeof yhctNormalizeViString === 'function'
+                ? yhctNormalizeViString(_vtCurrentVi.join(','))
+                : _vtCurrentVi.join(', '))
+            : (typeof yhctNormalizeViString === 'function'
+                ? yhctNormalizeViString(document.getElementById('vt-inp-vi')?.value)
+                : (document.getElementById('vt-inp-vi')?.value || '').trim()),
         lieu_dung: (document.getElementById('vt-inp-lieudung')?.value || '').trim(),
         quy_kinh: (typeof _vtCurrentQuyKinh !== 'undefined' && _vtCurrentQuyKinh.length) ? _vtCurrentQuyKinh.join(', ') : '',
         cong_dung: (document.getElementById('vt-ta-congdung')?.value || '').trim(),
