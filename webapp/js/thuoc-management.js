@@ -283,7 +283,7 @@ function renderViThuocTab(el) {
     const rows = (_thuocData.viThuoc || []).map(item => `
         <tr>
             <td><strong>${escHtml(item.ten_vi_thuoc)}</strong></td>
-            <td style="font-size:0.78rem;">${escHtml(item.nhom_lon || '—')}</td>
+            <td style="font-size:0.78rem;">${escHtml(typeof yhctDisplayNhomLon === 'function' ? yhctDisplayNhomLon(item) : (item.nhom_lon || '—'))}</td>
             <td style="font-size:0.78rem;">${escHtml(item.nhom_duoc_ly || '—')}</td>
             <td style="font-size:0.78rem;">${escHtml(item.tinh || '—')}</td>
             <td style="font-size:0.78rem;">${escHtml(item.vi || '—')}</td>

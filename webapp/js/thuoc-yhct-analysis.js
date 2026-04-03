@@ -27,62 +27,28 @@ function yhctNormKey(s) {
 }
 
 /**
- * Nếu (nhom_lon + nhom_duoc_ly) trùng một dòng trong nhomDuocLy → gán đúng chữ trong danh mục.
- * Nếu chỉ khớp duy nhất theo "nhóm nhỏ" hoặc duy nhất theo "nhóm lớn" → điền/ chuẩn hóa phần còn lại.
+ * Nhóm lớn trên vị thuốc bắt buộc trùng với `nhom_lon` trong bảng danh mục nhóm dược lý:
+ * tra theo khóa "nhóm nhỏ" (nhom_nho / ten_nhom). Không khớp → nhom_lon rỗng.
  */
-function yhctNormalizeNhomFromCatalog(payload) {
+function yhctDeriveNhomFromCatalog(nhomDuocLyRaw) {
     const list = _thuocData.nhomDuocLy || [];
-    if (!list.length || !payload) return payload;
+    const nhoIn = (nhomDuocLyRaw || '').trim();
+    if (!nhoIn) return { nhom_lon: '', nhom_duoc_ly: '' };
+    const hits = list.filter(item => {
+        const cn = (item.nhom_nho || item.ten_nhom || '').trim();
+        return cn && yhctNormKey(nhoIn) === yhctNormKey(cn);
+    });
+    if (hits.length === 0) return { nhom_lon: '', nhom_duoc_ly: nhoIn };
+    const item = hits[0];
+    const cn = (item.nhom_nho || item.ten_nhom || '').trim() || nhoIn;
+    const cl = (item.nhom_lon || '').trim();
+    return { nhom_lon: cl, nhom_duoc_ly: cn };
+}
 
-    const lon = (payload.nhom_lon || '').trim();
-    const nho = (payload.nhom_duoc_ly || '').trim();
-    const out = { ...payload };
-
-    const rowNho = (item) => (item.nhom_nho || item.ten_nhom || '').trim();
-    const rowLon = (item) => (item.nhom_lon || '').trim();
-
-    if (lon && nho) {
-        for (const item of list) {
-            const cl = rowLon(item);
-            const cn = rowNho(item);
-            if (!cn) continue;
-            if (yhctNormKey(lon) === yhctNormKey(cl) && yhctNormKey(nho) === yhctNormKey(cn)) {
-                out.nhom_lon = cl;
-                out.nhom_duoc_ly = cn;
-                return out;
-            }
-        }
-    }
-
-    if (nho) {
-        const hits = list.filter(item => {
-            const cn = rowNho(item);
-            return cn && yhctNormKey(nho) === yhctNormKey(cn);
-        });
-        if (hits.length === 1) {
-            const item = hits[0];
-            out.nhom_duoc_ly = rowNho(item);
-            const cl = rowLon(item);
-            if (cl) out.nhom_lon = cl;
-            return out;
-        }
-    }
-
-    if (lon && !nho) {
-        const hits = list.filter(item => {
-            const cl = rowLon(item);
-            return cl && yhctNormKey(lon) === yhctNormKey(cl);
-        });
-        if (hits.length === 1) {
-            const item = hits[0];
-            out.nhom_lon = rowLon(item);
-            const cn = rowNho(item);
-            if (cn) out.nhom_duoc_ly = cn;
-            return out;
-        }
-    }
-
-    return out;
+function yhctDisplayNhomLon(item) {
+    if (!item) return '—';
+    const d = yhctDeriveNhomFromCatalog(item.nhom_duoc_ly);
+    return d.nhom_lon || '—';
 }
 
 function openViThuocForm(id) {
@@ -98,15 +64,18 @@ function openViThuocForm(id) {
                     value="${item?escHtml(item.ten_goi_khac||''):''}" placeholder="Cách nhau bởi dấu phẩy"></label>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-            <label class="tayy-form-label">Nhóm lớn<br>
-                <input id="vt-inp-nhomlon" type="text" class="tayy-form-input"
-                    value="${item?escHtml(item.nhom_lon||''):''}" placeholder="VD: Giải biểu"></label>
+            <label class="tayy-form-label">Nhóm lớn <span style="font-weight:400;color:#A09580;font-size:0.72rem;">(theo danh mục)</span><br>
+                <input id="vt-inp-nhomlon" type="text" readonly tabindex="-1" class="tayy-form-input"
+                    style="background:#F3F0E8;color:#5B3A1A;cursor:default;"
+                    value="${item?escHtml(yhctDeriveNhomFromCatalog(item.nhom_duoc_ly).nhom_lon||''):''}"
+                    title="Tự động theo Nhóm dược lý đã chọn trong danh mục Nhóm dược lý"></label>
             <label class="tayy-form-label">Nhóm dược lý<br>
                 <div style="position:relative;">
                     <input id="vt-inp-nhomduocly" type="text" class="tayy-form-input"
                         value="${item?escHtml(item.nhom_duoc_ly||''):''}"
                         oninput="yhctNhomInput(this.value)" onfocus="yhctNhomInput(this.value)"
-                        placeholder="VD: Tân ôn giải biểu">
+                        onblur="yhctSyncNhomLonField()"
+                        placeholder="Chọn trong danh mục (tab Nhóm dược lý)">
                     <div id="vt-nhom-suggest" style="position:absolute;left:0;right:0;top:calc(100% + 4px);
                         background:#FFFDF7;border:1px solid #D4C5A0;border-radius:8px;
                         box-shadow:0 8px 24px rgba(0,0,0,0.1);max-height:160px;overflow-y:auto;z-index:2500;display:none;"></div>
@@ -162,6 +131,7 @@ function openViThuocForm(id) {
 
     _vtCurrentQuyKinh = (item?.quy_kinh||'').split(',').map(s=>s.trim()).filter(Boolean);
     vtRenderQuyKinhChips();
+    setTimeout(() => yhctSyncNhomLonField(), 0);
 }
 
 const _NHOM_LIST = ['Tiêu thực','Bổ khí','Bổ huyết','Bổ âm','Bổ dương','Thanh nhiệt',
@@ -203,14 +173,14 @@ function yhctNhomInput(val) {
     html += filtered.map(m=>`
         <div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #F0E8D8;"
             onmouseover="this.style.background='#F5F0E8'" onmouseout="this.style.background=''"
-            onclick="document.getElementById('vt-inp-nhomduocly').value='${escHtml(m)}';document.getElementById('vt-nhom-suggest').style.display='none';">
+            onclick="document.getElementById('vt-inp-nhomduocly').value='${escHtml(m)}';document.getElementById('vt-nhom-suggest').style.display='none';yhctSyncNhomLonField();">
             <div style="font-weight:600;color:#5B3A1A;font-size:0.82rem;">${escHtml(m)}</div>
         </div>`).join('');
 
     if (!hasExact && q) html += `
         <div style="padding:8px 12px;cursor:pointer;background:#FAF6EE;border-top:1px dashed #D4C5A0;"
             onmouseover="this.style.background='#EFE8D8'" onmouseout="this.style.background='#FAF6EE'"
-            onclick="document.getElementById('vt-inp-nhomduocly').value='${escHtml(val.trim())}';document.getElementById('vt-nhom-suggest').style.display='none';">
+            onclick="document.getElementById('vt-inp-nhomduocly').value='${escHtml(val.trim())}';document.getElementById('vt-nhom-suggest').style.display='none';yhctSyncNhomLonField();">
             <div style="font-weight:700;color:#CA6222;font-size:0.82rem;">+ Nhập tự do "${escHtml(val.trim())}"</div>
         </div>`;
     el.style.display = html ? 'block' : 'none';
@@ -218,12 +188,20 @@ function yhctNhomInput(val) {
 }
 
 function yhctApplyNhomCatalogPair(lon, nho) {
-    const a = document.getElementById('vt-inp-nhomlon');
     const b = document.getElementById('vt-inp-nhomduocly');
     const s = document.getElementById('vt-nhom-suggest');
-    if (a) a.value = lon || '';
     if (b) b.value = nho || '';
     if (s) s.style.display = 'none';
+    yhctSyncNhomLonField();
+}
+
+function yhctSyncNhomLonField() {
+    const b = document.getElementById('vt-inp-nhomduocly');
+    const a = document.getElementById('vt-inp-nhomlon');
+    if (!b || !a) return;
+    const d = yhctDeriveNhomFromCatalog(b.value);
+    b.value = d.nhom_duoc_ly || b.value.trim();
+    a.value = d.nhom_lon || '';
 }
 
 async function saveViThuoc(id) {
@@ -241,7 +219,21 @@ async function saveViThuoc(id) {
         kieng_ky:       (document.getElementById('vt-ta-kiengky')?.value||'').trim(),
     };
     if (!payload.ten_vi_thuoc) return alert('Thiếu tên vị thuốc!');
-    payload = yhctNormalizeNhomFromCatalog(payload);
+    yhctSyncNhomLonField();
+    payload.nhom_duoc_ly = (document.getElementById('vt-inp-nhomduocly')?.value||'').trim();
+    payload.nhom_lon = (document.getElementById('vt-inp-nhomlon')?.value||'').trim();
+    const nhoTrim = (payload.nhom_duoc_ly || '').trim();
+    if (nhoTrim) {
+        const d = yhctDeriveNhomFromCatalog(nhoTrim);
+        if (!d.nhom_lon) {
+            return alert('Nhóm dược lý phải khớp một dòng trong danh mục (tab «Nhóm dược lý»). Nhóm lớn luôn lấy từ danh mục theo nhóm đó.');
+        }
+        payload.nhom_lon = d.nhom_lon;
+        payload.nhom_duoc_ly = d.nhom_duoc_ly;
+    } else {
+        payload.nhom_lon = '';
+        payload.nhom_duoc_ly = '';
+    }
     const a = document.getElementById('vt-inp-nhomlon');
     const b = document.getElementById('vt-inp-nhomduocly');
     if (a) a.value = payload.nhom_lon || '';
@@ -317,7 +309,7 @@ function yhctAnalyzeLocalSimple(bt) {
         pct: Math.round(gram/W*100),
         vai_tro: roleMap[vt.id]||'Tá',
         color: roleColors[roleMap[vt.id]||'Tá'],
-        nhom_lon: vt.nhom_lon||'',
+        nhom_lon: yhctDeriveNhomFromCatalog(vt.nhom_duoc_ly).nhom_lon || '',
         nhom_duoc_ly: vt.nhom_duoc_ly||'',
         quy_kinh: vt.quy_kinh||'',
     }));
@@ -339,7 +331,7 @@ function yhctBuildAnalysisHtml(r) {
             <td style="padding:5px 8px;text-align:center;">
                 <span style="background:${v.color};color:#fff;border-radius:10px;padding:2px 9px;font-size:0.75rem;font-weight:700;">${escHtml(v.vai_tro)}</span>
             </td>
-            <td style="padding:5px 8px;font-size:0.76rem;color:#5B3A1A;">${escHtml(v.nhom_lon||v.nhom_duoc_ly||'—')}</td>
+            <td style="padding:5px 8px;font-size:0.76rem;color:#5B3A1A;">${escHtml(v.nhom_lon || '—')}</td>
             <td style="padding:5px 8px;font-size:0.72rem;color:#8B7355;">${escHtml(v.quy_kinh||'—')}</td>
         </tr>`).join('');
 
@@ -386,7 +378,7 @@ function renderViThuocTab(el) {
         const alias = item.ten_goi_khac ? `<div style="font-size:0.7rem;color:#9CA3AF;font-style:italic;">${escHtml(item.ten_goi_khac)}</div>` : '';
         return `<tr>
             <td><div style="font-weight:700;color:#5B3A1A;">${escHtml(item.ten_vi_thuoc)}</div>${alias}</td>
-            <td style="font-size:0.74rem;">${escHtml(item.nhom_lon || '—')}</td>
+            <td style="font-size:0.74rem;">${escHtml(yhctDisplayNhomLon(item))}</td>
             <td style="font-size:0.74rem;">${escHtml(item.nhom_duoc_ly || '—')}</td>
             <td style="font-size:0.74rem;">${escHtml(item.tinh || '—')}</td>
             <td style="font-size:0.74rem;">${escHtml(item.vi || '—')}</td>
@@ -484,12 +476,10 @@ function renderBaiThuocTab(el) {
 }
 
 function yhctViThuocPayloadFromRow(r) {
-    const nhomLon = yhctDevPick(r, ['Nhóm lớn', 'Nhom lon']);
     const nhomDL = yhctDevPick(r, ['Nhóm dược lý', 'Nhom duoc ly', 'Nhóm dược ly']);
     const raw = {
         ten_vi_thuoc: yhctDevPick(r, ['Tên vị thuốc', 'Ten vi thuoc']),
         ten_goi_khac: yhctDevPick(r, ['Tên gọi khác', 'Ten goi khac']),
-        nhom_lon: nhomLon,
         nhom_duoc_ly: nhomDL,
         tinh: yhctDevPick(r, ['Tính', 'Tinh']),
         vi: yhctDevPick(r, ['Vị', 'Vi']),
@@ -499,7 +489,12 @@ function yhctViThuocPayloadFromRow(r) {
         chu_tri: yhctDevPick(r, ['Chủ trị', 'Chu tri']),
         kieng_ky: yhctDevPick(r, ['Kiêng kỵ', 'Kieng ky']),
     };
-    return yhctNormalizeNhomFromCatalog(raw);
+    const d = yhctDeriveNhomFromCatalog(raw.nhom_duoc_ly);
+    return {
+        ...raw,
+        nhom_duoc_ly: d.nhom_duoc_ly || raw.nhom_duoc_ly,
+        nhom_lon: d.nhom_lon,
+    };
 }
 
 function yhctNormalizeExcelRowKeys(row) {
@@ -524,7 +519,7 @@ function yhctExportViThuocXlsx() {
    const data = _thuocData.viThuoc.map(v => ({
        'Tên vị thuốc': v.ten_vi_thuoc,
        'Tên gọi khác': v.ten_goi_khac,
-       'Nhóm lớn': v.nhom_lon,
+       'Nhóm lớn': yhctDeriveNhomFromCatalog(v.nhom_duoc_ly).nhom_lon || '',
        'Nhóm dược lý': v.nhom_duoc_ly,
        'Tính': v.tinh,
        'Vị': v.vi,
@@ -572,10 +567,16 @@ function yhctImportViThuocXlsx(e) {
         const rows = rawRows.map(yhctNormalizeExcelRowKeys);
         if (!confirm(`Tìm thấy ${rows.length} dòng. Tiến hành import (trùng tên sẽ cập nhật)?`)) { e.target.value = ''; return; }
 
-        let created = 0, updated = 0, skipped = 0;
+        let created = 0, updated = 0, skipped = 0, invalidNhom = 0;
         for (const r of rows) {
             const payload = yhctViThuocPayloadFromRow(r);
             if (!payload.ten_vi_thuoc) { skipped++; continue; }
+            const nhoTrim = (payload.nhom_duoc_ly || '').trim();
+            if (nhoTrim && !payload.nhom_lon) {
+                invalidNhom++;
+                skipped++;
+                continue;
+            }
             const existing = (_thuocData.viThuoc || []).find(
                 v => (v.ten_vi_thuoc || '').trim().toLowerCase() === payload.ten_vi_thuoc.toLowerCase()
             );
@@ -590,7 +591,7 @@ function yhctImportViThuocXlsx(e) {
                 else skipped++;
             }
         }
-        alert(`Nhập xong: thêm ${created}, cập nhật ${updated}, bỏ qua/lỗi ${skipped}.`);
+        alert(`Nhập xong: thêm ${created}, cập nhật ${updated}, bỏ qua/lỗi ${skipped}${invalidNhom ? ` (trong đó ${invalidNhom} dòng: Nhóm dược lý không có trong danh mục)` : ''}.`);
         await loadAllThuocData();
         renderThuocSection();
         e.target.value = '';
@@ -619,10 +620,16 @@ function yhctImportViThuocXlsxDev(e) {
             return;
         }
 
-        let created = 0, updated = 0, skipped = 0;
+        let created = 0, updated = 0, skipped = 0, invalidNhom = 0;
         for (const r of rows) {
             const payload = yhctViThuocPayloadFromRow(r);
             if (!payload.ten_vi_thuoc) { skipped++; continue; }
+            const nhoTrim = (payload.nhom_duoc_ly || '').trim();
+            if (nhoTrim && !payload.nhom_lon) {
+                invalidNhom++;
+                skipped++;
+                continue;
+            }
 
             const existing = (_thuocData.viThuoc || []).find(
                 v => (v.ten_vi_thuoc || '').trim().toLowerCase() === payload.ten_vi_thuoc.toLowerCase()
@@ -639,7 +646,7 @@ function yhctImportViThuocXlsxDev(e) {
             }
         }
 
-        alert(`[dev] Thêm ${created}, cập nhật ${updated}, bỏ qua/lỗi ${skipped}.`);
+        alert(`[dev] Thêm ${created}, cập nhật ${updated}, bỏ qua/lỗi ${skipped}${invalidNhom ? ` (trong đó ${invalidNhom} dòng: Nhóm dược lý không có trong danh mục)` : ''}.`);
         await loadAllThuocData();
         renderThuocSection();
         e.target.value = '';
