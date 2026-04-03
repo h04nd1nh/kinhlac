@@ -275,7 +275,19 @@ function yhctAnalyzeLocalSimple(bt) {
     const tuKhi = { daiHan:0, han:0, luong:0, binh:0, on:0, nhiet:0, daiNhiet:0 };
     const nguVi = { chua:0, dang:0, ngot:0, cay:0, man:0 };
     const tgpt = { thang:0, giang:0, phu:0, tram:0 };
-    const tacDungMap = {};
+
+    /** Tên nhóm nhỏ xuất hiện trong bài (mỗi tên một lần, thứ tự theo locale vi). */
+    const seenTacDung = new Set();
+    const tacDungYhctNhomNho = [];
+    for (const v of viThuocList) {
+        for (const raw of v.nhomSubs || []) {
+            const n = (raw || '').trim();
+            if (!n || seenTacDung.has(n)) continue;
+            seenTacDung.add(n);
+            tacDungYhctNhomNho.push(n);
+        }
+    }
+    tacDungYhctNhomNho.sort((a, b) => a.localeCompare(b, 'vi'));
 
     const addTuKhi = (tinhRaw, wPct) => {
         const t = (tinhRaw || '').trim().toLowerCase();
@@ -317,28 +329,14 @@ function yhctAnalyzeLocalSimple(bt) {
         const base = wPct * 0.15;
         tgpt.thang += base; tgpt.giang += base; tgpt.phu += base; tgpt.tram += base;
     };
-    const addTacDung = (item, wPct) => {
-        const subs = item.nhomSubs || [];
-        if (!subs.length) {
-            tacDungMap['Khác'] = (tacDungMap['Khác'] || 0) + wPct;
-            return;
-        }
-        const each = wPct / subs.length;
-        subs.forEach(raw => {
-            const key = (raw || '').trim() || 'Khác';
-            tacDungMap[key] = (tacDungMap[key] || 0) + each;
-        });
-    };
-
     viThuocList.forEach(v => {
         const wPct = v.gram / W;
         addTuKhi(v.tinh, wPct);
         addNguVi(v.vi, wPct);
         addTgpt(v, wPct);
-        addTacDung(v, wPct);
     });
 
-    return { ten:bt.ten_bai_thuoc, W, quyKinhNorm, viThuocList, tuKhi, nguVi, tgpt, tacDungMap };
+    return { ten:bt.ten_bai_thuoc, W, quyKinhNorm, viThuocList, tuKhi, nguVi, tgpt, tacDungYhctNhomNho };
 }
 
 function yhctBuildAnalysisHtml(r) {
@@ -422,10 +420,13 @@ function yhctBuildAnalysisHtml(r) {
             </div>
         </div>
         <div style="border:1px solid #E5E7EB;border-radius:10px;padding:10px;background:#fff;">
-            <div style="font-weight:700;color:#5B3A1A;font-size:0.85rem;margin-bottom:6px;">5) Phân tích Tác dụng YHCT</div>
-            <div style="height:220px;position:relative;width:100%;box-sizing:border-box;overflow:hidden;">
-                <canvas id="yhct-radar-tacdung" style="display:block;"></canvas>
-            </div>
+            <div style="font-weight:700;color:#5B3A1A;font-size:0.85rem;margin-bottom:8px;">5) Phân tích Tác dụng YHCT</div>
+            <p style="margin:0 0 8px 0;font-size:0.76rem;color:#8B7355;line-height:1.4;">Theo tên <strong>nhóm nhỏ (dược lý)</strong> đã gán cho các vị trong bài (mỗi tên liệt kê một lần).</p>
+            ${(r.tacDungYhctNhomNho && r.tacDungYhctNhomNho.length)
+                ? `<ul style="margin:0;padding-left:1.25rem;line-height:1.7;color:#374151;font-size:0.88rem;max-height:240px;overflow-y:auto;">${
+                    r.tacDungYhctNhomNho.map(n => `<li style="margin-bottom:2px;">${escHtml(n)}</li>`).join('')
+                }</ul>`
+                : '<div style="color:#9CA3AF;font-size:0.82rem;">Chưa có nhóm nhỏ nào được gán. Gán vị thuốc trong tab «Nhóm dược lý».</div>'}
         </div>
     </div>
     <div style="border:1px solid #E5E7EB;border-radius:10px;padding:14px;background:#fff;margin-bottom:14px;">
@@ -514,14 +515,6 @@ function yhctInitAnalysisCharts(r) {
         'rgba(59, 130, 246, 1)'
     );
 
-    const topTacDung = Object.entries(r.tacDungMap || {}).sort((a,b)=>b[1]-a[1]).slice(0, 6);
-    const labelsTd = topTacDung.map(([k]) => k);
-    const dataTd = topTacDung.map(([,v]) => v);
-    mkRadar('yhct-radar-tacdung',
-        labelsTd.length ? labelsTd : ['Khác'],
-        dataTd.length ? dataTd : [0],
-        'rgba(34, 197, 94, 1)'
-    );
 }
 
 function renderViThuocTab(el) {
