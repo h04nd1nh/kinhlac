@@ -563,7 +563,12 @@ function renderViThuocTab(el) {
     }).join('');
 
     el.innerHTML = `
-        <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-outline" onclick="yhctExportViThuocXlsx()">📥 Xuất Excel</button>
+                <button class="btn btn-outline" onclick="document.getElementById('yhct-import-vt').click()">📤 Nhập Excel</button>
+                <input type="file" id="yhct-import-vt" accept=".xlsx, .xls, .csv" style="display:none;" onchange="yhctImportViThuocXlsx(event)">
+            </div>
             <button class="btn btn-primary" onclick="openViThuocForm()">+ Thêm vị thuốc</button>
         </div>
         <div class="data-table-container">
@@ -610,7 +615,12 @@ function renderBaiThuocTab(el) {
     }).join('');
 
     el.innerHTML = `
-        <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-outline" onclick="yhctExportBaiThuocXlsx()">📥 Xuất Excel</button>
+                <button class="btn btn-outline" onclick="document.getElementById('yhct-import-bt').click()">📤 Nhập Excel</button>
+                <input type="file" id="yhct-import-bt" accept=".xlsx, .xls, .csv" style="display:none;" onchange="yhctImportBaiThuocXlsx(event)">
+            </div>
             <button class="btn btn-primary" onclick="openBaiThuocForm()">+ Thêm bài thuốc</button>
         </div>
         <div class="data-table-container">
@@ -623,4 +633,164 @@ function renderBaiThuocTab(el) {
                 <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#9CA3AF;padding:20px;">Chưa có dữ liệu</td></tr>'}</tbody>
             </table>
         </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXCEL EXPORT / IMPORT (SheetJS)
+// ═══════════════════════════════════════════════════════════════════════════
+function yhctExportViThuocXlsx() {
+   if (typeof XLSX === 'undefined') return alert('Thư viện Excel đang tải, vui lòng thử lại sau.');
+   const data = _thuocData.viThuoc.map(v => ({
+       'Tên vị thuốc': v.ten_vi_thuoc,
+       'Tên gọi khác': v.ten_goi_khac,
+       'Nhóm dược lý': v.nhom_duoc_ly,
+       'Tác dụng chính': v.tac_dung_chinh,
+       'Quy kinh': v.quy_kinh,
+       'Công dụng': v.cong_dung,
+       'Tính': v.tinh,
+       'Vị': v.vi,
+       'Tứ khí': v.tu_khi,
+       'Hướng (Thăng/Giáng)': v.huong_tgpt,
+       'Vị chua': v.vi_toan,
+       'Vị đắng': v.vi_khu,
+       'Vị ngọt': v.vi_cam,
+       'Vị cay': v.vi_tan,
+       'Vị mặn': v.vi_ham
+   }));
+   const wb = XLSX.utils.book_new();
+   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "ViThuoc");
+   XLSX.writeFile(wb, "Danh_Muc_Vi_Thuoc.xlsx");
+}
+
+function yhctExportBaiThuocXlsx() {
+   if (typeof XLSX === 'undefined') return alert('Thư viện Excel đang tải, vui lòng thử lại sau.');
+   const data = _thuocData.baiThuoc.map(b => {
+       const tp = (b.chiTietViThuoc||[]).map(d => `${d?.viThuoc?.ten_vi_thuoc||''} (${(d?.lieu_luong||'').trim()})`).join(', ');
+       return {
+           'Tên bài thuốc': b.ten_bai_thuoc,
+           'Nguồn gốc': b.nguon_goc,
+           'Biện chứng': b.bien_chung,
+           'Triệu chứng': b.trieu_chung,
+           'Pháp trị': b.phap_tri,
+           'Cách dùng': b.cach_dung,
+           'Ghi chú': b.ghi_chu,
+           'Thành phần': tp
+       };
+   });
+   const wb = XLSX.utils.book_new();
+   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "BaiThuoc");
+   XLSX.writeFile(wb, "Danh_Muc_Bai_Thuoc.xlsx");
+}
+
+function yhctImportViThuocXlsx(e) {
+    if (typeof XLSX === 'undefined') return alert('Chưa tải xong thư viện');
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+        const data = new Uint8Array(evt.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        if(!confirm(`Tìm thấy ${rows.length} vị thuốc trong Excel. Tiến hành đẩy vào hệ thống?`)) return e.target.value = '';
+        
+        for (const r of rows) {
+            const ten = r['Tên vị thuốc'];
+            if (!ten) continue;
+            // check exists by name
+            if (_thuocData.viThuoc.some(v => v.ten_vi_thuoc === ten)) continue;
+            
+            const payload = {
+                ten_vi_thuoc: ten,
+                ten_goi_khac: r['Tên gọi khác']||'',
+                nhom_duoc_ly: r['Nhóm dược lý']||'',
+                tac_dung_chinh: r['Tác dụng chính']||'',
+                quy_kinh: r['Quy kinh']||'',
+                cong_dung: r['Công dụng']||'',
+                tinh: r['Tính']||'',
+                vi: r['Vị']||'',
+                tu_khi: parseFloat(r['Tứ khí']) || 0,
+                huong_tgpt: parseFloat(r['Hướng (Thăng/Giáng)']) || 3,
+                vi_toan: parseFloat(r['Vị chua']) || 0,
+                vi_khu: parseFloat(r['Vị đắng']) || 0,
+                vi_cam: parseFloat(r['Vị ngọt']) || 0,
+                vi_tan: parseFloat(r['Vị cay']) || 0,
+                vi_ham: parseFloat(r['Vị mặn']) || 0,
+            };
+            await apiCreateViThuoc(payload);
+        }
+        alert('Nhập danh mục Vị Thuốc thành công!');
+        await loadAllThuocData();
+        renderThuocSection();
+        e.target.value = ''; // reset file input
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function yhctImportBaiThuocXlsx(e) {
+    if (typeof XLSX === 'undefined') return alert('Chưa tải xong thư viện');
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+        const data = new Uint8Array(evt.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        if(!confirm(`Tìm thấy ${rows.length} bài thuốc. Hệ thống sẽ tự động ghép dính các \nThành phần vào Vị thuốc tương đương. Viêc này mất khoảng \nvài chục giây. Khuyến khích không Import quá 100 dòng/lần.\nTiếp tục chạy?`)) return e.target.value = '';
+        
+        for (const r of rows) {
+            const ten = r['Tên bài thuốc'];
+            if (!ten) continue;
+            if (_thuocData.baiThuoc.some(b => b.ten_bai_thuoc === ten)) continue;
+            
+            // Parse thành phần: "Phục Linh (5 tiền), Liên Kiều (5 tiền)"
+            // -> [ { ten: 'Phục Linh', lieu: '5 tiền'} ]
+            const tpText = r['Thành phần']||'';
+            const tpArray = tpText.split(',').map(s=>s.trim()).filter(Boolean);
+            const refDetails = [];
+            
+            for (const text of tpArray) {
+                let m = text.match(/^(.*?)\s*\((.*?)\)$/);
+                let vten = '', lieu = '';
+                if (m) {
+                    vten = m[1].trim();
+                    lieu = m[2].trim();
+                } else {
+                    vten = text;
+                }
+                
+                // Lookup or create ViThuoc
+                let v = _thuocData.viThuoc.find(x => x.ten_vi_thuoc.toLowerCase() === vten.toLowerCase());
+                if (!v && vten) {
+                    const res = await apiCreateViThuoc({ ten_vi_thuoc: vten });
+                    if (res.success) {
+                        v = res.data;
+                        _thuocData.viThuoc.push(v);
+                    }
+                }
+                
+                if (v && v.id) {
+                    refDetails.push({ idViThuoc: v.id, lieu_luong: lieu });
+                }
+            }
+
+            const payload = {
+                ten_bai_thuoc: ten,
+                nguon_goc: r['Nguồn gốc']||'',
+                bien_chung: r['Biện chứng']||'',
+                trieu_chung: r['Triệu chứng']||'',
+                phap_tri: r['Pháp trị']||'',
+                cach_dung: r['Cách dùng']||'',
+                ghi_chu: r['Ghi chú']||'',
+                chiTiet: refDetails
+            };
+            await apiCreateBaiThuoc(payload);
+        }
+        alert('Nhập danh mục Bài Thuốc thành công!');
+        await loadAllThuocData();
+        renderThuocSection();
+        e.target.value = ''; // clear input
+    };
+    reader.readAsArrayBuffer(file);
 }
