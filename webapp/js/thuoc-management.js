@@ -293,14 +293,34 @@ function vtNhomSubLabels(vt) {
     return names.join(', ');
 }
 
+function vtNhomSubNameList(vt) {
+    const links = vt.nhomLinks || [];
+    const out = [];
+    for (const l of links) {
+        const n = (l.nhomNho?.ten_nhom_nho || '').trim();
+        if (n) out.push(n);
+    }
+    return out;
+}
+
+function tayyChipsFromStrings(arr) {
+    const list = [...new Set((arr || []).map(s => String(s).trim()).filter(Boolean))];
+    if (!list.length) {
+        return '<span style="color:#D1D5DB;font-size:0.78rem;">—</span>';
+    }
+    return `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">${
+        list.map(t => `<span class="chip" style="cursor:default;font-size:0.72rem;">${escHtml(t)}</span>`).join('')
+    }</div>`;
+}
+
 /** Fallback nếu thuoc-yhct-analysis.js chưa ghi đè — schema Excel 11 cột */
 function renderViThuocTab(el) {
     const rows = (_thuocData.viThuoc || []).map(item => `
         <tr>
             <td><strong>${escHtml(item.ten_vi_thuoc)}</strong></td>
-            <td style="font-size:0.78rem;">${escHtml(vtNhomSubLabels(item))}</td>
+            <td style="font-size:0.78rem;vertical-align:top;max-width:200px;">${tayyChipsFromStrings(vtNhomSubNameList(item))}</td>
             <td style="font-size:0.78rem;">${escHtml(item.tinh || '—')}</td>
-            <td style="font-size:0.78rem;">${escHtml(item.vi || '—')}</td>
+            <td style="font-size:0.78rem;vertical-align:top;">${tayyChipsFromStrings(String(item.vi || '').split(/[,，]/).map(s => s.trim()).filter(Boolean))}</td>
             <td style="text-align:center;width:120px;">
                 <div class="table-actions" style="justify-content:center;">
                     <button class="btn btn-sm btn-outline" onclick="openViThuocForm(${item.id})">✏ Sửa</button>
@@ -861,7 +881,7 @@ function btRenderBaiThuocChiTietRowsHtml() {
         const ten = vt?.ten_vi_thuoc || d?.ten_vi_thuoc || 'Vị thuốc';
         const vaiTro = d?.vai_tro || '';
         const tinh = vt?.tinh || '-';
-        const vi = vt?.vi || '-';
+        const viChipList = String(vt?.vi || '').split(/[,，]/).map(s => s.trim()).filter(Boolean);
         const vtQuyKinh = vt?.quy_kinh || '-';
 
         // Extract value and unit naturally for the 2 inputs
@@ -917,9 +937,12 @@ function btRenderBaiThuocChiTietRowsHtml() {
                         oninput="btUpdateBaiThuocChipVaiTro(${d.idViThuoc}, this.value)">
                 </td>
                 <td style="border:1px solid #E2D4B8; padding:8px; font-size:0.8rem; line-height:1.4; color:#5B3A1A;">
-                    <div><strong>Nhóm nhỏ:</strong> ${escHtml(vt ? vtNhomSubLabels(vt) : '—')}</div>
-                    <div style="margin-top:4px;"><strong>Tính:</strong> ${escHtml(tinh)} <span style="margin:0 4px;color:#D4C5A0;">|</span> <strong>Vị:</strong> ${escHtml(vi)}</div>
-                    <div style="margin-top:2px;"><strong>Quy kinh:</strong> ${escHtml(vtQuyKinh)}</div>
+                    <div><strong>Nhóm nhỏ:</strong></div>
+                    <div style="margin-top:4px;">${vt ? tayyChipsFromStrings(vtNhomSubNameList(vt)) : '<span style="color:#D1D5DB;">—</span>'}</div>
+                    <div style="margin-top:8px;"><strong>Tính:</strong> ${escHtml(tinh)}</div>
+                    <div style="margin-top:4px;"><strong>Vị:</strong></div>
+                    <div style="margin-top:4px;">${tayyChipsFromStrings(viChipList)}</div>
+                    <div style="margin-top:8px;"><strong>Quy kinh:</strong> ${escHtml(vtQuyKinh)}</div>
                 </td>
             </tr>
         `;
@@ -1360,6 +1383,20 @@ function ndlFindNhoById(idNho) {
     return null;
 }
 
+/** Danh sách id vị thuốc → chip (đọc tên từ `_thuocData.viThuoc`). */
+function ndlViThuocChipsFromIds(idList) {
+    const ids = idList || [];
+    const vts = _thuocData.viThuoc || [];
+    const idToTen = new Map(vts.map(v => [v.id, (v.ten_vi_thuoc || '').trim() || ('#' + v.id)]));
+    if (!ids.length) {
+        return '<span style="color:#D1D5DB;font-size:0.76rem;font-style:italic;">Chưa có</span>';
+    }
+    return `<div class="ndl-vi-chip-wrap" style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-start;align-items:center;">${ids.map(id => {
+        const ten = idToTen.get(id) || '#' + id;
+        return `<span class="chip" style="cursor:default;max-width:100%;">${escHtml(ten)}</span>`;
+    }).join('')}</div>`;
+}
+
 function renderNhomDuocLyTab(el) {
     const catalog = _thuocData.nhomDuocLy || [];
     const lonCount = catalog.filter(l => !l.isOrphanBucket).length;
@@ -1370,12 +1407,11 @@ function renderNhomDuocLyTab(el) {
         const isBucket = !!lon.isOrphanBucket;
         const idLonJs = isBucket ? 'null' : lon.id;
         const rows = nhoList.map(nho => {
-            const cnt = (nho.id_vi_thuoc || []).length;
             const mt = (nho.mo_ta || '').trim();
             return `<tr>
                 <td style="font-weight:600;color:#5B3A1A;">${escHtml(nho.ten_nhom_nho)}</td>
                 <td style="color:#8B7355;font-size:0.78rem;">${escHtml(mt ? (mt.length > 100 ? mt.slice(0, 100) + '…' : mt) : '—')}</td>
-                <td style="text-align:center;">${cnt}</td>
+                <td style="vertical-align:top;min-width:180px;max-width:480px;">${ndlViThuocChipsFromIds(nho.id_vi_thuoc)}</td>
                 <td style="text-align:center;">
                     <div class="table-actions" style="justify-content:center;flex-wrap:wrap;">
                         <button type="button" class="btn btn-sm btn-outline" onclick="openNhomNhoMembersModal(${nho.id})">Vị thuốc</button>
@@ -1406,7 +1442,7 @@ function renderNhomDuocLyTab(el) {
             <div class="data-table-container" style="overflow-x:auto;">
                 <table style="font-size:0.85rem;width:100%;">
                     <thead><tr>
-                        <th>Nhóm nhỏ (Tác dụng YHCT)</th><th>Mô tả</th><th style="text-align:center;">Số vị</th><th style="text-align:center;width:240px;">Thao tác</th>
+                        <th>Nhóm nhỏ (Tác dụng YHCT)</th><th>Mô tả</th><th>Vị thuốc</th><th style="text-align:center;width:240px;">Thao tác</th>
                     </tr></thead>
                     <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:#9CA3AF;">Chưa có nhóm nhỏ — bấm «+ Nhóm nhỏ»</td></tr>'}</tbody>
                 </table>

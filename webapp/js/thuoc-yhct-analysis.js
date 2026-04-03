@@ -45,6 +45,17 @@ function yhctVtNhomSubDisplay(vt) {
     return names.length ? names.join(', ') : '—';
 }
 
+/** Chip `.chip` (style.css) — chỉ hiển thị, không nút xóa. */
+function yhctInlineChipsFromStrings(arr) {
+    const list = [...new Set((arr || []).map(s => String(s).trim()).filter(Boolean))];
+    if (!list.length) {
+        return '<span style="color:#D1D5DB;font-size:0.74rem;">—</span>';
+    }
+    return `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">${
+        list.map(t => `<span class="chip" style="cursor:default;font-size:0.72rem;">${escHtml(t)}</span>`).join('')
+    }</div>`;
+}
+
 /** Tính vị thuốc — chỉ các giá trị mặc định (dropdown). */
 const _VT_TINH_OPTIONS = ['Bình', 'Đại Hàn', 'Hàn', 'Hơi Hàn', 'Hơi Ôn', 'Lương', 'Nóng', 'Ôn'];
 
@@ -353,7 +364,7 @@ function yhctBuildAnalysisHtml(r) {
             <td style="padding:5px 8px;text-align:center;">
                 <span style="background:${v.color};color:#fff;border-radius:10px;padding:2px 9px;font-size:0.75rem;font-weight:700;">${escHtml(v.vai_tro)}</span>
             </td>
-            <td style="padding:5px 8px;font-size:0.76rem;color:#5B3A1A;">${escHtml(v.nhomSubDisplay || '—')}</td>
+            <td style="padding:5px 8px;vertical-align:top;max-width:280px;">${yhctInlineChipsFromStrings(v.nhomSubs || [])}</td>
             <td style="padding:5px 8px;font-size:0.72rem;color:#8B7355;">${escHtml(v.quy_kinh||'—')}</td>
         </tr>`).join('');
 
@@ -423,9 +434,9 @@ function yhctBuildAnalysisHtml(r) {
             <div style="font-weight:700;color:#5B3A1A;font-size:0.85rem;margin-bottom:8px;">5) Phân tích Tác dụng YHCT</div>
             <p style="margin:0 0 8px 0;font-size:0.76rem;color:#8B7355;line-height:1.4;">Theo tên <strong>nhóm nhỏ (dược lý)</strong> đã gán cho các vị trong bài (mỗi tên liệt kê một lần).</p>
             ${(r.tacDungYhctNhomNho && r.tacDungYhctNhomNho.length)
-                ? `<ul style="margin:0;padding-left:1.25rem;line-height:1.7;color:#374151;font-size:0.88rem;max-height:240px;overflow-y:auto;">${
-                    r.tacDungYhctNhomNho.map(n => `<li style="margin-bottom:2px;">${escHtml(n)}</li>`).join('')
-                }</ul>`
+                ? `<div style="display:flex;flex-wrap:wrap;gap:6px;max-height:240px;overflow-y:auto;padding:2px 0;">${
+                    r.tacDungYhctNhomNho.map(n => `<span class="chip" style="cursor:default;font-size:0.8rem;">${escHtml(n)}</span>`).join('')
+                }</div>`
                 : '<div style="color:#9CA3AF;font-size:0.82rem;">Chưa có nhóm nhỏ nào được gán. Gán vị thuốc trong tab «Nhóm dược lý».</div>'}
         </div>
     </div>
@@ -528,9 +539,9 @@ function renderViThuocTab(el) {
         const alias = item.ten_goi_khac ? `<div style="font-size:0.7rem;color:#9CA3AF;font-style:italic;">${escHtml(item.ten_goi_khac)}</div>` : '';
         return `<tr>
             <td><div style="font-weight:700;color:#5B3A1A;">${escHtml(item.ten_vi_thuoc)}</div>${alias}</td>
-            <td style="font-size:0.74rem;">${escHtml(yhctVtNhomSubDisplay(item))}</td>
+            <td style="font-size:0.74rem;vertical-align:top;max-width:220px;">${yhctInlineChipsFromStrings(yhctNhomSubNamesFromVt(item))}</td>
             <td style="font-size:0.74rem;">${escHtml(item.tinh || '—')}</td>
-            <td style="font-size:0.74rem;">${escHtml(item.vi || '—')}</td>
+            <td style="font-size:0.74rem;vertical-align:top;">${yhctInlineChipsFromStrings(yhctParseViToList(item.vi || ''))}</td>
             <td style="font-size:0.72rem;color:#6B7280;">${trunc(item.quy_kinh, 40)}</td>
             <td style="font-size:0.74rem;">${escHtml(item.lieu_dung || '—')}</td>
             <td style="font-size:0.72rem;line-height:1.35;">${trunc(item.cong_dung, 80)}</td>
