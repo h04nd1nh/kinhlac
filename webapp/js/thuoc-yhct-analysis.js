@@ -570,21 +570,27 @@ function yhctImportViThuocXlsx(e) {
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const rawRows = XLSX.utils.sheet_to_json(sheet);
         const rows = rawRows.map(yhctNormalizeExcelRowKeys);
-        if (!confirm(`Tìm thấy ${rows.length} dòng. Chỉ thêm vị thuốc chưa có tên (bỏ qua trùng)?`)) { e.target.value = ''; return; }
+        if (!confirm(`Tìm thấy ${rows.length} dòng. Tiến hành import (trùng tên sẽ cập nhật)?`)) { e.target.value = ''; return; }
 
-        let created = 0, skipped = 0;
+        let created = 0, updated = 0, skipped = 0;
         for (const r of rows) {
             const payload = yhctViThuocPayloadFromRow(r);
             if (!payload.ten_vi_thuoc) { skipped++; continue; }
-            if (_thuocData.viThuoc.some(v => (v.ten_vi_thuoc || '').trim().toLowerCase() === payload.ten_vi_thuoc.toLowerCase())) {
-                skipped++;
-                continue;
+            const existing = (_thuocData.viThuoc || []).find(
+                v => (v.ten_vi_thuoc || '').trim().toLowerCase() === payload.ten_vi_thuoc.toLowerCase()
+            );
+
+            if (existing?.id) {
+                const res = await apiUpdateViThuoc(existing.id, payload);
+                if (res.success) updated++;
+                else skipped++;
+            } else {
+                const res = await apiCreateViThuoc(payload);
+                if (res.success) created++;
+                else skipped++;
             }
-            const res = await apiCreateViThuoc(payload);
-            if (res.success) created++;
-            else skipped++;
         }
-        alert(`Nhập xong: thêm ${created}, bỏ qua ${skipped}.`);
+        alert(`Nhập xong: thêm ${created}, cập nhật ${updated}, bỏ qua/lỗi ${skipped}.`);
         await loadAllThuocData();
         renderThuocSection();
         e.target.value = '';
