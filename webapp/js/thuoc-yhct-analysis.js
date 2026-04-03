@@ -432,7 +432,6 @@ function yhctBuildAnalysisHtml(r) {
         </div>
         <div style="border:1px solid #E5E7EB;border-radius:10px;padding:10px;background:#fff;">
             <div style="font-weight:700;color:#5B3A1A;font-size:0.85rem;margin-bottom:8px;">5) Phân tích Tác dụng YHCT</div>
-            <p style="margin:0 0 8px 0;font-size:0.76rem;color:#8B7355;line-height:1.4;">Theo tên <strong>nhóm nhỏ (dược lý)</strong> đã gán cho các vị trong bài (mỗi tên liệt kê một lần).</p>
             ${(r.tacDungYhctNhomNho && r.tacDungYhctNhomNho.length)
                 ? `<div style="display:flex;flex-wrap:wrap;gap:6px;max-height:240px;overflow-y:auto;padding:2px 0;">${
                     r.tacDungYhctNhomNho.map(n => `<span class="chip" style="cursor:default;font-size:0.8rem;">${escHtml(n)}</span>`).join('')
