@@ -41,25 +41,27 @@ export class NhomDuocLyService {
       id_vi_thuoc: [...new Set((n.viLinks || []).map((l) => l.idViThuoc))].sort((a, b) => a - b),
     });
 
-    const out = lons.map((lon) => ({
+    const orphans = await this.nhoRepo.find({
+      where: { id_nhom_lon: IsNull() },
+      relations: { viLinks: true },
+      order: { ten_nhom_nho: 'ASC' },
+    });
+
+    const lonGroups = lons.map((lon) => ({
       id: lon.id,
       ten_nhom_lon: lon.ten_nhom_lon,
       isOrphanBucket: false as const,
       nhomNho: (lon.nhomNhoList || []).map(mapNho),
     }));
 
-    const orphans = await this.nhoRepo.find({
-      where: { id_nhom_lon: IsNull() },
-      relations: { viLinks: true },
-      order: { ten_nhom_nho: 'ASC' },
-    });
-    out.push({
-      id: null,
+    const orphanBucket = {
+      id: null as null,
       ten_nhom_lon: '— Nhóm nhỏ độc lập —',
       isOrphanBucket: true as const,
       nhomNho: orphans.map(mapNho),
-    });
-    return out;
+    };
+
+    return [...lonGroups, orphanBucket];
   }
 
   async createLon(dto: CreateNhomDuocLyLonDto): Promise<NhomDuocLyLon> {
