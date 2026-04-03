@@ -958,6 +958,42 @@ function btRerenderBaiThuocChiTietRows() {
     el.innerHTML = btRenderBaiThuocChiTietRowsHtml();
 }
 
+/** Chuỗi con có xuất hiện trong tên chính hoặc một tên gọi khác không (tìm vị thuốc trong bài thuốc). */
+function btViThuocMatchesSearchQuery(v, queryLower) {
+    if (!queryLower) return true;
+    const ten = (v?.ten_vi_thuoc || '').toLowerCase();
+    if (ten.includes(queryLower)) return true;
+    for (const row of v?.tenGoiKhacList || []) {
+        const alias = String(row?.ten_goi_khac || '').trim().toLowerCase();
+        if (alias && alias.includes(queryLower)) return true;
+    }
+    return false;
+}
+
+/** Khớp chính xác toàn bộ từ khóa — tránh nút «Thêm mới» trùng tên/alias có sẵn. */
+function btViThuocExactNameOrAlias(v, queryLower) {
+    if (!queryLower) return false;
+    if ((v?.ten_vi_thuoc || '').trim().toLowerCase() === queryLower) return true;
+    for (const row of v?.tenGoiKhacList || []) {
+        const alias = String(row?.ten_goi_khac || '').trim().toLowerCase();
+        if (alias && alias === queryLower) return true;
+    }
+    return false;
+}
+
+/** Alias khớpx từ khóa (để hiển thị dòng phụ trong gợi ý). */
+function btViThuocFirstMatchingAliasHtml(v, queryLower) {
+    for (const row of v?.tenGoiKhacList || []) {
+        const raw = String(row?.ten_goi_khac || '').trim();
+        if (raw && raw.toLowerCase().includes(queryLower)) {
+            const main = (v?.ten_vi_thuoc || '').trim().toLowerCase();
+            if (main.includes(queryLower)) return '';
+            return `<div style="font-size:0.72rem;color:#8B7355;font-style:italic;">Tên gọi khác: ${escHtml(raw)}</div>`;
+        }
+    }
+    return '';
+}
+
 function btOnViThuocSearchInput(query) {
     const exactVal = (query || '').trim();
     const inpVal = exactVal.toLowerCase();
@@ -973,11 +1009,11 @@ function btOnViThuocSearchInput(query) {
 
     const selectedIds = new Set((_btDraftChiTiet || []).map(d => d.idViThuoc));
     const matches = (_thuocData.viThuoc || [])
-        .filter(v => (v?.ten_vi_thuoc || '').toLowerCase().includes(inpVal))
+        .filter(v => btViThuocMatchesSearchQuery(v, inpVal))
         .filter(v => !selectedIds.has(v.id))
         .slice(0, 10);
 
-    const hasExactMatch = matches.some(v => (v?.ten_vi_thuoc || '').toLowerCase() === inpVal);
+    const hasExactMatch = matches.some(v => btViThuocExactNameOrAlias(v, inpVal));
 
     let html = '';
 
@@ -988,6 +1024,7 @@ function btOnViThuocSearchInput(query) {
                  onmouseout="this.style.background='transparent'"
                  onclick="btAddViThuocChip(${v.id})">
                 <div style="font-weight:700; color:#5B3A1A; font-size:0.82rem;">${escHtml(v.ten_vi_thuoc || '')}</div>
+                ${btViThuocFirstMatchingAliasHtml(v, inpVal)}
             </div>
         `).join('');
     } else {
