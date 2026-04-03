@@ -24,6 +24,13 @@ export class BaiThuocService {
     'chiTietViThuoc.viThuoc.nhomLinks',
     'chiTietViThuoc.viThuoc.nhomLinks.nhomNho',
     'chiTietViThuoc.viThuoc.nhomLinks.nhomNho.nhomLon',
+    'chiTietViThuoc.viThuoc.congDungLinks',
+    'chiTietViThuoc.viThuoc.congDungLinks.congDung',
+    'chiTietViThuoc.viThuoc.chuTriLinks',
+    'chiTietViThuoc.viThuoc.chuTriLinks.chuTri',
+    'chiTietViThuoc.viThuoc.kiengKyLinks',
+    'chiTietViThuoc.viThuoc.kiengKyLinks.kiengKy',
+    'chiTietViThuoc.viThuoc.tenGoiKhacList',
   ] as const;
 
   findAll(): Promise<BaiThuoc[]> {

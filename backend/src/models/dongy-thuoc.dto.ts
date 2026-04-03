@@ -1,14 +1,15 @@
-// ViThuoc DTOs — khớp mẫu Excel (nhóm dược lý qua tab Danh mục / API riêng)
+// ViThuoc DTOs — nhóm dược lý qua tab Danh mục / API riêng; công dụng & chủ trị & kiêng kỵ qua bảng liên kết
 export class CreateViThuocDto {
   ten_vi_thuoc: string;
-  ten_goi_khac?: string;
   tinh?: string;
   vi?: string;
   quy_kinh?: string;
   lieu_dung?: string;
-  cong_dung?: string;
-  chu_tri?: string;
-  kieng_ky?: string;
+  /** Mỗi phần tử: id_cong_dung + ghi_chu (ghi chú gắn với vị thuốc này). */
+  cong_dung_links?: { id_cong_dung: number; ghi_chu?: string }[];
+  chu_tri_links?: { id_chu_tri: number; ghi_chu?: string }[];
+  kieng_ky_links?: { id_kieng_ky: number; ghi_chu?: string }[];
+  ten_goi_khac_list?: string[];
 }
 export class UpdateViThuocDto extends CreateViThuocDto {}
 

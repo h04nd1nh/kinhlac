@@ -169,17 +169,268 @@ function yhctParseViToList(raw) {
     return s.split(/\s*,\s*/).map(x => x.trim()).filter(Boolean);
 }
 
+// ── Vị thuốc ↔ danh mục (công dụng / chủ trị / kiêng kỵ) + tên gọi khác ─────
+var _vtLinkCong = [];
+var _vtLinkChuTri = [];
+var _vtLinkKiengKy = [];
+var _vtTenGoiKhacTexts = [];
+
+function yhctVtTenGoiKhacFromItem(item) {
+    const list = item?.tenGoiKhacList;
+    if (Array.isArray(list) && list.length) {
+        return list.map(r => (r.ten_goi_khac || '').trim()).filter(Boolean);
+    }
+    const leg = item?.ten_goi_khac;
+    if (leg && String(leg).trim()) {
+        return String(leg).split(/\s*,\s*/).map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+}
+
+function yhctVtInitLinkRowsFromItem(item) {
+    _vtLinkCong = (item?.congDungLinks || []).map(l => ({
+        id_cong_dung: String(l.id_cong_dung != null ? l.id_cong_dung : ''),
+        ghi_chu: l.ghi_chu || '',
+    }));
+    if (!_vtLinkCong.length) _vtLinkCong = [{ id_cong_dung: '', ghi_chu: '' }];
+
+    _vtLinkChuTri = (item?.chuTriLinks || []).map(l => ({
+        id_chu_tri: String(l.id_chu_tri != null ? l.id_chu_tri : ''),
+        ghi_chu: l.ghi_chu || '',
+    }));
+    if (!_vtLinkChuTri.length) _vtLinkChuTri = [{ id_chu_tri: '', ghi_chu: '' }];
+
+    _vtLinkKiengKy = (item?.kiengKyLinks || []).map(l => ({
+        id_kieng_ky: String(l.id_kieng_ky != null ? l.id_kieng_ky : ''),
+        ghi_chu: l.ghi_chu || '',
+    }));
+    if (!_vtLinkKiengKy.length) _vtLinkKiengKy = [{ id_kieng_ky: '', ghi_chu: '' }];
+
+    _vtTenGoiKhacTexts = yhctVtTenGoiKhacFromItem(item);
+    if (!_vtTenGoiKhacTexts.length) _vtTenGoiKhacTexts = [''];
+}
+
+function yhctVtCatSelectOptions(catalog, labelKey, selectedVal) {
+    let h = `<option value="">— Chọn —</option>`;
+    for (const c of catalog || []) {
+        const id = c.id;
+        const sel = String(selectedVal) === String(id) ? ' selected' : '';
+        h += `<option value="${id}"${sel}>${escHtml((c[labelKey] || '') + '')}</option>`;
+    }
+    return h;
+}
+
+function yhctVtLinkSummaryLines(links, namePicker) {
+    const rows = links || [];
+    if (!rows.length) return '';
+    return rows.map(l => {
+        const n = namePicker(l) || '';
+        const g = (l.ghi_chu || '').trim();
+        return g ? `${n} (${g})` : n;
+    }).filter(Boolean).join('; ');
+}
+
+function yhctVtCongDungSummary(item) {
+    return yhctVtLinkSummaryLines(item?.congDungLinks, l => l.congDung?.ten_cong_dung || '');
+}
+
+function yhctVtChuTriSummary(item) {
+    return yhctVtLinkSummaryLines(item?.chuTriLinks, l => l.chuTri?.ten_chu_tri || '');
+}
+
+function yhctVtKiengKySummary(item) {
+    return yhctVtLinkSummaryLines(item?.kiengKyLinks, l => l.kiengKy?.ten_kieng_ky || '');
+}
+
+function yhctVtAliasDisplay(item) {
+    const list = item?.tenGoiKhacList;
+    if (Array.isArray(list) && list.length) {
+        return list.map(r => (r.ten_goi_khac || '').trim()).filter(Boolean).join(', ');
+    }
+    return (item?.ten_goi_khac || '').trim();
+}
+
+function vtRenderVtCongRows() {
+    const el = document.getElementById('vt-rows-cong');
+    if (!el) return;
+    el.innerHTML = _vtLinkCong.map((row, idx) => `
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <select class="tayy-form-input" style="flex:2;margin-top:0;"
+                onchange="_vtLinkCong[${idx}].id_cong_dung = this.value">
+                ${yhctVtCatSelectOptions(_thuocData.congDung, 'ten_cong_dung', row.id_cong_dung)}
+            </select>
+            <input type="text" class="tayy-form-input" style="flex:1;margin-top:0;font-style:italic;color:#6B5A3A;"
+                placeholder="Ghi chú…"
+                value="${escHtml(row.ghi_chu || '')}"
+                oninput="_vtLinkCong[${idx}].ghi_chu = this.value">
+            <button type="button" class="btn btn-sm" style="flex-shrink:0;background:#FDECEA;color:#B03A2E;"
+                onclick="vtRemoveVtCongRow(${idx})">×</button>
+        </div>`).join('');
+}
+function vtAddVtCongRow() {
+    _vtLinkCong.push({ id_cong_dung: '', ghi_chu: '' });
+    vtRenderVtCongRows();
+}
+function vtRemoveVtCongRow(i) {
+    if (_vtLinkCong.length <= 1) _vtLinkCong[0] = { id_cong_dung: '', ghi_chu: '' };
+    else _vtLinkCong.splice(i, 1);
+    vtRenderVtCongRows();
+}
+
+function vtRenderVtChuTriRows() {
+    const el = document.getElementById('vt-rows-chutri');
+    if (!el) return;
+    el.innerHTML = _vtLinkChuTri.map((row, idx) => `
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <select class="tayy-form-input" style="flex:2;margin-top:0;"
+                onchange="_vtLinkChuTri[${idx}].id_chu_tri = this.value">
+                ${yhctVtCatSelectOptions(_thuocData.chuTri, 'ten_chu_tri', row.id_chu_tri)}
+            </select>
+            <input type="text" class="tayy-form-input" style="flex:1;margin-top:0;font-style:italic;color:#6B5A3A;"
+                placeholder="Ghi chú…"
+                value="${escHtml(row.ghi_chu || '')}"
+                oninput="_vtLinkChuTri[${idx}].ghi_chu = this.value">
+            <button type="button" class="btn btn-sm" style="flex-shrink:0;background:#FDECEA;color:#B03A2E;"
+                onclick="vtRemoveVtChuTriRow(${idx})">×</button>
+        </div>`).join('');
+}
+function vtAddVtChuTriRow() {
+    _vtLinkChuTri.push({ id_chu_tri: '', ghi_chu: '' });
+    vtRenderVtChuTriRows();
+}
+function vtRemoveVtChuTriRow(i) {
+    if (_vtLinkChuTri.length <= 1) _vtLinkChuTri[0] = { id_chu_tri: '', ghi_chu: '' };
+    else _vtLinkChuTri.splice(i, 1);
+    vtRenderVtChuTriRows();
+}
+
+function vtRenderVtKiengKyRows() {
+    const el = document.getElementById('vt-rows-kiengky');
+    if (!el) return;
+    el.innerHTML = _vtLinkKiengKy.map((row, idx) => `
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <select class="tayy-form-input" style="flex:2;margin-top:0;"
+                onchange="_vtLinkKiengKy[${idx}].id_kieng_ky = this.value">
+                ${yhctVtCatSelectOptions(_thuocData.kiengKy, 'ten_kieng_ky', row.id_kieng_ky)}
+            </select>
+            <input type="text" class="tayy-form-input" style="flex:1;margin-top:0;font-style:italic;color:#6B5A3A;"
+                placeholder="Ghi chú…"
+                value="${escHtml(row.ghi_chu || '')}"
+                oninput="_vtLinkKiengKy[${idx}].ghi_chu = this.value">
+            <button type="button" class="btn btn-sm" style="flex-shrink:0;background:#FDECEA;color:#B03A2E;"
+                onclick="vtRemoveVtKiengKyRow(${idx})">×</button>
+        </div>`).join('');
+}
+function vtAddVtKiengKyRow() {
+    _vtLinkKiengKy.push({ id_kieng_ky: '', ghi_chu: '' });
+    vtRenderVtKiengKyRows();
+}
+function vtRemoveVtKiengKyRow(i) {
+    if (_vtLinkKiengKy.length <= 1) _vtLinkKiengKy[0] = { id_kieng_ky: '', ghi_chu: '' };
+    else _vtLinkKiengKy.splice(i, 1);
+    vtRenderVtKiengKyRows();
+}
+
+function vtRenderTenGoiKhacRows() {
+    const el = document.getElementById('vt-rows-alias');
+    if (!el) return;
+    el.innerHTML = _vtTenGoiKhacTexts.map((t, idx) => `
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+            <input type="text" class="tayy-form-input" style="flex:1;margin-top:0;"
+                value="${escHtml(t)}"
+                oninput="_vtTenGoiKhacTexts[${idx}] = this.value"
+                placeholder="Tên gọi khác">
+            <button type="button" class="btn btn-sm" style="flex-shrink:0;background:#FDECEA;color:#B03A2E;"
+                onclick="vtRemoveAliasRow(${idx})">×</button>
+        </div>`).join('');
+}
+function vtAddAliasRow() {
+    _vtTenGoiKhacTexts.push('');
+    vtRenderTenGoiKhacRows();
+}
+function vtRemoveAliasRow(i) {
+    if (_vtTenGoiKhacTexts.length <= 1) _vtTenGoiKhacTexts[0] = '';
+    else _vtTenGoiKhacTexts.splice(i, 1);
+    vtRenderTenGoiKhacRows();
+}
+
+function yhctSplitExcelCatalogParts(raw) {
+    return String(raw || '').split(/[;\n]+/).map(s => s.trim()).filter(Boolean);
+}
+
+async function yhctEnsureCongDungId(name) {
+    const n = String(name || '').trim();
+    if (!n) return null;
+    const list = _thuocData.congDung || [];
+    const hit = list.find(x => (x.ten_cong_dung || '').trim().toLowerCase() === n.toLowerCase());
+    if (hit) return hit.id;
+    const res = await apiCreateCongDung({ ten_cong_dung: n, ghi_chu: '' });
+    if (!res.success) return null;
+    const row = res.data || { id: res.id, ten_cong_dung: n, ghi_chu: '' };
+    list.push(row);
+    list.sort((a, b) => (a.ten_cong_dung || '').localeCompare(b.ten_cong_dung || '', 'vi'));
+    return res.id;
+}
+
+async function yhctEnsureChuTriId(name) {
+    const n = String(name || '').trim();
+    if (!n) return null;
+    const list = _thuocData.chuTri || [];
+    const hit = list.find(x => (x.ten_chu_tri || '').trim().toLowerCase() === n.toLowerCase());
+    if (hit) return hit.id;
+    const res = await apiCreateChuTri({ ten_chu_tri: n, ghi_chu: '' });
+    if (!res.success) return null;
+    const row = res.data || { id: res.id, ten_chu_tri: n, ghi_chu: '' };
+    list.push(row);
+    list.sort((a, b) => (a.ten_chu_tri || '').localeCompare(b.ten_chu_tri || '', 'vi'));
+    return res.id;
+}
+
+async function yhctEnsureKiengKyId(name) {
+    const n = String(name || '').trim();
+    if (!n) return null;
+    const list = _thuocData.kiengKy || [];
+    const hit = list.find(x => (x.ten_kieng_ky || '').trim().toLowerCase() === n.toLowerCase());
+    if (hit) return hit.id;
+    const res = await apiCreateKiengKy({ ten_kieng_ky: n, ghi_chu: '' });
+    if (!res.success) return null;
+    const row = res.data || { id: res.id, ten_kieng_ky: n, ghi_chu: '' };
+    list.push(row);
+    list.sort((a, b) => (a.ten_kieng_ky || '').localeCompare(b.ten_kieng_ky || '', 'vi'));
+    return res.id;
+}
+
+async function yhctCatalogLinksFromExcelStrings(congText, chuText, kiengText) {
+    const cong_dung_links = [];
+    for (const part of yhctSplitExcelCatalogParts(congText)) {
+        const id = await yhctEnsureCongDungId(part);
+        if (id != null) cong_dung_links.push({ id_cong_dung: id, ghi_chu: '' });
+    }
+    const chu_tri_links = [];
+    for (const part of yhctSplitExcelCatalogParts(chuText)) {
+        const id = await yhctEnsureChuTriId(part);
+        if (id != null) chu_tri_links.push({ id_chu_tri: id, ghi_chu: '' });
+    }
+    const kieng_ky_links = [];
+    for (const part of yhctSplitExcelCatalogParts(kiengText)) {
+        const id = await yhctEnsureKiengKyId(part);
+        if (id != null) kieng_ky_links.push({ id_kieng_ky: id, ghi_chu: '' });
+    }
+    return { cong_dung_links, chu_tri_links, kieng_ky_links };
+}
+
 function openViThuocForm(id) {
     const item = id ? _thuocData.viThuoc.find(x => x.id == id) : null;
 
     showTayyModal('Vị thuốc', `
-        <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:10px;margin-bottom:10px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
             <label class="tayy-form-label">Tên vị thuốc *<br>
                 <input id="vt-inp-ten" type="text" class="tayy-form-input"
                     value="${item?escHtml(item.ten_vi_thuoc):''}" placeholder="VD: Ma hoàng"></label>
-            <label class="tayy-form-label">Tên gọi khác<br>
-                <input id="vt-inp-alias" type="text" class="tayy-form-input"
-                    value="${item?escHtml(item.ten_goi_khac||''):''}" placeholder="Cách nhau bởi dấu phẩy"></label>
+            <label class="tayy-form-label">Tên gọi khác <span style="font-weight:400;color:#A09580;font-size:0.68rem;">(nhiều dòng)</span>
+                <div id="vt-rows-alias" style="margin-top:4px;"></div>
+                <button type="button" class="btn btn-sm btn-outline" style="margin-top:6px;" onclick="vtAddAliasRow()">+ Thêm tên</button>
+            </label>
         </div>
         <p style="margin:0 0 10px 0;font-size:0.78rem;color:#8B7355;background:#FAF6EE;border:1px dashed #D4C5A0;border-radius:8px;padding:8px 10px;">
             Gán vị thuốc vào <strong>nhóm nhỏ</strong> tại tab «Nhóm dược lý» (nút «Vị thuốc» trên từng nhóm nhỏ).
@@ -213,12 +464,18 @@ function openViThuocForm(id) {
                     background:#FFFDF7;border:1px solid #D4C5A0;border-radius:8px;
                     box-shadow:0 8px 24px rgba(0,0,0,0.1);max-height:200px;overflow-y:auto;z-index:2500;display:none;"></div>
             </div></label>
-        <label class="tayy-form-label">Công dụng<br>
-            <textarea id="vt-ta-congdung" class="tayy-form-input" rows="3" placeholder="Theo mẫu Excel">${item?escHtml(item.cong_dung||''):''}</textarea></label>
-        <label class="tayy-form-label">Chủ trị<br>
-            <textarea id="vt-ta-chutri" class="tayy-form-input" rows="2">${item?escHtml(item.chu_tri||''):''}</textarea></label>
-        <label class="tayy-form-label">Kiêng kỵ<br>
-            <textarea id="vt-ta-kiengky" class="tayy-form-input" rows="2">${item?escHtml(item.kieng_ky||''):''}</textarea></label>
+        <label class="tayy-form-label">Công dụng <span style="font-weight:400;color:#A09580;font-size:0.68rem;">(danh mục «Công dụng» + ghi chú riêng)</span>
+            <div id="vt-rows-cong" style="margin-top:4px;"></div>
+            <button type="button" class="btn btn-sm btn-outline" style="margin-top:6px;" onclick="vtAddVtCongRow()">+ Thêm công dụng</button>
+        </label>
+        <label class="tayy-form-label">Chủ trị <span style="font-weight:400;color:#A09580;font-size:0.68rem;">(danh mục «Chủ trị»)</span>
+            <div id="vt-rows-chutri" style="margin-top:4px;"></div>
+            <button type="button" class="btn btn-sm btn-outline" style="margin-top:6px;" onclick="vtAddVtChuTriRow()">+ Thêm chủ trị</button>
+        </label>
+        <label class="tayy-form-label">Kiêng kỵ <span style="font-weight:400;color:#A09580;font-size:0.68rem;">(danh mục «Kiêng kỵ»)</span>
+            <div id="vt-rows-kiengky" style="margin-top:4px;"></div>
+            <button type="button" class="btn btn-sm btn-outline" style="margin-top:6px;" onclick="vtAddVtKiengKyRow()">+ Thêm kiêng kỵ</button>
+        </label>
         <div class="tayy-form-actions">
             <button class="btn" onclick="closeTayyModal()">Hủy</button>
             <button class="btn btn-primary" onclick="saveViThuoc(${id||0})">Lưu</button>
@@ -229,19 +486,35 @@ function openViThuocForm(id) {
     vtRenderQuyKinhChips();
     _vtCurrentVi = yhctParseViToList(item?.vi || '');
     vtRenderViChips();
+    yhctVtInitLinkRowsFromItem(item);
+    vtRenderTenGoiKhacRows();
+    vtRenderVtCongRows();
+    vtRenderVtChuTriRows();
+    vtRenderVtKiengKyRows();
 }
 
 async function saveViThuoc(id) {
+    const ten_goi_khac_list = (_vtTenGoiKhacTexts || []).map(s => String(s || '').trim()).filter(Boolean);
+    const cong_dung_links = (_vtLinkCong || [])
+        .filter(r => r.id_cong_dung)
+        .map(r => ({ id_cong_dung: Number(r.id_cong_dung), ghi_chu: (r.ghi_chu || '').trim() }));
+    const chu_tri_links = (_vtLinkChuTri || [])
+        .filter(r => r.id_chu_tri)
+        .map(r => ({ id_chu_tri: Number(r.id_chu_tri), ghi_chu: (r.ghi_chu || '').trim() }));
+    const kieng_ky_links = (_vtLinkKiengKy || [])
+        .filter(r => r.id_kieng_ky)
+        .map(r => ({ id_kieng_ky: Number(r.id_kieng_ky), ghi_chu: (r.ghi_chu || '').trim() }));
+
     const payload = {
         ten_vi_thuoc:   (document.getElementById('vt-inp-ten')?.value||'').trim(),
-        ten_goi_khac:   (document.getElementById('vt-inp-alias')?.value||'').trim(),
         tinh:           yhctSanitizeVtTinh(document.getElementById('vt-inp-tinh')?.value),
         vi:             yhctNormalizeViString((typeof _vtCurrentVi !== 'undefined' && _vtCurrentVi.length) ? _vtCurrentVi.join(',') : ''),
         lieu_dung:      (document.getElementById('vt-inp-lieudung')?.value||'').trim(),
         quy_kinh:       _vtCurrentQuyKinh.join(', '),
-        cong_dung:      (document.getElementById('vt-ta-congdung')?.value||'').trim(),
-        chu_tri:        (document.getElementById('vt-ta-chutri')?.value||'').trim(),
-        kieng_ky:       (document.getElementById('vt-ta-kiengky')?.value||'').trim(),
+        ten_goi_khac_list,
+        cong_dung_links,
+        chu_tri_links,
+        kieng_ky_links,
     };
     if (!payload.ten_vi_thuoc) return alert('Thiếu tên vị thuốc!');
     const res = id ? await apiUpdateViThuoc(id, payload) : await apiCreateViThuoc(payload);
@@ -614,7 +887,11 @@ function renderViThuocTab(el) {
         return escHtml(t.slice(0, n)) + '…';
     };
     const rows = _thuocData.viThuoc.map(item => {
-        const alias = item.ten_goi_khac ? `<div style="font-size:0.7rem;color:#9CA3AF;font-style:italic;">${escHtml(item.ten_goi_khac)}</div>` : '';
+        const aliasStr = yhctVtAliasDisplay(item);
+        const alias = aliasStr ? `<div style="font-size:0.7rem;color:#9CA3AF;font-style:italic;">${escHtml(aliasStr)}</div>` : '';
+        const cd = yhctVtCongDungSummary(item);
+        const ct = yhctVtChuTriSummary(item);
+        const kk = yhctVtKiengKySummary(item);
         return `<tr>
             <td><div style="font-weight:700;color:#5B3A1A;">${escHtml(item.ten_vi_thuoc)}</div>${alias}</td>
             <td style="font-size:0.74rem;vertical-align:top;max-width:220px;">${yhctInlineChipsFromStrings(yhctNhomSubNamesFromVt(item))}</td>
@@ -622,9 +899,9 @@ function renderViThuocTab(el) {
             <td style="font-size:0.74rem;vertical-align:top;">${yhctInlineChipsFromStrings(yhctParseViToList(item.vi || ''))}</td>
             <td style="font-size:0.72rem;color:#6B7280;">${trunc(item.quy_kinh, 40)}</td>
             <td style="font-size:0.74rem;">${escHtml(item.lieu_dung || '—')}</td>
-            <td style="font-size:0.72rem;line-height:1.35;">${trunc(item.cong_dung, 80)}</td>
-            <td style="font-size:0.72rem;line-height:1.35;color:#B8860B;">${trunc(item.chu_tri, 60)}</td>
-            <td style="font-size:0.72rem;line-height:1.35;color:#A32D2D;">${trunc(item.kieng_ky, 60)}</td>
+            <td style="font-size:0.72rem;line-height:1.35;">${trunc(cd, 80)}</td>
+            <td style="font-size:0.72rem;line-height:1.35;color:#B8860B;">${trunc(ct, 60)}</td>
+            <td style="font-size:0.72rem;line-height:1.35;color:#A32D2D;">${trunc(kk, 60)}</td>
             <td style="text-align:center;width:110px;">
                 <div class="table-actions" style="justify-content:center;">
                     <button class="btn btn-sm btn-outline" onclick="openViThuocForm(${item.id})">✏ Sửa</button>
@@ -712,17 +989,39 @@ function renderBaiThuocTab(el) {
         </div>`;
 }
 
+/** Cột Excel / CSV — công dụng & chủ trị & kiêng kỵ: nhiều mục cách nhau bởi ; hoặc xuống dòng (tên khớp hoặc tạo mới trong danh mục). */
 function yhctViThuocPayloadFromRow(r) {
     return {
         ten_vi_thuoc: yhctDevPick(r, ['Tên vị thuốc', 'Ten vi thuoc']),
-        ten_goi_khac: yhctDevPick(r, ['Tên gọi khác', 'Ten goi khac']),
+        _excel_ten_goi_khac: yhctDevPick(r, ['Tên gọi khác', 'Ten goi khac']),
         tinh: yhctCanonicalTinh(yhctDevPick(r, ['Tính', 'Tinh'])),
         vi: yhctNormalizeViString(yhctDevPick(r, ['Vị', 'Vi'])),
         quy_kinh: yhctDevPick(r, ['Quy kinh', 'Quy Kinh']),
         lieu_dung: yhctDevPick(r, ['Liều dùng', 'Lieu dung', 'Liều lượng']),
-        cong_dung: yhctDevPick(r, ['Công dụng', 'Cong dung']),
-        chu_tri: yhctDevPick(r, ['Chủ trị', 'Chu tri']),
-        kieng_ky: yhctDevPick(r, ['Kiêng kỵ', 'Kieng ky']),
+        _excel_cong_dung: yhctDevPick(r, ['Công dụng', 'Cong dung']),
+        _excel_chu_tri: yhctDevPick(r, ['Chủ trị', 'Chu tri']),
+        _excel_kieng_ky: yhctDevPick(r, ['Kiêng kỵ', 'Kieng ky']),
+    };
+}
+
+async function yhctViThuocPayloadFromRowResolved(r) {
+    const p = yhctViThuocPayloadFromRow(r);
+    const ten_goi_khac_list = String(p._excel_ten_goi_khac || '').split(/\s*,\s*/).map(s => s.trim()).filter(Boolean);
+    const { cong_dung_links, chu_tri_links, kieng_ky_links } = await yhctCatalogLinksFromExcelStrings(
+        p._excel_cong_dung,
+        p._excel_chu_tri,
+        p._excel_kieng_ky,
+    );
+    return {
+        ten_vi_thuoc: p.ten_vi_thuoc,
+        tinh: p.tinh,
+        vi: p.vi,
+        quy_kinh: p.quy_kinh,
+        lieu_dung: p.lieu_dung,
+        ten_goi_khac_list,
+        cong_dung_links,
+        chu_tri_links,
+        kieng_ky_links,
     };
 }
 
@@ -749,15 +1048,15 @@ function yhctExportViThuocXlsx() {
        const sub = yhctVtNhomSubDisplay(v);
        return {
            'Tên vị thuốc': v.ten_vi_thuoc,
-           'Tên gọi khác': v.ten_goi_khac,
+           'Tên gọi khác': yhctVtAliasDisplay(v),
            'Nhóm nhỏ (dược lý)': sub === '—' ? '' : sub,
            'Tính': v.tinh,
            'Vị': v.vi,
            'Quy kinh': v.quy_kinh,
            'Liều dùng': v.lieu_dung,
-           'Công dụng': v.cong_dung,
-           'Chủ trị': v.chu_tri,
-           'Kiêng kỵ': v.kieng_ky,
+           'Công dụng': yhctVtCongDungSummary(v),
+           'Chủ trị': yhctVtChuTriSummary(v),
+           'Kiêng kỵ': yhctVtKiengKySummary(v),
        };
    });
    const wb = XLSX.utils.book_new();
@@ -800,7 +1099,7 @@ function yhctImportViThuocXlsx(e) {
 
         let created = 0, updated = 0, skipped = 0;
         for (const r of rows) {
-            const payload = yhctViThuocPayloadFromRow(r);
+            const payload = await yhctViThuocPayloadFromRowResolved(r);
             if (!payload.ten_vi_thuoc) { skipped++; continue; }
             const existing = (_thuocData.viThuoc || []).find(
                 v => (v.ten_vi_thuoc || '').trim().toLowerCase() === payload.ten_vi_thuoc.toLowerCase()
@@ -847,7 +1146,7 @@ function yhctImportViThuocXlsxDev(e) {
 
         let created = 0, updated = 0, skipped = 0;
         for (const r of rows) {
-            const payload = yhctViThuocPayloadFromRow(r);
+            const payload = await yhctViThuocPayloadFromRowResolved(r);
             if (!payload.ten_vi_thuoc) { skipped++; continue; }
 
             const existing = (_thuocData.viThuoc || []).find(

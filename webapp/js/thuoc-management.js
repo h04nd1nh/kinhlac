@@ -584,10 +584,12 @@ function vtRemoveKiengKyInput(idx) {
 }
 
 /** Fallback — form đầy đủ nằm trong thuoc-yhct-analysis.js */
+/** Ghi đè bởi thuoc-yhct-analysis.js khi có form đầy đủ; fallback gửi danh sách rỗng cho liên kết danh mục. */
 async function saveViThuoc(id) {
+    const ten_goi_khac_list = String(document.getElementById('vt-inp-alias')?.value || '')
+        .split(/\s*,\s*/).map(s => s.trim()).filter(Boolean);
     const payload = {
         ten_vi_thuoc: (document.getElementById('vt-inp-ten')?.value || '').trim(),
-        ten_goi_khac: (document.getElementById('vt-inp-alias')?.value || '').trim(),
         tinh: (document.getElementById('vt-inp-tinh')?.value || '').trim(),
         vi: (typeof _vtCurrentVi !== 'undefined' && _vtCurrentVi.length)
             ? (typeof yhctNormalizeViString === 'function'
@@ -598,9 +600,10 @@ async function saveViThuoc(id) {
                 : (document.getElementById('vt-inp-vi')?.value || '').trim()),
         lieu_dung: (document.getElementById('vt-inp-lieudung')?.value || '').trim(),
         quy_kinh: (typeof _vtCurrentQuyKinh !== 'undefined' && _vtCurrentQuyKinh.length) ? _vtCurrentQuyKinh.join(', ') : '',
-        cong_dung: (document.getElementById('vt-ta-congdung')?.value || '').trim(),
-        chu_tri: (document.getElementById('vt-ta-chutri')?.value || '').trim(),
-        kieng_ky: (document.getElementById('vt-ta-kiengky')?.value || '').trim(),
+        ten_goi_khac_list,
+        cong_dung_links: [],
+        chu_tri_links: [],
+        kieng_ky_links: [],
     };
     if (!payload.ten_vi_thuoc) return alert('Thiếu tên vị thuốc');
     const res = id ? await apiUpdateViThuoc(id, payload) : await apiCreateViThuoc(payload);
@@ -1024,7 +1027,16 @@ async function btSoftCreateViThuoc(name) {
     if (suggestEl) suggestEl.style.display = 'none';
 
     // Gọi API lưu tức thời (soft-create)
-    const payload = { ten_vi_thuoc: name, tinh: '', vi: '', quy_kinh: '', cong_dung: '' };
+    const payload = {
+        ten_vi_thuoc: name,
+        tinh: '',
+        vi: '',
+        quy_kinh: '',
+        ten_goi_khac_list: [],
+        cong_dung_links: [],
+        chu_tri_links: [],
+        kieng_ky_links: [],
+    };
     const res = await apiCreateViThuoc(payload);
 
     if (inp) {
@@ -1870,11 +1882,9 @@ function renderCongDungTab(el) {
     const rows = (_thuocData.congDung || []).map(item => {
         const id = item.id;
         // Count vi thuoc using this cong dung
-        const usageCount = (_thuocData.viThuoc || []).filter(vt => {
-            const cdStr = vt.cong_dung || '';
-            const entries = cdStr.split('; ').filter(Boolean).map(e => e.split('||')[0].trim());
-            return entries.includes(item.ten_cong_dung);
-        }).length;
+        const usageCount = (_thuocData.viThuoc || []).filter(vt =>
+            (vt.congDungLinks || []).some(l => Number(l.id_cong_dung) === id)
+        ).length;
 
         return `<tr>
             <td style="font-weight:600;color:#5B3A1A;">${escHtml(item.ten_cong_dung)}</td>
@@ -1945,7 +1955,7 @@ async function saveCongDung(id) {
 }
 
 async function deleteCongDung(id) {
-    if (!confirm('Xóa công dụng này? Các vị thuốc đang có sẽ không bị ảnh hưởng.')) return;
+    if (!confirm('Xóa công dụng này? Các liên kết từ vị thuốc tới mục này cũng sẽ bị gỡ.')) return;
     await apiDeleteCongDung(id);
     await loadAllThuocData();
     renderThuocSection();
@@ -1958,11 +1968,9 @@ function renderChuTriTab(el) {
     const rows = (_thuocData.chuTri || []).map(item => {
         const id = item.id;
         // Count vi thuoc using this chu tri
-        const usageCount = (_thuocData.viThuoc || []).filter(vt => {
-            const cdStr = vt.chu_tri || '';
-            const entries = cdStr.split('; ').filter(Boolean).map(e => e.split('||')[0].trim());
-            return entries.includes(item.ten_chu_tri);
-        }).length;
+        const usageCount = (_thuocData.viThuoc || []).filter(vt =>
+            (vt.chuTriLinks || []).some(l => Number(l.id_chu_tri) === id)
+        ).length;
 
         return `<tr>
             <td style="font-weight:600;color:#5B3A1A;">${escHtml(item.ten_chu_tri)}</td>
@@ -2033,7 +2041,7 @@ async function saveChuTri(id) {
 }
 
 async function deleteChuTri(id) {
-    if (!confirm('Xóa chủ trị này? Các vị thuốc đang có sẽ không bị ảnh hưởng.')) return;
+    if (!confirm('Xóa chủ trị này? Các liên kết từ vị thuốc tới mục này cũng sẽ bị gỡ.')) return;
     await apiDeleteChuTri(id);
     await loadAllThuocData();
     renderThuocSection();
@@ -2046,11 +2054,9 @@ function renderKiengKyTab(el) {
     const rows = (_thuocData.kiengKy || []).map(item => {
         const id = item.id;
         // Count vi thuoc using this kieng ky
-        const usageCount = (_thuocData.viThuoc || []).filter(vt => {
-            const cdStr = vt.kieng_ky || '';
-            const entries = cdStr.split('; ').filter(Boolean).map(e => e.split('||')[0].trim());
-            return entries.includes(item.ten_kieng_ky);
-        }).length;
+        const usageCount = (_thuocData.viThuoc || []).filter(vt =>
+            (vt.kiengKyLinks || []).some(l => Number(l.id_kieng_ky) === id)
+        ).length;
 
         return `<tr>
             <td style="font-weight:600;color:#5B3A1A;">${escHtml(item.ten_kieng_ky)}</td>
@@ -2121,7 +2127,7 @@ async function saveKiengKy(id) {
 }
 
 async function deleteKiengKy(id) {
-    if (!confirm('Xóa kiêng kỵ này? Các vị thuốc đang có sẽ không bị ảnh hưởng.')) return;
+    if (!confirm('Xóa kiêng kỵ này? Các liên kết từ vị thuốc tới mục này cũng sẽ bị gỡ.')) return;
     await apiDeleteKiengKy(id);
     await loadAllThuocData();
     renderThuocSection();

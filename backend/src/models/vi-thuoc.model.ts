@@ -1,6 +1,10 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { BaiThuocChiTiet } from './bai-thuoc-chi-tiet.model';
 import { ViThuocNhomNho } from './vi-thuoc-nhom-nho.model';
+import { ViThuocCongDung } from './vi-thuoc-cong-dung.model';
+import { ViThuocChuTri } from './vi-thuoc-chu-tri.model';
+import { ViThuocKiengKy } from './vi-thuoc-kieng-ky.model';
+import { ViThuocTenGoiKhac } from './vi-thuoc-ten-goi-khac.model';
 
 /** Bảng vị thuốc — nghiệp vụ + id; nhóm dược lý gán qua bảng vi_thuoc_nhom_nho. */
 @Entity('vi_thuoc')
@@ -10,9 +14,6 @@ export class ViThuoc {
 
   @Column({ type: 'varchar', length: 255 })
   ten_vi_thuoc: string;
-
-  @Column({ type: 'varchar', length: 512, nullable: true })
-  ten_goi_khac: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   tinh: string;
@@ -26,18 +27,21 @@ export class ViThuoc {
   @Column({ type: 'varchar', length: 255, nullable: true })
   lieu_dung: string;
 
-  @Column({ type: 'text', nullable: true })
-  cong_dung: string;
-
-  @Column({ type: 'text', nullable: true })
-  chu_tri: string;
-
-  @Column({ type: 'text', nullable: true })
-  kieng_ky: string;
-
   @OneToMany(() => BaiThuocChiTiet, (detail) => detail.viThuoc)
   baiThuocDetails: BaiThuocChiTiet[];
 
   @OneToMany(() => ViThuocNhomNho, (link) => link.viThuoc)
   nhomLinks: ViThuocNhomNho[];
+
+  @OneToMany(() => ViThuocCongDung, (link) => link.viThuoc)
+  congDungLinks: ViThuocCongDung[];
+
+  @OneToMany(() => ViThuocChuTri, (link) => link.viThuoc)
+  chuTriLinks: ViThuocChuTri[];
+
+  @OneToMany(() => ViThuocKiengKy, (link) => link.viThuoc)
+  kiengKyLinks: ViThuocKiengKy[];
+
+  @OneToMany(() => ViThuocTenGoiKhac, (row) => row.viThuoc)
+  tenGoiKhacList: ViThuocTenGoiKhac[];
 }
