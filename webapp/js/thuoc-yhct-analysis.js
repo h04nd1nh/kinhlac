@@ -354,71 +354,101 @@ function vtRemoveAliasRow(i) {
     vtRenderTenGoiKhacRows();
 }
 
-/** Tách nhiều mục trong một ô Excel: dấu phẩy (thường / tiếng Trung), chấm phẩy, xuống dòng — giống mẫu «Công dụng, Chủ trị…». */
+/** Giống backend: trim + gộp khoảng trắng; so khớp trùng không phân biệt hoa thường. */
+function yhctNormalizeCatalogLabel(s) {
+    return String(s ?? '').trim().replace(/\s+/g, ' ');
+}
+function yhctCatalogKey(s) {
+    return yhctNormalizeCatalogLabel(s).toLowerCase();
+}
+
+/** Tách ô Excel; mỗi mục chuẩn hóa và bỏ trùng trong cùng ô (vd. «A,  a , A» → một mục). */
 function yhctSplitExcelCatalogParts(raw) {
-    return String(raw || '')
-        .split(/[,，;；\n\r]+/)
-        .map(s => s.trim())
-        .filter(Boolean);
+    const seen = new Set();
+    const out = [];
+    for (const seg of String(raw || '').split(/[,，;；\n\r]+/)) {
+        const n = yhctNormalizeCatalogLabel(seg);
+        if (!n) continue;
+        const k = yhctCatalogKey(n);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(n);
+    }
+    return out;
 }
 
 async function yhctEnsureCongDungId(name) {
-    const n = String(name || '').trim();
+    const n = yhctNormalizeCatalogLabel(name);
     if (!n) return null;
+    const k = yhctCatalogKey(n);
     const list = _thuocData.congDung || [];
-    const hit = list.find(x => (x.ten_cong_dung || '').trim().toLowerCase() === n.toLowerCase());
+    const hit = list.find(x => yhctCatalogKey(x.ten_cong_dung) === k);
     if (hit) return hit.id;
     const res = await apiCreateCongDung({ ten_cong_dung: n, ghi_chu: '' });
     if (!res.success) return null;
     const row = res.data || { id: res.id, ten_cong_dung: n, ghi_chu: '' };
-    list.push(row);
+    if (!list.some(x => x.id === row.id)) list.push(row);
     list.sort((a, b) => (a.ten_cong_dung || '').localeCompare(b.ten_cong_dung || '', 'vi'));
     return res.id;
 }
 
 async function yhctEnsureChuTriId(name) {
-    const n = String(name || '').trim();
+    const n = yhctNormalizeCatalogLabel(name);
     if (!n) return null;
+    const k = yhctCatalogKey(n);
     const list = _thuocData.chuTri || [];
-    const hit = list.find(x => (x.ten_chu_tri || '').trim().toLowerCase() === n.toLowerCase());
+    const hit = list.find(x => yhctCatalogKey(x.ten_chu_tri) === k);
     if (hit) return hit.id;
     const res = await apiCreateChuTri({ ten_chu_tri: n, ghi_chu: '' });
     if (!res.success) return null;
     const row = res.data || { id: res.id, ten_chu_tri: n, ghi_chu: '' };
-    list.push(row);
+    if (!list.some(x => x.id === row.id)) list.push(row);
     list.sort((a, b) => (a.ten_chu_tri || '').localeCompare(b.ten_chu_tri || '', 'vi'));
     return res.id;
 }
 
 async function yhctEnsureKiengKyId(name) {
-    const n = String(name || '').trim();
+    const n = yhctNormalizeCatalogLabel(name);
     if (!n) return null;
+    const k = yhctCatalogKey(n);
     const list = _thuocData.kiengKy || [];
-    const hit = list.find(x => (x.ten_kieng_ky || '').trim().toLowerCase() === n.toLowerCase());
+    const hit = list.find(x => yhctCatalogKey(x.ten_kieng_ky) === k);
     if (hit) return hit.id;
     const res = await apiCreateKiengKy({ ten_kieng_ky: n, ghi_chu: '' });
     if (!res.success) return null;
     const row = res.data || { id: res.id, ten_kieng_ky: n, ghi_chu: '' };
-    list.push(row);
+    if (!list.some(x => x.id === row.id)) list.push(row);
     list.sort((a, b) => (a.ten_kieng_ky || '').localeCompare(b.ten_kieng_ky || '', 'vi'));
     return res.id;
 }
 
 async function yhctCatalogLinksFromExcelStrings(congText, chuText, kiengText) {
     const cong_dung_links = [];
+    const seenCd = new Set();
     for (const part of yhctSplitExcelCatalogParts(congText)) {
         const id = await yhctEnsureCongDungId(part);
-        if (id != null) cong_dung_links.push({ id_cong_dung: id, ghi_chu: '' });
+        if (id != null && !seenCd.has(id)) {
+            seenCd.add(id);
+            cong_dung_links.push({ id_cong_dung: id, ghi_chu: '' });
+        }
     }
     const chu_tri_links = [];
+    const seenCt = new Set();
     for (const part of yhctSplitExcelCatalogParts(chuText)) {
         const id = await yhctEnsureChuTriId(part);
-        if (id != null) chu_tri_links.push({ id_chu_tri: id, ghi_chu: '' });
+        if (id != null && !seenCt.has(id)) {
+            seenCt.add(id);
+            chu_tri_links.push({ id_chu_tri: id, ghi_chu: '' });
+        }
     }
     const kieng_ky_links = [];
+    const seenKk = new Set();
     for (const part of yhctSplitExcelCatalogParts(kiengText)) {
         const id = await yhctEnsureKiengKyId(part);
-        if (id != null) kieng_ky_links.push({ id_kieng_ky: id, ghi_chu: '' });
+        if (id != null && !seenKk.has(id)) {
+            seenKk.add(id);
+            kieng_ky_links.push({ id_kieng_ky: id, ghi_chu: '' });
+        }
     }
     return { cong_dung_links, chu_tri_links, kieng_ky_links };
 }

@@ -7,6 +7,7 @@ import { ViThuocChuTri } from '../models/vi-thuoc-chu-tri.model';
 import { ViThuocKiengKy } from '../models/vi-thuoc-kieng-ky.model';
 import { ViThuocTenGoiKhac } from '../models/vi-thuoc-ten-goi-khac.model';
 import { CreateViThuocDto, UpdateViThuocDto } from '../models/dongy-thuoc.dto';
+import { catalogKey, formatCatalogLabel } from '../utils/catalog-label.util';
 
 const VI_THUOC_RELATIONS = {
   nhomLinks: { nhomNho: { nhomLon: true } },
@@ -56,13 +57,18 @@ export class ViThuocService {
     const patchCd = dto.cong_dung_links;
     if (patchCd !== undefined || isCreate) {
       await mgr.delete(ViThuocCongDung, { id_vi_thuoc: viId });
+      const byCd = new Map<number, { ghi_chu?: string }>();
       for (const row of patchCd ?? []) {
         const idCd = Number(row.id_cong_dung);
         if (!Number.isFinite(idCd)) continue;
+        byCd.set(idCd, { ghi_chu: row.ghi_chu });
+      }
+      for (const [idCd, row] of byCd) {
+        const note = row.ghi_chu?.trim() ? formatCatalogLabel(row.ghi_chu) : null;
         await mgr.insert(ViThuocCongDung, {
           id_vi_thuoc: viId,
           id_cong_dung: idCd,
-          ghi_chu: row.ghi_chu?.trim() ? row.ghi_chu.trim() : null,
+          ghi_chu: note || null,
         });
       }
     }
@@ -70,13 +76,18 @@ export class ViThuocService {
     const patchCt = dto.chu_tri_links;
     if (patchCt !== undefined || isCreate) {
       await mgr.delete(ViThuocChuTri, { id_vi_thuoc: viId });
+      const byCt = new Map<number, { ghi_chu?: string }>();
       for (const row of patchCt ?? []) {
         const idCt = Number(row.id_chu_tri);
         if (!Number.isFinite(idCt)) continue;
+        byCt.set(idCt, { ghi_chu: row.ghi_chu });
+      }
+      for (const [idCt, row] of byCt) {
+        const note = row.ghi_chu?.trim() ? formatCatalogLabel(row.ghi_chu) : null;
         await mgr.insert(ViThuocChuTri, {
           id_vi_thuoc: viId,
           id_chu_tri: idCt,
-          ghi_chu: row.ghi_chu?.trim() ? row.ghi_chu.trim() : null,
+          ghi_chu: note || null,
         });
       }
     }
@@ -84,13 +95,18 @@ export class ViThuocService {
     const patchKk = dto.kieng_ky_links;
     if (patchKk !== undefined || isCreate) {
       await mgr.delete(ViThuocKiengKy, { id_vi_thuoc: viId });
+      const byKk = new Map<number, { ghi_chu?: string }>();
       for (const row of patchKk ?? []) {
         const idKk = Number(row.id_kieng_ky);
         if (!Number.isFinite(idKk)) continue;
+        byKk.set(idKk, { ghi_chu: row.ghi_chu });
+      }
+      for (const [idKk, row] of byKk) {
+        const note = row.ghi_chu?.trim() ? formatCatalogLabel(row.ghi_chu) : null;
         await mgr.insert(ViThuocKiengKy, {
           id_vi_thuoc: viId,
           id_kieng_ky: idKk,
-          ghi_chu: row.ghi_chu?.trim() ? row.ghi_chu.trim() : null,
+          ghi_chu: note || null,
         });
       }
     }
@@ -98,13 +114,13 @@ export class ViThuocService {
     const patchAliases = dto.ten_goi_khac_list;
     if (patchAliases !== undefined || isCreate) {
       await mgr.delete(ViThuocTenGoiKhac, { id_vi_thuoc: viId });
-      const seen = new Set<string>();
+      const seenAlias = new Set<string>();
       for (const raw of patchAliases ?? []) {
-        const t = String(raw || '').trim();
+        const t = formatCatalogLabel(String(raw ?? ''));
         if (!t) continue;
-        const k = t.toLowerCase();
-        if (seen.has(k)) continue;
-        seen.add(k);
+        const k = catalogKey(t);
+        if (seenAlias.has(k)) continue;
+        seenAlias.add(k);
         await mgr.insert(ViThuocTenGoiKhac, {
           id_vi_thuoc: viId,
           ten_goi_khac: t,
