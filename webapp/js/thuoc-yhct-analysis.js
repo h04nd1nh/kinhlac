@@ -608,10 +608,13 @@ function renderViThuocTab(el) {
 
     el.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div style="display:flex;gap:8px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                 <button class="btn btn-outline" onclick="yhctExportViThuocXlsx()">📥 Xuất Excel</button>
                 <button class="btn btn-outline" onclick="document.getElementById('yhct-import-vt').click()">📤 Nhập Excel</button>
                 <input type="file" id="yhct-import-vt" accept=".xlsx, .xls, .csv" style="display:none;" onchange="yhctImportViThuocXlsx(event)">
+                <button type="button" class="btn btn-outline" style="border-style:dashed;opacity:0.92;" title="Mẫu cột: Tên vị thuốc, Tên gọi khác, Nhóm lớn, Nhóm dược lý, Tính, Vị, Quy kinh, Liều dùng, Công dụng, Chủ trị, Kiêng kỵ. Trùng tên sẽ được cập nhật."
+                    onclick="document.getElementById('yhct-import-vt-dev').click()">📤 Nhập Excel (dev)</button>
+                <input type="file" id="yhct-import-vt-dev" accept=".xlsx, .xls, .csv" style="display:none;" onchange="yhctImportViThuocXlsxDev(event)">
             </div>
             <button class="btn btn-primary" onclick="openViThuocForm()">+ Thêm vị thuốc</button>
         </div>
@@ -773,6 +776,112 @@ function yhctImportViThuocXlsx(e) {
         await loadAllThuocData();
         renderThuocSection();
         e.target.value = ''; // reset file input
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+/** Chuẩn hóa key cột Excel (trim) để khớp mẫu có khoảng trắng thừa */
+function yhctNormalizeExcelRowKeys(row) {
+    const o = {};
+    if (!row || typeof row !== 'object') return o;
+    for (const [k, v] of Object.entries(row)) {
+        o[String(k).trim()] = v;
+    }
+    return o;
+}
+
+function yhctDevPick(r, keys) {
+    for (const k of keys) {
+        const v = r[k];
+        if (v != null && String(v).trim() !== '') return String(v).trim();
+    }
+    return '';
+}
+
+/**
+ * Import mẫu “form vị thuốc” (Excel): Nhóm lớn, Liều dùng, …
+ * Trùng tên vị thuốc (không phân biệt hoa thường) → cập nhật bản ghi.
+ */
+function yhctImportViThuocXlsxDev(e) {
+    if (typeof XLSX === 'undefined') return alert('Chưa tải xong thư viện');
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+        const data = new Uint8Array(evt.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rawRows = XLSX.utils.sheet_to_json(sheet);
+        const rows = rawRows.map(yhctNormalizeExcelRowKeys);
+        if (!rows.length) {
+            alert('File không có dòng dữ liệu.');
+            e.target.value = '';
+            return;
+        }
+        if (!confirm(`[dev] Tìm thấy ${rows.length} dòng. Import/cập nhật vị thuốc theo mẫu Excel?`)) {
+            e.target.value = '';
+            return;
+        }
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+
+        for (const r of rows) {
+            const ten = yhctDevPick(r, ['Tên vị thuốc', 'Ten vi thuoc']);
+            if (!ten) {
+                skipped++;
+                continue;
+            }
+
+            const nhomLon = yhctDevPick(r, ['Nhóm lớn', 'Nhom lon', 'Nhóm Lon']);
+            const nhomNho = yhctDevPick(r, ['Nhóm dược lý', 'Nhom duoc ly', 'Nhóm dược ly']);
+            let nhom_duoc_ly = '';
+            if (nhomLon && nhomNho) nhom_duoc_ly = `${nhomLon} · ${nhomNho}`;
+            else nhom_duoc_ly = nhomNho || nhomLon;
+
+            const lieu_dung = yhctDevPick(r, ['Liều dùng', 'Lieu dung', 'Liều lượng', 'Lieu luong']);
+
+            const payload = {
+                ten_vi_thuoc: ten,
+                ten_goi_khac: yhctDevPick(r, ['Tên gọi khác', 'Ten goi khac']),
+                nhom_duoc_ly,
+                tac_dung_chinh: yhctDevPick(r, ['Tác dụng chính', 'Tac dung chinh']),
+                quy_kinh: yhctDevPick(r, ['Quy kinh', 'Quy Kinh']),
+                cong_dung: yhctDevPick(r, ['Công dụng', 'Cong dung']),
+                chu_tri: yhctDevPick(r, ['Chủ trị', 'Chu tri']),
+                kieng_ky: yhctDevPick(r, ['Kiêng kỵ', 'Kieng ky']),
+                tinh: yhctDevPick(r, ['Tính', 'Tinh']),
+                vi: yhctDevPick(r, ['Vị', 'Vi']),
+                lieu_dung: lieu_dung || undefined,
+                tu_khi: parseFloat(r['Tứ khí'] ?? r['Tu khi']) || 0,
+                huong_tgpt: parseFloat(r['Hướng (Thăng/Giáng)'] ?? r['Huong']) || 3,
+                vi_toan: parseFloat(r['Vị chua'] ?? r['Vi chua']) || 0,
+                vi_khu: parseFloat(r['Vị đắng'] ?? r['Vi dang']) || 0,
+                vi_cam: parseFloat(r['Vị ngọt'] ?? r['Vi ngot']) || 0,
+                vi_tan: parseFloat(r['Vị cay'] ?? r['Vi cay']) || 0,
+                vi_ham: parseFloat(r['Vị mặn'] ?? r['Vi man']) || 0,
+            };
+
+            const existing = (_thuocData.viThuoc || []).find(
+                v => (v.ten_vi_thuoc || '').trim().toLowerCase() === ten.toLowerCase()
+            );
+
+            if (existing?.id) {
+                const res = await apiUpdateViThuoc(existing.id, payload);
+                if (res.success !== false) updated++;
+                else skipped++;
+            } else {
+                const res = await apiCreateViThuoc(payload);
+                if (res.success !== false) created++;
+                else skipped++;
+            }
+        }
+
+        alert(`[dev] Xong: thêm ${created}, cập nhật ${updated}, bỏ qua/lỗi ${skipped}.`);
+        await loadAllThuocData();
+        renderThuocSection();
+        e.target.value = '';
     };
     reader.readAsArrayBuffer(file);
 }
