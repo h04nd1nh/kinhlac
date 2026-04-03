@@ -12,7 +12,7 @@ export class NhomDuocLyService {
   ) {}
 
   findAll(): Promise<NhomDuocLy[]> {
-    return this.repo.find({ order: { nhom_lon: 'ASC', nhom_con: 'ASC', nhom_nho: 'ASC', ten_nhom: 'ASC' } });
+    return this.repo.find({ order: { nhom_lon: 'ASC', nhom_nho: 'ASC', ten_nhom: 'ASC' } });
   }
 
   async findOne(id: number): Promise<NhomDuocLy> {
@@ -42,13 +42,11 @@ export class NhomDuocLyService {
 
   private normalizeDto(dto: CreateNhomDuocLyDto | UpdateNhomDuocLyDto): Partial<NhomDuocLy> {
     const nhomLon = (dto.nhom_lon ?? '').trim();
-    const nhomCon = (dto.nhom_con ?? '').trim();
     const nhomNho = (dto.nhom_nho ?? '').trim();
     const tenNhomLegacy = (dto.ten_nhom ?? '').trim();
 
     return {
       nhom_lon: nhomLon || null,
-      nhom_con: nhomCon || null,
       nhom_nho: nhomNho || tenNhomLegacy || null,
       mo_ta: (dto.mo_ta ?? '').trim() || null,
       ten_nhom: tenNhomLegacy || nhomNho || null,

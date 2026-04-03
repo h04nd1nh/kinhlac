@@ -12,9 +12,6 @@ export class NhomDuocLy {
   nhom_lon: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  nhom_con: string | null;
-
-  @Column({ type: 'varchar', length: 255, nullable: true })
   nhom_nho: string | null;
 
   @Column({ type: 'text', nullable: true })

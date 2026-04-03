@@ -1329,14 +1329,12 @@ async function btSoftCreatePhapTri(name) {
 // ═══════════════════════════════════════════════════════════
 function renderNhomDuocLyTab(el) {
     const getDisplayNhomNho = (item) => (item.nhom_nho || item.ten_nhom || '').trim();
-    const getDisplayNhomCon = (item) => (item.nhom_con || '').trim();
     const getDisplayNhomLon = (item) => (item.nhom_lon || '').trim();
     const getDisplayMoTa = (item) => (item.mo_ta || '').trim();
 
     const rows = (_thuocData.nhomDuocLy || []).map(item => {
         const id = item.id;
         const nhomLon = getDisplayNhomLon(item);
-        const nhomCon = getDisplayNhomCon(item);
         const nhomNho = getDisplayNhomNho(item);
         const moTa = getDisplayMoTa(item);
 
@@ -1345,7 +1343,6 @@ function renderNhomDuocLyTab(el) {
         ).length;
         return `<tr>
             <td style="font-weight:600;color:#5B3A1A;">${escHtml(nhomLon || '—')}</td>
-            <td style="font-weight:600;color:#5B3A1A;">${escHtml(nhomCon || '—')}</td>
             <td style="font-weight:600;color:#5B3A1A;">${escHtml(nhomNho || '—')}</td>
             <td style="color:#8B7355;font-size:0.8rem;">${escHtml(moTa || '—')}</td>
             <td style="text-align:center;">
@@ -1380,13 +1377,12 @@ function renderNhomDuocLyTab(el) {
             <table>
                 <thead><tr>
                     <th>Nhóm lớn</th>
-                    <th>Nhóm con</th>
                     <th>Nhóm nhỏ</th>
                     <th>Mô tả</th>
                     <th style="text-align:center;">Sử dụng</th>
                     <th style="width:130px;text-align:center;">Thao tác</th>
                 </tr></thead>
-                <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:#9CA3AF;padding:20px;">Chưa có nhóm dược lý nào</td></tr>'}</tbody>
+                <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:#9CA3AF;padding:20px;">Chưa có nhóm dược lý nào</td></tr>'}</tbody>
             </table>
         </div>`;
 }
@@ -1398,11 +1394,6 @@ function openNhomDuocLyForm(id) {
             <input id="ndl-inp-lon" type="text" class="tayy-form-input"
                 value="${item ? escHtml(item.nhom_lon || '') : ''}"
                 placeholder="VD: Giải biểu, Thanh nhiệt...">
-        </label>
-        <label class="tayy-form-label">Nhóm con<br>
-            <input id="ndl-inp-con" type="text" class="tayy-form-input"
-                value="${item ? escHtml(item.nhom_con || '') : ''}"
-                placeholder="VD: Tân ôn giải biểu...">
         </label>
         <label class="tayy-form-label">Nhóm nhỏ *<br>
             <input id="ndl-inp-nho" type="text" class="tayy-form-input"
@@ -1422,14 +1413,12 @@ function openNhomDuocLyForm(id) {
 
 async function saveNhomDuocLy(id) {
     const nhomLon = (document.getElementById('ndl-inp-lon')?.value || '').trim();
-    const nhomCon = (document.getElementById('ndl-inp-con')?.value || '').trim();
     const nhomNho = (document.getElementById('ndl-inp-nho')?.value || '').trim();
     const moTa = (document.getElementById('ndl-inp-mota')?.value || '').trim();
     if (!nhomLon) return alert('Vui lòng nhập Nhóm lớn!');
     if (!nhomNho) return alert('Vui lòng nhập Nhóm nhỏ!');
     const payload = {
         nhom_lon: nhomLon,
-        nhom_con: nhomCon,
         nhom_nho: nhomNho,
         mo_ta: moTa,
         ten_nhom: nhomNho,
@@ -1452,7 +1441,6 @@ function exportNhomDuocLyXlsx() {
     if (typeof XLSX === 'undefined') return alert('Thư viện Excel đang tải, vui lòng thử lại sau.');
     const data = (_thuocData.nhomDuocLy || []).map(item => ({
         'Nhóm lớn': item.nhom_lon || '',
-        'Nhóm con': item.nhom_con || '',
         'Nhóm nhỏ': item.nhom_nho || item.ten_nhom || '',
         'Mô tả': item.mo_ta || '',
     }));
@@ -1483,20 +1471,19 @@ function importNhomDuocLyXlsx(e) {
 
         for (const r of rows) {
             const nhomLon = (r['Nhóm lớn'] || '').toString().trim();
-            const nhomCon = (r['Nhóm con'] || '').toString().trim();
-            const nhomNho = (r['Nhóm nhỏ'] || r['Tên nhóm dược lý'] || '').toString().trim();
+            const nhomNho = String(
+                r['Nhóm nhỏ'] ?? r['Tên nhóm dược lý'] ?? r['Nhóm con'] ?? ''
+            ).trim();
             const moTa = (r['Mô tả'] || '').toString().trim();
             if (!nhomLon || !nhomNho) continue;
 
             const existed = (_thuocData.nhomDuocLy || []).find(x =>
                 (x.nhom_lon || '').trim().toLowerCase() === nhomLon.toLowerCase() &&
-                (x.nhom_con || '').trim().toLowerCase() === nhomCon.toLowerCase() &&
                 (x.nhom_nho || x.ten_nhom || '').trim().toLowerCase() === nhomNho.toLowerCase()
             );
 
             const payload = {
                 nhom_lon: nhomLon,
-                nhom_con: nhomCon,
                 nhom_nho: nhomNho,
                 mo_ta: moTa,
                 ten_nhom: nhomNho,
