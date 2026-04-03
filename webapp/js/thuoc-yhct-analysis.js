@@ -464,29 +464,43 @@ function yhctBuildAnalysisHtml(r) {
             <span>${escHtml(k)}</span><strong>${v}</strong></div>`).join('') || '<div style="color:#9CA3AF;font-size:0.8rem;">Chưa gán quy kinh</div>';
 
     const tk = r.tuKhi || {};
-    const tkMax = Math.max(tk.daiHan||0, tk.han||0, tk.luong||0, tk.binh||0, tk.on||0, tk.nhiet||0, tk.daiNhiet||0, 0.0001);
-    const tuKhiBar = [
-        { k:'Đại Hàn', v: tk.daiHan||0, c:'#1E88E5' },
-        { k:'Hàn', v: tk.han||0, c:'#29B6F6' },
-        { k:'Lương', v: tk.luong||0, c:'#26A69A' },
-        { k:'Bình', v: tk.binh||0, c:'#E6E38A' },
-        { k:'Ôn', v: tk.on||0, c:'#FFB74D' },
-        { k:'Nhiệt', v: tk.nhiet||0, c:'#FF7043' },
-        { k:'Đại Nhiệt', v: tk.daiNhiet||0, c:'#E53935' },
-    ].map(x => {
-        const pct = Math.round((x.v / tkMax) * 100);
-        return `<div style="flex:1;min-width:70px;">
-            <div style="height:20px;background:${x.c};border-radius:4px 4px 0 0;position:relative;">
-                <span style="position:absolute;right:4px;top:2px;font-size:0.68rem;color:#fff;font-weight:700;">${Math.round(x.v*100)}%</span>
-            </div>
-            <div style="border:1px solid #E5E7EB;border-top:none;padding:3px 4px;text-align:center;font-size:0.72rem;color:#5B3A1A;">${x.k}</div>
-        </div>`;
-    }).join('');
+    const tuKhiSegs = [
+        { key: 'daiHan', vn: 'Đại Hàn', zh: '大寒', c: '#1565C0' },
+        { key: 'han', vn: 'Hàn', zh: '寒', c: '#29B6F6' },
+        { key: 'luong', vn: 'Lương', zh: '凉', c: '#26A69A' },
+        { key: 'binh', vn: 'Bình', zh: '平', c: '#E6E38A' },
+        { key: 'on', vn: 'Ôn', zh: '温', c: '#FFB74D' },
+        { key: 'nhiet', vn: 'Nhiệt', zh: '热', c: '#FF7043' },
+        { key: 'daiNhiet', vn: 'Đại Nhiệt', zh: '大热', c: '#C62828' },
+    ];
+    const tuKhiVals = tuKhiSegs.map(s => Number(tk[s.key]) || 0);
+    let tuKhiTipIdx = 3;
+    let tuKhiMax = -1;
+    tuKhiVals.forEach((v, i) => {
+        if (v > tuKhiMax) { tuKhiMax = v; tuKhiTipIdx = i; }
+    });
+    if (tuKhiMax <= 0) tuKhiTipIdx = 3;
+
+    const tuKhiArrows = tuKhiSegs.map((_, i) => `
+        <div style="flex:1;min-width:0;display:flex;justify-content:center;align-items:flex-end;padding-bottom:2px;">
+            ${i === tuKhiTipIdx ? '<span style="font-size:0.95rem;line-height:1;color:#111;">▼</span>' : '<span style="visibility:hidden;font-size:0.95rem;">▼</span>'}
+        </div>`).join('');
+    const tuKhiColors = tuKhiSegs.map(s => `
+        <div style="flex:1;min-width:0;height:26px;background:${s.c};"></div>`).join('');
+    const tuKhiLabels = tuKhiSegs.map(s => `
+        <div style="flex:1;min-width:0;border-top:1px solid #E5E7EB;padding:6px 2px;text-align:center;font-size:0.68rem;line-height:1.25;color:#374151;">
+            <div style="font-weight:600;color:#5B3A1A;">${escHtml(s.vn)}</div>
+            <div style="color:#6B7280;">(${escHtml(s.zh)})</div>
+        </div>`).join('');
 
     return `
     <div style="border:1px solid #E5E7EB;border-radius:10px;padding:12px;background:#fff;margin-bottom:12px;">
-        <div style="font-weight:700;color:#374151;font-size:0.9rem;margin-bottom:8px;">1) Phân tích Tứ khí</div>
-        <div style="display:flex;gap:0;overflow-x:auto;">${tuKhiBar}</div>
+        <div style="font-weight:700;color:#374151;font-size:0.9rem;margin-bottom:10px;">1) Phân tích Tứ khí</div>
+        <div style="border:1px solid #D1D5DB;border-radius:8px;overflow:hidden;background:#fff;">
+            <div style="display:flex;min-height:26px;">${tuKhiArrows}</div>
+            <div style="display:flex;">${tuKhiColors}</div>
+            <div style="display:flex;background:#FAFAF8;">${tuKhiLabels}</div>
+        </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
         <div style="border:1px solid #E5E7EB;border-radius:10px;padding:10px;background:#fff;">
