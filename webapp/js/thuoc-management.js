@@ -1173,10 +1173,66 @@ function ptKinhMachDisplayLabel(k) {
     return tat ? tat + ' — ' + ten : ten;
 }
 
+/** Gõ tên / tắt / nhãn đầy đủ → id kinh mạch (ưu tiên khớp chính xác). */
+function ptResolveKinhMachIdFromQuery(raw) {
+    const want = ptStrNorm(raw);
+    if (!want) return null;
+    const scored = [];
+    for (const k of _thuocData.kinhMach || []) {
+        const id = kmRowId(k);
+        if (!Number.isFinite(id)) continue;
+        const tat = ptStrNorm(k.ten_viet_tat || '');
+        const ten = ptStrNorm(k.ten_kinh_mach || '');
+        const lab = ptStrNorm(ptKinhMachDisplayLabel(k));
+        let pri = 0;
+        if (tat === want || ten === want || lab === want) pri = 100;
+        else if (want.length >= 1 && (tat.startsWith(want) || ten.startsWith(want))) pri = 80;
+        else if (want.length >= 2 && lab.startsWith(want)) pri = 75;
+        else if (want.length >= 2 && (ten.includes(want) || lab.includes(want) || tat.includes(want))) pri = 50;
+        if (pri > 0) scored.push({ id, pri, tenlen: ten.length });
+    }
+    if (!scored.length) return null;
+    scored.sort((a, b) => b.pri - a.pri || a.tenlen - b.tenlen || a.id - b.id);
+    return scored[0].id;
+}
+
+function ptOnKinhChipKeydown(ev) {
+    if (ev.key !== 'Enter') return;
+    const inp = document.getElementById('pt-inp-kinh');
+    if (!inp) return;
+    const q = inp.value.trim();
+    if (!q) return;
+    ev.preventDefault();
+    const kid = ptResolveKinhMachIdFromQuery(q);
+    if (kid == null) {
+        alert('Không tìm thấy kinh mạch khớp «' + q + '». Gõ rõ hơn hoặc chọn gợi ý trong danh sách.');
+        return;
+    }
+    if (_ptKinhIds.includes(kid)) {
+        inp.value = '';
+        return;
+    }
+    ptToggleKinhId(kid, true);
+    inp.value = '';
+    ptRenderKinhChipGroup();
+}
+
+function ptFillKinhMachDatalist() {
+    const dl = document.getElementById('pt-datalist-kinh');
+    if (!dl) return;
+    dl.innerHTML = '';
+    for (const k of _thuocData.kinhMach || []) {
+        const o = document.createElement('option');
+        o.value = ptKinhMachDisplayLabel(k);
+        dl.appendChild(o);
+    }
+}
+
 function ptRenderKinhChipGroup() {
     const container = document.getElementById('pt-chips-kinh');
     if (!container) return;
-    container.innerHTML = '';
+    const inp = document.getElementById('pt-inp-kinh');
+    container.querySelectorAll('.chip').forEach(c => c.remove());
     const byId = new Map();
     for (const k of _thuocData.kinhMach || []) {
         const id = kmRowId(k);
@@ -1197,32 +1253,34 @@ function ptRenderKinhChipGroup() {
             ptRenderKinhChipGroup();
         };
         chip.appendChild(x);
-        container.appendChild(chip);
+        if (inp) container.insertBefore(chip, inp);
+        else container.appendChild(chip);
     }
-    const sel = document.createElement('select');
-    sel.id = 'pt-sel-add-kinh';
-    sel.className = 'tayy-form-input';
-    sel.style.cssText = 'min-width:220px;max-width:100%;margin-top:6px;display:block;';
-    const rest = (_thuocData.kinhMach || [])
-        .filter(k => {
-            const id = kmRowId(k);
-            return Number.isFinite(id) && !_ptKinhIds.includes(id);
-        })
-        .sort((a, b) => ptKinhMachDisplayLabel(a).localeCompare(ptKinhMachDisplayLabel(b), 'vi'));
-    let optHtml = '<option value="">— Thêm tạng phủ / kinh mạch —</option>';
-    for (const k of rest) {
-        const id = kmRowId(k);
-        optHtml += `<option value="${id}">${escHtml(ptKinhMachDisplayLabel(k))}</option>`;
+}
+
+function ptFillBaiThuocDatalist() {
+    const dl = document.getElementById('pt-datalist-baithuoc');
+    if (!dl) return;
+    dl.innerHTML = '';
+    for (const bt of _thuocData.baiThuoc || []) {
+        const o = document.createElement('option');
+        o.value = String(bt.ten_bai_thuoc || '');
+        dl.appendChild(o);
     }
-    sel.innerHTML = optHtml;
-    sel.onchange = () => {
-        const v = sel.value;
-        if (!v) return;
-        ptToggleKinhId(Number(v), true);
-        sel.value = '';
-        ptRenderKinhChipGroup();
-    };
-    container.appendChild(sel);
+}
+
+function ptOnBaiThuocSearchInput() {
+    const inp = document.getElementById('pt-inp-baithuoc');
+    const hid = document.getElementById('pt-hid-baithuoc-id');
+    if (!inp || !hid) return;
+    const v = inp.value.trim();
+    if (!v) {
+        hid.value = '';
+        return;
+    }
+    const low = v.toLowerCase();
+    const bt = (_thuocData.baiThuoc || []).find(b => String(b.ten_bai_thuoc || '').trim().toLowerCase() === low);
+    hid.value = bt ? String(bt.id) : '';
 }
 
 async function renderPhapTriTab(el) {
@@ -1298,11 +1356,7 @@ async function openPhapTriRowForm(id) {
     const nnObj = item && (item.nhom_duoc_ly_nho || item.nhomDuocLyNho);
     const nnVal = nnObj ? nnObj.id : '';
 
-    const btOpts = '<option value="">— Bài thuốc —</option>' +
-        (_thuocData.baiThuoc || []).map(bt => {
-            const sel = String(bt.id) === String(btVal) ? ' selected' : '';
-            return `<option value="${bt.id}"${sel}>${escHtml(bt.ten_bai_thuoc)}</option>`;
-        }).join('');
+    const btTenInit = btObj && btObj.ten_bai_thuoc ? String(btObj.ten_bai_thuoc) : '';
 
     showTayyModal(item ? 'Sửa pháp trị' : 'Thêm pháp trị', `
         <label class="tayy-form-label">Chứng trạng<br>
@@ -1335,9 +1389,13 @@ async function openPhapTriRowForm(id) {
             </div>
         </label>
 
-        <label class="tayy-form-label">Tạng phủ <span style="font-size:0.72rem;color:#A09580;">(chip — chọn thêm ở danh sách bên dưới)</span>
-            <div id="pt-chips-kinh" class="chips-container" style="min-height:40px;">
+        <label class="tayy-form-label">Tạng phủ <span style="font-size:0.72rem;color:#A09580;">(Enter để thêm chip — gõ hoặc chọn gợi ý)</span>
+            <div id="pt-chips-kinh" class="chips-container" onclick="document.getElementById('pt-inp-kinh').focus()">
+                <input id="pt-inp-kinh" type="text" class="chip-input" list="pt-datalist-kinh"
+                    placeholder="VD: Phế, Tỳ, Thận…"
+                    onkeydown="ptOnKinhChipKeydown(event)" autocomplete="off">
             </div>
+            <datalist id="pt-datalist-kinh"></datalist>
         </label>
 
         <label class="tayy-form-label">Triệu chứng (nhiều giá trị)
@@ -1347,9 +1405,13 @@ async function openPhapTriRowForm(id) {
             </div>
         </label>
 
-        <label class="tayy-form-label">Bài thuốc<br>
-            <select id="pt-sel-baithuoc" class="tayy-form-input">${btOpts}</select>
+        <label class="tayy-form-label">Bài thuốc <span style="font-size:0.72rem;color:#A09580;">(gõ để tìm — khớp đúng tên đã lưu)</span><br>
+            <input id="pt-inp-baithuoc" type="search" class="tayy-form-input" list="pt-datalist-baithuoc"
+                value="${escHtml(btTenInit)}" placeholder="Gõ tên bài thuốc…"
+                autocomplete="off" oninput="ptOnBaiThuocSearchInput()" onchange="ptOnBaiThuocSearchInput()" onblur="ptOnBaiThuocSearchInput()">
         </label>
+        <input type="hidden" id="pt-hid-baithuoc-id" value="${btVal ? escHtml(String(btVal)) : ''}">
+        <datalist id="pt-datalist-baithuoc"></datalist>
         <label class="tayy-form-label">Nhóm dược lý (nhóm nhỏ)<br>
             <select id="pt-sel-nhomnho" class="tayy-form-input">${ptNhomNhoOptionsHtml(nnVal)}</select>
         </label>
@@ -1361,7 +1423,10 @@ async function openPhapTriRowForm(id) {
     `, 'wide');
     setTimeout(() => {
         ptRenderChipGroups();
+        ptFillKinhMachDatalist();
         ptRenderKinhChipGroup();
+        ptFillBaiThuocDatalist();
+        ptOnBaiThuocSearchInput();
     }, 0);
 }
 
@@ -1384,7 +1449,7 @@ async function savePhapTriRow(id) {
         bat_cuong: ptArrToCsv(_ptChips.bat_cuong) || null,
         luc_dam: ptArrToCsv(_ptChips.luc_dam) || null,
         trieu_chung_mo_ta: ptArrToCsv(_ptChips.trieu_chung_mo_ta) || null,
-        id_bai_thuoc: numOrNull(document.getElementById('pt-sel-baithuoc')?.value),
+        id_bai_thuoc: numOrNull(document.getElementById('pt-hid-baithuoc-id')?.value),
         id_nhom_duoc_ly_nho: numOrNull(document.getElementById('pt-sel-nhomnho')?.value),
         id_kinh_mach_list: _ptKinhIds.filter(n => Number.isFinite(n)),
     };
@@ -1442,6 +1507,48 @@ function ptStrNorm(s) {
     return String(s == null ? '' : s).normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+/** Làm sạch text chứng trạng lấy từ Excel (ký tự ẩn, NBSP, xuống dòng trong ô). */
+function ptCleanChungTrangCell(s) {
+    return String(s == null ? '' : s)
+        .replace(/\u200b|\u200c|\u200d|\ufeff/g, '')
+        .replace(/\u00a0/g, ' ')
+        .replace(/\r\n?/g, '\n')
+        .trim()
+        .replace(/\n+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+/** Khóa so khớp «gần giống»: không dấu, không khoảng, bỏ dấu câu thường gặp. */
+function ptChungTrangFoldKey(raw) {
+    const n = ptStrNorm(ptCleanChungTrangCell(raw));
+    if (!n) return '';
+    return n
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, '')
+        .replace(/[,;.:·…]/g, '');
+}
+
+/**
+ * Điểm khớp Excel ↔ bản ghi đã lưu (càng cao càng chắc). 0 = không coi là cùng một chứng trạng.
+ * Không cần cột id: dùng lớp khớp nhiều mức (đúng chữ → bỏ dấu → chuỗi con ≥ 4 ký tự sau khi fold).
+ */
+function ptChungTrangMatchScore(excelRaw, storedRaw) {
+    const a = ptStrNorm(ptCleanChungTrangCell(excelRaw));
+    const b = ptStrNorm(ptCleanChungTrangCell(storedRaw));
+    if (!a || !b) return 0;
+    if (ptNormTieuKetCompatible(a, b)) return 100000 + Math.min(a.length, b.length);
+    const af = ptChungTrangFoldKey(excelRaw);
+    const bf = ptChungTrangFoldKey(storedRaw);
+    if (!af || !bf) return 0;
+    if (af === bf) return 50000 + Math.min(af.length, bf.length);
+    const short = af.length <= bf.length ? af : bf;
+    const long = af.length > bf.length ? af : bf;
+    if (short.length >= 4 && long.includes(short)) return 10000 + short.length;
+    return 0;
+}
+
 /** Tiêu đề cột Excel: bỏ dấu để khớp «Chứng Trạng» / «Chứng trạng» */
 function ptExcelHeaderNorm(s) {
     return String(s || '')
@@ -1470,11 +1577,11 @@ function ptSanitizeExcelImportRow(row) {
 function ptPickChungTrangFromRow(row) {
     if (!row) return '';
     const keysExplicit = [
-        'Chứng trạng (tiểu kết)', 'Chứng Trạng', 'Chứng trạng', 'CHỨNG TRẠNG',
+        'Chứng trạng', 'Chứng trạng (tiểu kết)', 'Chứng Trạng', 'CHỨNG TRẠNG',
         'Tiểu kết', 'Tieu ket', 'Chung trang', 'tieuket',
     ];
     const direct = ndlPickNhomCol(row, keysExplicit);
-    if (direct != null && String(direct).trim() !== '') return String(direct).trim();
+    if (direct != null && String(direct).trim() !== '') return ptCleanChungTrangCell(String(direct));
     for (const [k, val] of Object.entries(row)) {
         const hn = ptExcelHeaderNorm(k);
         if (!hn) continue;
@@ -1484,18 +1591,21 @@ function ptPickChungTrangFromRow(row) {
             || hn === 'tieu ket'
             || hn === 'tieuket';
         if (!isChungTrang) continue;
-        const t = String(val == null ? '' : val).trim();
+        const t = ptCleanChungTrangCell(String(val == null ? '' : val));
         if (t) return t;
     }
     return '';
 }
 
-/** Khớp text chứng trạng Excel ↔ bản ghi đã lưu (đúng chữ hoặc tiền tố có ranh giới khoảng trắng). */
+/** Khớp text chứng trạng Excel ↔ bản ghi đã lưu (đúng chữ, tiền tố có ranh giới khoảng, hoặc cùng chữ sau khi bỏ mọi khoảng trắng). */
 function ptNormTieuKetCompatible(snNorm, tkNorm) {
     if (!snNorm || !tkNorm) return false;
     if (snNorm === tkNorm) return true;
     if (snNorm.startsWith(tkNorm + ' ')) return true;
     if (tkNorm.startsWith(snNorm + ' ')) return true;
+    const snC = snNorm.replace(/\s+/g, '');
+    const tkC = tkNorm.replace(/\s+/g, '');
+    if (snC.length && snC === tkC) return true;
     return false;
 }
 
@@ -1529,8 +1639,8 @@ function ptResolveNhomNhoIdFromExcel(cell) {
 }
 
 function ptPhapTriImportRowSkippable(row) {
-    const idStr = ndlPickNhomCol(row, ['id', 'ID']);
-    if (String(idStr || '').trim() !== '') return false;
+    const idStr = ndlPickNhomCol(row, ['id', 'ID', 'Id']);
+    if (String(idStr ?? '').trim() !== '') return false;
     if (ptPickChungTrangFromRow(row)) return false;
     const probes = [
         ['Nguyên tắc', 'Nguyen tac', 'Nguyên Tắc'],
@@ -1550,7 +1660,7 @@ function ptPhapTriImportRowSkippable(row) {
 }
 
 function ptBuildPayloadFromExcelRow(row, warnAcc) {
-    const chungTrang = ptPickChungTrangFromRow(row);
+    const chungTrang = ptPickChungTrangFromRow(row) || '';
     const nguyen_tac = ndlPickNhomCol(row, ['Nguyên tắc', 'Nguyen tac', 'Nguyên Tắc', 'Nguyên Tắc']);
     const y_nghia = ndlPickNhomCol(row, [
         'Ý nghĩa & cơ chế', 'Ý Nghĩa & Cơ Chế', 'Y nghia & co che', 'Y nghia', 'Co che', 'Ý nghĩa', 'Y nghia',
@@ -1621,26 +1731,25 @@ function ptPayloadOmitEmptyForPhapTriUpdate(payload) {
 }
 
 function ptResolveUpsertPhapTriTarget(row, payload, existingIds) {
-    const idStr = ndlPickNhomCol(row, ['id', 'ID']);
-    const idNum = parseInt(String(idStr || '').trim(), 10);
+    const idStr = ndlPickNhomCol(row, ['id', 'ID', 'Id']);
+    const idNum = parseInt(String(idStr ?? '').trim().replace(/^[=']+|'+$/g, ''), 10);
     if (Number.isFinite(idNum) && existingIds.has(idNum)) {
         return { targetId: idNum, via: 'id', extraWarn: null };
     }
-    const tWant = ptStrNorm(payload.chung_trang || '');
-    if (tWant) {
+    const excelChung = payload.chung_trang || '';
+    if (ptCleanChungTrangCell(excelChung)) {
         const scored = [];
         for (const p of _thuocData.phapTriList || []) {
             const ct = p.chung_trang != null ? p.chung_trang : p.chungTrang;
-            const ctn = ptStrNorm(ct || '');
-            let score = 0;
-            if (ptNormTieuKetCompatible(tWant, ctn)) score = Math.max(score, ctn.length);
+            const score = ptChungTrangMatchScore(excelChung, String(ct || ''));
             if (score > 0) scored.push({ p, score });
         }
         if (scored.length > 0) {
             scored.sort((a, b) => b.score - a.score || a.p.id - b.p.id);
             const chosen = scored[0].p;
-            const extraWarn = scored.length > 1 && scored[1].score === scored[0].score
-                ? 'Nhiều bản ghi khớp chứng trạng (tiền tố/tương tự) — cập nhật id ' + chosen.id
+            const tie = scored.length > 1 && scored[1].score === scored[0].score;
+            const extraWarn = tie
+                ? 'Nhiều bản ghi khớp chứng trạng (cùng điểm khớp) — cập nhật id ' + chosen.id
                 : null;
             return { targetId: chosen.id, via: 'chung_trang_text', extraWarn };
         }
@@ -1706,7 +1815,7 @@ function importPhapTriXlsx(e) {
                 alert('Không có dòng dữ liệu hợp lệ (bỏ qua dòng trống).');
                 return;
             }
-            if (!confirm(`Tìm thấy ${toProcess.length} dòng. Ghi vào hệ thống?\n• Mặc định: khớp cột «Chứng trạng» (text) với bản ghi đã có → cập nhật; không thì tạo mới.\n• Nếu file có cột «id» hợp lệ: ưu tiên cập nhật theo id.`)) {
+            if (!confirm(`Tìm thấy ${toProcess.length} dòng. Ghi vào hệ thống?\n• Cột «id» (nếu có): cập nhật đúng bản ghi.\n• Không có id: tìm bản ghi theo «Chứng trạng» (khớp cả khi khác dấu / thừa khoảng trắng / gần giống); không tìm thấy thì tạo mới.`)) {
                 return;
             }
 
