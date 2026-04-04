@@ -109,6 +109,7 @@ export class PhapTriService {
 
   async create(dto: CreatePhapTriDto): Promise<PhapTri> {
     const entity = this.repo.create({
+      chung_trang: dto.chung_trang ?? null,
       nguyen_tac: dto.nguyen_tac ?? null,
       y_nghia_co_che: dto.y_nghia_co_che ?? null,
       bat_phap: dto.bat_phap ?? null,
@@ -124,6 +125,7 @@ export class PhapTriService {
 
   async update(id: number, dto: UpdatePhapTriDto): Promise<PhapTri> {
     const item = await this.findOne(id);
+    if (dto.chung_trang !== undefined) item.chung_trang = dto.chung_trang;
     if (dto.nguyen_tac !== undefined) item.nguyen_tac = dto.nguyen_tac;
     if (dto.y_nghia_co_che !== undefined) item.y_nghia_co_che = dto.y_nghia_co_che;
     if (dto.bat_phap !== undefined) item.bat_phap = dto.bat_phap;

@@ -21,6 +21,10 @@ export class PhapTri {
   @JoinColumn({ name: 'id_benh_dong_y' })
   benh_dong_y: MeridianSyndrome | null;
 
+  /** Văn bản chứng trạng (form Excel / hiển thị khi chưa khớp benh_dong_y) */
+  @Column({ type: 'text', nullable: true })
+  chung_trang: string | null;
+
   @Column({ type: 'text', nullable: true })
   nguyen_tac: string | null;
 
