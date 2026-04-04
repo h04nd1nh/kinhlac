@@ -27,6 +27,27 @@ let _thuocData = {
 
 let _phapTriDongYCache = null;
 
+/** apiGetModels() map legacy: modelId, ten — không có id/tieuket ở top-level */
+function ptBenhDongYRowId(m) {
+    if (!m) return undefined;
+    const v = m.id != null ? m.id : m.modelId;
+    if (v === '' || v == null) return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+}
+
+function ptBenhDongYRowTieuKet(m) {
+    if (!m) return '';
+    const t = m.tieuket != null && String(m.tieuket).trim() !== '' ? m.tieuket : m.ten;
+    return String(t || '').trim();
+}
+
+/** Quan hệ benh_dong_y từ API phap_tri (entity gốc) */
+function ptBenhRelationTieuKet(b) {
+    if (!b) return '';
+    return String(b.tieuket || b.ten || '').trim();
+}
+
 // Draft de chi_tiet (thành phần vị thuốc) đang được chỉnh trong modal bài thuốc
 let _btDraftChiTiet = [];
 // Draft chips cho triệu chứng
@@ -1180,7 +1201,7 @@ async function renderPhapTriTab(el) {
 
     const rows = (_thuocData.phapTriList || []).map(r => {
         const benh = r.benh_dong_y || r.benhDongY;
-        const ck = (benh && benh.tieuket) ? benh.tieuket : (r.chung_trang || r.chungTrang || '—');
+        const ck = ptBenhRelationTieuKet(benh) || (r.chung_trang || r.chungTrang || '—');
         const btRow = r.bai_thuoc || r.baiThuoc;
         const bt = (btRow && btRow.ten_bai_thuoc) ? btRow.ten_bai_thuoc : '—';
         const nho = r.nhom_duoc_ly_nho || r.nhomDuocLyNho;
@@ -1257,12 +1278,15 @@ async function openPhapTriRowForm(id) {
 
     const benhOpts = '<option value="">— Chọn từ benh_dong_y (tiểu kết) —</option>' +
         (_phapTriDongYCache || []).map(m => {
-            const sel = String(m.id) === String(benhVal) ? ' selected' : '';
-            return `<option value="${m.id}"${sel}>${escHtml(m.tieuket || ('#' + m.id))}</option>`;
+            const mid = ptBenhDongYRowId(m);
+            const tk = ptBenhDongYRowTieuKet(m);
+            const sel = mid != null && String(mid) === String(benhVal) ? ' selected' : '';
+            const label = tk || (mid != null ? '#' + mid : '—');
+            return `<option value="${mid != null ? mid : ''}"${sel}>${escHtml(label)}</option>`;
         }).join('');
 
     const chungFreeInit = item
-        ? String(item.chung_trang || item.chungTrang || (benhObj && benhObj.tieuket) || '').trim()
+        ? String(item.chung_trang || item.chungTrang || ptBenhRelationTieuKet(benhObj) || '').trim()
         : '';
 
     const btOpts = '<option value="">— Bài thuốc —</option>' +
@@ -1477,13 +1501,40 @@ function ptPickChungTrangFromRow(row) {
     return '';
 }
 
+/**
+ * Khớp ô «Chứng trạng» với tiểu kết danh mục: đúng chữ, hoặc một chuỗi là tiền tố của chuỗi kia (có ranh giới khoảng trắng).
+ * Ví dụ: «Thấp nhiệt nội uẩn» khớp bệnh Đông y «Thấp nhiệt».
+ */
+function ptNormTieuKetCompatible(snNorm, tkNorm) {
+    if (!snNorm || !tkNorm) return false;
+    if (snNorm === tkNorm) return true;
+    if (snNorm.startsWith(tkNorm + ' ')) return true;
+    if (tkNorm.startsWith(snNorm + ' ')) return true;
+    return false;
+}
+
 function ptResolveBenhDongYIdFromExcel(tieuket) {
     const s = String(tieuket || '').trim();
     if (!s) return null;
     const models = _phapTriDongYCache || [];
     const sn = ptStrNorm(s);
-    const m = models.find(x => ptStrNorm(x.tieuket) === sn);
-    return m ? m.id : null;
+    const cands = [];
+    for (const m of models) {
+        const id = ptBenhDongYRowId(m);
+        if (id == null) continue;
+        const tk = ptStrNorm(ptBenhDongYRowTieuKet(m));
+        if (!tk) continue;
+        if (!ptNormTieuKetCompatible(sn, tk)) continue;
+        cands.push({ id, tk, tkLen: tk.length });
+    }
+    if (!cands.length) return null;
+    const exact = cands.filter(c => c.tk === sn);
+    if (exact.length) {
+        exact.sort((a, b) => a.id - b.id);
+        return exact[0].id;
+    }
+    cands.sort((a, b) => b.tkLen - a.tkLen || a.id - b.id);
+    return cands[0].id;
 }
 
 function ptResolveBaiThuocIdFromExcel(name) {
@@ -1608,16 +1659,22 @@ function ptResolveUpsertPhapTriTarget(row, payload, existingIds) {
     }
     const tWant = ptStrNorm(payload.chung_trang || '');
     if (tWant) {
-        const matches = (_thuocData.phapTriList || []).filter(p => {
+        const scored = [];
+        for (const p of _thuocData.phapTriList || []) {
             const b = p.benh_dong_y || p.benhDongY;
             const ct = p.chung_trang != null ? p.chung_trang : p.chungTrang;
-            return ptStrNorm(b?.tieuket) === tWant || ptStrNorm(ct) === tWant;
-        });
-        if (matches.length > 0) {
-            const sorted = [...matches].sort((a, b) => a.id - b.id);
-            const chosen = sorted[0];
-            const extraWarn = matches.length > 1
-                ? 'Cùng tên chứng trạng (text) có ' + matches.length + ' bản — cập nhật id ' + chosen.id
+            const bt = ptStrNorm(ptBenhRelationTieuKet(b));
+            const ctn = ptStrNorm(ct || '');
+            let score = 0;
+            if (ptNormTieuKetCompatible(tWant, bt)) score = Math.max(score, bt.length);
+            if (ptNormTieuKetCompatible(tWant, ctn)) score = Math.max(score, ctn.length);
+            if (score > 0) scored.push({ p, score });
+        }
+        if (scored.length > 0) {
+            scored.sort((a, b) => b.score - a.score || a.p.id - b.p.id);
+            const chosen = scored[0].p;
+            const extraWarn = scored.length > 1 && scored[1].score === scored[0].score
+                ? 'Nhiều bản ghi khớp chứng trạng (tiền tố/tương tự) — cập nhật id ' + chosen.id
                 : null;
             return { targetId: chosen.id, via: 'chung_trang_text', extraWarn };
         }
@@ -1631,7 +1688,7 @@ function exportPhapTriXlsx() {
     const data = list.map(r => {
         const benh = r.benh_dong_y || r.benhDongY;
         return {
-        'Chứng trạng (tiểu kết)': (benh && benh.tieuket) ? benh.tieuket : (r.chung_trang || r.chungTrang || ''),
+        'Chứng trạng (tiểu kết)': ptBenhRelationTieuKet(benh) || (r.chung_trang || r.chungTrang || ''),
         'Nguyên tắc': r.nguyen_tac || '',
         'Ý nghĩa & cơ chế': r.y_nghia_co_che || '',
         'Bát pháp': r.bat_phap || '',
@@ -1712,7 +1769,9 @@ function importPhapTriXlsx(e) {
                 }
                 try {
                     if (targetId != null) {
-                        const res = await apiUpdatePhapTri(targetId, payload);
+                        const updateBody = { ...payload };
+                        if (updateBody.id_benh_dong_y == null) delete updateBody.id_benh_dong_y;
+                        const res = await apiUpdatePhapTri(targetId, updateBody);
                         if (!res.success) {
                             errors.push('Dòng ' + idx + (via === 'id' ? ' (id ' + targetId + ')' : ' (chứng trạng → id ' + targetId + ')') + ': ' + (res.error || 'Lỗi'));
                             continue;
