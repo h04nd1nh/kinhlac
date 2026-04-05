@@ -1900,6 +1900,134 @@ function exportPhapTriXlsx() {
     XLSX.writeFile(wb, 'Phap_Tri_Luan_Tri.xlsx');
 }
 
+/** Popup kết quả nhập Excel pháp trị: từng dòng lỗi / cảnh báo, đóng bằng nút hoặc click nền. */
+function ptShowPhapTriImportToast({ created, updated, errors, warns }) {
+    const prev = document.getElementById('pt-phap-tri-import-toast');
+    if (prev) prev.remove();
+
+    const errList = Array.isArray(errors) ? errors : [];
+    const warnList = Array.isArray(warns) ? warns : [];
+    const hasIssues = errList.length > 0 || warnList.length > 0;
+
+    let autoCloseTimer = null;
+    let root;
+    const closeToast = () => {
+        if (autoCloseTimer) window.clearTimeout(autoCloseTimer);
+        document.removeEventListener('keydown', onEsc);
+        if (root && root.parentNode) root.remove();
+    };
+    const onEsc = (e) => {
+        if (e.key === 'Escape') closeToast();
+    };
+    document.addEventListener('keydown', onEsc);
+
+    root = document.createElement('div');
+    root.id = 'pt-phap-tri-import-toast';
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-modal', 'true');
+    root.setAttribute('aria-label', 'Kết quả nhập Excel pháp trị');
+    root.style.cssText =
+        'position:fixed;inset:0;z-index:100050;padding:20px;box-sizing:border-box;' +
+        'display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;' +
+        'font-family:system-ui,Segoe UI,sans-serif;font-size:14px;';
+
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText =
+        'position:absolute;inset:0;background:rgba(15,23,42,0.28);cursor:pointer;';
+    backdrop.addEventListener('click', () => closeToast());
+
+    const card = document.createElement('div');
+    card.style.cssText =
+        'position:relative;z-index:1;' +
+        'width:100%;max-width:500px;max-height:min(78vh,680px);' +
+        'display:flex;flex-direction:column;' +
+        'background:#fffef8;color:#1c1917;border-radius:14px;' +
+        'box-shadow:0 22px 55px rgba(0,0,0,0.22);border:1px solid #e7e5e4;overflow:hidden;';
+    card.addEventListener('click', (e) => e.stopPropagation());
+
+    const head = document.createElement('div');
+    head.style.cssText =
+        'display:flex;align-items:center;justify-content:space-between;' +
+        'padding:14px 16px;border-bottom:1px solid #e7e5e4;' +
+        'background:linear-gradient(180deg,#fffbeb,#fffef8);flex-shrink:0;';
+    const hTitle = document.createElement('strong');
+    hTitle.textContent = 'Nhập Excel — Pháp trị';
+    hTitle.style.fontSize = '15px';
+    const btnClose = document.createElement('button');
+    btnClose.type = 'button';
+    btnClose.setAttribute('aria-label', 'Đóng');
+    btnClose.textContent = '✕';
+    btnClose.style.cssText =
+        'border:none;background:transparent;font-size:18px;cursor:pointer;line-height:1;' +
+        'padding:4px 10px;color:#57534e;border-radius:8px;';
+    btnClose.addEventListener('click', () => closeToast());
+    head.appendChild(hTitle);
+    head.appendChild(btnClose);
+
+    const body = document.createElement('div');
+    body.style.cssText = 'padding:14px 16px;overflow-y:auto;flex:1;min-height:0;';
+
+    const sum = document.createElement('p');
+    sum.style.cssText = 'margin:0 0 12px;line-height:1.45;';
+    sum.textContent = 'Hoàn tất. Tạo mới: ' + created + ', cập nhật: ' + updated + '.';
+    body.appendChild(sum);
+
+    function addSection(title, lines, borderColor, bgColor) {
+        if (!lines.length) return;
+        const sec = document.createElement('div');
+        sec.style.cssText =
+            'margin-top:12px;padding:12px 14px;border-radius:10px;' +
+            'border-left:4px solid ' + borderColor + ';background:' + bgColor + ';';
+        const t = document.createElement('div');
+        t.style.cssText = 'font-weight:600;margin-bottom:8px;font-size:13px;';
+        t.textContent = title + ' (' + lines.length + ')';
+        sec.appendChild(t);
+        const ul = document.createElement('ul');
+        ul.style.cssText = 'margin:0;padding-left:1.1rem;line-height:1.5;font-size:13px;';
+        for (let i = 0; i < lines.length; i++) {
+            const li = document.createElement('li');
+            li.style.marginBottom = '6px';
+            li.textContent = lines[i];
+            ul.appendChild(li);
+        }
+        sec.appendChild(ul);
+        body.appendChild(sec);
+    }
+
+    addSection('Lỗi', errList, '#dc2626', '#fef2f2');
+    addSection('Cảnh báo', warnList, '#d97706', '#fffbeb');
+
+    if (!hasIssues) {
+        const ok = document.createElement('p');
+        ok.style.cssText = 'margin:0;color:#15803d;font-size:13px;';
+        ok.textContent = 'Không có lỗi hay cảnh báo.';
+        body.appendChild(ok);
+    }
+
+    const foot = document.createElement('div');
+    foot.style.cssText =
+        'padding:10px 16px 14px;border-top:1px solid #e7e5e4;flex-shrink:0;text-align:right;';
+    const btnOk = document.createElement('button');
+    btnOk.type = 'button';
+    btnOk.className = 'btn btn-primary';
+    btnOk.textContent = hasIssues ? 'Đã xem' : 'Đóng';
+    btnOk.addEventListener('click', () => closeToast());
+    foot.appendChild(btnOk);
+
+    card.appendChild(head);
+    card.appendChild(body);
+    card.appendChild(foot);
+    root.appendChild(backdrop);
+    root.appendChild(card);
+    document.body.appendChild(root);
+
+    if (!hasIssues) {
+        autoCloseTimer = window.setTimeout(() => {
+            if (root.parentNode) closeToast();
+        }, 5000);
+    }
+}
+
 function importPhapTriXlsx(e) {
     if (typeof XLSX === 'undefined') return alert('Chưa tải xong thư viện');
     const file = e.target.files?.[0];
@@ -1996,10 +2124,12 @@ function importPhapTriXlsx(e) {
             ndlNhomImportSetLoading(false, '');
             await loadAllThuocData();
             renderThuocSection();
-            let msg = 'Hoàn tất. Tạo mới: ' + created + ', cập nhật: ' + updated + '.';
-            if (errors.length) msg += '\n\nLỗi (' + errors.length + '):\n' + errors.slice(0, 8).join('\n') + (errors.length > 8 ? '\n…' : '');
-            if (allWarn.length) msg += '\n\nCảnh báo khớp tên (' + allWarn.length + '):\n' + allWarn.slice(0, 6).join('\n') + (allWarn.length > 6 ? '\n…' : '');
-            alert(msg);
+            ptShowPhapTriImportToast({
+                created,
+                updated,
+                errors,
+                warns: allWarn,
+            });
         } catch (err) {
             ndlNhomImportSetLoading(false, '');
             console.error(err);
