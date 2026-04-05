@@ -1,9 +1,9 @@
 -- Pháp trị (khớp entity TypeORM PhapTri): FK trực tiếp id_bai_thuoc, id_nhom_duoc_ly_nho;
 -- id_benh_dong_y nullable UNIQUE; kinh mạch qua bảng phap_tri_kinh_mach.
 
+-- Chỉ DROP những bảng schema hiện tại dùng (tránh NOTICE «does not exist» của PG cho bảng legacy chưa từng tạo).
+-- Nếu DB cũ còn phap_tri_bai_thuoc / phap_tri_nhom_duoc_ly_nho: xóa tay hoặc thêm DROP riêng.
 DROP TABLE IF EXISTS phap_tri_kinh_mach CASCADE;
-DROP TABLE IF EXISTS phap_tri_nhom_duoc_ly_nho CASCADE;
-DROP TABLE IF EXISTS phap_tri_bai_thuoc CASCADE;
 DROP TABLE IF EXISTS phap_tri CASCADE;
 
 CREATE TABLE phap_tri (

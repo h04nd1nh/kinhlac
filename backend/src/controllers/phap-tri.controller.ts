@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, QueryFailedError, Repository } from 'typeorm';
 import { PhapTri } from '../models/phap-tri.model';
 import { CreatePhapTriDto, UpdatePhapTriDto } from '../models/phap-tri.dto';
 import { BaiThuoc } from '../models/bai-thuoc.model';
@@ -56,6 +56,11 @@ export class PhapTriService {
   private async resolveKinhMach(ids?: number[] | null): Promise<KinhMach[]> {
     if (!ids?.length) return [];
     return this.kinhRepo.findBy({ idKinhMach: In(ids) });
+  }
+
+  /** PG 23505 = unique_violation (vd. id_benh_dong_y UNIQUE) */
+  private static isPostgresUniqueViolation(err: unknown): boolean {
+    return err instanceof QueryFailedError && (err as QueryFailedError & { driverError?: { code?: string } }).driverError?.code === '23505';
   }
 
   /** create: thiếu key → null; update: chỉ đổi khi key có trong body */
@@ -119,7 +124,16 @@ export class PhapTriService {
       kinh_mach_list: [],
     });
     await this.applyRefs(entity, dto, 'create');
-    await this.repo.save(entity);
+    try {
+      await this.repo.save(entity);
+    } catch (e) {
+      if (PhapTriService.isPostgresUniqueViolation(e)) {
+        throw new ConflictException(
+          'Bệnh Đông y đã gắn với một pháp trị khác (trùng id_benh_dong_y). Chỉnh lại hoặc bỏ liên kết bản ghi cũ.',
+        );
+      }
+      throw e;
+    }
     return this.findOne(entity.id);
   }
 
@@ -134,7 +148,16 @@ export class PhapTriService {
     if (dto.trieu_chung_mo_ta !== undefined) item.trieu_chung_mo_ta = dto.trieu_chung_mo_ta;
 
     await this.applyRefs(item, dto, 'update');
-    await this.repo.save(item);
+    try {
+      await this.repo.save(item);
+    } catch (e) {
+      if (PhapTriService.isPostgresUniqueViolation(e)) {
+        throw new ConflictException(
+          'Bệnh Đông y đã gắn với một pháp trị khác (trùng id_benh_dong_y). Chỉnh lại hoặc bỏ liên kết bản ghi cũ.',
+        );
+      }
+      throw e;
+    }
     return this.findOne(id);
   }
 

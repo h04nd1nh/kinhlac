@@ -1963,6 +1963,14 @@ function importPhapTriXlsx(e) {
                             continue;
                         }
                         updated++;
+                        const list = _thuocData.phapTriList || [];
+                        const local = list.find(x => Number(x.id) === Number(targetId));
+                        if (local) {
+                            if (Object.prototype.hasOwnProperty.call(updateBody, 'id_benh_dong_y')) {
+                                local.id_benh_dong_y = updateBody.id_benh_dong_y;
+                            }
+                            if (updateBody.chung_trang !== undefined) local.chung_trang = updateBody.chung_trang;
+                        }
                     } else {
                         const res = await apiCreatePhapTri(payload);
                         if (!res.success) {
@@ -1973,10 +1981,12 @@ function importPhapTriXlsx(e) {
                         if (res.id != null) {
                             existingIds.add(res.id);
                             _thuocData.phapTriList = _thuocData.phapTriList || [];
-                            _thuocData.phapTriList.push({
+                            const stub = {
                                 id: res.id,
                                 chung_trang: payload.chung_trang,
-                            });
+                            };
+                            if (payload.id_benh_dong_y != null) stub.id_benh_dong_y = payload.id_benh_dong_y;
+                            _thuocData.phapTriList.push(stub);
                         }
                     }
                 } catch (err) {
