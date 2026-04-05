@@ -31,6 +31,8 @@ let _thuocData = {
 let _btDraftChiTiet = [];
 // Draft chips cho triệu chứng
 let _btDraftTrieuChung = [];
+/** Thứ tự = thứ tự gửi phap_tri_ids (liên kết danh mục pháp trị) */
+let _btDraftPhapTriIds = [];
 
 // ─── Khởi tạo ─────────────────────────────────────────────
 async function initThuocManagement() {
@@ -504,6 +506,24 @@ function btGetGramPreviewText(lieu) {
 // ═══════════════════════════════════════════════════════════
 // TAB: BÀI THUỐC
 // ═══════════════════════════════════════════════════════════
+function btPhapTriLinksToOrderedIds(item) {
+    const links = item?.phapTriLinks || [];
+    return [...links]
+        .sort((a, b) => (a.thuTu ?? a.thu_tu ?? 0) - (b.thuTu ?? b.thu_tu ?? 0))
+        .map(l => l.idPhapTri ?? l.id_phap_tri ?? l.phapTri?.id)
+        .filter(id => Number.isFinite(id));
+}
+
+function btFormatPhapTriLinksCell(item) {
+    const links = item?.phapTriLinks || [];
+    if (!links.length) return '—';
+    const labels = [...links]
+        .sort((a, b) => (a.thuTu ?? a.thu_tu ?? 0) - (b.thuTu ?? b.thu_tu ?? 0))
+        .map(l => (l.phapTri?.chung_trang || l.phap_tri?.chung_trang || '').trim())
+        .filter(Boolean);
+    return labels.length ? escHtml(labels.join(' · ')) : '—';
+}
+
 function renderBaiThuocTab(el) {
     const rows = _thuocData.baiThuoc.map(item => {
         const ingredients = (item.chiTietViThuoc || []).map(d => {
@@ -514,11 +534,13 @@ function renderBaiThuocTab(el) {
         }).filter(Boolean).join(', ');
         const chungTrangStr = escHtml(item.chung_trang || '—');
         const trieuChungStr = escHtml(item.trieu_chung || '—');
+        const ptLinkStr = btFormatPhapTriLinksCell(item);
         return `
             <tr>
                 <td><strong>${escHtml(item.ten_bai_thuoc)}</strong></td>
                 <td>${escHtml(item.nguon_goc || '—')}</td>
                 <td style="font-size:0.8rem;">${chungTrangStr}</td>
+                <td style="font-size:0.75rem;color:#5B3A1A;">${ptLinkStr}</td>
                 <td style="font-size:0.8rem;">${trieuChungStr}</td>
                 <td style="font-size:0.8rem;">${escHtml(ingredients || 'Chưa có vị thuốc')}</td>
                 <td style="text-align:center;width:130px;">
@@ -536,8 +558,8 @@ function renderBaiThuocTab(el) {
         </div>
         <div class="data-table-container">
             <table>
-                <thead><tr><th>Tên bài thuốc</th><th>Nguồn gốc</th><th>Chứng trạng</th><th>Triệu chứng</th><th>Thành phần</th><th style="width:130px; text-align:center;">Thao tác</th></tr></thead>
-                <tbody>${rows || '<tr><td colspan="6" style="text-align:center;">Chưa có dữ liệu</td></tr>'}</tbody>
+                <thead><tr><th>Tên bài thuốc</th><th>Nguồn gốc</th><th>Chứng trạng</th><th>Pháp trị (danh mục)</th><th>Triệu chứng</th><th>Thành phần</th><th style="width:130px; text-align:center;">Thao tác</th></tr></thead>
+                <tbody>${rows || '<tr><td colspan="7" style="text-align:center;">Chưa có dữ liệu</td></tr>'}</tbody>
             </table>
         </div>`;
 }
@@ -558,6 +580,7 @@ function openBaiThuocForm(id) {
     }).filter(x => Number.isFinite(x.idViThuoc));
 
     _btDraftTrieuChung = (item?.trieu_chung || '').split(',').map(s => s.trim()).filter(Boolean);
+    _btDraftPhapTriIds = item ? btPhapTriLinksToOrderedIds(item) : [];
 
     const rowsHtml = btRenderBaiThuocChiTietRowsHtml();
     showTayyModal('Bài thuốc', `
@@ -571,6 +594,23 @@ function openBaiThuocForm(id) {
         <label class="tayy-form-label">Cách dùng<br><textarea id="bt-inp-usage" class="tayy-form-input" rows="3">${item ? escHtml(item.cach_dung) : ''}</textarea></label>
 
         <label class="tayy-form-label">Chứng trạng<br><textarea id="bt-inp-chungtrang" class="tayy-form-input" rows="3" placeholder="Biện chứng, pháp trị… (tự do)">${item ? escHtml(item.chung_trang || '') : ''}</textarea></label>
+
+        <label class="tayy-form-label">
+            Liên kết pháp trị (danh mục)
+            <div style="position:relative; margin-top:6px;">
+                <div id="bt-phaptri-chips" class="chips-container" onclick="document.getElementById('bt-inp-phaptri-search').focus()">
+                    <input id="bt-inp-phaptri-search" type="text" class="chip-input"
+                        placeholder="Gõ chứng trạng / id để thêm từ tab Pháp trị…"
+                        oninput="btOnPhapTriLinkSearchInput(this.value)"
+                        onkeydown="if(event.key==='Enter'){event.preventDefault(); btTrySelectPhapTriFromSearch();}">
+                </div>
+                <div id="bt-phaptri-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px);
+                    background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
+                    box-shadow:0 10px 30px rgba(0,0,0,0.12);
+                    max-height:200px; overflow-y:auto; z-index:2500; display:none;"></div>
+            </div>
+            <div style="font-size:0.72rem;color:#8B7355;margin-top:6px;line-height:1.35;">Khớp với cột chứng trạng trong danh mục Pháp trị; thứ tự chip = thứ tự lưu.</div>
+        </label>
 
         <!-- Triệu chứng -->
         <label class="tayy-form-label">
@@ -627,6 +667,8 @@ function openBaiThuocForm(id) {
     // Khởi tạo UI chips và suggestion cho modal mới
     setTimeout(() => {
         btRenderTrieuChungChips();
+        btRenderPhapTriLinkChips();
+        btOnPhapTriLinkSearchInput('');
         btOnViThuocSearchInput('');
         btRerenderBaiThuocChiTietRows();
     }, 0);
@@ -658,6 +700,7 @@ async function saveBaiThuoc(id) {
         cach_dung: document.getElementById('bt-inp-usage').value.trim(),
         chung_trang: (document.getElementById('bt-inp-chungtrang')?.value || '').trim(),
         trieu_chung: _btDraftTrieuChung.join(', '),
+        phap_tri_ids: [...(_btDraftPhapTriIds || [])],
         chi_tiet
     };
     if (!payload.ten_bai_thuoc) return alert('Thiếu tên bài thuốc');
@@ -968,6 +1011,97 @@ function btUpdateBaiThuocChipLieuCompound(viThuocId, val, unit) {
 
 function btUpdateBaiThuocChipVi(viThuocId, viValue) {
     // No-op - Tình/Vị removed from UI
+}
+
+// ═══════════════════════════════════════════════════════════
+// LIÊN KẾT PHÁP TRỊ (danh mục) — chips
+// ═══════════════════════════════════════════════════════════
+function btGetPhapTriById(id) {
+    return (_thuocData.phapTriList || []).find(p => p.id === id) || null;
+}
+
+function btRenderPhapTriLinkChips() {
+    const container = document.getElementById('bt-phaptri-chips');
+    const input = document.getElementById('bt-inp-phaptri-search');
+    if (!container || !input) return;
+    container.querySelectorAll('.chip').forEach(c => c.remove());
+    (_btDraftPhapTriIds || []).forEach(ptId => {
+        const pt = btGetPhapTriById(ptId);
+        const label = (pt?.chung_trang || '').trim() || ('#' + ptId);
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerHTML = `${escHtml(label)} <span class="chip-remove" onclick="btRemovePhapTriLinkChip(${ptId}); event.stopPropagation();">×</span>`;
+        container.insertBefore(chip, input);
+    });
+}
+
+function btRemovePhapTriLinkChip(ptId) {
+    _btDraftPhapTriIds = (_btDraftPhapTriIds || []).filter(x => x !== ptId);
+    btRenderPhapTriLinkChips();
+    btOnPhapTriLinkSearchInput(document.getElementById('bt-inp-phaptri-search')?.value || '');
+}
+
+function btSelectPhapTriLink(ptId) {
+    if (!Number.isFinite(ptId) || (_btDraftPhapTriIds || []).includes(ptId)) return;
+    _btDraftPhapTriIds.push(ptId);
+    const inp = document.getElementById('bt-inp-phaptri-search');
+    if (inp) { inp.value = ''; inp.focus(); }
+    btRenderPhapTriLinkChips();
+    const suggestEl = document.getElementById('bt-phaptri-suggest');
+    if (suggestEl) suggestEl.style.display = 'none';
+}
+
+function btOnPhapTriLinkSearchInput(val) {
+    const suggestEl = document.getElementById('bt-phaptri-suggest');
+    if (!suggestEl) return;
+    const q = (val || '').trim();
+    if (!q) { suggestEl.style.display = 'none'; return; }
+
+    const qLow = q.toLowerCase();
+    const selected = new Set(_btDraftPhapTriIds || []);
+    const all = _thuocData.phapTriList || [];
+
+    const idNum = /^\d+$/.test(q) ? parseInt(q, 10) : NaN;
+    const filtered = all.filter(p => {
+        if (selected.has(p.id)) return false;
+        if (Number.isFinite(idNum) && p.id === idNum) return true;
+        const ct = (p.chung_trang || '').trim().toLowerCase();
+        return ct && ct.includes(qLow);
+    }).slice(0, 12);
+
+    if (filtered.length === 0) {
+        suggestEl.innerHTML = '<div style="padding:10px;color:#A09580;font-size:0.82rem;">Không có mục pháp trị phù hợp</div>';
+        suggestEl.style.display = 'block';
+        return;
+    }
+
+    suggestEl.innerHTML = filtered.map(p => {
+        const lab = (p.chung_trang || '').trim() || ('#' + p.id);
+        return `
+            <div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+                 onmouseover="this.style.background='#F5F0E8'"
+                 onmouseout="this.style.background='transparent'"
+                 onclick="btSelectPhapTriLink(${p.id})">
+                <span style="font-weight:600;">${escHtml(lab)}</span>
+                <span style="font-size:0.72rem;color:#9CA3AF;margin-left:6px;">id ${p.id}</span>
+            </div>`;
+    }).join('');
+    suggestEl.style.display = 'block';
+}
+
+function btTrySelectPhapTriFromSearch() {
+    const inp = document.getElementById('bt-inp-phaptri-search');
+    const q = (inp?.value || '').trim();
+    if (!q) return;
+    const idNum = /^\d+$/.test(q) ? parseInt(q, 10) : NaN;
+    const all = _thuocData.phapTriList || [];
+    let p = Number.isFinite(idNum) ? all.find(x => x.id === idNum) : null;
+    if (!p) {
+        const qLow = q.toLowerCase();
+        const cand = all.filter(x => (x.chung_trang || '').trim().toLowerCase() === qLow);
+        if (cand.length === 1) p = cand[0];
+    }
+    if (p) btSelectPhapTriLink(p.id);
 }
 
 // ═══════════════════════════════════════════════════════════

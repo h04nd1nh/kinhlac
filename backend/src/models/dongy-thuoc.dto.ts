@@ -22,6 +22,8 @@ export class CreateBaiThuocDto {
   ghi_chu?: string;
   chung_trang?: string;
   trieu_chung?: string;
+  /** Thứ tự mảng = thứ tự liên kết (thu_tu). Gửi [] để xóa hết; bỏ key khi update nếu không đổi liên kết. */
+  phap_tri_ids?: number[];
   chi_tiet?: {
     id_vi_thuoc: number;
     lieu_luong?: string;

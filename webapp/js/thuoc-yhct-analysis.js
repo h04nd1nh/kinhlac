@@ -98,13 +98,26 @@ function yhctPhapTriChipsHtml(raw) {
     if (!s) {
         return '<span style="color:#9CA3AF;font-size:0.8rem;">Chưa gán chứng trạng.</span>';
     }
-    const parts = s.split(/[,，;]/g).map(x => x.trim()).filter(Boolean);
+    const parts = s.split(/[,，;；+＋]/g).map(x => x.trim()).filter(Boolean);
     if (!parts.length) {
         return `<span class="chip" style="${yhctTacdungChipStyle('phap')}">${escHtml(s)}</span>`;
     }
     return `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${
         parts.map(t => `<span class="chip" style="${yhctTacdungChipStyle('phap')}">${escHtml(t)}</span>`).join('')
     }</div>`;
+}
+
+/** Gộp chữ tự do + chứng trạng từ các dòng phap_tri đã liên kết (cho chip phân tích). */
+function yhctMergeChungTrangTextAndLinks(bt) {
+    const raw = (bt?.chung_trang || '').trim();
+    const linkTexts = [...(bt?.phapTriLinks || [])]
+        .sort((a, b) => (a.thuTu ?? a.thu_tu ?? 0) - (b.thuTu ?? b.thu_tu ?? 0))
+        .map(l => (l.phapTri?.chung_trang || l.phap_tri?.chung_trang || '').trim())
+        .filter(Boolean);
+    const linkStr = linkTexts.join(', ');
+    if (!raw) return linkStr;
+    if (!linkStr) return raw;
+    return `${raw}, ${linkStr}`;
 }
 
 /** Khối «công dụng» phân tích bài thuốc: chủ trị + kiêng kỵ gộp từ mọi vị, đã loại trùng. */
@@ -837,7 +850,7 @@ function yhctAnalyzeLocalSimple(bt) {
         tgpt,
         tacDungYhctNhomNho,
         tacDungYhctNhomLon,
-        chungTrangBaiThuoc: (bt.chung_trang || '').trim(),
+        chungTrangBaiThuoc: yhctMergeChungTrangTextAndLinks(bt),
         chuTriBaiThuoc,
         kiengKyBaiThuoc,
     };
@@ -1489,10 +1502,14 @@ function renderBaiThuocTab(el) {
             const lieuText = btGetGramPreviewText((d?.lieu_luong||'').trim());
             return ten+(lieuText?` (${lieuText})`:'');
         }).filter(Boolean).join(', ');
+        const ptCell = typeof btFormatPhapTriLinksCell === 'function'
+            ? btFormatPhapTriLinksCell(item)
+            : '—';
         return `<tr>
             <td><strong>${escHtml(item.ten_bai_thuoc)}</strong></td>
             <td>${escHtml(item.nguon_goc||'—')}</td>
             <td style="font-size:0.78rem;">${escHtml(item.chung_trang||'—')}</td>
+            <td style="font-size:0.75rem;color:#5B3A1A;">${ptCell}</td>
             <td style="font-size:0.78rem;">${escHtml(item.trieu_chung||'—')}</td>
             <td style="font-size:0.78rem;">${escHtml(item.cach_dung||'—')}</td>
             <td style="font-size:0.78rem;">${escHtml(item.ghi_chu||'—')}</td>
@@ -1521,10 +1538,11 @@ function renderBaiThuocTab(el) {
             <table>
                 <thead><tr>
                     <th>Tên bài thuốc</th><th>Nguồn gốc</th><th>Chứng trạng</th>
+                    <th>Pháp trị (danh mục)</th>
                     <th>Triệu chứng</th><th>Cách dùng</th><th>Ghi chú</th><th>Thành phần</th>
                     <th style="width:180px;text-align:center;">Thao tác</th>
                 </tr></thead>
-                <tbody>${rows||'<tr><td colspan="8" style="text-align:center;color:#9CA3AF;padding:20px;">Chưa có dữ liệu</td></tr>'}</tbody>
+                <tbody>${rows||'<tr><td colspan="9" style="text-align:center;color:#9CA3AF;padding:20px;">Chưa có dữ liệu</td></tr>'}</tbody>
             </table>
         </div>`;
 }

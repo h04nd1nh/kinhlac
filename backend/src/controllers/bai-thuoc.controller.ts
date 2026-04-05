@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In, EntityManager } from 'typeorm';
 import { BaiThuoc } from '../models/bai-thuoc.model';
 import { BaiThuocChiTiet } from '../models/bai-thuoc-chi-tiet.model';
+import { BaiThuocPhapTri } from '../models/bai-thuoc-phap-tri.model';
+import { PhapTri } from '../models/phap-tri.model';
 import { ViThuoc } from '../models/vi-thuoc.model';
 import { CreateBaiThuocDto, UpdateBaiThuocDto } from '../models/dongy-thuoc.dto';
 
@@ -31,7 +33,49 @@ export class BaiThuocService {
     'chiTietViThuoc.viThuoc.kiengKyLinks',
     'chiTietViThuoc.viThuoc.kiengKyLinks.kiengKy',
     'chiTietViThuoc.viThuoc.tenGoiKhacList',
+    'phapTriLinks',
+    'phapTriLinks.phapTri',
   ] as const;
+
+  private static dtoHasPhapTriIds(dto: object): dto is { phap_tri_ids: number[] | undefined } {
+    return Object.prototype.hasOwnProperty.call(dto, 'phap_tri_ids');
+  }
+
+  /** Cập nhật bảng bai_thuoc_phap_tri; update chỉ khi body có key phap_tri_ids. */
+  private async applyPhapTriLinks(
+    manager: EntityManager,
+    idBaiThuoc: number,
+    dto: CreateBaiThuocDto | UpdateBaiThuocDto,
+    mode: 'create' | 'update',
+  ): Promise<void> {
+    if (mode === 'update' && !BaiThuocService.dtoHasPhapTriIds(dto)) return;
+    const raw = BaiThuocService.dtoHasPhapTriIds(dto) ? dto.phap_tri_ids : undefined;
+    if (mode === 'create' && raw === undefined) return;
+
+    if (mode === 'update') {
+      await manager.delete(BaiThuocPhapTri, { idBaiThuoc });
+    }
+
+    const ids = (raw ?? []).filter((x): x is number => Number.isFinite(x));
+    if (!ids.length) return;
+
+    const uniq: number[] = [...new Set(ids)];
+    const found = await manager.find(PhapTri, { where: { id: In(uniq) }, select: ['id'] });
+    const allowed = new Set(found.map((e) => e.id));
+    let ord = 0;
+    for (const ptId of uniq) {
+      if (!allowed.has(ptId)) continue;
+      await manager.save(
+        manager.create(BaiThuocPhapTri, {
+          idBaiThuoc,
+          idPhapTri: ptId,
+          thuTu: ord,
+          doanChungTrang: null,
+        }),
+      );
+      ord += 1;
+    }
+  }
 
   findAll(): Promise<BaiThuoc[]> {
     return this.repo.find({
@@ -52,7 +96,7 @@ export class BaiThuocService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
-      const { chi_tiet, ...rest } = dto;
+      const { chi_tiet, phap_tri_ids: _pt, ...rest } = dto;
       const bt = this.repo.create(rest);
       const savedBt = await queryRunner.manager.save(bt);
 
@@ -60,6 +104,7 @@ export class BaiThuocService {
         const details = chi_tiet.map(d => this.detailRepo.create({ ...d, idBaiThuoc: savedBt.id }));
         await queryRunner.manager.save(details);
       }
+      await this.applyPhapTriLinks(queryRunner.manager, savedBt.id, dto, 'create');
       await queryRunner.commitTransaction();
       return this.findOne(savedBt.id) as Promise<BaiThuoc>;
     } catch (err) {
@@ -75,7 +120,7 @@ export class BaiThuocService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
-      const { chi_tiet, ...rest } = dto;
+      const { chi_tiet, phap_tri_ids: _pt, ...rest } = dto;
       await queryRunner.manager.update(BaiThuoc, id, rest);
 
       if (chi_tiet) {
@@ -84,6 +129,7 @@ export class BaiThuocService {
         const details = chi_tiet.map(d => this.detailRepo.create({ ...d, idBaiThuoc: id }));
         await queryRunner.manager.save(details);
       }
+      await this.applyPhapTriLinks(queryRunner.manager, id, dto, 'update');
       await queryRunner.commitTransaction();
       return this.findOne(id);
     } catch (err) {

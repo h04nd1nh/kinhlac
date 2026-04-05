@@ -34,6 +34,7 @@ import { ViThuocKiengKy } from './models/vi-thuoc-kieng-ky.model';
 import { ViThuocTenGoiKhac } from './models/vi-thuoc-ten-goi-khac.model';
 import { CongDung } from './models/cong-dung.model';
 import { PhapTri } from './models/phap-tri.model';
+import { BaiThuocPhapTri } from './models/bai-thuoc-phap-tri.model';
 
 import { ChuTri } from './models/chu-tri.model';
 import { KiengKy } from './models/kieng-ky.model';
@@ -116,7 +117,7 @@ import { JwtStrategy } from './middlewares/auth/jwt.strategy';
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([Admin, MeridianSyndrome, Patient, Examination, ChungBenh, BenhTayY, TrieuChung, KinhMach, HuyetVi, PhacDoDieuTri, ViThuoc, BaiThuoc, BaiThuocChiTiet, TheBenh, TheBenhPhuongHuyet, Appointment, ThietChan, MachChan, NhomDuocLyLon, NhomDuocLyNho, ViThuocNhomNho, ViThuocCongDung, ViThuocChuTri, ViThuocKiengKy, ViThuocTenGoiKhac, CongDung, ChuTri, KiengKy, PhapTri]),
+    TypeOrmModule.forFeature([Admin, MeridianSyndrome, Patient, Examination, ChungBenh, BenhTayY, TrieuChung, KinhMach, HuyetVi, PhacDoDieuTri, ViThuoc, BaiThuoc, BaiThuocChiTiet, BaiThuocPhapTri, TheBenh, TheBenhPhuongHuyet, Appointment, ThietChan, MachChan, NhomDuocLyLon, NhomDuocLyNho, ViThuocNhomNho, ViThuocCongDung, ViThuocChuTri, ViThuocKiengKy, ViThuocTenGoiKhac, CongDung, ChuTri, KiengKy, PhapTri]),
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

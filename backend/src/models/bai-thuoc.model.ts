@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { BaiThuocChiTiet } from './bai-thuoc-chi-tiet.model';
+import { BaiThuocPhapTri } from './bai-thuoc-phap-tri.model';
 
 @Entity('bai_thuoc')
 export class BaiThuoc {
@@ -29,4 +30,7 @@ export class BaiThuoc {
 
   @OneToMany(() => BaiThuocChiTiet, (detail) => detail.baiThuoc)
   chiTietViThuoc: BaiThuocChiTiet[];
+
+  @OneToMany(() => BaiThuocPhapTri, (link) => link.baiThuoc)
+  phapTriLinks: BaiThuocPhapTri[];
 }
