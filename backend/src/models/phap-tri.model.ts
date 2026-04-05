@@ -48,7 +48,7 @@ export class PhapTri {
   @JoinColumn({ name: 'id_nhom_duoc_ly_nho' })
   nhom_duoc_ly_nho: NhomDuocLyNho | null;
 
-  @ManyToOne(() => MeridianSyndrome, { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne(() => MeridianSyndrome, (b) => b.phap_tri_list, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'id_benh_dong_y' })
   benh_dong_y: MeridianSyndrome | null;
 

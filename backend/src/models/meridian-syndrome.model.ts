@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, JoinTable } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, JoinTable, OneToMany } from 'typeorm';
 import { BaiThuoc } from './bai-thuoc.model';
 import { TrieuChung } from './trieu-chung.model';
+import type { PhapTri } from './phap-tri.model';
 
 @Entity('benh_dong_y')
 export class MeridianSyndrome {
@@ -147,6 +148,10 @@ export class MeridianSyndrome {
   
   @Column({ type: 'smallint', default: 0 })
   ty_c11: number;
+
+  /** Tối đa một pháp trị gắn trực tiếp (FK id_benh_dong_y ở phap_tri, UNIQUE) — TypeORM vẫn dùng OneToMany */
+  @OneToMany('PhapTri', 'benh_dong_y')
+  phap_tri_list: PhapTri[];
 
   @ManyToMany(() => BaiThuoc)
   @JoinTable({
