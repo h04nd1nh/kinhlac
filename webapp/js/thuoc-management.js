@@ -1462,12 +1462,19 @@ async function renderPhapTriTab(el) {
     const rows = (_thuocData.phapTriList || []).map(r => {
         const id = r.id;
         const ckRaw = (r.chung_trang || r.chungTrang || '').trim();
-        const ckCell = ckRaw
-            ? `<span style="font-weight:600;color:#5B3A1A;">${escHtml(ckRaw)}</span>`
-            : '<span style="color:#D1D5DB;">—</span>';
-        const benh = r.benh_dong_y || r.benhDongY;
-        const tieuRaw = benh && benh.tieuket != null ? String(benh.tieuket).trim() : '';
-        const tieuCell = tieuRaw ? ptTextPreview(tieuRaw, 44) : '<span style="color:#D1D5DB;font-size:0.78rem;">—</span>';
+        const idBd = r.id_benh_dong_y ?? r.idBenhDongY ?? (r.benh_dong_y && r.benh_dong_y.id) ?? (r.benhDongY && r.benhDongY.id);
+        const hasDoKinhLac = idBd != null && idBd !== '' && Number.isFinite(Number(idBd));
+        const tagDoKinhLac = hasDoKinhLac
+            ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:0.68rem;font-weight:700;color:#166534;background:#DCFCE7;border:1px solid #86EFAC;border-radius:4px;vertical-align:middle;white-space:nowrap;">Đo kinh lạc</span>`
+            : '';
+        let ckCell;
+        if (ckRaw) {
+            ckCell = `<span style="display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px;max-width:100%;"><span style="font-weight:600;color:#5B3A1A;">${escHtml(ckRaw)}</span>${tagDoKinhLac}</span>`;
+        } else if (hasDoKinhLac) {
+            ckCell = `<span style="display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px;">${tagDoKinhLac}</span>`;
+        } else {
+            ckCell = '<span style="color:#D1D5DB;">—</span>';
+        }
         const btRow = r.bai_thuoc || r.baiThuoc;
         const bt = (btRow && btRow.ten_bai_thuoc) ? escHtml(btRow.ten_bai_thuoc) : '<span style="color:#D1D5DB;">—</span>';
         const nho = r.nhom_duoc_ly_nho || r.nhomDuocLyNho;
@@ -1477,7 +1484,6 @@ async function renderPhapTriTab(el) {
         return `<tr>
             <td style="text-align:center;font-size:0.72rem;color:#78716c;white-space:nowrap;">${id}</td>
             <td style="min-width:140px;white-space:normal;">${ckCell}</td>
-            <td style="min-width:120px;white-space:normal;">${tieuCell}</td>
             <td style="min-width:100px;white-space:normal;">${ptTextPreview(r.nguyen_tac, 44)}</td>
             <td style="min-width:100px;white-space:normal;">${ptTextPreview(r.y_nghia_co_che, 40)}</td>
             <td style="vertical-align:top;">${ptChipsPreviewCsv(r.bat_phap)}</td>
@@ -1512,11 +1518,10 @@ async function renderPhapTriTab(el) {
             </div>
         </div>
         <div class="data-table-container" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-            <table style="min-width:1180px;">
+            <table style="min-width:1060px;">
                 <thead><tr>
                     <th style="width:44px;text-align:center;">id</th>
-                    <th style="min-width:140px;white-space:normal;">Chứng trạng</th>
-                    <th style="min-width:120px;white-space:normal;">Bệnh Đông y<br><span style="font-weight:400;font-size:0.72rem;color:#A09580;">(tieuket)</span></th>
+                    <th style="min-width:160px;white-space:normal;">Chứng trạng</th>
                     <th style="min-width:100px;white-space:normal;">Nguyên tắc</th>
                     <th style="min-width:100px;white-space:normal;">Ý nghĩa &amp; cơ chế</th>
                     <th>Bát pháp</th>
@@ -1528,7 +1533,7 @@ async function renderPhapTriTab(el) {
                     <th style="min-width:100px;">Nhóm dược</th>
                     <th style="width:130px;text-align:center;">Thao tác</th>
                 </tr></thead>
-                <tbody>${rows || '<tr><td colspan="13" style="text-align:center;padding:20px;color:#9CA3AF;">Chưa có bản ghi</td></tr>'}</tbody>
+                <tbody>${rows || '<tr><td colspan="12" style="text-align:center;padding:20px;color:#9CA3AF;">Chưa có bản ghi</td></tr>'}</tbody>
             </table>
         </div>`;
 }
