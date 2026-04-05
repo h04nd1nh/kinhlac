@@ -22,13 +22,10 @@ export class BaiThuoc {
   ghi_chu: string;
 
   @Column({ type: 'text', nullable: true })
-  bien_chung: string; // Biện chứng (comma-separated)
+  chung_trang: string; // Chứng trạng (biện chứng + pháp trị gộp, tự do / phân tách bằng dấu phẩy)
 
   @Column({ type: 'text', nullable: true })
   trieu_chung: string; // Triệu chứng (comma-separated)
-
-  @Column({ type: 'text', nullable: true })
-  phap_tri: string; // Pháp trị (comma-separated)
 
   @OneToMany(() => BaiThuocChiTiet, (detail) => detail.baiThuoc)
   chiTietViThuoc: BaiThuocChiTiet[];

@@ -20,9 +20,8 @@ export class CreateBaiThuocDto {
   cong_dung?: string;
   cach_dung?: string;
   ghi_chu?: string;
-  bien_chung?: string;
+  chung_trang?: string;
   trieu_chung?: string;
-  phap_tri?: string;
   chi_tiet?: {
     id_vi_thuoc: number;
     lieu_luong?: string;

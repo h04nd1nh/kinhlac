@@ -512,16 +512,14 @@ function renderBaiThuocTab(el) {
             const displayLieu = btGetGramPreviewText(lieu);
             return `${ten} (${displayLieu})`;
         }).filter(Boolean).join(', ');
-        const bienChungStr = escHtml(item.bien_chung || '—');
+        const chungTrangStr = escHtml(item.chung_trang || '—');
         const trieuChungStr = escHtml(item.trieu_chung || '—');
-        const phapTriStr = escHtml(item.phap_tri || '—');
         return `
             <tr>
                 <td><strong>${escHtml(item.ten_bai_thuoc)}</strong></td>
                 <td>${escHtml(item.nguon_goc || '—')}</td>
-                <td style="font-size:0.8rem;">${bienChungStr}</td>
+                <td style="font-size:0.8rem;">${chungTrangStr}</td>
                 <td style="font-size:0.8rem;">${trieuChungStr}</td>
-                <td style="font-size:0.8rem;">${phapTriStr}</td>
                 <td style="font-size:0.8rem;">${escHtml(ingredients || 'Chưa có vị thuốc')}</td>
                 <td style="text-align:center;width:130px;">
                     <div class="table-actions" style="justify-content:center;">
@@ -538,8 +536,8 @@ function renderBaiThuocTab(el) {
         </div>
         <div class="data-table-container">
             <table>
-                <thead><tr><th>Tên bài thuốc</th><th>Nguồn gốc</th><th>Biện chứng</th><th>Triệu chứng</th><th>Pháp trị</th><th>Thành phần</th><th style="width:130px; text-align:center;">Thao tác</th></tr></thead>
-                <tbody>${rows || '<tr><td colspan="7" style="text-align:center;">Chưa có dữ liệu</td></tr>'}</tbody>
+                <thead><tr><th>Tên bài thuốc</th><th>Nguồn gốc</th><th>Chứng trạng</th><th>Triệu chứng</th><th>Thành phần</th><th style="width:130px; text-align:center;">Thao tác</th></tr></thead>
+                <tbody>${rows || '<tr><td colspan="6" style="text-align:center;">Chưa có dữ liệu</td></tr>'}</tbody>
             </table>
         </div>`;
 }
@@ -572,7 +570,7 @@ function openBaiThuocForm(id) {
         <label class="tayy-form-label">Nguồn gốc/Cổ phương<br><input id="bt-inp-source" type="text" class="tayy-form-input" value="${item ? escHtml(item.nguon_goc) : ''}"></label>
         <label class="tayy-form-label">Cách dùng<br><textarea id="bt-inp-usage" class="tayy-form-input" rows="3">${item ? escHtml(item.cach_dung) : ''}</textarea></label>
 
-        <label class="tayy-form-label">Biện chứng<br><textarea id="bt-inp-bienchung" class="tayy-form-input" rows="2" placeholder="Nhập biện chứng (tự do)">${item ? escHtml(item.bien_chung || '') : ''}</textarea></label>
+        <label class="tayy-form-label">Chứng trạng<br><textarea id="bt-inp-chungtrang" class="tayy-form-input" rows="3" placeholder="Biện chứng, pháp trị… (tự do)">${item ? escHtml(item.chung_trang || '') : ''}</textarea></label>
 
         <!-- Triệu chứng -->
         <label class="tayy-form-label">
@@ -590,8 +588,6 @@ function openBaiThuocForm(id) {
                     max-height:200px; overflow-y:auto; z-index:2500; display:none;"></div>
             </div>
         </label>
-
-        <label class="tayy-form-label">Pháp trị<br><textarea id="bt-inp-phaptri" class="tayy-form-input" rows="2" placeholder="Nhập pháp trị (tự do)">${item ? escHtml(item.phap_tri || '') : ''}</textarea></label>
 
         <label class="tayy-form-label">
             Thành phần vị thuốc
@@ -660,9 +656,8 @@ async function saveBaiThuoc(id) {
         ten_bai_thuoc: document.getElementById('bt-inp-ten').value.trim(),
         nguon_goc: document.getElementById('bt-inp-source').value.trim(),
         cach_dung: document.getElementById('bt-inp-usage').value.trim(),
-        bien_chung: (document.getElementById('bt-inp-bienchung')?.value || '').trim(),
+        chung_trang: (document.getElementById('bt-inp-chungtrang')?.value || '').trim(),
         trieu_chung: _btDraftTrieuChung.join(', '),
-        phap_tri: (document.getElementById('bt-inp-phaptri')?.value || '').trim(),
         chi_tiet
     };
     if (!payload.ten_bai_thuoc) return alert('Thiếu tên bài thuốc');

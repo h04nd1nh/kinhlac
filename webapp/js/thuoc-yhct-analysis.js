@@ -96,7 +96,7 @@ function yhctNhomLonChipsHtml(arr) {
 function yhctPhapTriChipsHtml(raw) {
     const s = (raw || '').trim();
     if (!s) {
-        return '<span style="color:#9CA3AF;font-size:0.8rem;">Chưa gán pháp trị.</span>';
+        return '<span style="color:#9CA3AF;font-size:0.8rem;">Chưa gán chứng trạng.</span>';
     }
     const parts = s.split(/[,，;]/g).map(x => x.trim()).filter(Boolean);
     if (!parts.length) {
@@ -837,7 +837,7 @@ function yhctAnalyzeLocalSimple(bt) {
         tgpt,
         tacDungYhctNhomNho,
         tacDungYhctNhomLon,
-        phapTriBaiThuoc: (bt.phap_tri || '').trim(),
+        chungTrangBaiThuoc: (bt.chung_trang || '').trim(),
         chuTriBaiThuoc,
         kiengKyBaiThuoc,
     };
@@ -1155,7 +1155,7 @@ function yhctBuildAnalysisHtml(r) {
                         }</div>`
                         : '<div style="color:#9CA3AF;font-size:0.8rem;">Chưa có nhóm nhỏ nào được gán. Gán vị thuốc trong tab «Nhóm dược lý».</div>'}
                     <div style="margin-top:12px;">${yhctNhomLonChipsHtml(r.tacDungYhctNhomLon || [])}</div>
-                    <div style="margin-top:12px;">${yhctPhapTriChipsHtml(r.phapTriBaiThuoc)}</div>
+                    <div style="margin-top:12px;">${yhctPhapTriChipsHtml(r.chungTrangBaiThuoc)}</div>
                     ${yhctCongDungBaiThuocHtml(r)}
                 </div>
             </div>
@@ -1492,9 +1492,8 @@ function renderBaiThuocTab(el) {
         return `<tr>
             <td><strong>${escHtml(item.ten_bai_thuoc)}</strong></td>
             <td>${escHtml(item.nguon_goc||'—')}</td>
-            <td style="font-size:0.78rem;">${escHtml(item.bien_chung||'—')}</td>
+            <td style="font-size:0.78rem;">${escHtml(item.chung_trang||'—')}</td>
             <td style="font-size:0.78rem;">${escHtml(item.trieu_chung||'—')}</td>
-            <td style="font-size:0.78rem;">${escHtml(item.phap_tri||'—')}</td>
             <td style="font-size:0.78rem;">${escHtml(item.cach_dung||'—')}</td>
             <td style="font-size:0.78rem;">${escHtml(item.ghi_chu||'—')}</td>
             <td style="font-size:0.75rem;color:#6B5A3A;">${escHtml(ings||'Chưa có vị thuốc')}</td>
@@ -1521,11 +1520,11 @@ function renderBaiThuocTab(el) {
         <div class="data-table-container">
             <table>
                 <thead><tr>
-                    <th>Tên bài thuốc</th><th>Nguồn gốc</th><th>Biện chứng</th>
-                    <th>Triệu chứng</th><th>Pháp trị</th><th>Cách dùng</th><th>Ghi chú</th><th>Thành phần</th>
+                    <th>Tên bài thuốc</th><th>Nguồn gốc</th><th>Chứng trạng</th>
+                    <th>Triệu chứng</th><th>Cách dùng</th><th>Ghi chú</th><th>Thành phần</th>
                     <th style="width:180px;text-align:center;">Thao tác</th>
                 </tr></thead>
-                <tbody>${rows||'<tr><td colspan="9" style="text-align:center;color:#9CA3AF;padding:20px;">Chưa có dữ liệu</td></tr>'}</tbody>
+                <tbody>${rows||'<tr><td colspan="8" style="text-align:center;color:#9CA3AF;padding:20px;">Chưa có dữ liệu</td></tr>'}</tbody>
             </table>
         </div>`;
 }
@@ -1656,6 +1655,16 @@ function yhctDevPick(r, keys) {
     return '';
 }
 
+/** Excel bài thuốc: ưu tiên cột «Chứng trạng»; file cũ có «Biện chứng» + «Pháp trị» thì gộp bằng ", ". */
+function yhctBaiThuocChungTrangFromRow(r) {
+    const ct = (yhctDevPick(r, ['Chứng trạng', 'Chung trang', 'Chung trạng']) || '').trim();
+    if (ct) return ct;
+    const bc = (yhctDevPick(r, ['Biện chứng', 'Bien chung']) || '').trim();
+    const pt = (yhctDevPick(r, ['Pháp trị', 'Phap tri']) || '').trim();
+    if (!bc && !pt) return '';
+    return [bc, pt].filter(Boolean).join(', ');
+}
+
 /** Liều trong ngoặc: *, #, X tiền, X lượng, X g (còn lại coi là ghi chú — bỏ qua). */
 function yhctExcelIsLieuToken(raw) {
     const t = String(raw || '').trim();
@@ -1732,9 +1741,8 @@ function yhctExportBaiThuocXlsx() {
        return {
            'Tên bài thuốc': b.ten_bai_thuoc,
            'Nguồn gốc': b.nguon_goc,
-           'Biện chứng': b.bien_chung,
+           'Chứng trạng': b.chung_trang,
            'Triệu chứng': b.trieu_chung,
-           'Pháp trị': b.phap_tri,
            'Cách dùng': b.cach_dung,
            'Ghi chú': b.ghi_chu,
            'Thành phần': tp
@@ -1954,9 +1962,8 @@ function yhctImportBaiThuocXlsx(e) {
                 const payload = {
                     ten_bai_thuoc: tenNorm,
                     nguon_goc: yhctDevPick(r, ['Nguồn gốc', 'Nguon goc']) || '',
-                    bien_chung: yhctDevPick(r, ['Biện chứng', 'Bien chung']) || '',
+                    chung_trang: yhctBaiThuocChungTrangFromRow(r),
                     trieu_chung: yhctDevPick(r, ['Triệu chứng', 'Trieu chung']) || '',
-                    phap_tri: yhctDevPick(r, ['Pháp trị', 'Phap tri']) || '',
                     cach_dung: yhctDevPick(r, ['Cách dùng', 'Cach dung']) || '',
                     ghi_chu: yhctDevPick(r, ['Ghi chú', 'Ghi chu']) || '',
                     chi_tiet,
