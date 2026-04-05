@@ -17,6 +17,7 @@ import { TrieuChung } from './models/trieu-chung.model';
 import { KinhMach } from './models/kinh-mach.model';
 import { HuyetVi } from './models/huyet-vi.model';
 import { PhacDoDieuTri } from './models/phac-do-dieu-tri.model';
+import { PhacDoChuan, PhacDoChuanHuyet } from './models/phac-do-chuan.model';
 import { ViThuoc } from './models/vi-thuoc.model';
 import { BaiThuoc } from './models/bai-thuoc.model';
 import { BaiThuocChiTiet } from './models/bai-thuoc-chi-tiet.model';
@@ -55,6 +56,7 @@ import { TrieuChungRouter } from './routers/trieu-chung.router';
 import { KinhMachRouter } from './routers/kinh-mach.router';
 import { HuyetViRouter } from './routers/huyet-vi.router';
 import { PhacDoDieuTriRouter } from './routers/phac-do-dieu-tri.router';
+import { PhacDoChuanRouter } from './routers/phac-do-chuan.router';
 import { ViThuocRouter } from './routers/vi-thuoc.router';
 import { BaiThuocRouter } from './routers/bai-thuoc.router';
 import { TheBenhRouter, TheBenhPhuongHuyetRouter } from './routers/the-benh.router';
@@ -79,6 +81,7 @@ import { TrieuChungService } from './controllers/trieu-chung.controller';
 import { KinhMachService } from './controllers/kinh-mach.controller';
 import { HuyetViService } from './controllers/huyet-vi.controller';
 import { PhacDoDieuTriService } from './controllers/phac-do-dieu-tri.controller';
+import { PhacDoChuanService } from './controllers/phac-do-chuan.controller';
 import { ViThuocService } from './controllers/vi-thuoc.controller';
 import { BaiThuocService } from './controllers/bai-thuoc.controller';
 import { TheBenhService, TheBenhPhuongHuyetService } from './controllers/the-benh.controller';
@@ -117,7 +120,7 @@ import { JwtStrategy } from './middlewares/auth/jwt.strategy';
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([Admin, MeridianSyndrome, Patient, Examination, ChungBenh, BenhTayY, TrieuChung, KinhMach, HuyetVi, PhacDoDieuTri, ViThuoc, BaiThuoc, BaiThuocChiTiet, BaiThuocPhapTri, TheBenh, TheBenhPhuongHuyet, Appointment, ThietChan, MachChan, NhomDuocLyLon, NhomDuocLyNho, ViThuocNhomNho, ViThuocCongDung, ViThuocChuTri, ViThuocKiengKy, ViThuocTenGoiKhac, CongDung, ChuTri, KiengKy, PhapTri]),
+    TypeOrmModule.forFeature([Admin, MeridianSyndrome, Patient, Examination, ChungBenh, BenhTayY, TrieuChung, KinhMach, HuyetVi, PhacDoDieuTri, PhacDoChuan, PhacDoChuanHuyet, ViThuoc, BaiThuoc, BaiThuocChiTiet, BaiThuocPhapTri, TheBenh, TheBenhPhuongHuyet, Appointment, ThietChan, MachChan, NhomDuocLyLon, NhomDuocLyNho, ViThuocNhomNho, ViThuocCongDung, ViThuocChuTri, ViThuocKiengKy, ViThuocTenGoiKhac, CongDung, ChuTri, KiengKy, PhapTri]),
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -128,7 +131,7 @@ import { JwtStrategy } from './middlewares/auth/jwt.strategy';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AppController, AdminsRouter, AuthRouter, MeridiansRouter, PatientsRouter, ExaminationsRouter, ModelsRouter, RecordsRouter, ChungBenhRouter, BenhTayYRouter, TrieuChungRouter, KinhMachRouter, HuyetViRouter, PhacDoDieuTriRouter, ViThuocRouter, BaiThuocRouter, TheBenhRouter, TheBenhPhuongHuyetRouter, PatientAuthRouter, AppointmentsRouter, ThietChanRouter, MachChanRouter, NhomDuocLyRouter, CongDungRouter, PhapTriRouter, ChuTriController, KiengKyController],
-  providers: [AppService, AdminsService, AuthService, JwtStrategy, MeridiansService, PatientsService, ExaminationsService, ModelsService, ChungBenhService, BenhTayYService, TrieuChungService, KinhMachService, HuyetViService, PhacDoDieuTriService, ViThuocService, BaiThuocService, TheBenhService, TheBenhPhuongHuyetService, PatientAuthService, AppointmentsService, FirebaseService, ThietChanService, MachChanService, NhomDuocLyService, CongDungService, PhapTriService],
+  controllers: [AppController, AdminsRouter, AuthRouter, MeridiansRouter, PatientsRouter, ExaminationsRouter, ModelsRouter, RecordsRouter, ChungBenhRouter, BenhTayYRouter, TrieuChungRouter, KinhMachRouter, HuyetViRouter, PhacDoDieuTriRouter, PhacDoChuanRouter, ViThuocRouter, BaiThuocRouter, TheBenhRouter, TheBenhPhuongHuyetRouter, PatientAuthRouter, AppointmentsRouter, ThietChanRouter, MachChanRouter, NhomDuocLyRouter, CongDungRouter, PhapTriRouter, ChuTriController, KiengKyController],
+  providers: [AppService, AdminsService, AuthService, JwtStrategy, MeridiansService, PatientsService, ExaminationsService, ModelsService, ChungBenhService, BenhTayYService, TrieuChungService, KinhMachService, HuyetViService, PhacDoDieuTriService, PhacDoChuanService, ViThuocService, BaiThuocService, TheBenhService, TheBenhPhuongHuyetService, PatientAuthService, AppointmentsService, FirebaseService, ThietChanService, MachChanService, NhomDuocLyService, CongDungService, PhapTriService],
 })
 export class AppModule {}

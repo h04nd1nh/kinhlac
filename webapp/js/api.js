@@ -717,6 +717,48 @@ async function apiDeletePhacDo(id) {
     return { success: true };
 }
 
+// ---- PHÁC ĐỒ CHUẨN (tên + kế thừa + phương huyệt) ----
+
+async function apiGetPhacDoChuan() {
+    const res = await fetch(_base() + '/phac-do-chuan');
+    if (!res.ok) throw new Error('Không tải được phác đồ chuẩn');
+    return res.json();
+}
+
+async function apiGetPhacDoChuanOne(id, withHieuLuc = false) {
+    let url = _base() + '/phac-do-chuan/' + id;
+    if (withHieuLuc) url += '?hieu_luc=1';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Không tải được phác đồ #' + id);
+    return res.json();
+}
+
+async function apiCreatePhacDoChuan(payload) {
+    const res = await fetch(_base() + '/phac-do-chuan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Tạo phác đồ chuẩn thất bại') };
+    return { success: true, data: await res.json() };
+}
+
+async function apiUpdatePhacDoChuan(id, payload) {
+    const res = await fetch(_base() + '/phac-do-chuan/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Cập nhật phác đồ chuẩn thất bại') };
+    return { success: true, data: await res.json() };
+}
+
+async function apiDeletePhacDoChuan(id) {
+    const res = await fetch(_base() + '/phac-do-chuan/' + id, { method: 'DELETE' });
+    if (!res.ok) return { success: false, error: await _safeText(res, 'Xóa phác đồ chuẩn thất bại') };
+    return { success: true };
+}
+
 // ---- VI THUOC ----
 async function apiGetViThuoc() {
     const res = await fetch(_base() + '/vi-thuoc');
