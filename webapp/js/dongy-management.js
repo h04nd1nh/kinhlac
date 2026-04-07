@@ -123,7 +123,7 @@ function renderDongySection() {
     container.innerHTML = `
         <div class="section">
             <div class="section-header">
-                <h2 style="color: var(--secondary); margin:0;">Hệ Thống Quản Lý Đông Y</h2>
+                <h2 style="color: var(--secondary); margin:0;">Hệ Thống Quản Lý Bệnh Kinh Lạc</h2>
             </div>
 
             <div class="tayy-tabs" style="display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid var(--border); overflow-x:auto; white-space:nowrap;">

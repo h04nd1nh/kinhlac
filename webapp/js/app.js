@@ -520,7 +520,7 @@ const _sections = {
     reports:        { title: 'Báo cáo',          parent: 'dashboard' },
     models:         { title: 'Mô hình bệnh',    parent: 'dashboard' },
     tayy:           { title: 'Bệnh Tây Y',       parent: 'dashboard' },
-    dongy:          { title: 'Bệnh Đông Y',       parent: 'dashboard' },
+    dongy:          { title: 'Bệnh Kinh Lạc',     parent: 'dashboard' },
     appointments:   { title: 'Quản lý Lịch Khám', parent: 'dashboard' },
 };
 
