@@ -713,12 +713,17 @@ async function pdcFindOrCreateHuyetByName(name, collector) {
     const found = pdcFindHuyetByToken(clean);
     if (found) return found;
     const kmDefault = (_dongyData.kinhMach || [])[0];
-    const idKinhMach = kmDefault ? (kmDefault.idKinhMach || kmDefault.id) : null;
-    if (!Number.isFinite(Number(idKinhMach))) {
+    const rawKinhMachId = kmDefault ? (kmDefault.idKinhMach ?? kmDefault.id) : null;
+    const idKinhMach = Number(rawKinhMachId);
+    if (!Number.isFinite(idKinhMach) || idKinhMach <= 0) {
         if (collector?.errors) collector.errors.push(`Không thể tạo huyệt "${clean}" vì chưa có dữ liệu kinh mạch.`);
         return null;
     }
-    const res = await apiCreateHuyetVi({ ten_huyet: clean, id_kinh_mach: Number(idKinhMach) });
+    const res = await apiCreateHuyetVi({
+        ten_huyet: clean,
+        id_kinh_mach: idKinhMach,
+        idKinhMach: idKinhMach,
+    });
     if (!res?.success) {
         if (collector?.errors) collector.errors.push(`Tạo huyệt "${clean}" thất bại: ${res?.error || 'Lỗi không xác định'}`);
         return null;
