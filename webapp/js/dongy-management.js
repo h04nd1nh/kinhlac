@@ -743,8 +743,7 @@ function pdcExportExcel() {
             ten_ke_thua: keThua?.ten || '',
             ghi_chu: item.ghi_chu || '',
             thu_tu_hien_thi: item.thuTuHienThi ?? item.thu_tu_hien_thi ?? 0,
-            'huyet_rieng_json': JSON.stringify(huyet),
-            'huyet_rieng_ids_hoac_ten': huyet.map((x) => x.id_huyet || x.ten_huyet).filter(Boolean).join(', '),
+            huyet_rieng: huyet.map((x) => x.ten_huyet).filter(Boolean).join(', '),
         };
     });
     const emptyRow = {
@@ -756,8 +755,7 @@ function pdcExportExcel() {
         ten_ke_thua: '',
         ghi_chu: '',
         thu_tu_hien_thi: 0,
-        huyet_rieng_json: '[]',
-        huyet_rieng_ids_hoac_ten: '',
+        huyet_rieng: '',
     };
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [emptyRow]), 'PhacDoDieuTri');
@@ -779,30 +777,12 @@ function pdcExtractHuyetLinesFromRow(row) {
         });
     };
 
-    const rawJson = row.huyet_rieng_json ?? row['huyet_rieng_json'] ?? row['Huyệt riêng JSON'] ?? '';
-    if (String(rawJson || '').trim()) {
-        try {
-            const arr = JSON.parse(String(rawJson));
-            if (Array.isArray(arr)) {
-                for (const it of arr) {
-                    const hv = pdcFindHuyetByToken(it?.id_huyet ?? it?.idHuyet ?? it?.ten_huyet ?? it?.tenHuyet ?? '');
-                    if (!hv) continue;
-                    pushLine(hv.idHuyet ?? hv.id, it?.phuong_phap_tac_dong, it?.vai_tro_huyet, it?.ghi_chu_ky_thuat);
-                }
-            }
-        } catch {
-            // fallback về cột text thường
-        }
-    }
-
-    if (!out.length) {
-        const rawText = row.huyet_rieng_ids_hoac_ten ?? row['huyet_rieng_ids_hoac_ten'] ?? row['Huyệt riêng'] ?? '';
-        const parts = String(rawText || '').split(/[,;\n\r]+/).map((x) => x.trim()).filter(Boolean);
-        for (const p of parts) {
-            const hv = pdcFindHuyetByToken(p);
-            if (!hv) continue;
-            pushLine(hv.idHuyet ?? hv.id, '', '', '');
-        }
+    const rawText = row.huyet_rieng ?? row['huyet_rieng'] ?? row['Huyệt riêng'] ?? '';
+    const parts = String(rawText || '').split(/[,;\n\r]+/).map((x) => x.trim()).filter(Boolean);
+    for (const p of parts) {
+        const hv = pdcFindHuyetByToken(p);
+        if (!hv) continue;
+        pushLine(hv.idHuyet ?? hv.id, '', '', '');
     }
 
     return out;
