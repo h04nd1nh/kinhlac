@@ -613,6 +613,27 @@ function showSection(id) {
     _updateBreadcrumb(id);
 }
 
+const _sectionLazyInitState = {
+    tayy: false,
+    dongy: false,
+    thuoc: false,
+    trieuchung: false,
+    phaptri: false,
+    appointments: false,
+};
+
+async function _runLazySectionInit(sectionId, initFn) {
+    if (typeof initFn !== 'function') return;
+    if (_sectionLazyInitState[sectionId]) return;
+    _sectionLazyInitState[sectionId] = true;
+    try {
+        await initFn();
+    } catch (e) {
+        _sectionLazyInitState[sectionId] = false;
+        throw e;
+    }
+}
+
 function _showSectionInternal(id) {
     document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
     const t = document.getElementById(id + '-section');
@@ -623,22 +644,22 @@ function _showSectionInternal(id) {
 
     switch (id) {
         case 'tayy':
-            if (typeof initTayyManagement === 'function') initTayyManagement();
+            void _runLazySectionInit('tayy', initTayyManagement);
             break;
         case 'dongy':
-            if (typeof initDongyManagement === 'function') initDongyManagement();
+            void _runLazySectionInit('dongy', initDongyManagement);
             break;
         case 'thuoc':
-            if (typeof initThuocManagement === 'function') initThuocManagement();
+            void _runLazySectionInit('thuoc', initThuocManagement);
             break;
         case 'trieuchung':
-            if (typeof initTrieuchungManagement === 'function') initTrieuchungManagement();
+            void _runLazySectionInit('trieuchung', initTrieuchungManagement);
             break;
         case 'phaptri':
-            if (typeof initPhapTriManagement === 'function') initPhapTriManagement();
+            void _runLazySectionInit('phaptri', initPhapTriManagement);
             break;
         case 'appointments':
-            if (typeof initAppointmentsManagement === 'function') initAppointmentsManagement();
+            void _runLazySectionInit('appointments', initAppointmentsManagement);
             break;
         case 'settings':
             if (typeof renderSettings === 'function') renderSettings();
