@@ -707,19 +707,29 @@ function pdcFindHuyetByToken(token) {
     return (_dongyData.huyetVi || []).find((h) => pdcNormText(h.ten_huyet || h.name) === want) || null;
 }
 
-async function pdcFindOrCreateHuyetByName(name) {
+async function pdcFindOrCreateHuyetByName(name, collector) {
     const clean = String(name || '').trim();
     if (!clean) return null;
     const found = pdcFindHuyetByToken(clean);
     if (found) return found;
-    const res = await apiCreateHuyetVi({ ten_huyet: clean });
-    if (!res?.success) return null;
+    const kmDefault = (_dongyData.kinhMach || [])[0];
+    const idKinhMach = kmDefault ? (kmDefault.idKinhMach || kmDefault.id) : null;
+    if (!Number.isFinite(Number(idKinhMach))) {
+        if (collector?.errors) collector.errors.push(`Không thể tạo huyệt "${clean}" vì chưa có dữ liệu kinh mạch.`);
+        return null;
+    }
+    const res = await apiCreateHuyetVi({ ten_huyet: clean, id_kinh_mach: Number(idKinhMach) });
+    if (!res?.success) {
+        if (collector?.errors) collector.errors.push(`Tạo huyệt "${clean}" thất bại: ${res?.error || 'Lỗi không xác định'}`);
+        return null;
+    }
     const data = res.data || {};
     const newId = data.idHuyet || data.id;
     if (!newId) return null;
     const item = { id: newId, idHuyet: newId, ten_huyet: clean, ...data };
     _dongyData.huyetVi = _dongyData.huyetVi || [];
     _dongyData.huyetVi.push(item);
+    if (collector?.created) collector.created.push(clean);
     return item;
 }
 
@@ -777,7 +787,6 @@ function pdcExportExcel() {
             }));
         return {
             ten: item.ten || '',
-            id_benh_dong_y: item.idBenhDongY ?? item.id_benh_dong_y ?? '',
             tieuket_benh_dong_y: benh?.tieuket || benh?.ten || '',
             ten_ke_thua: keThua?.ten || '',
             ghi_chu: item.ghi_chu || '',
@@ -787,7 +796,6 @@ function pdcExportExcel() {
     });
     const emptyRow = {
         ten: '',
-        id_benh_dong_y: '',
         tieuket_benh_dong_y: '',
         ten_ke_thua: '',
         ghi_chu: '',
@@ -799,7 +807,7 @@ function pdcExportExcel() {
     XLSX.writeFile(wb, 'Phac_Do_Dieu_Tri_Dong_Y.xlsx');
 }
 
-async function pdcExtractHuyetLinesFromRow(row) {
+async function pdcExtractHuyetLinesFromRow(row, collector) {
     const out = [];
     const pushLine = (idHuyet, pp, vt, gc) => {
         const hid = Number(idHuyet);
@@ -817,7 +825,7 @@ async function pdcExtractHuyetLinesFromRow(row) {
     const rawText = row.huyet_rieng ?? row['huyet_rieng'] ?? row['Huyệt riêng'] ?? '';
     const parts = String(rawText || '').split(/[,;\n\r]+/).map((x) => x.trim()).filter(Boolean);
     for (const p of parts) {
-        const hv = await pdcFindOrCreateHuyetByName(p);
+        const hv = await pdcFindOrCreateHuyetByName(p, collector);
         if (!hv) continue;
         pushLine(hv.idHuyet ?? hv.id, '', '', '');
     }
@@ -847,6 +855,7 @@ async function importPhacDoChuanXlsx(e) {
         let created = 0;
         let updated = 0;
         const errors = [];
+        const autoCreatedHuyet = [];
 
         for (let i = 0; i < validRows.length; i++) {
             pdcSetImportLoading(true, `Đang xử lý dòng ${i + 1}/${validRows.length}...`);
@@ -880,7 +889,7 @@ async function importPhacDoChuanXlsx(e) {
                 id_benh_dong_y: Number.isFinite(idBenh) ? idBenh : null,
                 ghi_chu: String(row.ghi_chu || '').trim() || null,
                 thu_tu_hien_thi: Number.isFinite(thuTu) ? thuTu : 0,
-                huyet: await pdcExtractHuyetLinesFromRow(row),
+                huyet: await pdcExtractHuyetLinesFromRow(row, { created: autoCreatedHuyet, errors }),
             };
             if (target && target.id === body.id_ke_thua) body.id_ke_thua = null;
 
@@ -899,6 +908,9 @@ async function importPhacDoChuanXlsx(e) {
 
         renderDongySection();
         const msg = [`Nhập Excel xong. Tạo mới: ${created}, Cập nhật: ${updated}.`];
+        if (autoCreatedHuyet.length) {
+            msg.push(`Đã tự tạo ${autoCreatedHuyet.length} huyệt mới:\n- ${Array.from(new Set(autoCreatedHuyet)).join('\n- ')}`);
+        }
         if (errors.length) msg.push(`Lỗi (${errors.length}):\n- ${errors.join('\n- ')}`);
         alert(msg.join('\n\n'));
     } catch (err) {
