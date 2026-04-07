@@ -643,22 +643,13 @@ function pdcMergeChainNodes(chainNodes) {
 }
 
 function pdcPreviewLabelsFromForm() {
-    const all = _dongyData.phacDoChuan || [];
-    const keThuaRaw = document.getElementById('pdc-sel-kethua')?.value;
-    const keThuaId = keThuaRaw ? parseInt(keThuaRaw, 10) : NaN;
-    const chain = [];
-    if (Number.isFinite(keThuaId)) {
-        chain.push(...pdcChainRootToLeaf(keThuaId, all));
-    }
-    chain.push({
-        id: _pdcEditingId ?? -1,
-        huyetDong: (_pdcDraftPhuongHuyet || []).map((d, i) => ({
-            idHuyet: d.idHuyet,
-            thuTu: i,
-            huyetVi: pdcGetHuyetViById(d.idHuyet),
-        })),
+    return (_pdcDraftPhuongHuyet || []).map((d) => {
+        const hv = pdcGetHuyetViById(d.idHuyet);
+        return {
+            ten: hv?.ten_huyet || hv?.name || ('#' + d.idHuyet),
+            tu_ke_thua: false,
+        };
     });
-    return pdcMergeChainNodes(chain);
 }
 
 function pdcRefreshPreview() {
@@ -671,10 +662,7 @@ function pdcRefreshPreview() {
     }
     el.innerHTML = labels
         .map((x) => {
-            const mark = x.tu_ke_thua
-                ? '<span style="font-size:0.65rem;color:#78716c;margin-left:4px;">(từ phác đồ cha)</span>'
-                : '';
-            return `<span style="display:inline-flex;align-items:baseline;margin:2px 8px 2px 0;flex-wrap:wrap;"><strong style="color:#5B3A1A;">${escHtml(x.ten)}</strong>${mark}</span>`;
+            return `<span style="display:inline-flex;align-items:baseline;margin:2px 8px 2px 0;flex-wrap:wrap;"><strong style="color:#5B3A1A;">${escHtml(x.ten)}</strong></span>`;
         })
         .join('');
 }
@@ -791,7 +779,6 @@ function pdcExportExcel() {
             ten: item.ten || '',
             id_benh_dong_y: item.idBenhDongY ?? item.id_benh_dong_y ?? '',
             tieuket_benh_dong_y: benh?.tieuket || benh?.ten || '',
-            id_ke_thua: item.idKeThua ?? item.id_ke_thua ?? '',
             ten_ke_thua: keThua?.ten || '',
             ghi_chu: item.ghi_chu || '',
             thu_tu_hien_thi: item.thuTuHienThi ?? item.thu_tu_hien_thi ?? 0,
@@ -802,7 +789,6 @@ function pdcExportExcel() {
         ten: '',
         id_benh_dong_y: '',
         tieuket_benh_dong_y: '',
-        id_ke_thua: '',
         ten_ke_thua: '',
         ghi_chu: '',
         thu_tu_hien_thi: 0,
@@ -882,9 +868,7 @@ async function importPhacDoChuanXlsx(e) {
             }
 
             let idKeThua = null;
-            const keIdRaw = parseInt(row.id_ke_thua, 10);
-            if (Number.isFinite(keIdRaw)) idKeThua = keIdRaw;
-            else if (String(row.ten_ke_thua || '').trim()) {
+            if (String(row.ten_ke_thua || '').trim()) {
                 const ke = pdcFindPhacDoByTen(row.ten_ke_thua);
                 if (ke) idKeThua = ke.id;
             }
@@ -1042,7 +1026,7 @@ function openPhacDoChuanForm(givenId) {
             <input id="pdc-inp-thutu" type="number" class="tayy-form-input" value="${item != null ? (item.thuTuHienThi ?? item.thu_tu_hien_thi ?? 0) : 0}"></label>
 
         <div style="margin-top:14px;padding:10px 12px;background:#F5F0E8;border:1px solid #E2D4B8;border-radius:8px;">
-            <div style="font-weight:800;color:#5B3A1A;font-size:0.82rem;margin-bottom:6px;">Xem trước huyệt hiệu lực (cha + riêng)</div>
+            <div style="font-weight:800;color:#5B3A1A;font-size:0.82rem;margin-bottom:6px;">Xem trước huyệt riêng (huyệt cộng thêm)</div>
             <div id="pdc-preview-hieu-luc" style="font-size:0.82rem;line-height:1.45;"></div>
         </div>
 
