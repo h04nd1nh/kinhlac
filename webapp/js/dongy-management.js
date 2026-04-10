@@ -3,6 +3,7 @@
 
 let _dongyData = {
     benhDongY: [],
+    baiThuoc: [],
     kinhMach: [],
     huyetVi: [],
     phacDo: [],
@@ -128,6 +129,7 @@ function dyOnBaiThuocChipKeydown(ev) {
         if (!_dyBaiThuocChips.includes(v)) _dyBaiThuocChips.push(v);
         inp.value = '';
         dyRenderBaiThuocChips();
+        dyRenderBaiThuocSuggest('');
     }
 }
 
@@ -160,6 +162,66 @@ function dyBaiThuocTablePreview(raw) {
         .join('')}</div>`;
 }
 
+function dyGetAllBaiThuocNames() {
+    const seen = new Set();
+    const out = [];
+    (_dongyData.baiThuoc || []).forEach((b) => {
+        const n = String(b?.ten_bai_thuoc || b?.name || '').trim();
+        if (!n) return;
+        const key = n.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(n);
+    });
+    return out;
+}
+
+function dyRenderBaiThuocSuggest(query) {
+    const suggestEl = document.getElementById('dy-baithuoc-suggest');
+    if (!suggestEl) return;
+    const q = String(query || '').trim().toLowerCase();
+    const selected = new Set((_dyBaiThuocChips || []).map((x) => String(x).trim().toLowerCase()));
+    const names = dyGetAllBaiThuocNames()
+        .filter((n) => !selected.has(n.toLowerCase()))
+        .filter((n) => !q || n.toLowerCase().includes(q))
+        .slice(0, 10);
+
+    if (!names.length) {
+        suggestEl.style.display = 'none';
+        suggestEl.innerHTML = '';
+        return;
+    }
+    suggestEl.innerHTML = names
+        .map((n) => `<div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+                onmouseover="this.style.background='#F5F0E8'"
+                onmouseout="this.style.background='transparent'"
+                onmousedown='event.preventDefault();dySelectBaiThuocName(${JSON.stringify(n)})'>${escHtml(n)}</div>`)
+        .join('');
+    suggestEl.style.display = 'block';
+}
+
+function dySelectBaiThuocName(name) {
+    const ten = String(name || '').trim();
+    if (!ten) return;
+    if (!_dyBaiThuocChips.includes(ten)) _dyBaiThuocChips.push(ten);
+    const inp = document.getElementById('dy-inp-baithuoc');
+    if (inp) inp.value = '';
+    dyRenderBaiThuocChips();
+    dyRenderBaiThuocSuggest('');
+}
+
+function dyOnBaiThuocInput(value) {
+    dyRenderBaiThuocSuggest(value);
+}
+
+function dyHideBaiThuocSuggestSoon() {
+    setTimeout(() => {
+        const suggestEl = document.getElementById('dy-baithuoc-suggest');
+        if (!suggestEl) return;
+        suggestEl.style.display = 'none';
+    }, 120);
+}
+
 // ─── Khởi tạo ─────────────────────────────────────────────
 async function initDongyManagement() {
     await loadAllDongyData();
@@ -168,14 +230,16 @@ async function initDongyManagement() {
 
 async function loadAllDongyData() {
     try {
-        const [bdy, km, hv, pd, pdc] = await Promise.all([
+        const [bdy, bt, km, hv, pd, pdc] = await Promise.all([
             apiGetModels(),      // benh_dong_y
+            apiGetBaiThuoc(),
             apiGetKinhMach(),
             apiGetHuyetVi(),
             apiGetPhacDo(),
             apiGetPhacDoChuan(),
         ]);
         _dongyData.benhDongY = bdy || [];
+        _dongyData.baiThuoc = bt || [];
         _dongyData.kinhMach = km || [];
         _dongyData.huyetVi = hv || [];
         _dongyData.phacDo = pd || [];
@@ -347,8 +411,12 @@ function openBenhDongYForm(givenId) {
                 <div id="dy-chips-baithuoc" class="chips-container" onclick="document.getElementById('dy-inp-baithuoc').focus()">
                     <input id="dy-inp-baithuoc" type="text" class="chip-input"
                         placeholder="Gõ bài thuốc, Enter để thêm chip..."
-                        onkeydown="dyOnBaiThuocChipKeydown(event)">
+                        onkeydown="dyOnBaiThuocChipKeydown(event)"
+                        oninput="dyOnBaiThuocInput(this.value)"
+                        onfocus="dyOnBaiThuocInput(this.value)"
+                        onblur="dyHideBaiThuocSuggestSoon()">
                 </div>
+                <div id="dy-baithuoc-suggest" style="position:absolute;left:0;right:0;top:calc(100% + 6px);background:#FFFDF7;border:1px solid #D4C5A0;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.12);max-height:220px;overflow-y:auto;z-index:2500;display:none;"></div>
             </div>
         </label>
 
@@ -359,6 +427,7 @@ function openBenhDongYForm(givenId) {
     `, 'wide');
     dyRenderTrieuChungChips();
     dyRenderBaiThuocChips();
+    dyRenderBaiThuocSuggest('');
 }
 
 async function saveBenhDongY(id) {
