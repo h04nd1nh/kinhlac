@@ -26,8 +26,8 @@ let _dyBaiThuocChips = [];
 /** Pháp trị đã chọn (nhiều) — { id, label } */
 let _dyDraftPhapTri = [];
 
-/** Lọc bảng Danh mục bệnh Đông y: hai ô độc lập (pháp trị vs thể bệnh) */
-let _dongyBenhTableFilters = { phapTri: '', theBenh: '' };
+/** Lọc bảng Danh mục bệnh Đông y — chỉ theo pháp trị (Thể bệnh trên form là textarea, không lọc) */
+let _dongyBenhTableFilters = { phapTri: '' };
 
 function dyPhapTriListFromBenhItem(item) {
     if (!item) return [];
@@ -514,11 +514,6 @@ function dySetBenhDongYFilterPhapTri(val) {
     dyRefreshBenhDongYTab();
 }
 
-function dySetBenhDongYFilterTheBenh(val) {
-    _dongyBenhTableFilters.theBenh = String(val ?? '');
-    dyRefreshBenhDongYTab();
-}
-
 function dyRefreshBenhDongYTab() {
     const wrap = document.getElementById('dongy-tab-content');
     if (wrap && _dongyData.activeTab === 'benh-dong-y') renderBenhDongYTab(wrap);
@@ -540,7 +535,6 @@ function renderBenhDongYTab(el) {
     };
 
     const fq = dyPhapTriFold(_dongyBenhTableFilters.phapTri);
-    const tbq = dyPhapTriFold(_dongyBenhTableFilters.theBenh);
     let benhList = [..._dongyData.benhDongY];
     if (fq) {
         benhList = benhList.filter((item) => {
@@ -551,16 +545,8 @@ function renderBenhDongYTab(el) {
             });
         });
     }
-    if (tbq) {
-        benhList = benhList.filter((item) => {
-            const f = dyBenhDisplayFields(item);
-            const hay = dyPhapTriFold(f.chung_trang);
-            return hay && (hay === tbq || hay.includes(tbq));
-        });
-    }
 
     const fvPhap = escHtml(_dongyBenhTableFilters.phapTri);
-    const fvThe = escHtml(_dongyBenhTableFilters.theBenh);
 
     const rows =
         benhList.length === 0
@@ -595,15 +581,10 @@ function renderBenhDongYTab(el) {
             <button class="btn btn-primary" onclick="openBenhDongYForm()">+ Thêm bệnh</button>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:12px;padding:10px 12px;background:#FFFBF2;border:1px solid #E8DCC4;border-radius:8px;">
-            <label style="display:flex;flex-direction:column;gap:4px;font-size:0.78rem;color:#57534e;min-width:200px;flex:1;max-width:320px;">Lọc theo pháp trị
+            <label style="display:flex;flex-direction:column;gap:4px;font-size:0.78rem;color:#57534e;min-width:220px;flex:1;max-width:400px;">Lọc theo pháp trị
                 <input type="text" class="tayy-form-input" style="margin:0;" value="${fvPhap}"
                     oninput="dySetBenhDongYFilterPhapTri(this.value)"
                     placeholder="Theo nội dung pháp trị đã gắn (nguyen_tac)…">
-            </label>
-            <label style="display:flex;flex-direction:column;gap:4px;font-size:0.78rem;color:#57534e;min-width:200px;flex:1;max-width:320px;">Lọc theo thể bệnh
-                <input type="text" class="tayy-form-input" style="margin:0;" value="${fvThe}"
-                    oninput="dySetBenhDongYFilterTheBenh(this.value)"
-                    placeholder="Theo cột Thể bệnh trên bệnh (chung_trang)…">
             </label>
         </div>
         <div class="data-table-container" style="overflow-x:auto;">
@@ -651,7 +632,7 @@ function openBenhDongYForm(givenId) {
         <label class="tayy-form-label">Bệnh lý<br><textarea id="dy-inp-benhly" class="tayy-form-input" rows="4">${escHtml(f.benhly)}</textarea></label>
         <label class="tayy-form-label">Phụyết châm cứu<br><textarea id="dy-inp-phuyet-chamcuu" class="tayy-form-input" rows="4">${escHtml(f.phuyet_chamcuu)}</textarea></label>
         <label class="tayy-form-label">Giải nghĩa phương huyệt <span style="font-weight:400;color:#A09580;">(giainghia_phuyet)</span><br><textarea id="dy-inp-giainghia-phuyet" class="tayy-form-input" rows="4">${escHtml(f.giainghia_phuyet)}</textarea></label>
-        <label class="tayy-form-label">Thể bệnh <span style="font-weight:400;color:#A09580;">(trên bệnh — <code>chung_trang</code>, độc lập với pháp trị)</span><br><textarea id="dy-inp-chungtrang" class="tayy-form-input" rows="3">${escHtml(f.chung_trang)}</textarea></label>
+        <label class="tayy-form-label">Thể bệnh <span style="font-weight:400;color:#A09580;font-size:0.82rem;">(nhập tay — ô văn bản, <strong>không</strong> dạng chip; <strong>không</strong> có ô tìm / gợi ý; lưu cùng trường <code>chung_trang</code> trên bệnh)</span><br><textarea id="dy-inp-chungtrang" class="tayy-form-input" rows="4" placeholder="Mô tả thể bệnh…">${escHtml(f.chung_trang)}</textarea></label>
         <label class="tayy-form-label">Bài thuốc <span style="font-weight:400;color:#A09580;font-size:0.82rem;">(chip — Enter để thêm)</span>
             <div style="position:relative;margin-top:6px;">
                 <div id="dy-chips-baithuoc" class="chips-container" onclick="document.getElementById('dy-inp-baithuoc').focus()">
