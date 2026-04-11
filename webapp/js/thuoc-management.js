@@ -1967,7 +1967,7 @@ async function renderPhapTriTab(el) {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                 <button type="button" class="btn btn-outline" onclick="exportPhapTriXlsx()">📥 Xuất Excel</button>
-                <button type="button" class="btn btn-outline" title="Cột «Thế bệnh» / «Chứng trạng»: khớp tieuket (benh_dong_y) → id_benh_dong_y. «Triệu chứng điển hình» / «Triệu chứng»: khớp bảng trieu_chung. «Bài thuốc tiêu biểu» / «Bài thuốc»: khớp baithuoc. Cột id: cập nhật đúng bản ghi; không id: upsert theo tieuket như cũ."
+                <button type="button" class="btn btn-outline" title="File xuất ra có thể nhập lại (round-trip). Tiêu đề cột khớp cả khi Excel đổi hoa/thường hoặc bỏ dấu nhẹ. Cột id_benh_dong_y (nếu có): gán FK trực tiếp. Thế bệnh / Chứng trạng: khớp tieuket. Triệu chứng điển hình → trieu_chung. Bài thuốc tiêu biểu → bai_thuoc. Cột id pháp trị: cập nhật đúng bản ghi; không id: upsert theo tiểu kết."
                     onclick="document.getElementById('pt-import-xlsx').click()">📤 Cập nhật từ Excel</button>
                 <input type="file" id="pt-import-xlsx" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importPhapTriXlsx(event)">
             </div>
@@ -2381,6 +2381,34 @@ function ptSanitizeExcelImportRow(row) {
 }
 
 /**
+ * Đọc một ô nhập Excel pháp trị: khớp tên cột chính xác, rồi khớp tiêu đề đã chuẩn hóa (bỏ dấu, thường, gộp khoảng trắng).
+ */
+function ptPickPhapTriCol(row, keys) {
+    if (!row || !keys || !keys.length) return '';
+    const exact = ndlPickNhomCol(row, keys);
+    if (exact != null && String(exact).trim() !== '') return String(exact).trim();
+    for (const want of keys) {
+        const nkWant = ptExcelHeaderNorm(want);
+        if (!nkWant) continue;
+        for (const [rk, rv] of Object.entries(row)) {
+            if (ptExcelHeaderNorm(rk) !== nkWant) continue;
+            if (rv == null) continue;
+            const s = String(rv).trim();
+            if (s) return s;
+        }
+    }
+    return '';
+}
+
+/** Chuỗi dùng khớp tieuket / upsert: ưu tiên cột «Thế bệnh», sau đó logic ptPickChungTrangFromRow. */
+function ptPhapTriBenhMatchKeyFromRow(row) {
+    if (!row) return '';
+    const the = ptPickPhapTriCol(row, ['Thế bệnh', 'Thể bệnh', 'The benh', 'The Benh', 'The benh (tieuket)']);
+    if (the) return the;
+    return ptPickChungTrangFromRow(row) || '';
+}
+
+/**
  * Ô Excel nhiều mục: dấu «+» (ASCII hoặc fullwidth ＋) tương đương dấu phẩy.
  * Dùng cho Bát pháp / Bát cương / Lục dâm / Tạng phủ / Triệu chứng khi nhập pháp trị.
  */
@@ -2401,15 +2429,16 @@ function ptExcelCellToCsvList(raw) {
 function ptPickChungTrangFromRow(row) {
     if (!row) return '';
     const keysTheBenh = ['Thế bệnh', 'Thể bệnh', 'The benh', 'The Benh', 'The benh (tieuket)'];
-    const theBenhDirect = ndlPickNhomCol(row, keysTheBenh);
-    if (theBenhDirect != null && String(theBenhDirect).trim() !== '') {
+    const theBenhDirect = ptPickPhapTriCol(row, keysTheBenh);
+    if (theBenhDirect) {
         return ptCleanChungTrangCell(String(theBenhDirect));
     }
     const keysExplicit = [
+        'Chứng trạng (chung_trang)', 'Chung trang (chung trang)', 'Chung trang chung trang',
         'Chứng trạng', 'Chứng trạng (tiểu kết)', 'Chứng Trạng', 'CHỨNG TRẠNG',
         'Tiểu kết', 'Tieu ket', 'Chung trang', 'tieuket',
     ];
-    const direct = ndlPickNhomCol(row, keysExplicit);
+    const direct = ptPickPhapTriCol(row, keysExplicit);
     if (direct != null && String(direct).trim() !== '') return ptCleanChungTrangCell(String(direct));
     for (const [k, val] of Object.entries(row)) {
         const hn = ptExcelHeaderNorm(k);
@@ -2556,7 +2585,9 @@ function ptResolveNhomNhoIdFromExcel(cell) {
 function ptPhapTriImportRowSkippable(row) {
     const idStr = ndlPickNhomCol(row, ['id', 'ID', 'Id']);
     if (String(idStr ?? '').trim() !== '') return false;
+    if (ptPickPhapTriCol(row, ['id_benh_dong_y', 'Id benh dong y', 'idBenhDongY'])) return false;
     if (ptPickChungTrangFromRow(row)) return false;
+    if (ptPickPhapTriCol(row, ['Chứng trạng (chung_trang)', 'Chung trang (chung trang)'])) return false;
     const probes = [
         ['Thế bệnh', 'Thể bệnh', 'The benh'],
         ['Pháp trị', 'Phap tri', 'Pháp Trị'],
@@ -2575,35 +2606,43 @@ function ptPhapTriImportRowSkippable(row) {
         ['Nhóm dược', 'Nhom duoc', 'Nhom duoc ly', 'Nhóm Dược', 'Nhóm dược lý'],
     ];
     for (const keys of probes) {
-        if (ndlPickNhomCol(row, keys)) return false;
+        if (ptPickPhapTriCol(row, keys)) return false;
     }
     return true;
 }
 
 function ptBuildPayloadFromExcelRow(row, warnAcc) {
-    const chungTrang = ptPickChungTrangFromRow(row) || '';
-    const nguyen_tac = ndlPickNhomCol(row, [
+    const chungExplicit = ptPickPhapTriCol(row, [
+        'Chứng trạng (chung_trang)',
+        'Chung trang (chung trang)',
+        'Chung trang chung trang',
+    ]);
+    const chungFromPick = ptPickChungTrangFromRow(row) || '';
+    const chungTrang = ptCleanChungTrangCell(
+        chungExplicit ? String(chungExplicit) : chungFromPick,
+    );
+    const nguyen_tac = ptPickPhapTriCol(row, [
         'Pháp trị', 'Phap tri', 'Pháp Trị',
         'Nguyên tắc', 'Nguyen tac', 'Nguyên Tắc',
     ]);
-    const nguyen_nhan = ndlPickNhomCol(row, ['Nguyên nhân', 'Nguyen nhan', 'Nguyên Nhân']);
-    const am_duong = ndlPickNhomCol(row, ['Âm Dương', 'Am Duong', 'Âm dương']);
-    const ton_thuong = ndlPickNhomCol(row, ['Tổn thương', 'Ton thuong', 'Tổn Thương']);
-    const tac_nhan = ndlPickNhomCol(row, ['Tác nhân', 'Tac nhan', 'Tác Nhân']);
-    const ban_chat = ndlPickNhomCol(row, ['Bản chất', 'Ban chat', 'Bản Chất']);
-    const vi_tri_tien_trinh = ndlPickNhomCol(row, [
+    const nguyen_nhan = ptPickPhapTriCol(row, ['Nguyên nhân', 'Nguyen nhan', 'Nguyên Nhân']);
+    const am_duong = ptPickPhapTriCol(row, ['Âm Dương', 'Am Duong', 'Âm dương']);
+    const ton_thuong = ptPickPhapTriCol(row, ['Tổn thương', 'Ton thuong', 'Tổn Thương']);
+    const tac_nhan = ptPickPhapTriCol(row, ['Tác nhân', 'Tac nhan', 'Tác Nhân']);
+    const ban_chat = ptPickPhapTriCol(row, ['Bản chất', 'Ban chat', 'Bản Chất']);
+    const vi_tri_tien_trinh = ptPickPhapTriCol(row, [
         'Vị trí / Tiến trình', 'Vi tri / Tien trinh', 'Vị trí/Tiến trình', 'Vi tri/Tien trinh', 'Vi tri', 'Vị trí',
     ]);
-    const mach_chan = ndlPickNhomCol(row, ['Mạch chẩn', 'Mach chan', 'Mạch Chẩn']);
-    const chat_luoi = ndlPickNhomCol(row, ['Chất lưỡi', 'Chat luoi', 'Chất Lưỡi']);
-    const y_nghia = ndlPickNhomCol(row, [
+    const mach_chan = ptPickPhapTriCol(row, ['Mạch chẩn', 'Mach chan', 'Mạch Chẩn']);
+    const chat_luoi = ptPickPhapTriCol(row, ['Chất lưỡi', 'Chat luoi', 'Chất Lưỡi']);
+    const y_nghia = ptPickPhapTriCol(row, [
         'Ý nghĩa & cơ chế', 'Ý Nghĩa & Cơ Chế', 'Y nghia & co che', 'Y nghia', 'Co che', 'Ý nghĩa', 'Y nghia',
     ]);
-    const bat_phapRaw = ndlPickNhomCol(row, ['Bát pháp', 'Bat phap', 'Bát Pháp']);
-    const bat_cuongRaw = ndlPickNhomCol(row, ['Bát cương', 'Bat cuong', 'Bát Cương']);
-    const luc_damRaw = ndlPickNhomCol(row, ['Lục dâm', 'Luc dam', 'Lục Dâm']);
-    const tang_phuRaw = ndlPickNhomCol(row, ['Tạng phủ', 'Tang phu', 'Tạng Phủ', 'Kinh mạch', 'Kinh mach']);
-    const trieu_chungRaw = ndlPickNhomCol(row, [
+    const bat_phapRaw = ptPickPhapTriCol(row, ['Bát pháp', 'Bat phap', 'Bát Pháp']);
+    const bat_cuongRaw = ptPickPhapTriCol(row, ['Bát cương', 'Bat cuong', 'Bát Cương']);
+    const luc_damRaw = ptPickPhapTriCol(row, ['Lục dâm', 'Luc dam', 'Lục Dâm']);
+    const tang_phuRaw = ptPickPhapTriCol(row, ['Tạng phủ', 'Tang phu', 'Tạng Phủ', 'Kinh mạch', 'Kinh mach']);
+    const trieu_chungRaw = ptPickPhapTriCol(row, [
         'Triệu chứng điển hình', 'Trieu chung dien hinh', 'Triệu Chứng Điển Hình',
         'Triệu chứng', 'Trieu chung', 'Triệu Chứng',
     ]);
@@ -2614,11 +2653,11 @@ function ptBuildPayloadFromExcelRow(row, warnAcc) {
     const trieu_chung = trieu_chungRaw
         ? ptNormalizeTrieuChungMoTaForCatalog(ptExcelCellToCsvList(trieu_chungRaw))
         : '';
-    const bai_thuoc = ndlPickNhomCol(row, [
+    const bai_thuoc = ptPickPhapTriCol(row, [
         'Bài thuốc tiêu biểu', 'Bai thuoc tieu bieu', 'Bài Thuốc Tiêu Biểu',
         'Bài thuốc', 'Bai thuoc', 'Ten bai thuoc', 'Tên bài thuốc', 'Bài Thuốc',
     ]);
-    const nhom_duoc = ndlPickNhomCol(row, ['Nhóm dược', 'Nhom duoc', 'Nhóm dược lý', 'Nhom duoc ly', 'Ten nhom nho', 'Nhóm Dược']);
+    const nhom_duoc = ptPickPhapTriCol(row, ['Nhóm dược', 'Nhom duoc', 'Nhóm dược lý', 'Nhom duoc ly', 'Ten nhom nho', 'Nhóm Dược']);
 
     let idBtList = [];
     if (bai_thuoc !== undefined && bai_thuoc !== null) {
@@ -2642,7 +2681,24 @@ function ptBuildPayloadFromExcelRow(row, warnAcc) {
     }
 
     const chungClean = ptCleanChungTrangCell(chungTrang);
-    const idBenhDy = chungClean ? ptBenhDongYIdFromChungTrangExcel(chungTrang, warnAcc) : null;
+    const benhMatchRaw = ptPhapTriBenhMatchKeyFromRow(row) || chungTrang;
+    const benhMatchClean = ptCleanChungTrangCell(benhMatchRaw);
+    const idBenhDy = benhMatchClean ? ptBenhDongYIdFromChungTrangExcel(benhMatchRaw, warnAcc) : null;
+
+    const rawIdBenhFk = ptPickPhapTriCol(row, [
+        'id_benh_dong_y',
+        'Id benh dong y',
+        'ID benh dong y',
+        'idBenhDongY',
+        'Id bệnh Đông y',
+    ]);
+    const idBenhFkParsed = parseInt(String(rawIdBenhFk || '').replace(/^[=']+|'+$/g, '').trim(), 10);
+    let idBenhExplicit = null;
+    if (Number.isFinite(idBenhFkParsed) && idBenhFkParsed > 0) {
+        const models = _thuocData.benhDongYModels || [];
+        if (models.some((m) => Number(m.modelId) === idBenhFkParsed)) idBenhExplicit = idBenhFkParsed;
+        else warnAcc.push('id_benh_dong_y không có trong danh mục: ' + idBenhFkParsed);
+    }
 
     const out = {
         chung_trang: chungTrang ? chungTrang : null,
@@ -2663,8 +2719,10 @@ function ptBuildPayloadFromExcelRow(row, warnAcc) {
         id_nhom_duoc_ly_nho: idNho,
         id_kinh_mach_list: idKinhList,
     };
-    /** Có Chứng trạng → luôn gán FK bệnh: khớp tieuket hoặc null (không cảnh báo khi không tìm thấy). */
-    if (chungClean) {
+    /** FK bệnh: cột id_benh_dong_y (ưu tiên) hoặc khớp tieuket từ «Thế bệnh» / chứng trạng. */
+    if (idBenhExplicit != null) {
+        out.id_benh_dong_y = idBenhExplicit;
+    } else if (benhMatchClean) {
         out.id_benh_dong_y = idBenhDy != null ? idBenhDy : null;
     }
     if (bai_thuoc !== undefined && bai_thuoc !== null && String(bai_thuoc).trim()) {
@@ -2723,7 +2781,7 @@ function ptResolveUpsertPhapTriTarget(row, payload, existingIds) {
     if (Number.isFinite(idNum) && existingIds.has(idNum)) {
         return { targetId: idNum, via: 'id', extraWarn: null };
     }
-    const excelChung = payload.chung_trang || '';
+    const excelChung = ptPhapTriBenhMatchKeyFromRow(row) || String(payload.chung_trang || '');
     if (!ptCleanChungTrangCell(excelChung)) {
         return { targetId: null, via: 'create', extraWarn: null };
     }
@@ -2802,8 +2860,10 @@ function exportPhapTriXlsx() {
         const mc = r.mach_chan ?? r.machChan ?? '';
         const cl = r.chat_luoi ?? r.chatLuoi ?? '';
         const nn = r.nguyen_nhan ?? r.nguyenNhan ?? '';
+        const idBd = r.id_benh_dong_y ?? r.idBenhDongY ?? (benh && benh.id);
         return {
             id: r.id,
+            'id_benh_dong_y': idBd != null && idBd !== '' && Number.isFinite(Number(idBd)) ? Number(idBd) : '',
             'Tạng phủ': (r.kinh_mach_list || r.kinhMachList || []).map((k) => ptKinhMachShortLabel(k)).filter(Boolean).join(', '),
             'Âm Dương': ad,
             'Tổn thương': tt,
@@ -2836,6 +2896,7 @@ function exportPhapTriXlsx() {
     });
     const emptyRow = {
         id: '',
+        'id_benh_dong_y': '',
         'Tạng phủ': '',
         'Âm Dương': '',
         'Tổn thương': '',
