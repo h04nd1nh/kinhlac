@@ -126,14 +126,18 @@ function dyRemoveTrieuChungChip(term) {
 function dyOnTrieuChungChipKeydown(ev) {
     if (ev.key === 'Enter' && ev.target.value.trim()) {
         ev.preventDefault();
-        const inp = document.getElementById('dy-inp-trieuchung');
-        if (!inp) return;
-        const v = inp.value.trim();
-        if (!v) return;
-        if (!_dyTrieuChungChips.includes(v)) _dyTrieuChungChips.push(v);
-        inp.value = '';
-        dyRenderTrieuChungChips();
+        dyCommitTrieuChungInput();
     }
+}
+
+function dyCommitTrieuChungInput() {
+    const inp = document.getElementById('dy-inp-trieuchung');
+    if (!inp) return;
+    const v = inp.value.trim();
+    if (!v) return;
+    if (!_dyTrieuChungChips.includes(v)) _dyTrieuChungChips.push(v);
+    inp.value = '';
+    dyRenderTrieuChungChips();
 }
 
 function dyRenderTrieuChungChips() {
@@ -780,7 +784,8 @@ function openBenhDongYForm(givenId) {
                 <div id="dy-chips-trieuchung" class="chips-container" onclick="document.getElementById('dy-inp-trieuchung').focus()">
                     <input id="dy-inp-trieuchung" type="text" class="chip-input"
                         placeholder="Gõ triệu chứng, Enter để thêm chip..."
-                        onkeydown="dyOnTrieuChungChipKeydown(event)">
+                        onkeydown="dyOnTrieuChungChipKeydown(event)"
+                        onblur="dyCommitTrieuChungInput()">
                 </div>
             </div>
         </label>
@@ -851,6 +856,9 @@ function openBenhDongYForm(givenId) {
 }
 
 async function saveBenhDongY(id) {
+    // Nếu người dùng chọn từ dropdown rồi bấm Lưu ngay, vẫn commit thành chip.
+    dyCommitTrieuChungInput();
+
     const tieuket = document.getElementById('dy-inp-tieuket').value.trim();
     if (!tieuket) return alert('Thiếu tiểu kết (tieuket)');
 
