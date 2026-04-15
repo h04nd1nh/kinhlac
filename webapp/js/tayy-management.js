@@ -185,6 +185,49 @@ function _tyGetTrieuChungFromBaiThuoc(baiThuocList) {
     return allTC.length > 0 ? allTC.join(', ') : '—';
 }
 
+function _tySplitCsv(raw) {
+    return String(raw || '')
+        .split(/[\n\r,;，、]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+}
+
+function _tyGetPhapTriFromBaiThuoc(baiThuocList) {
+    if (!Array.isArray(baiThuocList) || !baiThuocList.length) return '—';
+    const out = [];
+    const seen = new Set();
+    for (const bt of baiThuocList) {
+        const links = bt?.phapTriLinks || [];
+        for (const l of links) {
+            const p = l?.phapTri || l?.phap_tri;
+            const text = tyPhapTriText(p);
+            if (!text) continue;
+            const key = tyFoldText(text);
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            out.push(text);
+        }
+    }
+    return out.length ? out.join(', ') : '—';
+}
+
+function _tyGetTheBenhFromBaiThuoc(baiThuocList) {
+    if (!Array.isArray(baiThuocList) || !baiThuocList.length) return '—';
+    const out = [];
+    const seen = new Set();
+    for (const bt of baiThuocList) {
+        const csv = String(bt?.the_benh || bt?.chung_trang || bt?.chungTrang || '').trim();
+        if (!csv) continue;
+        for (const name of _tySplitCsv(csv)) {
+            const key = tyFoldText(name);
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            out.push(name);
+        }
+    }
+    return out.length ? out.join(', ') : '—';
+}
+
 function _tyParseLieuLuongToGram(raw) {
     if (!raw) return 9;
     const s = String(raw).trim().toLowerCase();
@@ -813,27 +856,18 @@ function renderBenhTayYTab(el) {
         const ten = item.ten_benh || item.name || '';
         const chungBenhName = item.chungBenh ? (item.chungBenh.ten_chung_benh || item.chungBenh.name) : '—';
         const btNames = (item.baiThuocList || []).map(p => escHtml(p.ten_bai_thuoc || p.name)).join(', ') || '—';
+        const phapTriFromBT = _tyGetPhapTriFromBaiThuoc(item.baiThuocList || []);
+        const theBenhFromBT = _tyGetTheBenhFromBaiThuoc(item.baiThuocList || []);
         const tcFromBT = _tyGetTrieuChungFromBaiThuoc(item.baiThuocList || []);
         const thietChanStr = (item.thietChanList || []).map(x => escHtml(x.ten_thiet_chan || x.name)).join(', ') || '—';
         const machChanStr = (item.machChanList || []).map(x => escHtml(x.ten_mach_chan || x.name)).join(', ') || '—';
-        const ptList = item.phapTriList || item.phap_tri_list || [];
-        const phapTriStr =
-            ptList.length > 0
-                ? ptList
-                      .map((p) => {
-                          const c = tyTheBenhText(p);
-                          const np = tyPhapTriText(p);
-                          const lab = c || np || ('#' + (p.id || ''));
-                          return escHtml(lab.length > 40 ? lab.slice(0, 40) + '…' : lab);
-                      })
-                      .join(', ')
-                : '—';
         return `
             <tr>
                 <td><strong>${escHtml(ten)}</strong></td>
                 <td><span style="color:#8B7355;">${escHtml(chungBenhName)}</span></td>
                 <td style="font-size:0.82rem; max-width:150px; overflow:hidden; text-overflow:ellipsis;">${btNames}</td>
-                <td style="font-size:0.82rem; max-width:140px; overflow:hidden; text-overflow:ellipsis;">${phapTriStr}</td>
+                <td style="font-size:0.82rem; max-width:180px; overflow:hidden; text-overflow:ellipsis;">${escHtml(phapTriFromBT)}</td>
+                <td style="font-size:0.82rem; max-width:180px; overflow:hidden; text-overflow:ellipsis;">${escHtml(theBenhFromBT)}</td>
                 <td style="font-size:0.82rem; max-width:150px; overflow:hidden; text-overflow:ellipsis;">${escHtml(tcFromBT)}</td>
                 <td style="font-size:0.82rem;">${thietChanStr}</td>
                 <td style="font-size:0.82rem;">${machChanStr}</td>
@@ -859,13 +893,14 @@ function renderBenhTayYTab(el) {
                     <th>Tên bệnh</th>
                     <th>Chủng bệnh</th>
                     <th>Bài thuốc</th>
-                    <th>Pháp trị</th>
+                    <th>Pháp trị (từ bài thuốc)</th>
+                    <th>Thể bệnh (từ bài thuốc)</th>
                     <th>Triệu chứng (từ bài thuốc)</th>
                     <th>Thiệt chẩn</th>
                     <th>Mạch chẩn</th>
                     <th style="width:220px;">Thao tác</th>
                 </tr></thead>
-                <tbody>${rows || '<tr><td colspan="8" style="text-align:center;color:#A09580;">Chưa có dữ liệu</td></tr>'}</tbody>
+                <tbody>${rows || '<tr><td colspan="10" style="text-align:center;color:#A09580;">Chưa có dữ liệu</td></tr>'}</tbody>
             </table>
         </div>
     `;
