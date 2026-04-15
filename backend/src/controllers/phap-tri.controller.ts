@@ -63,6 +63,13 @@ export class PhapTriService {
     return Object.prototype.hasOwnProperty.call(dto, key);
   }
 
+  /** Ưu tiên key mới the_benh; fallback chung_trang để tương thích client cũ. */
+  private static readTheBenh(dto: CreatePhapTriDto | UpdatePhapTriDto): string | null | undefined {
+    if (PhapTriService.has(dto, 'the_benh')) return dto.the_benh;
+    if (PhapTriService.has(dto, 'chung_trang')) return dto.chung_trang;
+    return undefined;
+  }
+
   private async resolveKinhMach(ids?: number[] | null): Promise<KinhMach[]> {
     if (!ids?.length) return [];
     return this.kinhRepo.findBy({ idKinhMach: In(ids) });
@@ -279,8 +286,9 @@ export class PhapTriService {
   }
 
   async create(dto: CreatePhapTriDto): Promise<PhapTri> {
+    const theBenh = PhapTriService.readTheBenh(dto);
     const entity = this.repo.create({
-      chung_trang: dto.chung_trang ?? null,
+      chung_trang: theBenh ?? null,
       nguyen_tac: dto.nguyen_tac ?? null,
       y_nghia_co_che: dto.y_nghia_co_che ?? null,
       bat_phap: dto.bat_phap ?? null,
@@ -316,7 +324,8 @@ export class PhapTriService {
 
   async update(id: number, dto: UpdatePhapTriDto): Promise<PhapTri> {
     const item = await this.findOne(id);
-    if (dto.chung_trang !== undefined) item.chung_trang = dto.chung_trang;
+    const theBenh = PhapTriService.readTheBenh(dto);
+    if (theBenh !== undefined) item.chung_trang = theBenh;
     if (dto.nguyen_tac !== undefined) item.nguyen_tac = dto.nguyen_tac;
     if (dto.y_nghia_co_che !== undefined) item.y_nghia_co_che = dto.y_nghia_co_che;
     if (dto.bat_phap !== undefined) item.bat_phap = dto.bat_phap;

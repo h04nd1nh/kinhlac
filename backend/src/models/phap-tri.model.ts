@@ -20,8 +20,8 @@ export class PhapTri {
   @PrimaryGeneratedColumn()
   id: number;
 
-  /** Chứng trạng (tiểu kết) — chỉ lưu text */
-  @Column({ type: 'text', nullable: true })
+  /** Thể bệnh (legacy API vẫn dùng key chung_trang) — chỉ lưu text */
+  @Column({ name: 'the_benh', type: 'text', nullable: true })
   chung_trang: string | null;
 
   @Column({ type: 'text', nullable: true })

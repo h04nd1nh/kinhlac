@@ -26,7 +26,7 @@ let _dyBaiThuocChips = [];
 /** Pháp trị đã chọn (nhiều) — { id, label } */
 let _dyDraftPhapTri = [];
 
-/** Thể bệnh (chip) — lưu ghép trong chung_trang (CSV); gợi ý từ danh mục the_benh của bệnh khi đã có id */
+/** Thể bệnh (chip) — lưu ghép trong chung_trang (CSV); gợi ý từ cột chung_trang của bảng pháp trị */
 let _dyTheBenhChips = [];
 let _dyTheBenhCatalog = [];
 
@@ -181,10 +181,8 @@ function dyRemoveTheBenhChip(term) {
 function dyAddTheBenhChip(term) {
     const t = String(term || '').trim();
     if (!t || (_dyTheBenhChips || []).includes(t)) return;
-    // Chỉ cho phép chọn từ danh mục thể bệnh có sẵn (không nhập tự do).
-    const canonical = (_dyTheBenhCatalog || [])
-        .map((tb) => dyTheBenhCatalogTen(tb))
-        .find((x) => String(x || '').trim().toLowerCase() === t.toLowerCase());
+    // Chỉ cho phép chọn từ cột chung_trang của danh mục pháp trị (không nhập tự do).
+    const canonical = (_dyTheBenhCatalog || []).find((x) => String(x || '').trim().toLowerCase() === t.toLowerCase());
     if (!canonical) return;
     _dyTheBenhChips.push(canonical);
     dyRenderTheBenhChips();
@@ -218,9 +216,24 @@ function dyRenderTheBenhChips() {
     });
 }
 
-function dyTheBenhCatalogTen(tb) {
-    if (!tb) return '';
-    return String(tb.ten_the_benh ?? tb.tenTheBenh ?? '').trim();
+function dyBuildTheBenhCatalogFromPhapTri() {
+    const seen = new Set();
+    const out = [];
+    (_dongyData.phapTri || []).forEach((p) => {
+        const csv = String(p?.chung_trang ?? p?.chungTrang ?? '').trim();
+        if (!csv) return;
+        csv
+            .split(/[\n\r,;，、]+/)
+            .map((t) => String(t || '').trim())
+            .filter(Boolean)
+            .forEach((t) => {
+                const key = dyPhapTriFold(t);
+                if (!key || seen.has(key)) return;
+                seen.add(key);
+                out.push(t);
+            });
+    });
+    return out;
 }
 
 function dyOnTheBenhSearchInput(val) {
@@ -232,35 +245,32 @@ function dyOnTheBenhSearchInput(val) {
         suggestEl.innerHTML = '';
         return;
     }
+    _dyTheBenhCatalog = dyBuildTheBenhCatalogFromPhapTri();
     const q = dyPhapTriFold(raw);
     const selected = new Set((_dyTheBenhChips || []).map((x) => String(x).trim().toLowerCase()));
     const rows = (_dyTheBenhCatalog || [])
-        .map((tb) => {
-            const ten = dyTheBenhCatalogTen(tb);
+        .map((ten) => {
             if (!ten || selected.has(ten.toLowerCase())) return null;
             const foldTen = dyPhapTriFold(ten);
-            const mo = String(tb.mo_ta || '').trim();
-            const foldMo = dyPhapTriFold(mo);
-            if (!foldTen.includes(q) && !foldMo.includes(q)) return null;
-            return { tb, ten, mo };
+            if (!foldTen.includes(q)) return null;
+            return { ten };
         })
         .filter(Boolean)
         .slice(0, 12);
     if (!rows.length) {
-        suggestEl.innerHTML = `<div style="padding:10px;color:#A09580;font-size:0.82rem;">Không có thể bệnh khớp trong danh mục.</div>`;
+        suggestEl.innerHTML = `<div style="padding:10px;color:#A09580;font-size:0.82rem;">Không có thể bệnh khớp trong Pháp trị (cột <code>chung_trang</code>).</div>`;
         suggestEl.style.display = 'block';
         return;
     }
     suggestEl.innerHTML = rows
         .map(
-            ({ ten, mo, tb }) => `
+            ({ ten }) => `
         <div style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #F0E8D8;"
              onmouseover="this.style.background='#F5F0E8'"
              onmouseout="this.style.background='transparent'"
              onmousedown='event.preventDefault();dyAddTheBenhChip(${JSON.stringify(ten)})'>
             <div style="font-weight:600;color:#5B3A1A;font-size:0.82rem;">${escHtml(ten)}</div>
-            ${mo ? `<div style="font-size:0.7rem;color:#78716c;margin-top:2px;">${escHtml(mo.length > 100 ? mo.slice(0, 100) + '…' : mo)}</div>` : ''}
-            <div style="font-size:0.65rem;color:#A8A29E;margin-top:2px;">id ${tb.id}</div>
+            <div style="font-size:0.65rem;color:#A8A29E;margin-top:2px;">Nguồn: Pháp trị (<code>chung_trang</code>)</div>
         </div>`,
         )
         .join('');
@@ -803,7 +813,7 @@ function openBenhDongYForm(givenId) {
                 <div id="dy-baithuoc-suggest" style="position:absolute;left:0;right:0;top:calc(100% + 6px);background:#FFFDF7;border:1px solid #D4C5A0;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.12);max-height:220px;overflow-y:auto;z-index:2500;display:none;"></div>
             </div>
         </label>
-        <label class="tayy-form-label">Thể bệnh <span style="font-weight:400;color:#A09580;font-size:0.82rem;">(nhiều chip — gõ để <strong>tìm</strong> và chọn trong danh mục «Thể bệnh» của bệnh này; lưu <code>chung_trang</code> dạng CSV)</span>
+        <label class="tayy-form-label">Thể bệnh <span style="font-weight:400;color:#A09580;font-size:0.82rem;">(nhiều chip — gõ để <strong>tìm</strong> theo cột <code>chung_trang</code> của danh mục Pháp trị; lưu <code>chung_trang</code> dạng CSV)</span>
             <div style="position:relative;margin-top:6px;">
                 <div id="dy-chips-thebenh" class="chips-container" onclick="document.getElementById('dy-inp-thebenh-search').focus()">
                     <input id="dy-inp-thebenh-search" type="text" class="chip-input"
@@ -840,17 +850,7 @@ function openBenhDongYForm(givenId) {
     dyRenderPhapTriChips();
     dyRenderBaiThuocSuggest('');
     dyOnTheBenhSearchInput('');
-    if (realId) {
-        apiGetTheBenh(realId)
-            .then((rows) => {
-                _dyTheBenhCatalog = Array.isArray(rows) ? rows : [];
-                const inp = document.getElementById('dy-inp-thebenh-search');
-                if (inp && inp.value) dyOnTheBenhSearchInput(inp.value);
-            })
-            .catch(() => {
-                _dyTheBenhCatalog = [];
-            });
-    }
+    _dyTheBenhCatalog = dyBuildTheBenhCatalogFromPhapTri();
 }
 
 async function saveBenhDongY(id) {
