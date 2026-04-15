@@ -196,16 +196,23 @@ function _tyGetPhapTriFromBaiThuoc(baiThuocList) {
     if (!Array.isArray(baiThuocList) || !baiThuocList.length) return '—';
     const out = [];
     const seen = new Set();
+    const addUnique = (raw) => {
+        const text = String(raw || '').trim();
+        if (!text) return;
+        const key = tyFoldText(text);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        out.push(text);
+    };
     for (const bt of baiThuocList) {
         const links = bt?.phapTriLinks || [];
         for (const l of links) {
             const p = l?.phapTri || l?.phap_tri;
-            const text = tyPhapTriText(p);
-            if (!text) continue;
-            const key = tyFoldText(text);
-            if (!key || seen.has(key)) continue;
-            seen.add(key);
-            out.push(text);
+            addUnique(tyPhapTriText(p));
+        }
+        // Fallback theo dữ liệu tự do tại bài thuốc (legacy).
+        for (const text of _tySplitCsv(bt?.chung_trang || bt?.chungTrang || '')) {
+            addUnique(text);
         }
     }
     return out.length ? out.join(', ') : '—';
@@ -215,14 +222,26 @@ function _tyGetTheBenhFromBaiThuoc(baiThuocList) {
     if (!Array.isArray(baiThuocList) || !baiThuocList.length) return '—';
     const out = [];
     const seen = new Set();
+    const addUnique = (raw) => {
+        const text = String(raw || '').trim();
+        if (!text) return;
+        const key = tyFoldText(text);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        out.push(text);
+    };
     for (const bt of baiThuocList) {
-        const csv = String(bt?.the_benh || bt?.chung_trang || bt?.chungTrang || '').trim();
-        if (!csv) continue;
-        for (const name of _tySplitCsv(csv)) {
-            const key = tyFoldText(name);
-            if (!key || seen.has(key)) continue;
-            seen.add(key);
-            out.push(name);
+        // Ưu tiên đúng cột the_benh của bài thuốc.
+        for (const name of _tySplitCsv(bt?.the_benh || '')) {
+            addUnique(name);
+        }
+        // Fallback: khi bài thuốc cũ chưa có the_benh, lấy từ pháp trị đã liên kết.
+        const links = bt?.phapTriLinks || [];
+        for (const l of links) {
+            const p = l?.phapTri || l?.phap_tri;
+            for (const name of _tySplitCsv(p?.the_benh || p?.chung_trang || p?.chungTrang || '')) {
+                addUnique(name);
+            }
         }
     }
     return out.length ? out.join(', ') : '—';

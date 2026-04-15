@@ -28,7 +28,16 @@ export class BenhTayYService {
 
   findAll(): Promise<BenhTayY[]> {
     return this.repo.find({
-      relations: ['chungBenh', 'baiThuocList', 'trieuChungList', 'thietChanList', 'machChanList', 'phapTriList'],
+      relations: [
+        'chungBenh',
+        'baiThuocList',
+        'baiThuocList.phapTriLinks',
+        'baiThuocList.phapTriLinks.phapTri',
+        'trieuChungList',
+        'thietChanList',
+        'machChanList',
+        'phapTriList',
+      ],
       order: { id: 'ASC' },
     });
   }
@@ -36,7 +45,16 @@ export class BenhTayYService {
   async findOne(id: number): Promise<BenhTayY> {
     const item = await this.repo.findOne({
       where: { id },
-      relations: ['chungBenh', 'baiThuocList', 'trieuChungList', 'thietChanList', 'machChanList', 'phapTriList'],
+      relations: [
+        'chungBenh',
+        'baiThuocList',
+        'baiThuocList.phapTriLinks',
+        'baiThuocList.phapTriLinks.phapTri',
+        'trieuChungList',
+        'thietChanList',
+        'machChanList',
+        'phapTriList',
+      ],
     });
     if (!item) {
       throw new NotFoundException(`Bệnh tây y #${id} không tồn tại`);
