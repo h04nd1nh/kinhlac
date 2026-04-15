@@ -31,7 +31,7 @@ let _thuocData = {
 let _btDraftChiTiet = [];
 // Draft chips cho triệu chứng
 let _btDraftTrieuChung = [];
-// Draft chips cho thể bệnh (lưu vào bai_thuoc.chung_trang dạng CSV)
+// Draft chips cho thể bệnh (lưu vào bai_thuoc.the_benh dạng CSV)
 let _btDraftTheBenh = [];
 /** Thứ tự = thứ tự gửi phap_tri_ids (liên kết danh mục pháp trị) */
 let _btDraftPhapTriIds = [];
@@ -616,7 +616,7 @@ function renderBaiThuocTab(el) {
     const fv = escHtml(_btBaiThuocFilterPhapTri);
     const rows =
         list.length === 0
-            ? `<tr><td colspan="7" style="text-align:center;padding:16px;color:#A09580;">${
+            ? `<tr><td colspan="8" style="text-align:center;padding:16px;color:#A09580;">${
                   (_thuocData.baiThuoc || []).length ? 'Không có bài thuốc khớp bộ lọc pháp trị.' : 'Chưa có dữ liệu'
               }</td></tr>`
             : list
@@ -636,7 +636,8 @@ function renderBaiThuocTab(el) {
             <tr>
                 <td><strong>${escHtml(item.ten_bai_thuoc)}</strong></td>
                 <td>${escHtml(item.nguon_goc || '—')}</td>
-                <td style="font-size:0.8rem;">${btChipsPreviewHtml(item.chung_trang || '', 240)}</td>
+                <td style="font-size:0.8rem;">${escHtml(item.chung_trang || '—')}</td>
+                <td style="font-size:0.8rem;">${btChipsPreviewHtml(item.the_benh || '', 240)}</td>
                 <td style="font-size:0.75rem;color:#5B3A1A;max-width:280px;">${ptLinkStr}</td>
                 <td style="font-size:0.8rem;">${trieuChungStr}</td>
                 <td style="font-size:0.8rem;">${escHtml(ingredients || 'Chưa có vị thuốc')}</td>
@@ -663,7 +664,7 @@ function renderBaiThuocTab(el) {
         </div>
         <div class="data-table-container">
             <table>
-                <thead><tr><th>Tên bài thuốc</th><th>Nguồn gốc</th><th>Thể bệnh</th><th>Pháp trị</th><th>Triệu chứng</th><th>Thành phần</th><th style="width:130px; text-align:center;">Thao tác</th></tr></thead>
+                <thead><tr><th>Tên bài thuốc</th><th>Nguồn gốc</th><th>Chứng trạng</th><th>Thể bệnh</th><th>Pháp trị</th><th>Triệu chứng</th><th>Thành phần</th><th style="width:130px; text-align:center;">Thao tác</th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>
         </div>`;
@@ -685,7 +686,7 @@ function openBaiThuocForm(id) {
     }).filter(x => Number.isFinite(x.idViThuoc));
 
     _btDraftTrieuChung = btCsvToChips(item?.trieu_chung || '');
-    _btDraftTheBenh = btCsvToChips(item?.chung_trang || '');
+    _btDraftTheBenh = btCsvToChips(item?.the_benh || '');
     _btDraftPhapTriIds = item ? btPhapTriLinksToOrderedIds(item) : [];
 
     const rowsHtml = btRenderBaiThuocChiTietRowsHtml();
@@ -699,14 +700,23 @@ function openBaiThuocForm(id) {
         <label class="tayy-form-label">Nguồn gốc/Cổ phương<br><input id="bt-inp-source" type="text" class="tayy-form-input" value="${item ? escHtml(item.nguon_goc) : ''}"></label>
         <label class="tayy-form-label">Cách dùng<br><textarea id="bt-inp-usage" class="tayy-form-input" rows="3">${item ? escHtml(item.cach_dung) : ''}</textarea></label>
 
+        <label class="tayy-form-label">Chứng trạng<br><textarea id="bt-inp-chungtrang" class="tayy-form-input" rows="3" placeholder="Biện chứng, pháp trị… (text tự do)">${item ? escHtml(item.chung_trang || '') : ''}</textarea></label>
+
         <label class="tayy-form-label">
-            Thể bệnh <span style="font-weight:400;color:#A09580;font-size:0.82rem;">(nhiều chip — Enter để thêm, giống form Bệnh Kinh Lạc)</span>
+            Thể bệnh <span style="font-weight:400;color:#A09580;font-size:0.82rem;">(nhiều chip — chọn từ danh mục, giống form Bệnh Kinh Lạc)</span>
             <div style="position:relative; margin-top:6px;">
                 <div id="bt-thebenh-chips" class="chips-container" onclick="document.getElementById('bt-inp-thebenh').focus()">
                     <input id="bt-inp-thebenh" type="text" class="chip-input"
-                        placeholder="Gõ thể bệnh, Enter để thêm chip..."
-                        onkeydown="if(event.key==='Enter' && this.value.trim()){btSelectTheBenh(this.value.trim()); event.preventDefault();}">
+                        placeholder="Gõ để chọn thể bệnh từ danh mục..."
+                        oninput="btOnTheBenhSearchInput(this.value)"
+                        onfocus="btOnTheBenhSearchInput(this.value)"
+                        onblur="btHideTheBenhSuggestSoon()"
+                        onkeydown="if(event.key==='Enter'){event.preventDefault();}">
                 </div>
+                <div id="bt-thebenh-suggest" style="position:absolute; left:0; right:0; top:calc(100% + 4px);
+                    background:#FFFDF7; border:1px solid #D4C5A0; border-radius:8px;
+                    box-shadow:0 10px 30px rgba(0,0,0,0.12);
+                    max-height:200px; overflow-y:auto; z-index:2500; display:none;"></div>
             </div>
         </label>
 
@@ -782,6 +792,7 @@ function openBaiThuocForm(id) {
     // Khởi tạo UI chips và suggestion cho modal mới
     setTimeout(() => {
         btRenderTheBenhChips();
+        btOnTheBenhSearchInput('');
         btRenderTrieuChungChips();
         btRenderPhapTriLinkChips();
         btOnPhapTriLinkSearchInput('');
@@ -814,7 +825,8 @@ async function saveBaiThuoc(id) {
         ten_bai_thuoc: document.getElementById('bt-inp-ten').value.trim(),
         nguon_goc: document.getElementById('bt-inp-source').value.trim(),
         cach_dung: document.getElementById('bt-inp-usage').value.trim(),
-        chung_trang: (_btDraftTheBenh || []).join(', '),
+        chung_trang: (document.getElementById('bt-inp-chungtrang')?.value || '').trim(),
+        the_benh: (_btDraftTheBenh || []).join(', '),
         trieu_chung: _btDraftTrieuChung.join(', '),
         phap_tri_ids: [...(_btDraftPhapTriIds || [])],
         chi_tiet
@@ -1277,13 +1289,77 @@ function btRemoveTheBenhChip(name) {
 function btSelectTheBenh(name) {
     const term = String(name || '').trim();
     if (!term || (_btDraftTheBenh || []).includes(term)) return;
-    _btDraftTheBenh.push(term);
+    const allowed = btTheBenhCatalogNames();
+    const canonical = allowed.find((x) => x.toLowerCase() === term.toLowerCase());
+    if (!canonical) return;
+    _btDraftTheBenh.push(canonical);
     const inp = document.getElementById('bt-inp-thebenh');
     if (inp) {
         inp.value = '';
         inp.focus();
     }
     btRenderTheBenhChips();
+    const suggestEl = document.getElementById('bt-thebenh-suggest');
+    if (suggestEl) {
+        suggestEl.style.display = 'none';
+        suggestEl.innerHTML = '';
+    }
+}
+
+function btTheBenhCatalogNames() {
+    const src = _thuocData.benhDongYModels || [];
+    const out = [];
+    const seen = new Set();
+    for (const r of src) {
+        const ten = String(r?.tieuket || r?.ten || '').trim();
+        if (!ten) continue;
+        const key = ten.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(ten);
+    }
+    return out;
+}
+
+function btOnTheBenhSearchInput(val) {
+    const suggestEl = document.getElementById('bt-thebenh-suggest');
+    if (!suggestEl) return;
+    const raw = String(val || '').trim();
+    if (!raw) {
+        suggestEl.style.display = 'none';
+        suggestEl.innerHTML = '';
+        return;
+    }
+    const q = raw.toLowerCase();
+    const selected = new Set((_btDraftTheBenh || []).map((x) => String(x).toLowerCase()));
+    const names = btTheBenhCatalogNames()
+        .filter((n) => !selected.has(n.toLowerCase()))
+        .filter((n) => n.toLowerCase().includes(q))
+        .slice(0, 12);
+
+    if (!names.length) {
+        suggestEl.innerHTML = `<div style="padding:10px;color:#A09580;font-size:0.82rem;">Không có thể bệnh khớp trong danh mục.</div>`;
+        suggestEl.style.display = 'block';
+        return;
+    }
+
+    suggestEl.innerHTML = names
+        .map(
+            (n) => `<div style="padding:8px 10px; cursor:pointer; border-bottom:1px solid #F0E8D8;"
+                onmouseover="this.style.background='#F5F0E8'"
+                onmouseout="this.style.background='transparent'"
+                onmousedown='event.preventDefault();btSelectTheBenh(${JSON.stringify(n)})'>${escHtml(n)}</div>`,
+        )
+        .join('');
+    suggestEl.style.display = 'block';
+}
+
+function btHideTheBenhSuggestSoon() {
+    setTimeout(() => {
+        const suggestEl = document.getElementById('bt-thebenh-suggest');
+        if (!suggestEl) return;
+        suggestEl.style.display = 'none';
+    }, 120);
 }
 
 // ═══════════════════════════════════════════════════════════

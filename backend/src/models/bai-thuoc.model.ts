@@ -26,6 +26,9 @@ export class BaiThuoc {
   chung_trang: string; // Chứng trạng (biện chứng + pháp trị gộp, tự do / phân tách bằng dấu phẩy)
 
   @Column({ type: 'text', nullable: true })
+  the_benh: string; // Thể bệnh (danh sách chip chọn từ danh mục, phân tách bằng dấu phẩy)
+
+  @Column({ type: 'text', nullable: true })
   trieu_chung: string; // Triệu chứng (comma-separated)
 
   @OneToMany(() => BaiThuocChiTiet, (detail) => detail.baiThuoc)

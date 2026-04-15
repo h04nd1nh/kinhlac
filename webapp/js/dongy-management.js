@@ -181,7 +181,12 @@ function dyRemoveTheBenhChip(term) {
 function dyAddTheBenhChip(term) {
     const t = String(term || '').trim();
     if (!t || (_dyTheBenhChips || []).includes(t)) return;
-    _dyTheBenhChips.push(t);
+    // Chỉ cho phép chọn từ danh mục thể bệnh có sẵn (không nhập tự do).
+    const canonical = (_dyTheBenhCatalog || [])
+        .map((tb) => dyTheBenhCatalogTen(tb))
+        .find((x) => String(x || '').trim().toLowerCase() === t.toLowerCase());
+    if (!canonical) return;
+    _dyTheBenhChips.push(canonical);
     dyRenderTheBenhChips();
     const inp = document.getElementById('dy-inp-thebenh-search');
     if (inp) inp.value = '';
@@ -242,7 +247,7 @@ function dyOnTheBenhSearchInput(val) {
         .filter(Boolean)
         .slice(0, 12);
     if (!rows.length) {
-        suggestEl.innerHTML = `<div style="padding:10px;color:#A09580;font-size:0.82rem;">Không khớp danh mục — Enter để thêm «${escHtml(raw)}» làm chip tự do.</div>`;
+        suggestEl.innerHTML = `<div style="padding:10px;color:#A09580;font-size:0.82rem;">Không có thể bệnh khớp trong danh mục.</div>`;
         suggestEl.style.display = 'block';
         return;
     }
@@ -252,7 +257,7 @@ function dyOnTheBenhSearchInput(val) {
         <div style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #F0E8D8;"
              onmouseover="this.style.background='#F5F0E8'"
              onmouseout="this.style.background='transparent'"
-             onmousedown="event.preventDefault();dyAddTheBenhChip(${JSON.stringify(ten)})">
+             onmousedown='event.preventDefault();dyAddTheBenhChip(${JSON.stringify(ten)})'>
             <div style="font-weight:600;color:#5B3A1A;font-size:0.82rem;">${escHtml(ten)}</div>
             ${mo ? `<div style="font-size:0.7rem;color:#78716c;margin-top:2px;">${escHtml(mo.length > 100 ? mo.slice(0, 100) + '…' : mo)}</div>` : ''}
             <div style="font-size:0.65rem;color:#A8A29E;margin-top:2px;">id ${tb.id}</div>
@@ -263,24 +268,7 @@ function dyOnTheBenhSearchInput(val) {
 }
 
 function dyOnTheBenhChipKeydown(ev) {
-    if (ev.key === 'Enter' && ev.target.value.trim()) {
-        ev.preventDefault();
-        const v = ev.target.value.trim();
-        const q = dyPhapTriFold(v);
-        const catalog = _dyTheBenhCatalog || [];
-        const exact = catalog.find((tb) => dyPhapTriFold(dyTheBenhCatalogTen(tb)) === q);
-        if (exact) {
-            dyAddTheBenhChip(dyTheBenhCatalogTen(exact));
-            return;
-        }
-        const low = v.toLowerCase();
-        const one = catalog.filter((tb) => dyTheBenhCatalogTen(tb).toLowerCase() === low);
-        if (one.length === 1) {
-            dyAddTheBenhChip(dyTheBenhCatalogTen(one[0]));
-            return;
-        }
-        dyAddTheBenhChip(v);
-    }
+    if (ev.key === 'Enter') ev.preventDefault();
 }
 
 function dyHideTheBenhSuggestSoon() {
@@ -815,11 +803,11 @@ function openBenhDongYForm(givenId) {
                 <div id="dy-baithuoc-suggest" style="position:absolute;left:0;right:0;top:calc(100% + 6px);background:#FFFDF7;border:1px solid #D4C5A0;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.12);max-height:220px;overflow-y:auto;z-index:2500;display:none;"></div>
             </div>
         </label>
-        <label class="tayy-form-label">Thể bệnh <span style="font-weight:400;color:#A09580;font-size:0.82rem;">(nhiều chip — gõ để <strong>tìm</strong> trong danh mục «Thể bệnh» của bệnh này; Enter thêm chip; lưu <code>chung_trang</code> dạng CSV)</span>
+        <label class="tayy-form-label">Thể bệnh <span style="font-weight:400;color:#A09580;font-size:0.82rem;">(nhiều chip — gõ để <strong>tìm</strong> và chọn trong danh mục «Thể bệnh» của bệnh này; lưu <code>chung_trang</code> dạng CSV)</span>
             <div style="position:relative;margin-top:6px;">
                 <div id="dy-chips-thebenh" class="chips-container" onclick="document.getElementById('dy-inp-thebenh-search').focus()">
                     <input id="dy-inp-thebenh-search" type="text" class="chip-input"
-                        placeholder="Tìm tên thể bệnh hoặc Enter để thêm…"
+                        placeholder="Tìm tên thể bệnh để chọn…"
                         oninput="dyOnTheBenhSearchInput(this.value)"
                         onkeydown="dyOnTheBenhChipKeydown(event)"
                         onfocus="dyOnTheBenhSearchInput(this.value)"
