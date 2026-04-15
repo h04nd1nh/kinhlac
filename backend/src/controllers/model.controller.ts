@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { MeridianSyndrome } from '../models/meridian-syndrome.model';
@@ -18,6 +18,10 @@ export class ModelsService {
     @InjectRepository(PhapTri)
     private readonly phapTriRepo: Repository<PhapTri>,
   ) {}
+
+  private formatTrieuChungText(list: TrieuChung[]): string {
+    return list.map((x) => x.ten_trieu_chung.trim()).filter(Boolean).join(', ');
+  }
 
   findAll(): Promise<MeridianSyndrome[]> {
     return this.repo.find({
@@ -44,11 +48,16 @@ export class ModelsService {
         id: In(bai_thuoc_ids),
       });
     }
-    if (trieu_chung_ids && trieu_chung_ids.length > 0) {
-      entity.trieuChungList = await this.trieuChungRepo.findBy({
-        id: In(trieu_chung_ids),
-      });
+    if (Object.prototype.hasOwnProperty.call(data, 'trieuchung')) {
+      throw new BadRequestException('Không hỗ trợ ghi trực tiếp trieuchung dạng text. Vui lòng gửi trieu_chung_ids.');
     }
+    if (!Array.isArray(trieu_chung_ids)) {
+      throw new BadRequestException('Thiếu trieu_chung_ids.');
+    }
+    entity.trieuChungList = trieu_chung_ids.length > 0
+      ? await this.trieuChungRepo.findBy({ id: In(trieu_chung_ids) })
+      : [];
+    entity.trieuchung = this.formatTrieuChungText(entity.trieuChungList || []);
 
     const saved = await this.repo.save(entity);
     if (phap_tri_ids !== undefined) {
@@ -74,6 +83,9 @@ export class ModelsService {
       existing.trieuChungList = trieu_chung_ids.length > 0
         ? await this.trieuChungRepo.findBy({ id: In(trieu_chung_ids) })
         : [];
+      existing.trieuchung = this.formatTrieuChungText(existing.trieuChungList || []);
+    } else if (Object.prototype.hasOwnProperty.call(data, 'trieuchung')) {
+      throw new BadRequestException('Không hỗ trợ ghi trực tiếp trieuchung dạng text. Vui lòng gửi trieu_chung_ids.');
     }
 
     const saved = await this.repo.save(existing);

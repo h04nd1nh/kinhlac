@@ -290,6 +290,10 @@ function _mapNestModelToLegacy(m) {
         bai_thuoc: m.bai_thuoc || '',
         chung_trang: m.chung_trang || '',
     };
+    const tcList = m.trieu_chung_list || m.trieuChungList;
+    if (Array.isArray(tcList) && tcList.length) {
+        obj.trieu_chung_list = tcList;
+    }
     const ptList = m.phap_tri_list || m.phapTriList;
     if (Array.isArray(ptList) && ptList.length) {
         obj.phap_tri_list = ptList;
@@ -305,7 +309,6 @@ function _mapNestModelToLegacy(m) {
 function _mapLegacyModelToNest(payload) {
     const dto = {
         tieuket: payload.tieuket != null && payload.tieuket !== '' ? payload.tieuket : (payload.ten || ''),
-        trieuchung: payload.trieuchung ?? '',
         benhly: payload.benhly != null && payload.benhly !== '' ? payload.benhly : (payload.phaptri ?? ''),
         phuyet_chamcuu:
             payload.phuyet_chamcuu != null && payload.phuyet_chamcuu !== ''
@@ -340,6 +343,11 @@ function _mapLegacyModelToNest(payload) {
     if (Object.prototype.hasOwnProperty.call(payload, 'phap_tri_ids')) {
         dto.phap_tri_ids = Array.isArray(payload.phap_tri_ids)
             ? payload.phap_tri_ids.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0)
+            : [];
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'trieu_chung_ids')) {
+        dto.trieu_chung_ids = Array.isArray(payload.trieu_chung_ids)
+            ? payload.trieu_chung_ids.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0)
             : [];
     }
     return dto;

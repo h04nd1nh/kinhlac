@@ -3265,10 +3265,34 @@ async function saveModelEditor() {
     if (!ten) { _meStatus('Vui lòng nhập tên mô hình.', true); return; }
 
     _ensureQuillEditors();
+    const trieuChungText = _sanitizeTextPreserveLines(_quillTrieuchung ? _quillTrieuchung.getText() : '');
+    const trieuChungNames = trieuChungText
+        .split(/[\n\r,;，、]+/)
+        .map(s => s.replace(/^\s*[-•*·]\s+/, '').trim())
+        .filter(Boolean);
+    const trieuChungIds = [];
+    if (trieuChungNames.length) {
+        const catalog = await apiGetTrieuChung();
+        const byLower = new Map((catalog || []).map((t) => [String(t.ten_trieu_chung || '').trim().toLowerCase(), t.id]));
+        for (const name of trieuChungNames) {
+            const key = name.toLowerCase();
+            let id = byLower.get(key);
+            if (id == null) {
+                const created = await apiCreateTrieuChung({ ten_trieu_chung: name });
+                if (!created?.success || !Number.isFinite(Number(created.id))) {
+                    _meStatus('Không thể chuẩn hóa triệu chứng: ' + name, true);
+                    return;
+                }
+                id = Number(created.id);
+                byLower.set(key, id);
+            }
+            if (!trieuChungIds.includes(Number(id))) trieuChungIds.push(Number(id));
+        }
+    }
     const payload = {
         ten,
         nhom_chinh: _getEditorText('me-nhom')?.trim() || '',
-        trieuchung: _sanitizeModelHtml(_quillTrieuchung ? _quillTrieuchung.root.innerHTML : ''),
+        trieu_chung_ids: trieuChungIds,
         phaptri: _sanitizeModelHtml(_quillPhaptri ? _quillPhaptri.root.innerHTML : ''),
         phuonghuyet: _sanitizeModelHtml(_quillPhuonghuyet ? _quillPhuonghuyet.root.innerHTML : ''),
         kich_hoat_tu_kinh: (_getEditorText('me-kichhoat') || '').trim(),

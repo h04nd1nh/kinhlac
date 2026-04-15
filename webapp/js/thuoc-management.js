@@ -693,7 +693,12 @@ function openBaiThuocForm(id) {
         };
     }).filter(x => Number.isFinite(x.idViThuoc));
 
-    _btDraftTrieuChung = btCsvToChips(item?.trieu_chung || '');
+    const tcRows = item?.trieu_chung_list || item?.trieuChungList || [];
+    _btDraftTrieuChung = Array.isArray(tcRows) && tcRows.length
+        ? tcRows
+              .map((t) => String(t?.ten_trieu_chung || '').trim())
+              .filter(Boolean)
+        : btCsvToChips(item?.trieu_chung || '');
     _btDraftTheBenh = btCsvToChips(item?.the_benh || '');
     _btDraftPhapTriIds = item ? btPhapTriLinksToOrderedIds(item) : [];
 
@@ -829,13 +834,35 @@ async function saveBaiThuoc(id) {
         return obj;
     }).filter(d => Number.isFinite(d.id_vi_thuoc));
 
+    const tcByLower = new Map(
+        (_thuocData.trieuChung || [])
+            .map((t) => [String(t?.ten_trieu_chung || '').trim().toLowerCase(), t?.id])
+            .filter(([name, tcId]) => name && Number.isFinite(Number(tcId))),
+    );
+    const trieuChungIds = [];
+    const unknownTrieuChung = [];
+    (_btDraftTrieuChung || []).forEach((name) => {
+        const key = String(name || '').trim().toLowerCase();
+        if (!key) return;
+        const hit = tcByLower.get(key);
+        if (hit == null) unknownTrieuChung.push(name);
+        else if (!trieuChungIds.includes(Number(hit))) trieuChungIds.push(Number(hit));
+    });
+    if (unknownTrieuChung.length) {
+        return alert(
+            'Các triệu chứng sau chưa có trong danh mục Triệu chứng: ' +
+                unknownTrieuChung.join(', ') +
+                '. Vui lòng chọn từ gợi ý hoặc tạo mới ở tab Triệu chứng.',
+        );
+    }
+
     const payload = {
         ten_bai_thuoc: document.getElementById('bt-inp-ten').value.trim(),
         nguon_goc: document.getElementById('bt-inp-source').value.trim(),
         cach_dung: document.getElementById('bt-inp-usage').value.trim(),
         chung_trang: (document.getElementById('bt-inp-chungtrang')?.value || '').trim(),
         the_benh: (_btDraftTheBenh || []).join(', '),
-        trieu_chung: _btDraftTrieuChung.join(', '),
+        trieu_chung_ids: trieuChungIds,
         phap_tri_ids: [...(_btDraftPhapTriIds || [])],
         chi_tiet
     };
@@ -2406,6 +2433,17 @@ function ptReadChungTrangFromModal() {
 }
 
 async function savePhapTriRow(id) {
+    const invalidTrieuChung = (_ptDraftTrieuChung || []).filter(
+        (t) => t?.id == null || !Number.isFinite(Number(t.id)),
+    );
+    if (invalidTrieuChung.length) {
+        return alert(
+            'Có triệu chứng chưa thuộc danh mục chuẩn: ' +
+                invalidTrieuChung.map((t) => t.ten_trieu_chung).join(', ') +
+                '. Vui lòng chọn/tạo trong danh mục Triệu chứng trước khi lưu.',
+        );
+    }
+
     const payload = {
         the_benh: ptReadChungTrangFromModal(),
         chung_trang: ptReadChungTrangFromModal(),
@@ -2423,19 +2461,7 @@ async function savePhapTriRow(id) {
         bat_phap: ptArrToCsv(_ptChips.bat_phap) || null,
         bat_cuong: ptArrToCsv(_ptChips.bat_cuong) || null,
         luc_dam: ptArrToCsv(_ptChips.luc_dam) || null,
-        ...(() => {
-            const tc = _ptDraftTrieuChung || [];
-            const allId =
-                tc.length > 0 &&
-                tc.every((t) => t.id != null && Number.isFinite(Number(t.id)));
-            if (!tc.length) {
-                return { id_trieu_chung_list: [] };
-            }
-            if (allId) {
-                return { id_trieu_chung_list: tc.map((t) => Number(t.id)) };
-            }
-            return { trieu_chung_mo_ta: ptArrToCsv(tc.map((t) => t.ten_trieu_chung)) || null };
-        })(),
+        id_trieu_chung_list: (_ptDraftTrieuChung || []).map((t) => Number(t.id)),
         id_bai_thuoc_list: (_ptBaiThuocDraft || []).map((b) => b.id),
         ...(() => {
             const ids = (_ptNhomNhoDraft || [])
@@ -2779,6 +2805,20 @@ function ptBuildPayloadFromExcelRow(row, warnAcc) {
     const trieu_chung = trieu_chungRaw
         ? ptNormalizeTrieuChungMoTaForCatalog(ptExcelCellToCsvList(trieu_chungRaw))
         : '';
+    const trieuChungIds = ptCsvToArr(trieu_chung)
+        .map((name) => {
+            const low = String(name || '').trim().toLowerCase();
+            if (!low) return null;
+            const hit = (_thuocData.trieuChung || []).find(
+                (t) => String(t?.ten_trieu_chung || '').trim().toLowerCase() === low,
+            );
+            return hit?.id ?? null;
+        })
+        .filter((idVal) => Number.isFinite(Number(idVal)))
+        .map((idVal) => Number(idVal));
+    if (trieu_chung && trieuChungIds.length < ptCsvToArr(trieu_chung).length) {
+        warnAcc.push('Một số triệu chứng chưa có trong danh mục chuẩn: «' + trieu_chung + '»');
+    }
     const bai_thuoc = ptPickPhapTriCol(row, [
         'Bài thuốc tiêu biểu', 'Bai thuoc tieu bieu', 'Bài Thuốc Tiêu Biểu',
         'Bài thuốc', 'Bai thuoc', 'Ten bai thuoc', 'Tên bài thuốc', 'Bài Thuốc',
@@ -2821,7 +2861,7 @@ function ptBuildPayloadFromExcelRow(row, warnAcc) {
         bat_phap: bat_phap ? bat_phap : null,
         bat_cuong: bat_cuong ? bat_cuong : null,
         luc_dam: luc_dam ? luc_dam : null,
-        trieu_chung_mo_ta: trieu_chung ? trieu_chung : null,
+        id_trieu_chung_list: trieu_chung ? trieuChungIds : [],
         id_nhom_duoc_ly_nho: idNho,
         id_kinh_mach_list: idKinhList,
     };
@@ -2863,7 +2903,6 @@ function ptPayloadOmitEmptyForPhapTriUpdate(payload) {
     dropEmptyText('mach_chan');
     dropEmptyText('chat_luoi');
     dropEmptyText('nguyen_nhan');
-    dropEmptyText('trieu_chung_mo_ta');
     if (Array.isArray(body.id_kinh_mach_list) && body.id_kinh_mach_list.length === 0) {
         delete body.id_kinh_mach_list;
     }

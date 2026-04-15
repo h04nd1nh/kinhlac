@@ -23,6 +23,8 @@ export class CreateBaiThuocDto {
   chung_trang?: string;
   the_benh?: string;
   trieu_chung?: string;
+  /** Chuẩn hóa: nguồn chính cho triệu chứng của bài thuốc. */
+  trieu_chung_ids?: number[];
   /** Thứ tự mảng = thứ tự liên kết (thu_tu). Gửi [] để xóa hết; bỏ key khi update nếu không đổi liên kết. */
   phap_tri_ids?: number[];
   chi_tiet?: {

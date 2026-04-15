@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In, EntityManager } from 'typeorm';
 import { BaiThuoc } from '../models/bai-thuoc.model';
@@ -6,6 +6,7 @@ import { BaiThuocChiTiet } from '../models/bai-thuoc-chi-tiet.model';
 import { BaiThuocPhapTri } from '../models/bai-thuoc-phap-tri.model';
 import { PhapTri } from '../models/phap-tri.model';
 import { ViThuoc } from '../models/vi-thuoc.model';
+import { TrieuChung } from '../models/trieu-chung.model';
 import { CreateBaiThuocDto, UpdateBaiThuocDto } from '../models/dongy-thuoc.dto';
 
 @Injectable()
@@ -35,10 +36,44 @@ export class BaiThuocService {
     'chiTietViThuoc.viThuoc.tenGoiKhacList',
     'phapTriLinks',
     'phapTriLinks.phapTri',
+    'trieuChungList',
   ] as const;
 
   private static dtoHasPhapTriIds(dto: object): dto is { phap_tri_ids: number[] | undefined } {
     return Object.prototype.hasOwnProperty.call(dto, 'phap_tri_ids');
+  }
+
+  private static dtoHasTrieuChungIds(dto: object): dto is { trieu_chung_ids: number[] | undefined } {
+    return Object.prototype.hasOwnProperty.call(dto, 'trieu_chung_ids');
+  }
+
+  private formatTrieuChungText(list: TrieuChung[]): string {
+    return list.map((x) => x.ten_trieu_chung.trim()).filter(Boolean).join(', ');
+  }
+
+  private async applyTrieuChung(
+    manager: EntityManager,
+    bt: BaiThuoc,
+    dto: CreateBaiThuocDto | UpdateBaiThuocDto,
+    mode: 'create' | 'update',
+  ): Promise<void> {
+    const hasIds = BaiThuocService.dtoHasTrieuChungIds(dto);
+    const hasText = Object.prototype.hasOwnProperty.call(dto, 'trieu_chung');
+    if (mode === 'update' && !hasIds && !hasText) return;
+    if (hasText) {
+      throw new BadRequestException('Không hỗ trợ ghi trực tiếp trieu_chung dạng text. Vui lòng gửi trieu_chung_ids.');
+    }
+    if (!hasIds) {
+      throw new BadRequestException('Thiếu trieu_chung_ids.');
+    }
+
+    let list: TrieuChung[] = [];
+    const ids = [...new Set((dto.trieu_chung_ids ?? []).map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0))];
+    list = ids.length ? await manager.findBy(TrieuChung, { id: In(ids) }) : [];
+
+    bt.trieuChungList = list;
+    bt.trieu_chung = this.formatTrieuChungText(list);
+    await manager.save(bt);
   }
 
   /** Cập nhật bảng bai_thuoc_phap_tri; update chỉ khi body có key phap_tri_ids. */
@@ -96,7 +131,7 @@ export class BaiThuocService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
-      const { chi_tiet, phap_tri_ids: _pt, ...rest } = dto;
+      const { chi_tiet, phap_tri_ids: _pt, trieu_chung_ids: _tcIds, ...rest } = dto;
       const bt = this.repo.create(rest);
       const savedBt = await queryRunner.manager.save(bt);
 
@@ -105,6 +140,7 @@ export class BaiThuocService {
         await queryRunner.manager.save(details);
       }
       await this.applyPhapTriLinks(queryRunner.manager, savedBt.id, dto, 'create');
+      await this.applyTrieuChung(queryRunner.manager, savedBt, dto, 'create');
       await queryRunner.commitTransaction();
       return this.findOne(savedBt.id) as Promise<BaiThuoc>;
     } catch (err) {
@@ -120,8 +156,9 @@ export class BaiThuocService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
-      const { chi_tiet, phap_tri_ids: _pt, ...rest } = dto;
+      const { chi_tiet, phap_tri_ids: _pt, trieu_chung_ids: _tcIds, ...rest } = dto;
       await queryRunner.manager.update(BaiThuoc, id, rest);
+      const savedBt = await queryRunner.manager.findOneByOrFail(BaiThuoc, { id });
 
       if (chi_tiet) {
         // Xóa cũ thêm mới cho đơn giản
@@ -130,6 +167,7 @@ export class BaiThuocService {
         await queryRunner.manager.save(details);
       }
       await this.applyPhapTriLinks(queryRunner.manager, id, dto, 'update');
+      await this.applyTrieuChung(queryRunner.manager, savedBt, dto, 'update');
       await queryRunner.commitTransaction();
       return this.findOne(id);
     } catch (err) {

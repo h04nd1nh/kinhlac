@@ -5,6 +5,7 @@ let _dongyData = {
     benhDongY: [],
     baiThuoc: [],
     phapTri: [], // danh mục pháp trị — chip tìm theo nội dung pháp trị (phap_tri)
+    trieuChung: [],
     kinhMach: [],
     huyetVi: [],
     phacDo: [],
@@ -102,6 +103,24 @@ function dyPhapTriChipLabel(p) {
     const c = dyTheBenhText(p);
     if (c) return c.length > 40 ? c.slice(0, 40) + '…' : c;
     return p.id != null ? 'Pháp trị #' + p.id : '';
+}
+
+function dyTrieuChungNamesFromBenhItem(item) {
+    const list = item?.trieu_chung_list || item?.trieuChungList || [];
+    if (Array.isArray(list) && list.length) {
+        const seen = new Set();
+        const out = [];
+        list.forEach((t) => {
+            const name = String(t?.ten_trieu_chung || '').trim();
+            if (!name) return;
+            const key = name.toLowerCase();
+            if (seen.has(key)) return;
+            seen.add(key);
+            out.push(name);
+        });
+        if (out.length) return out;
+    }
+    return dyTrieuChungTextToChips(item?.trieuchung || '');
 }
 
 function dyTrieuChungTextToChips(raw) {
@@ -564,10 +583,11 @@ async function initDongyManagement() {
 
 async function loadAllDongyData() {
     try {
-        const [bdy, bt, pt, km, hv, pd, pdc] = await Promise.all([
+        const [bdy, bt, pt, tc, km, hv, pd, pdc] = await Promise.all([
             apiGetModels(),      // benh_dong_y
             apiGetBaiThuoc(),
             apiGetPhapTri(),
+            apiGetTrieuChung(),
             apiGetKinhMach(),
             apiGetHuyetVi(),
             apiGetPhacDo(),
@@ -576,6 +596,7 @@ async function loadAllDongyData() {
         _dongyData.benhDongY = bdy || [];
         _dongyData.baiThuoc = bt || [];
         _dongyData.phapTri = pt || [];
+        _dongyData.trieuChung = tc || [];
         _dongyData.kinhMach = km || [];
         _dongyData.huyetVi = hv || [];
         _dongyData.phacDo = pd || [];
@@ -784,7 +805,7 @@ function openBenhDongYForm(givenId) {
     const item = givenId ? _dongyData.benhDongY.find(x => (x.id == givenId || x.id_benh == givenId || x.modelId == givenId)) : null;
     const realId = item ? (item.id || item.id_benh || item.modelId) : null;
     const f = dyBenhDisplayFields(item);
-    _dyTrieuChungChips = dyTrieuChungTextToChips(f.trieuchung);
+    _dyTrieuChungChips = dyTrieuChungNamesFromBenhItem(item);
     _dyBaiThuocChips = dyBaiThuocTextToChips(f.bai_thuoc);
     _dyTheBenhChips = dyTrieuChungTextToChips(f.chung_trang);
     _dyTheBenhCatalog = [];
@@ -868,9 +889,31 @@ async function saveBenhDongY(id) {
     const tieuket = document.getElementById('dy-inp-tieuket').value.trim();
     if (!tieuket) return alert('Thiếu tiểu kết (tieuket)');
 
+    const trieuChungByLower = new Map(
+        (_dongyData.trieuChung || [])
+            .map((t) => [String(t?.ten_trieu_chung || '').trim().toLowerCase(), t?.id])
+            .filter(([name, tcId]) => name && Number.isFinite(Number(tcId))),
+    );
+    const trieuChungIds = [];
+    const unknown = [];
+    (_dyTrieuChungChips || []).forEach((name) => {
+        const key = String(name || '').trim().toLowerCase();
+        if (!key) return;
+        const hit = trieuChungByLower.get(key);
+        if (hit == null) unknown.push(name);
+        else if (!trieuChungIds.includes(Number(hit))) trieuChungIds.push(Number(hit));
+    });
+    if (unknown.length) {
+        return alert(
+            'Các triệu chứng sau chưa có trong danh mục Triệu chứng: ' +
+                unknown.join(', ') +
+                '. Vui lòng tạo trước rồi lưu lại.',
+        );
+    }
+
     const payload = {
         ten: tieuket,
-        trieuchung: dyTrieuChungChipsToString(),
+        trieu_chung_ids: trieuChungIds,
         phaptri: document.getElementById('dy-inp-benhly').value.trim(),
         phuonghuyet: document.getElementById('dy-inp-phuyet-chamcuu').value.trim(),
         giainghia_phuyet: document.getElementById('dy-inp-giainghia-phuyet').value.trim(),

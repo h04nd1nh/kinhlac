@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToMany, JoinTable } from 'typeorm';
 import { BaiThuocChiTiet } from './bai-thuoc-chi-tiet.model';
 import { BaiThuocPhapTri } from './bai-thuoc-phap-tri.model';
+import { TrieuChung } from './trieu-chung.model';
 
 @Entity('bai_thuoc')
 export class BaiThuoc {
@@ -30,6 +31,15 @@ export class BaiThuoc {
 
   @Column({ type: 'text', nullable: true })
   trieu_chung: string; // Triệu chứng (comma-separated)
+
+  /** Nguồn dữ liệu chuẩn cho triệu chứng của bài thuốc. */
+  @ManyToMany(() => TrieuChung)
+  @JoinTable({
+    name: 'bai_thuoc_trieu_chung',
+    joinColumn: { name: 'id_bai_thuoc', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'id_trieu_chung', referencedColumnName: 'id' },
+  })
+  trieuChungList: TrieuChung[];
 
   @OneToMany(() => BaiThuocChiTiet, (detail) => detail.baiThuoc)
   chiTietViThuoc: BaiThuocChiTiet[];

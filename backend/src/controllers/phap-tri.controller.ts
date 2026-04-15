@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, QueryFailedError, Repository } from 'typeorm';
 import { PhapTri } from '../models/phap-tri.model';
@@ -148,53 +148,6 @@ export class PhapTriService {
       .join(', ');
   }
 
-  private splitTrieuChungMoTaParts(raw: string | null | undefined): string[] {
-    if (raw == null || !String(raw).trim()) return [];
-    const parts = String(raw)
-      .split(/[\n\r,;，、]+/)
-      .map((t) => t.replace(/^\s*[-•*·]\s+/, '').trim())
-      .filter(Boolean);
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const p of parts) {
-      const k = p.toLowerCase();
-      if (seen.has(k)) continue;
-      seen.add(k);
-      out.push(p);
-    }
-    return out;
-  }
-
-  private async resolveTrieuChungAndMoTaFromText(
-    moTa: string | null,
-  ): Promise<{ list: TrieuChung[]; moTa: string | null }> {
-    const parts = this.splitTrieuChungMoTaParts(moTa);
-    if (!parts.length) return { list: [], moTa: null };
-    const all = await this.trieuChungRepo.find();
-    const byLower = new Map<string, TrieuChung>();
-    for (const t of all) {
-      byLower.set(t.ten_trieu_chung.trim().toLowerCase(), t);
-    }
-    const list: TrieuChung[] = [];
-    const unmatched: string[] = [];
-    const seenId = new Set<number>();
-    for (const p of parts) {
-      const hit = byLower.get(p.toLowerCase());
-      if (hit && !seenId.has(hit.id)) {
-        seenId.add(hit.id);
-        list.push(hit);
-      } else if (!hit) {
-        unmatched.push(p);
-      }
-    }
-    const matchedCsv = this.formatMoTaFromTrieuChungList(list);
-    const moTaOut =
-      unmatched.length > 0
-        ? (matchedCsv ? matchedCsv + ', ' : '') + unmatched.join(', ')
-        : matchedCsv;
-    return { list, moTa: moTaOut || null };
-  }
-
   private async applyTrieuChungAndMoTa(
     entity: PhapTri,
     dto: CreatePhapTriDto | UpdatePhapTriDto,
@@ -202,8 +155,13 @@ export class PhapTriService {
   ): Promise<void> {
     const hasList = PhapTriService.has(dto, 'id_trieu_chung_list');
     const hasText = PhapTriService.has(dto, 'trieu_chung_mo_ta');
+    if (hasText) {
+      throw new BadRequestException(
+        'Không hỗ trợ ghi trực tiếp trieu_chung_mo_ta dạng text. Vui lòng gửi id_trieu_chung_list.',
+      );
+    }
 
-    if (mode === 'update' && !hasList && !hasText) {
+    if (mode === 'update' && !hasList) {
       return;
     }
 
@@ -215,16 +173,10 @@ export class PhapTriService {
       entity.trieu_chung_mo_ta = this.formatMoTaFromTrieuChungList(entity.trieu_chung_list);
       return;
     }
-
-    const rawMoTa =
-      hasText ? (dto.trieu_chung_mo_ta ?? null) : mode === 'create' ? (entity.trieu_chung_mo_ta ?? null) : null;
-    if (mode === 'update' && !hasText) {
-      return;
+    if (mode === 'create') {
+      entity.trieu_chung_list = [];
+      entity.trieu_chung_mo_ta = null;
     }
-
-    const resolved = await this.resolveTrieuChungAndMoTaFromText(rawMoTa);
-    entity.trieu_chung_list = resolved.list;
-    entity.trieu_chung_mo_ta = resolved.moTa;
   }
 
   /** Chuỗi id bài thuốc; 'unchanged' = không đổi junction (chỉ PUT). */
@@ -308,7 +260,7 @@ export class PhapTriService {
       mach_chan: dto.mach_chan ?? null,
       chat_luoi: dto.chat_luoi ?? null,
       nguyen_nhan: dto.nguyen_nhan ?? null,
-      trieu_chung_mo_ta: dto.trieu_chung_mo_ta ?? null,
+      trieu_chung_mo_ta: null,
       kinh_mach_list: [],
       trieu_chung_list: [],
       nhom_duoc_ly_nho_list: [],
