@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { TrieuChung } from '../models/trieu-chung.model';
 import { CreateTrieuChungDto, UpdateTrieuChungDto } from '../models/trieu-chung.dto';
 
@@ -26,9 +26,15 @@ export class TrieuChungService {
   async findPaginated(
     page: number = 1,
     limit: number = 20,
+    search?: string,
   ): Promise<PaginatedTrieuChung> {
     const skip = (page - 1) * limit;
+    const keyword = String(search || '').trim();
+    const where = keyword
+      ? { ten_trieu_chung: ILike(`%${keyword}%`) }
+      : undefined;
     const [data, total] = await this.repo.findAndCount({
+      where,
       skip,
       take: limit,
       order: { id: 'ASC' },

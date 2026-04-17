@@ -20,11 +20,12 @@ export class TrieuChungRouter {
   findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('search') search?: string,
   ) {
     const pageNum = page ? parseInt(page, 10) : 0;
     const limitNum = limit ? parseInt(limit, 10) : 0;
     if (pageNum > 0 && limitNum > 0) {
-      return this.service.findPaginated(pageNum, limitNum);
+      return this.service.findPaginated(pageNum, limitNum, search);
     }
     return this.service.findAll();
   }

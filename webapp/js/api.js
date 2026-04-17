@@ -570,10 +570,16 @@ async function apiDeleteBenhTayY(id) {
 
 // ---- TRIỆU CHỨNG ----
 
-async function apiGetTrieuChung(page = null, limit = null) {
+async function apiGetTrieuChung(page = null, limit = null, search = '') {
     let url = _base() + '/trieu-chung';
     if (page && limit) {
-        url += `?page=${page}&limit=${limit}`;
+        const q = new URLSearchParams({
+            page: String(page),
+            limit: String(limit),
+        });
+        const keyword = String(search || '').trim();
+        if (keyword) q.set('search', keyword);
+        url += `?${q.toString()}`;
     }
     const res = await fetch(url);
     if (!res.ok) throw new Error('Không tải được danh sách triệu chứng');

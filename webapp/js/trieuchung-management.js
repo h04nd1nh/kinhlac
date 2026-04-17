@@ -16,15 +16,23 @@ const _tcPagination = {
     totalPages: 1,
 };
 
+const _tcUiState = {
+    search: '',
+    isLoading: false,
+    searchTimer: null,
+};
+
 async function initTrieuchungManagement() {
     await loadAllTrieuchungData();
     renderTrieuchungSection();
 }
 
 async function loadAllTrieuchungData() {
+    _tcUiState.isLoading = true;
+    renderTrieuchungTable();
     try {
         const [tc, bt, pt, bkl, bty] = await Promise.all([
-            apiGetTrieuChung(_tcPagination.page, _tcPagination.pageSize),
+            apiGetTrieuChung(_tcPagination.page, _tcPagination.pageSize, _tcUiState.search),
             apiGetBaiThuoc(),
             apiGetPhapTri(),
             apiGetModels(),
@@ -40,6 +48,9 @@ async function loadAllTrieuchungData() {
         _trieuchungData.benhTayY = bty || [];
     } catch (e) {
         console.error('Lỗi tải dữ liệu Triệu chứng:', e);
+    } finally {
+        _tcUiState.isLoading = false;
+        renderTrieuchungTable();
     }
 }
 
@@ -128,6 +139,17 @@ function renderTrieuchungSection() {
                 <button class="btn btn-primary" onclick="openTrieuChungForm()">+ Thêm triệu chứng mới</button>
             </div>
 
+            <div style="margin-bottom:12px;">
+                <input
+                    id="trieuchung-search-input"
+                    type="text"
+                    class="tayy-form-input"
+                    placeholder="Tìm theo tên triệu chứng..."
+                    value="${escHtml(_tcUiState.search)}"
+                    oninput="onTrieuchungSearchInput(this.value)"
+                >
+            </div>
+
             <div id="trieuchung-table-container"></div>
         </div>
     `;
@@ -139,11 +161,22 @@ function renderTrieuchungTable() {
     const el = document.getElementById('trieuchung-table-container');
     if (!el) return;
 
+    if (_tcUiState.isLoading) {
+        el.innerHTML = `
+            <div class="data-table-container">
+                <div style="padding:28px 16px;text-align:center;color:#666;">
+                    Đang tải dữ liệu triệu chứng...
+                </div>
+            </div>
+        `;
+        return;
+    }
+
     const totalItems = _tcPagination.totalItems;
     const totalPages = Math.max(1, _tcPagination.totalPages);
     const start = (_tcPagination.page - 1) * _tcPagination.pageSize;
-    const from = totalItems ? start + 1 : 0;
-    const to = Math.min(start + _trieuchungData.trieuChung.length, totalItems);
+    const from = _trieuchungData.trieuChung.length ? start + 1 : 0;
+    const to = _trieuchungData.trieuChung.length ? (start + _trieuchungData.trieuChung.length) : 0;
 
     const rows = _trieuchungData.trieuChung.map(item => {
         const related = tcBuildRelated(item);
@@ -187,6 +220,7 @@ function renderTrieuchungTable() {
 function renderTrieuchungPagination(totalItems, totalPages, from, to) {
     const disablePrev = _tcPagination.page <= 1 ? 'disabled' : '';
     const disableNext = _tcPagination.page >= totalPages ? 'disabled' : '';
+    const loadingDisable = _tcUiState.isLoading ? 'disabled' : '';
 
     return `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;flex-wrap:wrap;">
@@ -194,9 +228,9 @@ function renderTrieuchungPagination(totalItems, totalPages, from, to) {
                 Hiển thị ${from}-${to} / ${totalItems} triệu chứng
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
-                <button class="btn btn-sm btn-outline" ${disablePrev} onclick="setTrieuchungPage(${_tcPagination.page - 1})">← Trước</button>
+                <button class="btn btn-sm btn-outline" ${disablePrev} ${loadingDisable} onclick="setTrieuchungPage(${_tcPagination.page - 1})">← Trước</button>
                 <span style="font-size:0.9rem;color:#444;">Trang ${_tcPagination.page}/${totalPages}</span>
-                <button class="btn btn-sm btn-outline" ${disableNext} onclick="setTrieuchungPage(${_tcPagination.page + 1})">Sau →</button>
+                <button class="btn btn-sm btn-outline" ${disableNext} ${loadingDisable} onclick="setTrieuchungPage(${_tcPagination.page + 1})">Sau →</button>
             </div>
         </div>
     `;
@@ -209,6 +243,19 @@ async function setTrieuchungPage(page) {
     _tcPagination.page = nextPage;
     await loadAllTrieuchungData();
     renderTrieuchungTable();
+}
+
+function onTrieuchungSearchInput(value) {
+    _tcUiState.search = String(value || '');
+    _tcPagination.page = 1;
+
+    if (_tcUiState.searchTimer) {
+        clearTimeout(_tcUiState.searchTimer);
+    }
+    _tcUiState.searchTimer = setTimeout(async () => {
+        await loadAllTrieuchungData();
+        renderTrieuchungTable();
+    }, 300);
 }
 
 function openTrieuChungForm(id) {
