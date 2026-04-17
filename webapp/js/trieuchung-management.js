@@ -9,6 +9,13 @@ let _trieuchungData = {
     benhTayY: [],
 };
 
+const _tcPagination = {
+    page: 1,
+    pageSize: 20,
+    totalItems: 0,
+    totalPages: 1,
+};
+
 async function initTrieuchungManagement() {
     await loadAllTrieuchungData();
     renderTrieuchungSection();
@@ -17,13 +24,16 @@ async function initTrieuchungManagement() {
 async function loadAllTrieuchungData() {
     try {
         const [tc, bt, pt, bkl, bty] = await Promise.all([
-            apiGetTrieuChung(),
+            apiGetTrieuChung(_tcPagination.page, _tcPagination.pageSize),
             apiGetBaiThuoc(),
             apiGetPhapTri(),
             apiGetModels(),
             apiGetBenhTayY(),
         ]);
-        _trieuchungData.trieuChung = tc || [];
+        _trieuchungData.trieuChung = tc?.data || [];
+        _tcPagination.totalItems = Number(tc?.total) || 0;
+        _tcPagination.totalPages = Number(tc?.totalPages) || 1;
+        _tcPagination.page = Number(tc?.page) || _tcPagination.page;
         _trieuchungData.baiThuoc = bt || [];
         _trieuchungData.phapTri = pt || [];
         _trieuchungData.benhKinhLac = bkl || [];
@@ -121,6 +131,12 @@ function renderTrieuchungTable() {
     const el = document.getElementById('trieuchung-table-container');
     if (!el) return;
 
+    const totalItems = _tcPagination.totalItems;
+    const totalPages = Math.max(1, _tcPagination.totalPages);
+    const start = (_tcPagination.page - 1) * _tcPagination.pageSize;
+    const from = totalItems ? start + 1 : 0;
+    const to = Math.min(start + _trieuchungData.trieuChung.length, totalItems);
+
     const rows = _trieuchungData.trieuChung.map(item => {
         const related = tcBuildRelated(item);
         return `
@@ -154,7 +170,35 @@ function renderTrieuchungTable() {
                 <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:#A09580;">Chưa có dữ liệu triệu chứng</td></tr>'}</tbody>
             </table>
         </div>
+        ${renderTrieuchungPagination(totalItems, totalPages, from, to)}
     `;
+}
+
+function renderTrieuchungPagination(totalItems, totalPages, from, to) {
+    const disablePrev = _tcPagination.page <= 1 ? 'disabled' : '';
+    const disableNext = _tcPagination.page >= totalPages ? 'disabled' : '';
+
+    return `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;flex-wrap:wrap;">
+            <div style="font-size:0.9rem;color:#666;">
+                Hiển thị ${from}-${to} / ${totalItems} triệu chứng
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <button class="btn btn-sm btn-outline" ${disablePrev} onclick="setTrieuchungPage(${_tcPagination.page - 1})">← Trước</button>
+                <span style="font-size:0.9rem;color:#444;">Trang ${_tcPagination.page}/${totalPages}</span>
+                <button class="btn btn-sm btn-outline" ${disableNext} onclick="setTrieuchungPage(${_tcPagination.page + 1})">Sau →</button>
+            </div>
+        </div>
+    `;
+}
+
+async function setTrieuchungPage(page) {
+    const totalPages = Math.max(1, _tcPagination.totalPages);
+    const nextPage = Math.max(1, Math.min(page, totalPages));
+    if (nextPage === _tcPagination.page) return;
+    _tcPagination.page = nextPage;
+    await loadAllTrieuchungData();
+    renderTrieuchungTable();
 }
 
 function openTrieuChungForm(id) {
@@ -196,5 +240,9 @@ async function deleteTrieuChung(id) {
     const result = await apiDeleteTrieuChung(id);
     if (!result.success && result.success !== undefined) return alert(result.error || 'Xóa thất bại');
     await loadAllTrieuchungData();
+    if (!_trieuchungData.trieuChung.length && _tcPagination.page > 1) {
+        _tcPagination.page -= 1;
+        await loadAllTrieuchungData();
+    }
     renderTrieuchungSection();
 }

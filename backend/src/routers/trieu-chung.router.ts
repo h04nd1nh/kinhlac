@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   ParseIntPipe,
 } from '@nestjs/common';
 import { TrieuChungService } from '../controllers/trieu-chung.controller';
@@ -16,7 +17,15 @@ export class TrieuChungRouter {
   constructor(private readonly service: TrieuChungService) {}
 
   @Get()
-  findAll() {
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 0;
+    const limitNum = limit ? parseInt(limit, 10) : 0;
+    if (pageNum > 0 && limitNum > 0) {
+      return this.service.findPaginated(pageNum, limitNum);
+    }
     return this.service.findAll();
   }
 

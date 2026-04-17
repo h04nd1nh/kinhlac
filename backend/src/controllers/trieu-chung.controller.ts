@@ -4,6 +4,14 @@ import { Repository } from 'typeorm';
 import { TrieuChung } from '../models/trieu-chung.model';
 import { CreateTrieuChungDto, UpdateTrieuChungDto } from '../models/trieu-chung.dto';
 
+export interface PaginatedTrieuChung {
+  data: TrieuChung[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 @Injectable()
 export class TrieuChungService {
   constructor(
@@ -13,6 +21,26 @@ export class TrieuChungService {
 
   findAll(): Promise<TrieuChung[]> {
     return this.repo.find({ order: { id: 'ASC' } });
+  }
+
+  async findPaginated(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<PaginatedTrieuChung> {
+    const skip = (page - 1) * limit;
+    const [data, total] = await this.repo.findAndCount({
+      skip,
+      take: limit,
+      order: { id: 'ASC' },
+    });
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+    };
   }
 
   async findOne(id: number): Promise<TrieuChung> {
