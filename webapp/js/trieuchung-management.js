@@ -67,7 +67,7 @@ function tcJoinNames(arr, max = 3) {
 function tcBuildRelated(item) {
     const name = String(item?.ten_trieu_chung || '').trim();
     const key = tcNorm(name);
-    if (!key) return { baiThuoc: [], benhDongY: [], benhKinhLac: [], benhTayY: [] };
+    if (!key) return { baiThuoc: [], phapTri: [], benhDongY: [], benhKinhLac: [], benhTayY: [] };
 
     const baiThuoc = (_trieuchungData.baiThuoc || [])
         .filter((b) => tcCsvToSet(b.trieu_chung).has(key))
@@ -77,14 +77,22 @@ function tcBuildRelated(item) {
         .filter((m) => tcCsvToSet(m.trieuchung).has(key))
         .map((m) => m.tieuket || m.ten || `#${m.id}`);
 
-    const benhDongY = (_trieuchungData.phapTri || [])
-        .flatMap((p) => {
+    const phapTriMatched = (_trieuchungData.phapTri || [])
+        .filter((p) => {
             const trieuChungList = p.trieu_chung_list || p.trieuChungList || [];
             const hasInList = Array.isArray(trieuChungList)
                 ? trieuChungList.some((t) => tcNorm(t?.ten_trieu_chung) === key)
                 : false;
             const hasInText = tcCsvToSet(p.trieu_chung_mo_ta).has(key);
-            if (!hasInList && !hasInText) return [];
+            return hasInList || hasInText;
+        });
+
+    const phapTri = phapTriMatched
+        .map((p) => p?.phap_tri || p?.nguyen_tac || p?.ten_phap_tri || p?.tenPhapTri || `#${p?.id}`)
+        .filter(Boolean);
+
+    const benhDongY = phapTriMatched
+        .flatMap((p) => {
             const benhDongYList = p.benh_dong_y_list || p.benhDongYList || [];
             if (Array.isArray(benhDongYList) && benhDongYList.length) {
                 return benhDongYList
@@ -103,7 +111,7 @@ function tcBuildRelated(item) {
         })
         .map((b) => b.ten_benh || b.tenBenh || b.name || `#${b.id}`);
 
-    return { baiThuoc, benhDongY, benhKinhLac, benhTayY };
+    return { baiThuoc, phapTri, benhDongY, benhKinhLac, benhTayY };
 }
 
 function renderTrieuchungSection() {
@@ -143,6 +151,7 @@ function renderTrieuchungTable() {
         <tr>
             <td><strong>${escHtml(item.ten_trieu_chung)}</strong></td>
             <td style="font-size:0.82rem;">${escHtml(tcJoinNames(related.baiThuoc))}</td>
+            <td style="font-size:0.82rem;">${escHtml(tcJoinNames(related.phapTri))}</td>
             <td style="font-size:0.82rem;">${escHtml(tcJoinNames(related.benhDongY))}</td>
             <td style="font-size:0.82rem;">${escHtml(tcJoinNames(related.benhKinhLac))}</td>
             <td style="font-size:0.82rem;">${escHtml(tcJoinNames(related.benhTayY))}</td>
@@ -158,16 +167,17 @@ function renderTrieuchungTable() {
 
     el.innerHTML = `
         <div class="data-table-container">
-            <table style="min-width:1180px;">
+            <table style="min-width:1320px;">
                 <thead><tr>
                     <th>Tên triệu chứng</th>
                     <th>Bài thuốc liên quan</th>
+                    <th>Pháp trị liên quan</th>
                     <th>Bệnh Đông y liên quan</th>
                     <th>Bệnh Kinh Lạc liên quan</th>
                     <th>Bệnh Tây y liên quan</th>
                     <th style="text-align:center;">Thao tác</th>
                 </tr></thead>
-                <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:#A09580;">Chưa có dữ liệu triệu chứng</td></tr>'}</tbody>
+                <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:#A09580;">Chưa có dữ liệu triệu chứng</td></tr>'}</tbody>
             </table>
         </div>
         ${renderTrieuchungPagination(totalItems, totalPages, from, to)}
