@@ -238,14 +238,16 @@ async function apiDeletePatient(benhnhanId) {
 // ---- PHIẾU KHÁM ----
 
 async function apiGetRecords() {
-    const res = await fetch(_base() + '/examinations');
+    const url = _base() + '/examinations?_ts=' + Date.now();
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('Không tải được danh sách phiếu khám từ Nest backend');
     const rows = await res.json();
     return Array.isArray(rows) ? rows.map(_mapNestExamToLegacy) : [];
 }
 
 async function apiGetRecord(id) {
-    const res = await fetch(_base() + '/examinations/' + id);
+    const url = _base() + '/examinations/' + id + '?_ts=' + Date.now();
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) return null;
     const row = await res.json();
     return _mapNestExamToLegacy(row);

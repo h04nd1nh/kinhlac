@@ -12,7 +12,7 @@ let _editingRecordId = null;
 let _editingPatientId = null;
 let _newRecTimer = null;
 let _newRecWeatherTimer = null;
-const FRONTEND_VERSION = 'v29';
+const FRONTEND_VERSION = 'v30';
 
 // Thứ tự hiển thị kinh mạch (giữ nguyên thứ tự Excel)
 const meridianNames = [
@@ -1078,8 +1078,18 @@ async function viewAnalysis(patientId, phieukhamId = null) {
     }
 
     if (!target && patientId) {
-        // Nếu không có phieukhamId, lấy phiếu mới nhất của bệnh nhân từ recordData cục bộ
-        const recs = recordData.filter(r => r.benhnhanId == patientId);
+        // Không có phieukhamId: bắt buộc gọi API để lấy danh sách mới nhất, tránh dùng cache local cũ.
+        let recs = [];
+        try {
+            const latestRecords = await apiGetRecords();
+            if (Array.isArray(latestRecords)) {
+                recordData = latestRecords;
+                recs = latestRecords.filter(r => r.benhnhanId == patientId);
+            }
+        } catch (e) {
+            // Fallback nhẹ về local nếu mạng lỗi.
+            recs = recordData.filter(r => r.benhnhanId == patientId);
+        }
         if (recs.length) {
             target = recs.sort((a, b) => b.phieukhamId - a.phieukhamId)[0];
         }
