@@ -1057,6 +1057,8 @@ function renderHistory(patientId) {
 // =========================================================
 async function viewAnalysis(patientId, phieukhamId = null) {
     if (!phieukhamId && !patientId) return;
+    const modelSection = document.getElementById('model-section');
+    if (modelSection) modelSection.style.display = 'none';
 
     // Luôn fetch data mới nhất từ server cho phiếu này
     let target = null;
@@ -1135,11 +1137,20 @@ function renderBodyChart(record, selectedModel = null) {
 
     // -- Gợi ý mô hình bệnh --
     const modelSection = document.getElementById('model-section');
+    const hasBackendAnalysis =
+        Array.isArray(record?._backendSyndromes) ||
+        Array.isArray(record?._backendFlags) ||
+        record?._backendAmDuong != null ||
+        record?._backendKhi != null ||
+        record?._backendHuyet != null;
     if (modelSection) {
-        if (!selectedModel) {
+        if (!hasBackendAnalysis) {
+            modelSection.style.display = 'none';
+        } else if (!selectedModel) {
             modelSection.style.display = 'block';
             suggestRelatedModels(record, diag);
         } else {
+            modelSection.style.display = 'block';
             renderSelectedModelDetail(selectedModel);
         }
     }
