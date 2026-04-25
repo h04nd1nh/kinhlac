@@ -48,6 +48,10 @@ function goBack() {
   router.push({ name: 'patients' })
 }
 
+function goToNewExamination() {
+  router.push({ name: 'new-examination', params: { id: patientId.value } })
+}
+
 function formatDate(d: string | null | undefined) {
   if (!d) return '—'
   try { return new Date(d).toLocaleDateString('vi-VN') } catch { return d }
@@ -119,6 +123,10 @@ function getAge(dob: string | null) {
             </span>
           </div>
         </div>
+        <button class="btn-primary ml-auto" @click="goToNewExamination">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+          Thêm Khám mới
+        </button>
       </div>
 
       <!-- Tabs -->
@@ -271,6 +279,10 @@ function getAge(dob: string | null) {
 
 .btn-secondary{padding:10px 20px;background:var(--white);color:var(--gray-700);font-size:var(--font-size-sm);font-weight:600;border-radius:var(--radius-md);border:1px solid var(--gray-300);transition:all var(--transition-fast)}
 .btn-secondary:hover{background:var(--gray-50)}
+
+.btn-primary{display:inline-flex;align-items:center;gap:var(--space-2);padding:10px 20px;background:var(--brown-600);color:var(--white);font-size:var(--font-size-sm);font-weight:600;border-radius:var(--radius-md);border:none;transition:all var(--transition-fast);cursor:pointer;white-space:nowrap;}
+.btn-primary:hover{background:var(--brown-700);transform:translateY(-1px);box-shadow:var(--shadow-sm);}
+.ml-auto{margin-left:auto;}
 
 @media(max-width:768px){
   .patient-header-card{flex-direction:column;text-align:center;padding:var(--space-5)}
