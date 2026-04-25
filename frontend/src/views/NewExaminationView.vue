@@ -74,7 +74,11 @@ async function saveExamination() {
     // Demo submission
     console.log('Submitting examination:', { form, meridianTemps })
     alert('Đã lưu phiếu khám thành công!')
-    goBack()
+    // Redirect to meridian results using a dummy exam ID
+    router.push({ 
+      name: 'meridian-results', 
+      params: { patientId: patientId.value, examId: 999 } 
+    })
   } catch (err) {
     console.error(err)
     alert('Lỗi khi lưu phiếu khám!')

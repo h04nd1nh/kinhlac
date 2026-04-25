@@ -52,6 +52,10 @@ function goToNewExamination() {
   router.push({ name: 'new-examination', params: { id: patientId.value } })
 }
 
+function goToMeridianResults(examId: number) {
+  router.push({ name: 'meridian-results', params: { patientId: patientId.value, examId } })
+}
+
 function formatDate(d: string | null | undefined) {
   if (!d) return '—'
   try { return new Date(d).toLocaleDateString('vi-VN') } catch { return d }
@@ -183,7 +187,7 @@ function getAge(dob: string | null) {
           <p>Chưa có lịch sử khám bệnh</p>
         </div>
         <div v-else class="exam-list">
-          <div v-for="exam in examinations" :key="exam.id" class="exam-card">
+          <div v-for="exam in examinations" :key="exam.id" class="exam-card" @click="goToMeridianResults(exam.id)">
             <div class="exam-header">
               <div class="exam-date-badge">
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
@@ -260,7 +264,7 @@ function getAge(dob: string | null) {
 .empty-state-sm{display:flex;flex-direction:column;align-items:center;gap:var(--space-3);padding:var(--space-10) 0;color:var(--gray-400)}
 .empty-icon-sm{opacity:.4}
 .exam-list{display:flex;flex-direction:column;gap:var(--space-4)}
-.exam-card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-md);overflow:hidden;transition:all var(--transition-fast)}
+.exam-card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-md);overflow:hidden;transition:all var(--transition-fast);cursor:pointer;}
 .exam-card:hover{border-color:var(--brown-300);box-shadow:var(--shadow-sm)}
 .exam-header{display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-5);background:var(--gray-50);border-bottom:1px solid var(--gray-100)}
 .exam-date-badge{display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--font-size-sm);font-weight:600;color:var(--gray-700)}
