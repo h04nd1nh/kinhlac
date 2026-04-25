@@ -5,8 +5,8 @@ import * as path from 'path';
 @Injectable()
 export class FirebaseService implements OnModuleInit {
   onModuleInit() {
-    const serviceAccountPath = path.join(process.cwd(), 'config', 'kinhlacgiaminh-firebase-adminsdk-fbsvc-d433ad535b.json');
-    
+    const serviceAccountPath = path.join(process.cwd(), 'config', 'kinhlacgiaminh-firebase-adminsdk-fbsvc-5dc9bab2f2.json');
+
     if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccountPath),
