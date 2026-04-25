@@ -1413,6 +1413,10 @@ function _resolveMeridianStatuses(m, diagStat, record) {
     };
 }
 
+function _statusDisplayText(status) {
+    return status === '+' || status === '-' ? status : '0';
+}
+
 function renderRow(m, diag, selectedModel, container, record = null) {
     if (!container) return;
     const s   = diag.meridianStats[m.id];
@@ -1454,12 +1458,12 @@ function renderRow(m, diag, selectedModel, container, record = null) {
             <div style="font-weight:bold;font-size:0.8rem;">${m.n}</div>
             <div style="font-size:0.6rem;color:#A09580;">${m.d}</div>
         </td>
-        <td class="cell-st-l" style="color:${leftStatus === '+' ? '#8B1A1A' : (leftStatus === '-' ? '#1A5276' : '#A09580')};font-weight:bold;text-align:center;transition:all 0.2s;">${leftStatus || ''}</td>
+        <td class="cell-st-l" style="color:${leftStatus === '+' ? '#8B1A1A' : (leftStatus === '-' ? '#1A5276' : '#A09580')};font-weight:bold;text-align:center;transition:all 0.2s;">${_statusDisplayText(leftStatus)}</td>
         <td class="cell-val-l" style="text-align:center;transition:all 0.2s;">${L ? L.toFixed(1) : '-'}</td>
         <td style="text-align:center;background:#FBF8F1;">${s.avg.toFixed(2)}</td>
         <td class="cell-diff" style="text-align:center;color:${diffColor};font-weight:${s.diff!==0?'bold':'normal'};transition:all 0.2s;">${diffStr}</td>
         <td class="cell-val-r" style="text-align:center;transition:all 0.2s;">${R ? R.toFixed(1) : '-'}</td>
-        <td class="cell-st-r" style="color:${rightStatus === '+' ? '#8B1A1A' : (rightStatus === '-' ? '#1A5276' : '#A09580')};font-weight:bold;text-align:center;transition:all 0.2s;">${rightStatus || ''}</td>
+        <td class="cell-st-r" style="color:${rightStatus === '+' ? '#8B1A1A' : (rightStatus === '-' ? '#1A5276' : '#A09580')};font-weight:bold;text-align:center;transition:all 0.2s;">${_statusDisplayText(rightStatus)}</td>
         <td style="text-align:center;font-weight:bold;">${s.absDelta.toFixed(2)}</td>
         <td class="bc-col" style="display:none;text-align:center;font-size:0.7rem;font-weight:bold;color:${bcColor};background:${bcBg};">${s.batCuong || '—'}</td>
         ${compHTML}
