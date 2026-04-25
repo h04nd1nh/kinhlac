@@ -4,6 +4,7 @@ const LoginView = () => import('@/views/LoginView.vue')
 const DashboardLayout = () => import('@/views/DashboardLayout.vue')
 const HomeView = () => import('@/views/HomeView.vue')
 const PatientsView = () => import('@/views/PatientsView.vue')
+const PatientDetailView = () => import('@/views/PatientDetailView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -31,6 +32,12 @@ const router = createRouter({
           name: 'patients',
           component: PatientsView,
         },
+        {
+          path: 'patients/:id',
+          name: 'patient-detail',
+          component: PatientDetailView,
+          props: true,
+        },
       ],
     },
     {
@@ -41,15 +48,14 @@ const router = createRouter({
 })
 
 // Navigation guard
-router.beforeEach((to, _from, next) => {
+router.beforeEach((to) => {
   const token = localStorage.getItem('access_token')
 
   if (to.meta.requiresAuth && !token) {
-    next({ name: 'login' })
-  } else if (to.name === 'login' && token) {
-    next({ name: 'dashboard' })
-  } else {
-    next()
+    return { name: 'login' }
+  }
+  if (to.name === 'login' && token) {
+    return { name: 'dashboard' }
   }
 })
 

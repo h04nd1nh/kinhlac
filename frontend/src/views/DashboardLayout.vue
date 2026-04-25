@@ -58,7 +58,7 @@ function handleLogout() {
           v-for="item in navItems"
           :key="item.routeName"
           class="nav-item"
-          :class="{ active: currentRouteName === item.routeName }"
+          :class="{ active: currentRouteName === item.routeName || (item.routeName === 'patients' && currentRouteName === 'patient-detail') }"
           @click="navigate(item.routeName)"
         >
           <span class="nav-icon">
@@ -74,7 +74,7 @@ function handleLogout() {
           <Transition name="fade-text">
             <span v-show="!isSidebarCollapsed" class="nav-label">{{ item.name }}</span>
           </Transition>
-          <span v-if="currentRouteName === item.routeName && !isSidebarCollapsed" class="nav-active-dot"></span>
+          <span v-if="(currentRouteName === item.routeName || (item.routeName === 'patients' && currentRouteName === 'patient-detail')) && !isSidebarCollapsed" class="nav-active-dot"></span>
         </button>
       </nav>
 
@@ -109,7 +109,7 @@ function handleLogout() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
           </button>
           <h1 class="page-title">
-            {{ navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ' }}
+            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ') }}
           </h1>
         </div>
         <div class="header-right">
