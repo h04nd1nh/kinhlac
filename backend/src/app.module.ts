@@ -111,10 +111,10 @@ import { JwtStrategy } from './middlewares/auth/jwt.strategy';
         username: configService.get<string>('DB_USER'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
-        ssl: {
-          rejectUnauthorized: true,
+        ssl: configService.get<string>('DB_SSL') === 'true' ? {
+          rejectUnauthorized: configService.get<string>('DB_REJECT_UNAUTHORIZED') === 'true',
           ca: configService.get<string>('CA_CERTIFICATE'),
-        },
+        } : (configService.get<string>('DB_SSL') === 'false' ? false : { rejectUnauthorized: false }),
         autoLoadEntities: true,
         synchronize: true, // Should be false in production
       }),
