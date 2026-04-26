@@ -16,14 +16,8 @@ async function bootstrap() {
 
     const vercelRegex = /^https?:\/\/([a-z0-9-]+\.)?vercel\.app$/i;
 
-    app.enableCors({
-      origin: (origin, callback) => {
-        callback(null, true);
-      },
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      credentials: true,
-    });
-
+    app.enableCors(); // Already handled by vercel.json, but keep for safety
+    
     await app.init();
     cachedApp = server;
   }
