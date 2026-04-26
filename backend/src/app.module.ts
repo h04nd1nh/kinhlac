@@ -106,20 +106,21 @@ import { JwtStrategy } from './middlewares/auth/jwt.strategy';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        host: configService.get<string>('POSTGRES_HOST') || configService.get<string>('DB_HOST'),
-        port: configService.get<number>('POSTGRES_PORT') || configService.get<number>('DB_PORT') || 5432,
-        username: configService.get<string>('POSTGRES_USER') || configService.get<string>('DB_USER'),
-        password: configService.get<string>('POSTGRES_PASSWORD') || configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('POSTGRES_DATABASE') || configService.get<string>('DB_NAME'),
-        ssl: configService.get<string>('DB_SSL') === 'false' ? false : { rejectUnauthorized: false },
+        url: configService.get<string>('POSTGRES_URL'), // Best for Neon
+        host: !configService.get<string>('POSTGRES_URL') ? (configService.get<string>('POSTGRES_HOST') || configService.get<string>('DB_HOST')) : undefined,
+        port: !configService.get<string>('POSTGRES_URL') ? (configService.get<number>('POSTGRES_PORT') || configService.get<number>('DB_PORT') || 5432) : undefined,
+        username: !configService.get<string>('POSTGRES_URL') ? (configService.get<string>('POSTGRES_USER') || configService.get<string>('DB_USER')) : undefined,
+        password: !configService.get<string>('POSTGRES_URL') ? (configService.get<string>('POSTGRES_PASSWORD') || configService.get<string>('DB_PASSWORD')) : undefined,
+        database: !configService.get<string>('POSTGRES_URL') ? (configService.get<string>('POSTGRES_DATABASE') || configService.get<string>('DB_NAME')) : undefined,
+        ssl: true, 
         extra: {
           max: 1,
-          connectionTimeoutMillis: 5000,
+          connectionTimeoutMillis: 15000,
           idleTimeoutMillis: 1000,
-          keepAlive: false, // Forces connection to close after request in serverless
+          keepAlive: false,
         },
         poolSize: 1,
-        retryAttempts: 1,
+        retryAttempts: 2, // Slight increase to handle one-off flips
         autoLoadEntities: true,
         synchronize: configService.get<string>('DB_SYNCHRONIZE') === 'true',
       }),
