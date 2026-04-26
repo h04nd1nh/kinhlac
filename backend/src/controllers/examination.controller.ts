@@ -133,11 +133,26 @@ export class ExaminationsService {
     return this.examinationRepository.save(existing);
   }
 
-  findByPatient(patientId: number): Promise<Examination[]> {
-    return this.examinationRepository.find({
+  async findByPatient(patientId: number): Promise<Examination[]> {
+    const exams = await this.examinationRepository.find({
       where: { patientId },
       order: { createdAt: 'DESC' },
     });
+
+    // Cập nhật chẩn đoán tươi cho toàn bộ danh sách
+    for (const exam of exams) {
+      if (exam.inputData) {
+        try {
+          const fresh = await this.meridiansService.analyze(exam.inputData as any);
+          exam.amDuong = fresh.am_duong;
+          exam.khi = fresh.khi;
+          exam.huyet = fresh.huyet;
+          exam.flags = fresh.flags;
+          exam.syndromes = fresh.syndromes as any[];
+        } catch (e) {}
+      }
+    }
+    return exams;
   }
 
   async findOne(id: number): Promise<Examination> {
@@ -145,6 +160,21 @@ export class ExaminationsService {
     if (!examination) {
       throw new NotFoundException(`Ca khám #${id} không tồn tại`);
     }
+
+    // Tự động phân tích lại theo logic mới nhất để luôn trả về kết quả chính xác nhất
+    if (examination.inputData) {
+      try {
+        const fresh = await this.meridiansService.analyze(examination.inputData as any);
+        examination.amDuong = fresh.am_duong;
+        examination.khi = fresh.khi;
+        examination.huyet = fresh.huyet;
+        examination.flags = fresh.flags;
+        examination.syndromes = fresh.syndromes as any[];
+      } catch (e) {
+        console.warn(`Failed to re-analyze examination #${id} on the fly`, e);
+      }
+    }
+
     return examination;
   }
 
