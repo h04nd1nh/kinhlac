@@ -23,6 +23,32 @@ const error = ref<string | null>(null)
 const baiThuocList = ref<BaiThuoc[]>([])
 const viThuocList = ref<ViThuoc[]>([])
 
+// Pagination
+const itemsPerPage = ref(10)
+const baiThuocPage = ref(1)
+const viThuocPage = ref(1)
+
+const pagedBaiThuoc = computed(() => {
+  const start = (baiThuocPage.value - 1) * itemsPerPage.value
+  return baiThuocList.value.slice(start, start + itemsPerPage.value)
+})
+
+const pagedViThuoc = computed(() => {
+  const start = (viThuocPage.value - 1) * itemsPerPage.value
+  return viThuocList.value.slice(start, start + itemsPerPage.value)
+})
+
+const totalBTPage = computed(() => Math.ceil(baiThuocList.value.length / itemsPerPage.value))
+const totalVTPage = computed(() => Math.ceil(viThuocList.value.length / itemsPerPage.value))
+
+function getPageNumbers(current: number, total: number) {
+  const pages: number[] = []
+  const start = Math.max(1, current - 2)
+  const end = Math.min(total, current + 2)
+  for (let i = start; i <= end; i++) pages.push(i)
+  return pages
+}
+
 onMounted(async () => {
   await fetchData()
 })
@@ -103,10 +129,10 @@ async function fetchData() {
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="baiThuocList.length === 0">
+                <tr v-if="pagedBaiThuoc.length === 0">
                   <td colspan="4" class="text-center py-8 text-gray-500">Chưa có dữ liệu bài thuốc</td>
                 </tr>
-                <tr v-for="bt in baiThuocList" :key="bt.id">
+                <tr v-for="bt in pagedBaiThuoc" :key="bt.id">
                   <td>#{{ bt.id }}</td>
                   <td class="font-bold text-brown-900">{{ bt.ten_bai_thuoc }}</td>
                   <td class="text-gray-600">{{ bt.cach_dung || '—' }}</td>
@@ -114,6 +140,13 @@ async function fetchData() {
                 </tr>
               </tbody>
             </table>
+          </div>
+          <!-- Pagination -->
+          <div v-if="totalBTPage > 1" class="pagination">
+            <button class="page-btn" :disabled="baiThuocPage <= 1" @click="baiThuocPage--">‹</button>
+            <button v-for="pn in getPageNumbers(baiThuocPage, totalBTPage)" :key="pn" class="page-btn" :class="{ active: pn === baiThuocPage }" @click="baiThuocPage = pn">{{ pn }}</button>
+            <button class="page-btn" :disabled="baiThuocPage >= totalBTPage" @click="baiThuocPage++">›</button>
+            <span class="page-info">Trang {{ baiThuocPage }} / {{ totalBTPage }}</span>
           </div>
         </div>
       </div>
@@ -136,10 +169,10 @@ async function fetchData() {
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="viThuocList.length === 0">
+                <tr v-if="pagedViThuoc.length === 0">
                   <td colspan="4" class="text-center py-8 text-gray-500">Chưa có dữ liệu vị thuốc</td>
                 </tr>
-                <tr v-for="vt in viThuocList" :key="vt.id">
+                <tr v-for="vt in pagedViThuoc" :key="vt.id">
                   <td>#{{ vt.id }}</td>
                   <td class="font-bold text-brown-900">{{ vt.ten_vi_thuoc }}</td>
                   <td class="text-gray-600">{{ vt.tinh_vi || '—' }}</td>
@@ -147,6 +180,13 @@ async function fetchData() {
                 </tr>
               </tbody>
             </table>
+          </div>
+          <!-- Pagination -->
+          <div v-if="totalVTPage > 1" class="pagination">
+            <button class="page-btn" :disabled="viThuocPage <= 1" @click="viThuocPage--">‹</button>
+            <button v-for="pn in getPageNumbers(viThuocPage, totalVTPage)" :key="pn" class="page-btn" :class="{ active: pn === viThuocPage }" @click="viThuocPage = pn">{{ pn }}</button>
+            <button class="page-btn" :disabled="viThuocPage >= totalVTPage" @click="viThuocPage++">›</button>
+            <span class="page-info">Trang {{ viThuocPage }} / {{ totalVTPage }}</span>
           </div>
         </div>
       </div>
@@ -156,7 +196,7 @@ async function fetchData() {
 </template>
 
 <style scoped>
-.management-page { animation: fadeIn 0.4s ease; }
+.management-page { width: 100%; animation: fadeIn 0.4s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Header */
@@ -183,6 +223,14 @@ async function fetchData() {
 .data-table tbody tr { transition: background 0.2s; }
 .data-table tbody tr:hover { background: var(--gray-50); }
 .data-table td { font-size: var(--font-size-md); color: var(--gray-800); vertical-align: middle; }
+
+/* Pagination */
+.pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-4); background: var(--gray-50); border-top: 1px solid var(--gray-100); }
+.page-btn { min-width: 32px; height: 32px; padding: 0 8px; display: flex; align-items: center; justify-content: center; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-600); cursor: pointer; transition: all var(--transition-fast); }
+.page-btn:hover:not(:disabled) { border-color: var(--brown-400); color: var(--brown-700); background: var(--brown-50); }
+.page-btn.active { background: var(--brown-600); border-color: var(--brown-600); color: var(--white); }
+.page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.page-info { margin-left: var(--space-4); font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 600; }
 
 /* Utils */
 .text-center { text-align: center !important; }

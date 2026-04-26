@@ -64,6 +64,25 @@ function goToLatestExamination() {
   }
 }
 
+// Pagination
+const examPage = ref(1)
+const itemsPerPage = ref(5)
+
+const pagedExaminations = computed(() => {
+  const start = (examPage.value - 1) * itemsPerPage.value
+  return examinations.value.slice(start, start + itemsPerPage.value)
+})
+
+const totalPages = computed(() => Math.ceil(examinations.value.length / itemsPerPage.value))
+
+function getPageNumbers() {
+  const pages: number[] = []
+  const start = Math.max(1, examPage.value - 2)
+  const end = Math.min(totalPages.value, examPage.value + 2)
+  for (let i = start; i <= end; i++) pages.push(i)
+  return pages
+}
+
 function formatDate(d: string | null | undefined) {
   if (!d) return '—'
   try { return new Date(d).toLocaleDateString('vi-VN') } catch { return d }
@@ -201,7 +220,7 @@ function getAge(dob: string | null) {
           <p>Chưa có lịch sử khám bệnh</p>
         </div>
         <div v-else class="exam-list">
-          <div v-for="exam in examinations" :key="exam.id" class="exam-card" @click="goToMeridianResults(exam.id)">
+          <div v-for="exam in pagedExaminations" :key="exam.id" class="exam-card" @click="goToMeridianResults(exam.id)">
             <div class="exam-header">
               <div class="exam-date-badge">
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
@@ -225,6 +244,13 @@ function getAge(dob: string | null) {
               <p v-if="exam.notes" class="exam-notes">{{ exam.notes }}</p>
             </div>
           </div>
+          <!-- Pagination -->
+          <div v-if="totalPages > 1" class="pagination">
+            <button class="page-btn" :disabled="examPage <= 1" @click.stop="examPage--">‹</button>
+            <button v-for="pn in getPageNumbers()" :key="pn" class="page-btn" :class="{ active: pn === examPage }" @click.stop="examPage = pn">{{ pn }}</button>
+            <button class="page-btn" :disabled="examPage >= totalPages" @click.stop="examPage++">›</button>
+            <span class="page-info">Trang {{ examPage }} / {{ totalPages }}</span>
+          </div>
         </div>
       </div>
     </template>
@@ -232,6 +258,13 @@ function getAge(dob: string | null) {
 </template>
 
 <style scoped>
+/* (Previous styles...) */
+.pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-6) 0; }
+.page-btn { min-width: 32px; height: 32px; padding: 0 8px; display: flex; align-items: center; justify-content: center; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-600); cursor: pointer; transition: all var(--transition-fast); }
+.page-btn:hover:not(:disabled) { border-color: var(--brown-400); color: var(--brown-700); background: var(--brown-50); }
+.page-btn.active { background: var(--brown-600); border-color: var(--brown-600); color: var(--white); }
+.page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.page-info { margin-left: var(--space-4); font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 600; }
 .detail-page{width:100%;animation:fadeIn .4s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
