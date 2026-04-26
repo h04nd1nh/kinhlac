@@ -409,7 +409,7 @@ function goBack() {
 
           <section class="result-section mt-6">
             <h2 class="section-title">
-              <span class="section-num">III</span> MÔ HÌNH BỆNH LÝ & PHÁP TRỊ
+              <span class="section-num">III</span> MÔ HÌNH BỆNH LÝ
             </h2>
             <div class="result-card p-5">
               <div class="info-group">
@@ -424,18 +424,6 @@ function goBack() {
                 <div v-else class="pathology-placeholder">
                   <p>Không có mô hình bệnh lý nào được tìm thấy</p>
                 </div>
-              </div>
-              
-              <div class="info-group mt-5" v-if="syndromesList.length && syndromesList[0].phuyet_chamcuu">
-                <h4 class="info-label mb-3">Pháp Trị Đề Xuất</h4>
-                <div class="treatment-box">
-                  <p class="info-text font-medium">{{ syndromesList[0].phuyet_chamcuu }}</p>
-                </div>
-              </div>
-
-              <div class="info-group mt-5" v-if="syndromesList.length && syndromesList[0].giainghia_phuyet">
-                <h4 class="info-label mb-3">Giải Nghĩa Pháp Trị</h4>
-                <p class="info-text text-gray-700 leading-relaxed">{{ syndromesList[0].giainghia_phuyet }}</p>
               </div>
             </div>
           </section>

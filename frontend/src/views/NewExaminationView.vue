@@ -69,19 +69,56 @@ function getAge(dob: string | null) {
   return `${age} tuổi`
 }
 
+const keyMap: Record<string, string> = {
+  'Tiểu Trường': 'tieutruong',
+  'Tâm': 'tam',
+  'Tam Tiêu': 'tamtieu',
+  'Tâm Bào': 'tambao',
+  'Đại Trường': 'daitrang',
+  'Phế': 'phe',
+  'Bàng Quang': 'bangquang',
+  'Thận': 'than',
+  'Đởm': 'dam',
+  'Vị': 'vi',
+  'Can': 'can',
+  'Tỳ': 'ty'
+}
+
 async function saveExamination() {
   try {
-    // Demo submission
-    console.log('Submitting examination:', { form, meridianTemps })
-    alert('Đã lưu phiếu khám thành công!')
-    // Redirect to meridian results using a dummy exam ID
-    router.push({ 
-      name: 'meridian-results', 
-      params: { patientId: patientId.value, examId: 999 } 
+    const dto: any = {
+      patientId: patientId.value,
+      notes: `Triệu chứng: ${form.symptoms}\nXét nghiệm: ${form.tests}`
+    }
+
+    // Map upper
+    upperMeridians.forEach(m => {
+      const key = keyMap[m]
+      dto[`${key}trai`] = Number(meridianTemps.upperLeft[m]) || 0
+      dto[`${key}phai`] = Number(meridianTemps.upperRight[m]) || 0
     })
-  } catch (err) {
+
+    // Map lower
+    lowerMeridians.forEach(m => {
+      const key = keyMap[m]
+      dto[`${key}trai`] = Number(meridianTemps.lowerLeft[m]) || 0
+      dto[`${key}phai`] = Number(meridianTemps.lowerRight[m]) || 0
+    })
+
+    const response = await api.post<any>('/examinations', dto)
+    
+    if (response && response.success && response.id) {
+      alert('Đã lưu phiếu khám thành công!')
+      router.push({ 
+        name: 'meridian-results', 
+        params: { patientId: patientId.value, examId: response.id } 
+      })
+    } else {
+      throw new Error('Không nhận được ID phiếu khám từ máy chủ')
+    }
+  } catch (err: any) {
     console.error(err)
-    alert('Lỗi khi lưu phiếu khám!')
+    alert('Lỗi khi lưu phiếu khám: ' + (err.message || ''))
   }
 }
 </script>
