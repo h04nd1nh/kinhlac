@@ -3,23 +3,15 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import express, { Request, Response } from 'express';
 import { AppModule } from '../src/app.module';
 
-const server = express();
+const vercelRegex = /^https?:\/\/([a-z0-9-]+\.)?vercel\.app$/i;
 let cachedApp: any;
 
 async function bootstrap() {
   if (!cachedApp) {
-    const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
-
-    const allowedOrigins = (process.env.FRONTEND_URL || '*')
-      .split(',')
-      .map(o => o.trim());
-
-    const vercelRegex = /^https?:\/\/([a-z0-9-]+\.)?vercel\.app$/i;
-
+    const app = await NestFactory.create(AppModule);
     app.enableCors(); // Already handled by vercel.json, but keep for safety
-    
     await app.init();
-    cachedApp = server;
+    cachedApp = app.getHttpAdapter().getInstance();
   }
   return cachedApp;
 }
@@ -32,7 +24,7 @@ export default async (req: Request, res: Response) => {
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
 
   // Health check or static requests: return immediately to SAVE database connections
-  if (req.url === '/' || req.url === '/favicon.ico') {
+  if (req.url === '/' || req.url?.includes('favicon')) {
     res.status(200).send('Backend is running');
     return;
   }
