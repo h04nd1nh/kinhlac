@@ -157,18 +157,27 @@ export class MeridiansService {
 
     // --- Bước 2.1: Tính Khung Sinh Lý (làm tròn 2 chữ số như code gốc) ---
     const calculateBounds = (leftArr: number[], rightArr: number[]) => {
-      const allVals = [...leftArr, ...rightArr];
+      const allVals = [...leftArr, ...rightArr].filter(v => v > 0);
+      if (allVals.length === 0) {
+        return { midPoint: 0, dungSai: 0, upperLimit: 0, lowerLimit: 0 };
+      }
+
+      const sum = allVals.reduce((a, b) => a + b, 0);
+      const avg = this.round2(sum / allVals.length);
+      
       const maxVal = Math.max(...allVals);
       const minVal = Math.min(...allVals);
       const range = maxVal - minVal;
-      const midPoint = this.round2((maxVal + minVal) / 2.0);
+
+      // Trong phương pháp Lê Văn Sửu, midPoint chính là giá trị trung bình cộng
+      const midPoint = avg;
       const dungSai = this.round2(range / 6.0);
 
       return {
         midPoint,
         dungSai,
-        upperLimit: midPoint + dungSai,
-        lowerLimit: midPoint - dungSai,
+        upperLimit: this.round2(midPoint + dungSai),
+        lowerLimit: this.round2(midPoint - dungSai),
       };
     };
 
@@ -247,13 +256,12 @@ export class MeridiansService {
       thucDuoi < huDuoi ? 'Huyết hư' :
       'Bình thường';
 
-    // --- Bước 4: Khớp CSDL bệnh chứng luận trị (có flag2 như code gốc) ---
+    // --- Bước 4: Khớp CSDL bệnh chứng luận trị ---
     const allSyndromes = await this.meridianRepo.find();
 
+    // 4.1: Khớp tuyệt đối (Absolute Match)
     const matchedSyndromes = allSyndromes.filter(dbRow => {
-      let allMatch = true;
       let hasCondition = false;
-
       for (let i = 0; i < 12; i++) {
         const f = flags[i];
         const ch = CHANNELS[i];
@@ -264,53 +272,56 @@ export class MeridiansService {
 
         if (dbC8 !== 0 || dbC10 !== 0 || dbC11 !== 0) {
           hasCondition = true;
-          if (dbC8 !== 0 && dbC8 !== f.c8) { allMatch = false; break; }
-          if (dbC10 !== 0 && dbC10 !== f.c10) { allMatch = false; break; }
-          if (dbC11 !== 0 && dbC11 !== f.c11) { allMatch = false; break; }
+          // Khớp tuyệt đối: tất cả điều kiện có trong DB phải khớp với thực tế
+          if (dbC8 !== 0 && dbC8 !== f.c8) return false;
+          if (dbC10 !== 0 && dbC10 !== f.c10) return false;
+          if (dbC11 !== 0 && dbC11 !== f.c11) return false;
         }
       }
+      return hasCondition;
+    }).map(s => Object.assign(s, { rate: 1.0, matchScore: 100 }));
 
-      return hasCondition && allMatch;
-    });
-
-    // --- Bước 4b: Gợi ý mô hình bệnh lý (giống webapp suggestRelatedModels) ---
-    // So khớp theo dấu thực đo của từng kinh (ưu tiên c8/c11), so với điều kiện mô hình (cột c10: tieutruong/tam/...)
-    const actualFor = (f: AnalyzeOutputDto['flags'][number]): -1 | 0 | 1 => {
-      const isThuc = f.c8 === 1 || f.c11 === 1;
-      const isHu = f.c8 === -1 || f.c11 === -1;
-      if (isThuc) return 1;
-      if (isHu) return -1;
-      return 0;
-    };
-
+    // 4.2: Gợi ý mô hình bệnh lý (Partial Match)
+    // Dùng logic so khớp linh hoạt hơn dựa trên dấu (c10) và ngưỡng (c8/c11)
     const suggested = allSyndromes.map(dbRow => {
       let score = 0;
       let total = 0;
 
       for (let i = 0; i < 12; i++) {
         const ch = CHANNELS[i];
-        const mv = (dbRow[ch as keyof MeridianSyndrome] as number) ?? 0; // điều kiện mô hình theo kinh
+        const f = flags[i];
+        const mv = (dbRow[ch as keyof MeridianSyndrome] as number) ?? 0; // Điều kiện mô hình (c10)
+
         if (mv !== 0) {
           total++;
-          const actual = actualFor(flags[i]);
-          if (mv === actual) score++;
+          // So khớp c10 (dấu) là quan trọng nhất cho mô hình
+          if (mv === f.c10) {
+            score += 1;
+            // Nếu khớp cả c8 hoặc c11 (vượt ngưỡng) thì cộng thêm điểm
+            if ((mv === 1 && (f.c8 === 1 || f.c11 === 1)) || 
+                (mv === -1 && (f.c8 === -1 || f.c11 === -1))) {
+              score += 0.5;
+            }
+          }
         }
       }
 
-      const rate = total > 0 ? score / total : 0;
+      const rate = total > 0 ? score / (total * 1.5) : 0; // Chia cho 1.5 vì max score có thể là total * 1.5
       return Object.assign(dbRow, { rate, matchScore: score, totalInModel: total });
     })
     .filter(m => (m.totalInModel ?? 0) > 0 && (m.rate ?? 0) > 0.4)
-    .sort((a, b) => (b.rate ?? 0) - (a.rate ?? 0) || (b.matchScore ?? 0) - (a.matchScore ?? 0))
-    .slice(0, 12);
+    // Loại bỏ những cái đã có trong matchedSyndromes để tránh trùng
+    .filter(m => !matchedSyndromes.some(ms => ms.id === m.id))
+    .sort((a, b) => (b.rate ?? 0) - (a.rate ?? 0))
+    .slice(0, 10);
 
     return {
       am_duong,
       khi,
       huyet,
       flags,
-      // Ưu tiên danh sách gợi ý có xếp hạng; nếu không có thì fallback sang khớp tuyệt đối
-      syndromes: suggested.length ? suggested : matchedSyndromes,
+      // Gộp cả khớp tuyệt đối và gợi ý, ưu tiên tuyệt đối lên đầu
+      syndromes: [...matchedSyndromes, ...suggested],
     };
   }
 }

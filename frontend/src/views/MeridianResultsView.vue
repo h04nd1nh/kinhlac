@@ -55,21 +55,28 @@ function round2(n: number) {
 }
 
 function calculateBounds(dataArr: any[]) {
-  if (!dataArr.length) return { max: 0, min: 0, range: 0, mean: 0, sd: 0, upperBound: 0, lowerBound: 0 }
-  const allVals = dataArr.flatMap(d => [d.left, d.right])
+  const allVals = dataArr.flatMap(d => [d.left, d.right]).filter(v => v > 0)
+  if (!allVals.length) return { max: 0, min: 0, range: 0, mean: 0, sd: 0, upperBound: 0, lowerBound: 0 }
+  
+  const sum = allVals.reduce((a, b) => a + b, 0)
+  const avg = round2(sum / allVals.length)
+  
   const maxVal = Math.max(...allVals)
   const minVal = Math.min(...allVals)
   const range = maxVal - minVal
-  const midPoint = round2((maxVal + minVal) / 2.0)
+  
+  // Trong phương pháp Lê Văn Sửu, trung vị (midPoint) dùng Trung bình cộng
+  const midPoint = avg
   const dungSai = round2(range / 6.0)
+  
   return {
     max: maxVal,
     min: minVal,
     range: range,
-    mean: midPoint, // using 'mean' to represent midPoint
-    sd: dungSai, // using 'sd' to represent dungSai
-    upperBound: midPoint + dungSai,
-    lowerBound: midPoint - dungSai
+    mean: midPoint, 
+    sd: dungSai, 
+    upperBound: round2(midPoint + dungSai),
+    lowerBound: round2(midPoint - dungSai)
   }
 }
 
