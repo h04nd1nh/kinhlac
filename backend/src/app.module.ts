@@ -111,15 +111,17 @@ import { JwtStrategy } from './middlewares/auth/jwt.strategy';
         username: configService.get<string>('DB_USER'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
-        ssl: configService.get<string>('DB_SSL') === 'true' ? {
-          rejectUnauthorized: configService.get<string>('DB_REJECT_UNAUTHORIZED') === 'true',
-          ca: configService.get<string>('CA_CERTIFICATE'),
-        } : (configService.get<string>('DB_SSL') === 'false' ? false : { rejectUnauthorized: false }),
+        ssl: configService.get<string>('DB_SSL') === 'false' ? false : { rejectUnauthorized: false },
         extra: {
-          max: configService.get<number>('DB_MAX_CONNECTIONS') || 1, // Crucial for Serverless
+          max: 1,
+          connectionTimeoutMillis: 5000,
+          idleTimeoutMillis: 1000,
+          keepAlive: false, // Forces connection to close after request in serverless
         },
+        poolSize: 1,
+        retryAttempts: 1,
         autoLoadEntities: true,
-        synchronize: configService.get<string>('DB_SYNCHRONIZE') === 'true', // Use env var for safety
+        synchronize: configService.get<string>('DB_SYNCHRONIZE') === 'true',
       }),
       inject: [ConfigService],
     }),
