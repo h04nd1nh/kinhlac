@@ -13,15 +13,17 @@ async function bootstrap() {
 
   const brandmasterRegex = /^https?:\/\/([a-z0-9-]+\.)?brandmaster\.net\.vn$/i;
   const localhostRegex = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
+  const vercelRegex = /^https?:\/\/([a-z0-9-]+\.)?vercel\.app$/i;
 
   app.enableCors({
     origin: (origin, callback) => {
-      // Non-browser requests (curl, server-to-server) có thể không có Origin
+      // Non-browser requests (curl, server-to-server) may not have an Origin
       if (!origin) return callback(null, true);
 
       if (allowedOrigins.includes(origin)) return callback(null, true);
       if (brandmasterRegex.test(origin)) return callback(null, true);
       if (localhostRegex.test(origin)) return callback(null, true);
+      if (vercelRegex.test(origin)) return callback(null, true);
 
       return callback(new Error(`CORS blocked for origin: ${origin}`), false);
     },
