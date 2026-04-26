@@ -323,12 +323,12 @@ function isTodayStr(ymd: string) {
                   :key="app.id" 
                   class="cell-event-dot"
                   :class="getStatusClass(app.status)"
-                  :title="`${app.appointmentTime} - ${patientsMap[app.patientId]?.fullName}`"
+                  :title="`${app.appointmentTime} - ${patientsMap[app.patientId]?.fullName || ''}`"
                 >
-                  {{ app.appointmentTime }} - {{ patientsMap[app.patientId]?.fullName?.split(' ').pop() }}
+                  {{ app.appointmentTime }} - {{ (patientsMap[app.patientId]?.fullName || '').split(' ').pop() }}
                 </div>
-                <div v-if="groupedAppointments[day.ymd].length > 3" class="cell-more">
-                  +{{ groupedAppointments[day.ymd].length - 3 }} nữa
+                <div v-if="(groupedAppointments[day.ymd]?.length || 0) > 3" class="cell-more">
+                  +{{ (groupedAppointments[day.ymd]?.length || 0) - 3 }} nữa
                 </div>
               </div>
             </div>
@@ -378,7 +378,7 @@ function isTodayStr(ymd: string) {
                   <span class="badge" :class="getStatusClass(app.status)">{{ getStatusLabel(app.status) }}</span>
                 </div>
                 <div class="evt-meta">
-                  <span v-if="patientsMap[app.patientId]?.phone">📞 {{ patientsMap[app.patientId].phone }}</span>
+                  <span v-if="patientsMap[app.patientId]?.phone">📞 {{ patientsMap[app.patientId]?.phone }}</span>
                   <span v-if="app.type === 'WEEKLY'">🔁 Định kỳ</span>
                 </div>
                 <div v-if="app.notes" class="evt-notes">{{ app.notes }}</div>
@@ -397,8 +397,8 @@ function isTodayStr(ymd: string) {
         </div>
 
         <div v-else class="patient-grid">
-          <div v-for="group in patientGroups" :key="group.appointments[0].patientId" class="patient-group-card">
-            <div class="pg-header" @click="goToPatient(group.appointments[0].patientId)">
+          <div v-for="group in patientGroups" :key="group.appointments[0]?.patientId" class="patient-group-card">
+            <div class="pg-header" @click="group.appointments[0] && goToPatient(group.appointments[0].patientId)">
               <div class="pg-avatar">
                 {{ (group.patient?.fullName || '?').charAt(0).toUpperCase() }}
               </div>
@@ -406,7 +406,7 @@ function isTodayStr(ymd: string) {
                 <h3 class="pg-name">{{ group.patient?.fullName || 'Bệnh nhân ẩn danh' }}</h3>
                 <span class="pg-phone">{{ group.patient?.phone || 'Chưa cập nhật SĐT' }}</span>
               </div>
-              <button class="btn-secondary btn-sm" @click.stop="goToPatient(group.appointments[0].patientId)">
+              <button class="btn-secondary btn-sm" @click.stop="group.appointments[0] && goToPatient(group.appointments[0].patientId)">
                 Hồ sơ
               </button>
             </div>

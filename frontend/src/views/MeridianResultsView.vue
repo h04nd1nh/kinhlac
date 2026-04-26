@@ -423,7 +423,7 @@ function goBack() {
                 <h4 class="info-label mb-3">Mô Hình Bệnh Lý</h4>
                 <div v-if="syndromesList.length" class="flex flex-col gap-2">
                   <div v-for="(synd, idx) in syndromesList" :key="idx" class="syndrome-tag">
-                    <span class="synd-idx">{{ idx + 1 }}</span>
+                    <span class="synd-idx">{{ Number(idx) + 1 }}</span>
                     <span class="synd-name">{{ synd.tieuket }}</span>
                     <span v-if="synd.rate" class="synd-rate">{{ Math.round(synd.rate * 100) }}%</span>
                   </div>

@@ -218,7 +218,7 @@ function getAge(dob: string | null) {
               <div v-if="exam.syndromes && exam.syndromes.length" class="exam-syndromes">
                 <span class="syndromes-label">Thể bệnh:</span>
                 <span v-for="(s, i) in exam.syndromes.slice(0, 3)" :key="i" class="syndrome-chip">
-                  {{ s.name || s.ten || `Thể ${i + 1}` }}
+                  {{ s.name || s.ten || `Thể ${Number(i) + 1}` }}
                 </span>
                 <span v-if="exam.syndromes.length > 3" class="syndrome-more">+{{ exam.syndromes.length - 3 }}</span>
               </div>
