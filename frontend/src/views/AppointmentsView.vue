@@ -319,7 +319,7 @@ function isTodayStr(ymd: string) {
               <div class="cell-date">{{ day.date.getDate() }}</div>
               <div class="cell-events" v-if="groupedAppointments[day.ymd]">
                 <div 
-                  v-for="app in groupedAppointments[day.ymd].slice(0, 3)" 
+                  v-for="app in (groupedAppointments[day.ymd]?.slice(0, 3) || [])" 
                   :key="app.id" 
                   class="cell-event-dot"
                   :class="getStatusClass(app.status)"
