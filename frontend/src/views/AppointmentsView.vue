@@ -70,10 +70,11 @@ async function fetchData() {
 const groupedAppointments = computed(() => {
   const groups: Record<string, Appointment[]> = {}
   appointments.value.forEach(app => {
-    if (!groups[app.appointmentDate]) {
-      groups[app.appointmentDate] = []
+    const date = app.appointmentDate
+    if (!groups[date]) {
+      groups[date] = []
     }
-    groups[app.appointmentDate].push(app)
+    groups[date]!.push(app)
   })
   return groups
 })
@@ -153,8 +154,9 @@ const calendarTitle = computed(() => {
   const m = currentDate.value.getMonth() + 1
   if (calendarView.value === 'month') return `Tháng ${m}, ${y}`
   if (calendarView.value === 'week') {
-    const start = weekDays.value[0].date
-    const end = weekDays.value[6].date
+    const start = weekDays.value[0]?.date
+    const end = weekDays.value[6]?.date
+    if (!start || !end) return 'Lịch tuần'
     if (start.getMonth() === end.getMonth()) {
       return `Tuần ${start.getDate()} - ${end.getDate()} Tháng ${m}, ${y}`
     }
@@ -189,19 +191,21 @@ function goToday() {
 const patientGroups = computed(() => {
   const groups: Record<number, { patient: Patient | null, appointments: Appointment[] }> = {}
   appointments.value.forEach(app => {
-    if (!groups[app.patientId]) {
-      groups[app.patientId] = {
-        patient: patientsMap.value[app.patientId] || null,
+    const pid = app.patientId
+    if (!groups[pid]) {
+      groups[pid] = {
+        patient: patientsMap.value[pid] || null,
         appointments: []
       }
     }
-    groups[app.patientId].appointments.push(app)
+    groups[pid]!.appointments.push(app)
   })
   
   // Sort by latest appointment
   return Object.values(groups).sort((a, b) => {
     const lastA = a.appointments[a.appointments.length - 1]
     const lastB = b.appointments[b.appointments.length - 1]
+    if (!lastA || !lastB) return 0
     const dtA = new Date(`${lastA.appointmentDate}T${lastA.appointmentTime}`).getTime()
     const dtB = new Date(`${lastB.appointmentDate}T${lastB.appointmentTime}`).getTime()
     return dtB - dtA
