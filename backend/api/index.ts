@@ -18,11 +18,7 @@ async function bootstrap() {
 
     app.enableCors({
       origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*') || vercelRegex.test(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error('Not allowed by CORS'));
-        }
+        callback(null, true);
       },
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true,
@@ -35,6 +31,15 @@ async function bootstrap() {
 }
 
 export default async (req: Request, res: Response) => {
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Accept');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   const app = await bootstrap();
   app(req, res);
 };

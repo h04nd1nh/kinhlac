@@ -18,14 +18,7 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       // Non-browser requests (curl, server-to-server) may not have an Origin
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      if (brandmasterRegex.test(origin)) return callback(null, true);
-      if (localhostRegex.test(origin)) return callback(null, true);
-      if (vercelRegex.test(origin)) return callback(null, true);
-
-      return callback(new Error(`CORS blocked for origin: ${origin}`), false);
+      return callback(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
