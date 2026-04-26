@@ -14,9 +14,17 @@ async function bootstrap() {
       .split(',')
       .map(o => o.trim());
 
+    const vercelRegex = /^https?:\/\/([a-z0-9-]+\.)?vercel\.app$/i;
+
     app.enableCors({
-      origin: allowedOrigins,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*') || vercelRegex.test(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true,
     });
 
