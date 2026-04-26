@@ -106,11 +106,11 @@ import { JwtStrategy } from './middlewares/auth/jwt.strategy';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        host: configService.get<string>('DB_HOST'),
-        port: configService.get<number>('DB_PORT'),
-        username: configService.get<string>('DB_USER'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_NAME'),
+        host: configService.get<string>('POSTGRES_HOST') || configService.get<string>('DB_HOST'),
+        port: configService.get<number>('POSTGRES_PORT') || configService.get<number>('DB_PORT') || 5432,
+        username: configService.get<string>('POSTGRES_USER') || configService.get<string>('DB_USER'),
+        password: configService.get<string>('POSTGRES_PASSWORD') || configService.get<string>('DB_PASSWORD'),
+        database: configService.get<string>('POSTGRES_DATABASE') || configService.get<string>('DB_NAME'),
         ssl: configService.get<string>('DB_SSL') === 'false' ? false : { rejectUnauthorized: false },
         extra: {
           max: 1,
