@@ -1,29 +1,27 @@
-# Stage 1: Build
-FROM node:22-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm ci
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm install
 
+# Copy source code and build
 COPY . .
-RUN npx tsc -p tsconfig.build.json && ls dist/main.js
+RUN npm run build
 
-# Stage 2: Production
-FROM node:22-alpine
+# Production stage
+FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev && npm cache clean --force
-
+# Copy only the necessary files from builder
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
-USER node
+# Expose port (assuming NestJS default is 3000)
+EXPOSE 3000
 
-EXPOSE 3001
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001 || exit 1
-
-CMD ["node", "dist/main"]
+# Start the application
+CMD ["npm", "run", "start:prod"]

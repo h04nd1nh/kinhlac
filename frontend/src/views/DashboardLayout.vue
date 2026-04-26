@@ -14,6 +14,10 @@ const navItems = [
   { name: 'Bệnh nhân', routeName: 'patients', icon: 'patients' },
   { name: 'Lịch khám', routeName: 'appointments', icon: 'calendar' },
   { name: 'Bệnh tây y', routeName: 'western-medicine', icon: 'stethoscope' },
+  { name: 'Bệnh kinh lạc', routeName: 'meridian-diseases', icon: 'activity' },
+  { name: 'Quản lý thuốc', routeName: 'medicines', icon: 'pill' },
+  { name: 'Triệu chứng', routeName: 'symptoms', icon: 'clipboard' },
+  { name: 'Pháp trị', routeName: 'treatments', icon: 'shield' },
 ]
 
 const currentRouteName = computed(() => route.name)
@@ -72,6 +76,14 @@ function handleLogout() {
             <svg v-if="item.icon === 'calendar'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             <!-- Stethoscope (Western Medicine) icon -->
             <svg v-if="item.icon === 'stethoscope'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13a9 9 0 0018 0v-5m-9 14a5 5 0 01-5-5V7a2 2 0 012-2h6a2 2 0 012 2v5a5 5 0 01-5 5zm0 0v-4" /></svg>
+            <!-- Activity (Meridian) icon -->
+            <svg v-if="item.icon === 'activity'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+            <!-- Pill (Medicines) icon -->
+            <svg v-if="item.icon === 'pill'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 20.5L3.5 13.5a5 5 0 017.07-7.07l7 7a5 5 0 01-7.07 7.07z" /><path stroke-linecap="round" stroke-linejoin="round" d="M8.5 8.5l7 7" /></svg>
+            <!-- Clipboard (Symptoms) icon -->
+            <svg v-if="item.icon === 'clipboard'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+            <!-- Shield (Treatments) icon -->
+            <svg v-if="item.icon === 'shield'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
             <!-- Patients icon -->
             <svg v-if="item.icon === 'patients'" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
@@ -115,7 +127,7 @@ function handleLogout() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
           </button>
           <h1 class="page-title">
-            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (currentRouteName === 'new-examination' ? 'Khám mới' : currentRouteName === 'meridian-results' ? 'Kết quả đo kinh lạc' : currentRouteName === 'western-medicine' ? 'Bệnh tây y' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ')) }}
+            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (currentRouteName === 'new-examination' ? 'Khám mới' : currentRouteName === 'meridian-results' ? 'Kết quả đo kinh lạc' : currentRouteName === 'western-medicine' ? 'Bệnh tây y' : currentRouteName === 'meridian-diseases' ? 'Bệnh kinh lạc' : currentRouteName === 'medicines' ? 'Quản lý thuốc' : currentRouteName === 'symptoms' ? 'Triệu chứng' : currentRouteName === 'treatments' ? 'Pháp trị' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ')) }}
           </h1>
         </div>
         <div class="header-right">

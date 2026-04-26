@@ -9,6 +9,10 @@ const NewExaminationView = () => import('@/views/NewExaminationView.vue')
 const MeridianResultsView = () => import('@/views/MeridianResultsView.vue')
 const AppointmentsView = () => import('@/views/AppointmentsView.vue')
 const WesternMedicineView = () => import('@/views/WesternMedicineView.vue')
+const MeridianDiseasesView = () => import('@/views/MeridianDiseasesView.vue')
+const MedicinesView = () => import('@/views/MedicinesView.vue')
+const SymptomsView = () => import('@/views/SymptomsView.vue')
+const TreatmentsView = () => import('@/views/TreatmentsView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -45,6 +49,26 @@ const router = createRouter({
           path: 'western-medicine',
           name: 'western-medicine',
           component: WesternMedicineView,
+        },
+        {
+          path: 'meridian-diseases',
+          name: 'meridian-diseases',
+          component: MeridianDiseasesView,
+        },
+        {
+          path: 'medicines',
+          name: 'medicines',
+          component: MedicinesView,
+        },
+        {
+          path: 'symptoms',
+          name: 'symptoms',
+          component: SymptomsView,
+        },
+        {
+          path: 'treatments',
+          name: 'treatments',
+          component: TreatmentsView,
         },
         {
           path: 'patients/:id',
