@@ -61,35 +61,14 @@ const chungBenhMap = computed(() => {
   }, {} as Record<number, ChungBenh>)
 })
 
-// Flattened list to show one row per (Disease, Prescription) pair
-const flattenedList = computed(() => {
-  const result: any[] = []
-  benhTayYList.value.forEach(bty => {
-    if (!bty.baiThuocList || bty.baiThuocList.length === 0) {
-      result.push({
-        ...bty,
-        currentBaiThuoc: null
-      })
-    } else {
-      bty.baiThuocList.forEach(bt => {
-        result.push({
-          ...bty,
-          currentBaiThuoc: bt
-        })
-      })
-    }
-  })
-  return result
-})
-
 // Paged list for display
 const pagedList = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage.value
   const end = start + itemsPerPage.value
-  return flattenedList.value.slice(start, end)
+  return benhTayYList.value.slice(start, end)
 })
 
-const totalPages = computed(() => Math.ceil(flattenedList.value.length / itemsPerPage.value))
+const totalPages = computed(() => Math.ceil(benhTayYList.value.length / itemsPerPage.value))
 
 const pageNumbers = computed(() => {
   const pages: number[] = []
@@ -122,6 +101,30 @@ function getThietChanNames(bty: any) {
 function getMachChanNames(bty: any) {
   if (!bty.machChanList) return '—'
   return bty.machChanList.map((mc: any) => mc.ten_mach_chan).join(', ') || '—'
+}
+
+function editChungBenh(cb: ChungBenh) {
+  console.log('Edit Chung Benh:', cb)
+  // TODO: Implement form modal or logic
+}
+
+function deleteChungBenh(cb: ChungBenh) {
+  if (confirm(`Bạn có chắc chắn muốn xóa chủng bệnh: "${cb.ten_chung_benh}" không?`)) {
+    // TODO: Implement API logic
+    console.log('Delete Chung Benh:', cb)
+  }
+}
+
+function editDisease(bty: BenhTayY) {
+  console.log('Edit Benh Tay Y:', bty)
+  // TODO: Implement form modal or logic
+}
+
+function deleteDisease(bty: BenhTayY) {
+  if (confirm(`Bạn có chắc chắn muốn xóa bệnh tây y: "${bty.ten_benh}" không?`)) {
+    // TODO: Implement API logic
+    console.log('Delete Benh Tay Y:', bty)
+  }
 }
 </script>
 
@@ -170,17 +173,24 @@ function getMachChanNames(bty: any) {
                   <th width="200">Mã Chủng Bệnh</th>
                   <th>Tên Chủng Bệnh</th>
                   <th>Mô tả</th>
+                  <th width="140" class="text-right">Thao Tác</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="chungBenhList.length === 0">
-                  <td colspan="4" class="text-center py-8 text-gray-500">Chưa có dữ liệu chủng bệnh</td>
+                  <td colspan="5" class="text-center py-8 text-gray-500">Chưa có dữ liệu chủng bệnh</td>
                 </tr>
                 <tr v-for="cb in chungBenhList" :key="cb.id">
                   <td>#{{ cb.id }}</td>
                   <td class="font-medium text-brown-700">{{ cb.ma_chung_benh }}</td>
                   <td class="font-bold">{{ cb.ten_chung_benh }}</td>
                   <td class="text-gray-600">{{ cb.mo_ta || 'Không có mô tả' }}</td>
+                  <td class="text-right">
+                    <div class="action-buttons">
+                      <button class="btn-action btn-edit" @click="editChungBenh(cb)">Sửa</button>
+                      <button class="btn-action btn-delete" @click="deleteChungBenh(cb)">Xóa</button>
+                    </div>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -215,21 +225,36 @@ function getMachChanNames(bty: any) {
                   <td colspan="9" class="text-center py-8 text-gray-500">Chưa có dữ liệu bệnh tây y</td>
                 </tr>
                 <tr v-for="(row, idx) in pagedList" :key="idx">
-                  <td class="font-bold text-brown-900">{{ row.ten_benh }}</td>
-                  <td>
+                  <td class="font-bold text-brown-900" style="vertical-align: top;">{{ row.ten_benh }}</td>
+                  <td style="vertical-align: top;">
                     <span class="chung-benh-badge" v-if="row.chungBenh || chungBenhMap[row.idChungBenh]">
                       {{ row.chungBenh?.ten_chung_benh || chungBenhMap[row.idChungBenh]?.ten_chung_benh }}
                     </span>
                     <span class="text-gray-400 italic" v-else>Chưa phân loại</span>
                   </td>
-                  <td class="font-medium text-brown-700">{{ row.currentBaiThuoc?.ten_bai_thuoc || '—' }}</td>
-                  <td class="text-gray-600 small-text">{{ getPhapTriNames(row.currentBaiThuoc) }}</td>
-                  <td class="text-gray-600 small-text">{{ row.currentBaiThuoc?.the_benh || '—' }}</td>
-                  <td class="text-gray-600 small-text trieu-chung-cell">{{ row.currentBaiThuoc?.trieu_chung || '—' }}</td>
-                  <td class="text-gray-600 small-text">{{ getThietChanNames(row) }}</td>
-                  <td class="text-gray-600 small-text">{{ getMachChanNames(row) }}</td>
-                  <td class="text-right">
-                    <button class="btn-action">Phân tu</button>
+                  <td class="font-medium text-brown-700" style="vertical-align: top;">
+                    <div v-for="bt in row.baiThuocList" :key="bt.id" class="mb-1">{{ bt.ten_bai_thuoc }}</div>
+                    <span v-if="!row.baiThuocList || row.baiThuocList.length === 0">—</span>
+                  </td>
+                  <td class="text-gray-600 small-text" style="vertical-align: top;">
+                     <div v-for="bt in row.baiThuocList" :key="bt.id" class="mb-1">{{ getPhapTriNames(bt) }}</div>
+                     <span v-if="!row.baiThuocList || row.baiThuocList.length === 0">—</span>
+                  </td>
+                  <td class="text-gray-600 small-text" style="vertical-align: top;">
+                     <div v-for="bt in row.baiThuocList" :key="bt.id" class="mb-1">{{ bt.the_benh || '—' }}</div>
+                     <span v-if="!row.baiThuocList || row.baiThuocList.length === 0">—</span>
+                  </td>
+                  <td class="text-gray-600 small-text trieu-chung-cell" style="vertical-align: top;">
+                     <div v-for="bt in row.baiThuocList" :key="bt.id" class="mb-1 line-clamp">{{ bt.trieu_chung || '—' }}</div>
+                     <span v-if="!row.baiThuocList || row.baiThuocList.length === 0">—</span>
+                  </td>
+                  <td class="text-gray-600 small-text" style="vertical-align: top;">{{ getThietChanNames(row) }}</td>
+                  <td class="text-gray-600 small-text" style="vertical-align: top;">{{ getMachChanNames(row) }}</td>
+                  <td class="text-right" style="vertical-align: top;">
+                    <div class="action-buttons">
+                      <button class="btn-action btn-edit" @click="editDisease(row)">Sửa</button>
+                      <button class="btn-action btn-delete" @click="deleteDisease(row)">Xóa</button>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -276,12 +301,15 @@ function getMachChanNames(bty: any) {
 .data-table th { background: #fdfbf9; font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
 .data-table tbody tr { transition: background 0.2s; }
 .data-table tbody tr:hover { background: var(--gray-50); }
-.data-table td { font-size: var(--font-size-md); color: var(--gray-800); vertical-align: middle; }
+.data-table td { font-size: 13px; color: var(--gray-800); vertical-align: middle; }
 
 /* Table Expansions */
 .data-table--full { min-width: 1200px; }
-.small-text { font-size: var(--font-size-xs) !important; line-height: 1.4; }
-.trieu-chung-cell { max-width: 250px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.small-text { font-size: 12px !important; line-height: 1.4; }
+.trieu-chung-cell { max-width: 250px; white-space: normal; }
+.line-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mb-1 { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dashed var(--gray-200); min-height: 24px; }
+.mb-1:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
 
 /* Utils */
 .text-right { text-align: right !important; }
@@ -312,8 +340,15 @@ function getMachChanNames(bty: any) {
 .page-info { margin-left: var(--space-4); font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 600; }
 
 /* Actions */
-.btn-action { padding: 6px 16px; background: var(--brown-600); color: var(--white); border: none; border-radius: var(--radius-md); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer; transition: all var(--transition-fast); text-transform: uppercase; letter-spacing: 0.5px; }
-.btn-action:hover { background: var(--brown-700); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.action-buttons { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.btn-action { padding: 6px 12px; background: var(--brown-600); color: var(--white); border: none; border-radius: var(--radius-md); font-size: 11px; font-weight: 700; cursor: pointer; transition: all var(--transition-fast); text-transform: uppercase; letter-spacing: 0.5px; }
+.btn-action:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+
+.btn-edit { background: #3b82f6; }
+.btn-edit:hover { background: #2563eb; }
+
+.btn-delete { background: #ef4444; }
+.btn-delete:hover { background: #dc2626; }
 
 .loading-state { display: flex; flex-direction: column; align-items: center; padding: var(--space-12) 0; color: var(--brown-600); }
 .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--brown-500); border-radius: 50%; animation: spin .7s linear infinite; }
