@@ -106,13 +106,13 @@ import { JwtStrategy } from './middlewares/auth/jwt.strategy';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        url: configService.get<string>('POSTGRES_URL'), // Best for Neon
-        host: !configService.get<string>('POSTGRES_URL') ? (configService.get<string>('POSTGRES_HOST') || configService.get<string>('DB_HOST')) : undefined,
-        port: !configService.get<string>('POSTGRES_URL') ? (configService.get<number>('POSTGRES_PORT') || configService.get<number>('DB_PORT') || 5432) : undefined,
-        username: !configService.get<string>('POSTGRES_URL') ? (configService.get<string>('POSTGRES_USER') || configService.get<string>('DB_USER')) : undefined,
-        password: !configService.get<string>('POSTGRES_URL') ? (configService.get<string>('POSTGRES_PASSWORD') || configService.get<string>('DB_PASSWORD')) : undefined,
-        database: !configService.get<string>('POSTGRES_URL') ? (configService.get<string>('POSTGRES_DATABASE') || configService.get<string>('DB_NAME')) : undefined,
-        ssl: true, 
+        url: configService.get<string>('DATABASE_URL') || configService.get<string>('POSTGRES_URL'), 
+        host: configService.get<string>('DB_HOST') || configService.get<string>('POSTGRES_HOST'),
+        port: configService.get<number>('DB_PORT') || configService.get<number>('POSTGRES_PORT') || 5432,
+        username: configService.get<string>('DB_USER') || configService.get<string>('POSTGRES_USER'),
+        password: configService.get<string>('DB_PASSWORD') || configService.get<string>('POSTGRES_PASSWORD'),
+        database: configService.get<string>('DB_NAME') || configService.get<string>('POSTGRES_DATABASE'),
+        ssl: configService.get<string>('DB_SSL') === 'false' ? false : { rejectUnauthorized: false },
         extra: {
           max: 1,
           connectionTimeoutMillis: 15000,
