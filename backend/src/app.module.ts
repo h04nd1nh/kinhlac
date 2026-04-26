@@ -115,8 +115,11 @@ import { JwtStrategy } from './middlewares/auth/jwt.strategy';
           rejectUnauthorized: configService.get<string>('DB_REJECT_UNAUTHORIZED') === 'true',
           ca: configService.get<string>('CA_CERTIFICATE'),
         } : (configService.get<string>('DB_SSL') === 'false' ? false : { rejectUnauthorized: false }),
+        extra: {
+          max: configService.get<number>('DB_MAX_CONNECTIONS') || 1, // Crucial for Serverless
+        },
         autoLoadEntities: true,
-        synchronize: true, // Should be false in production
+        synchronize: configService.get<string>('DB_SYNCHRONIZE') === 'true', // Use env var for safety
       }),
       inject: [ConfigService],
     }),
