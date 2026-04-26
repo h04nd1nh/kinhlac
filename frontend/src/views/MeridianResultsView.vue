@@ -58,15 +58,12 @@ function calculateBounds(dataArr: any[]) {
   const allVals = dataArr.flatMap(d => [d.left, d.right]).filter(v => v > 0)
   if (!allVals.length) return { max: 0, min: 0, range: 0, mean: 0, sd: 0, upperBound: 0, lowerBound: 0 }
   
-  const sum = allVals.reduce((a, b) => a + b, 0)
-  const avg = round2(sum / allVals.length)
-  
   const maxVal = Math.max(...allVals)
   const minVal = Math.min(...allVals)
   const range = maxVal - minVal
   
-  // Trong phương pháp Lê Văn Sửu, trung vị (midPoint) dùng Trung bình cộng
-  const midPoint = avg
+  // Trong phương pháp Lê Văn Sửu (theo Excel), trị số bình quân dùng (Max + Min) / 2
+  const midPoint = round2((maxVal + minVal) / 2.0)
   const dungSai = round2(range / 6.0)
   
   return {

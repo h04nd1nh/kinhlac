@@ -162,15 +162,12 @@ export class MeridiansService {
         return { midPoint: 0, dungSai: 0, upperLimit: 0, lowerLimit: 0 };
       }
 
-      const sum = allVals.reduce((a, b) => a + b, 0);
-      const avg = this.round2(sum / allVals.length);
-      
       const maxVal = Math.max(...allVals);
       const minVal = Math.min(...allVals);
       const range = maxVal - minVal;
 
-      // Trong phương pháp Lê Văn Sửu, midPoint chính là giá trị trung bình cộng
-      const midPoint = avg;
+      // Trong phương pháp Lê Văn Sửu (theo Excel): midPoint = (Max + Min) / 2
+      const midPoint = this.round2((maxVal + minVal) / 2.0);
       const dungSai = this.round2(range / 6.0);
 
       return {
