@@ -195,7 +195,7 @@ function handleLogout() {
 .header-greeting{font-size:var(--font-size-sm);color:var(--gray-600)}
 .header-greeting strong{color:var(--brown-700);font-weight:600}
 
-.content-area{flex:1;padding:var(--space-8)}
+.content-area{flex:1;padding:0}
 
 /* Responsive */
 @media(max-width:768px){

@@ -95,7 +95,7 @@ const authStore = useAuthStore()
 </template>
 
 <style scoped>
-.home-page{max-width:1200px;animation:fadeIn .4s ease}
+.home-page{width:100%;animation:fadeIn .4s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
 .welcome-card{background:linear-gradient(135deg,var(--brown-600) 0%,var(--brown-800) 100%);border-radius:var(--radius-lg);padding:var(--space-8) var(--space-10);display:flex;align-items:center;justify-content:space-between;color:var(--white);margin-bottom:var(--space-8);position:relative;overflow:hidden}

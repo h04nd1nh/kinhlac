@@ -328,7 +328,7 @@ const pageNumbers = computed(() => {
 </template>
 
 <style scoped>
-.patients-page{max-width:1200px;animation:fadeIn .4s ease}
+.patients-page{width:100%;animation:fadeIn .4s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
 /* Header */

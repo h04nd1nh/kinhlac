@@ -232,7 +232,7 @@ function getAge(dob: string | null) {
 </template>
 
 <style scoped>
-.detail-page{max-width:900px;animation:fadeIn .4s ease}
+.detail-page{width:100%;animation:fadeIn .4s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
 .back-btn{display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--font-size-sm);color:var(--gray-600);font-weight:500;margin-bottom:var(--space-6);padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);transition:all var(--transition-fast)}
