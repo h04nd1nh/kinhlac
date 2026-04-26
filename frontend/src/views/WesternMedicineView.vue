@@ -57,8 +57,41 @@ const chungBenhMap = computed(() => {
     acc[cb.id] = cb
     return acc
   }, {} as Record<number, ChungBenh>)
+// Flattened list to show one row per (Disease, Prescription) pair
+const flattenedList = computed(() => {
+  const result: any[] = []
+  benhTayYList.value.forEach(bty => {
+    if (!bty.baiThuocList || bty.baiThuocList.length === 0) {
+      result.push({
+        ...bty,
+        currentBaiThuoc: null
+      })
+    } else {
+      bty.baiThuocList.forEach(bt => {
+        result.push({
+          ...bty,
+          currentBaiThuoc: bt
+        })
+      })
+    }
+  })
+  return result
 })
 
+function getPhapTriNames(bt: any) {
+  if (!bt || !bt.phapTriLinks) return '—'
+  return bt.phapTriLinks.map((link: any) => link.phapTri?.ten_phap_tri).filter(Boolean).join(', ') || '—'
+}
+
+function getThietChanNames(bty: any) {
+  if (!bty.thietChanList) return '—'
+  return bty.thietChanList.map((tc: any) => tc.ten_thiet_chan).join(', ') || '—'
+}
+
+function getMachChanNames(bty: any) {
+  if (!bty.machChanList) return '—'
+  return bty.machChanList.map((mc: any) => mc.ten_mach_chan).join(', ') || '—'
+}
 </script>
 
 <template>
@@ -140,30 +173,40 @@ const chungBenhMap = computed(() => {
             <span class="badge badge-success">{{ benhTayYList.length }} bệnh</span>
           </div>
           <div class="table-responsive">
-            <table class="data-table">
+            <table class="data-table data-table--full">
               <thead>
                 <tr>
-                  <th width="80">ID</th>
-                  <th>Tên Bệnh</th>
-                  <th>Thuộc Chủng Bệnh</th>
-                  <th class="text-right">Số Bài Thuốc</th>
+                  <th width="150">Tên Bệnh</th>
+                  <th width="140">Chủng Bệnh</th>
+                  <th width="150">Bài Thuốc</th>
+                  <th width="150">Pháp Trị</th>
+                  <th width="150">Thể Bệnh</th>
+                  <th width="200">Triệu Chứng</th>
+                  <th width="120">Thiệt Chẩn</th>
+                  <th width="120">Mạch Chẩn</th>
+                  <th class="text-right">Thao Tác</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="benhTayYList.length === 0">
-                  <td colspan="4" class="text-center py-8 text-gray-500">Chưa có dữ liệu bệnh tây y</td>
+                <tr v-if="flattenedList.length === 0">
+                  <td colspan="9" class="text-center py-8 text-gray-500">Chưa có dữ liệu bệnh tây y</td>
                 </tr>
-                <tr v-for="bty in benhTayYList" :key="bty.id">
-                  <td>#{{ bty.id }}</td>
-                  <td class="font-bold text-brown-900">{{ bty.ten_benh }}</td>
+                <tr v-for="(row, idx) in flattenedList" :key="idx">
+                  <td class="font-bold text-brown-900">{{ row.ten_benh }}</td>
                   <td>
-                    <span class="chung-benh-badge" v-if="bty.chungBenh || chungBenhMap[bty.idChungBenh]">
-                      {{ bty.chungBenh?.ten_chung_benh || chungBenhMap[bty.idChungBenh]?.ten_chung_benh }}
+                    <span class="chung-benh-badge" v-if="row.chungBenh || chungBenhMap[row.idChungBenh]">
+                      {{ row.chungBenh?.ten_chung_benh || chungBenhMap[row.idChungBenh]?.ten_chung_benh }}
                     </span>
                     <span class="text-gray-400 italic" v-else>Chưa phân loại</span>
                   </td>
+                  <td class="font-medium text-brown-700">{{ row.currentBaiThuoc?.ten_bai_thuoc || '—' }}</td>
+                  <td class="text-gray-600 small-text">{{ getPhapTriNames(row.currentBaiThuoc) }}</td>
+                  <td class="text-gray-600 small-text">{{ row.currentBaiThuoc?.the_benh || '—' }}</td>
+                  <td class="text-gray-600 small-text trieu-chung-cell">{{ row.currentBaiThuoc?.trieu_chung || '—' }}</td>
+                  <td class="text-gray-600 small-text">{{ getThietChanNames(row) }}</td>
+                  <td class="text-gray-600 small-text">{{ getMachChanNames(row) }}</td>
                   <td class="text-right">
-                    <span class="badge badge-default">{{ bty.baiThuocList?.length || 0 }} bài thuốc</span>
+                    <button class="btn-action">Phân tu</button>
                   </td>
                 </tr>
               </tbody>
@@ -318,6 +361,42 @@ const chungBenhMap = computed(() => {
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: 600;
+}
+
+/* Table Expansions */
+.data-table--full {
+  min-width: 1200px;
+}
+.small-text {
+  font-size: var(--font-size-xs) !important;
+  line-height: 1.4;
+}
+.trieu-chung-cell {
+  max-width: 250px;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.btn-action {
+  padding: 6px 16px;
+  background: var(--brown-600);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.btn-action:hover {
+  background: var(--brown-700);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .loading-state {
