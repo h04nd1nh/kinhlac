@@ -156,6 +156,40 @@ function getSyndromeList(targetSign: string, channels: string[]) {
   return result.join(', ')
 }
 
+const diagnosis = computed(() => {
+  if (!examination.value?.inputData) return { amDuong: '—', khi: '—', huyet: '—' }
+  
+  const upper = upperStats.value
+  const lower = lowerStats.value
+  
+  // 1. Âm / Dương (Thủ vs Túc)
+  let amDuong = 'Cân bằng'
+  if (upper.mean > lower.mean + 0.2) amDuong = 'Dương hư'
+  else if (lower.mean > upper.mean + 0.2) amDuong = 'Âm hư'
+  
+  // 2. Khí & Huyết (Đếm 24 đầu điểm)
+  let thucTren = 0, huTren = 0, thucDuoi = 0, huDuoi = 0
+  
+  upperRows.value.forEach(r => {
+    if (r.leftSign === '+') thucTren++
+    if (r.leftSign === '-') huTren++
+    if (r.rightSign === '+') thucTren++
+    if (r.rightSign === '-') huTren++
+  })
+  
+  lowerRows.value.forEach(r => {
+    if (r.leftSign === '+') thucDuoi++
+    if (r.leftSign === '-') huDuoi++
+    if (r.rightSign === '+') thucDuoi++
+    if (r.rightSign === '-') huDuoi++
+  })
+  
+  const khi = thucTren > huTren ? 'Khí thịnh' : (thucTren < huTren ? 'Khí hư' : 'Bình thường')
+  const huyet = thucDuoi > huDuoi ? 'Huyết thịnh' : (thucDuoi < huDuoi ? 'Huyết hư' : 'Bình thường')
+  
+  return { amDuong, khi, huyet }
+})
+
 const batCuong = computed(() => {
   return {
     hanBieu: getSyndromeList('-', BIEU_CHANNELS),
@@ -361,11 +395,11 @@ function goBack() {
                 <div class="bc-summary-grid">
                   <div class="bc-summary-item">
                     <span class="bc-label">Âm / Dương:</span>
-                    <span class="bc-value">{{ examination?.amDuong || '—' }}</span>
+                    <span class="bc-value">{{ diagnosis.amDuong }}</span>
                   </div>
                   <div class="bc-summary-item">
                     <span class="bc-label">Hư / Thực:</span>
-                    <span class="bc-value">{{ examination?.khi || '—' }}, {{ examination?.huyet || '—' }}</span>
+                    <span class="bc-value">{{ diagnosis.khi }}, {{ diagnosis.huyet }}</span>
                   </div>
                 </div>
 

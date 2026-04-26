@@ -183,6 +183,8 @@ export class MeridiansService {
 
     // --- Bước 2.2: Tính Cờ Trạng Thái (Flags) ---
     const flags: AnalyzeOutputDto['flags'] = [];
+    let thucTren = 0, huTren = 0, thucDuoi = 0, huDuoi = 0;
+
     for (let i = 0; i < 12; i++) {
       const bounds = i < 6 ? boundsUpper : boundsLower;
 
@@ -190,8 +192,7 @@ export class MeridiansService {
       const R = rightChannels[i];
       const avg = this.round2((L + R) / 2.0);
 
-      // C10: Trong Kinhlac.exe, c10 đại diện cho trạng thái của kinh (Hàn/Bình/Nhiệt)
-      // nên nó phải so với giới hạn hành lang (upperLimit/lowerLimit)
+      // C10: Trạng thái của kinh (Hàn/Bình/Nhiệt)
       const c10 = avg > bounds.upperLimit ? 1 : (avg < bounds.lowerLimit ? -1 : 0);
 
       // C8: trái so với giới hạn
@@ -200,7 +201,20 @@ export class MeridiansService {
       // C11: phải so với giới hạn
       const c11 = R > bounds.upperLimit ? 1 : R < bounds.lowerLimit ? -1 : 0;
 
-      // C12: lệch 2 bên (không làm tròn, khớp code gốc)
+      // Đếm Hư / Thực trên 24 đầu điểm để chẩn đoán Khí Huyết
+      if (i < 6) {
+        if (L > bounds.upperLimit) thucTren++;
+        if (L < bounds.lowerLimit) huTren++;
+        if (R > bounds.upperLimit) thucTren++;
+        if (R < bounds.lowerLimit) huTren++;
+      } else {
+        if (L > bounds.upperLimit) thucDuoi++;
+        if (L < bounds.lowerLimit) huDuoi++;
+        if (R > bounds.upperLimit) thucDuoi++;
+        if (R < bounds.lowerLimit) huDuoi++;
+      }
+
+      // C12: lệch 2 bên
       const diff = L - R;
       const c12 = Math.abs(diff) > bounds.dungSai
         ? (diff > 0 ? 1 : -1)
@@ -209,46 +223,26 @@ export class MeridiansService {
       flags.push({ channelIndex: i, channelName: CHANNELS[i], L, R, Avg: avg, c8, c10, c11, c12 });
     }
 
-    // --- Bước 3: Suy luận Âm-Dương & Khí-Huyết (theo DiagnosisLogic) ---
-    // Đếm Hư / Thực ở chi trên (THỦ) và chi dưới (TÚC)
-    let thucTren = 0, huTren = 0, thucDuoi = 0, huDuoi = 0;
-    for (let i = 0; i < 12; i++) {
-      const bounds = i < 6 ? boundsUpper : boundsLower;
-      const L = leftChannels[i];
-      const R = rightChannels[i];
-      const isThuc = L > bounds.upperLimit || R > bounds.upperLimit;
-      const isHu = L < bounds.lowerLimit || R < bounds.lowerLimit;
-      if (i < 6) {
-        if (isThuc) thucTren++;
-        if (isHu) huTren++;
-      } else {
-        if (isThuc) thucDuoi++;
-        if (isHu) huDuoi++;
-      }
-    }
-
-    // Âm / Dương toàn thân: so sánh trung bình chi trên (THỦ) vs chi dưới (TÚC)
-    // Ngưỡng 0.6 là ngưỡng nhạy thường dùng trong phương pháp Lê Văn Sửu
+    // --- Bước 3: Suy luận Âm-Dương & Khí-Huyết ---
+    // Âm / Dương: So sánh trung bình Thủ (Tay) vs Túc (Chân)
+    // Ngưỡng 0.2 là ngưỡng tiêu chuẩn
     const avg_tren = boundsUpper.midPoint;
     const avg_duoi = boundsLower.midPoint;
-    const amDuongBody =
-      avg_tren > avg_duoi + 0.6 ? 'DƯƠNG THỊNH' :
-      avg_duoi > avg_tren + 0.6 ? 'ÂM THỊNH' :
-      'CÂN BẰNG';
+    
+    let am_duong = 'Cân bằng';
+    if (avg_tren > avg_duoi + 0.2) {
+      am_duong = 'Dương hư'; // Tay nóng hơn chân
+    } else if (avg_duoi > avg_tren + 0.2) {
+      am_duong = 'Âm hư'; // Chân nóng hơn tay
+    }
 
-    // Map về dạng lâm sàng: Âm hư / Dương hư / Cân bằng
-    const am_duong =
-      amDuongBody === 'DƯƠNG THỊNH' ? 'Âm hư' :
-      amDuongBody === 'ÂM THỊNH' ? 'Dương hư' :
-      'Cân bằng';
-
-    // Khí: dựa trên Hư / Thực ở chi trên
+    // Khí: dựa trên Hư / Thực ở chi trên (Thủ)
     const khi =
       thucTren > huTren ? 'Khí thịnh' :
       thucTren < huTren ? 'Khí hư' :
       'Bình thường';
 
-    // Huyết: dựa trên Hư / Thực ở chi dưới
+    // Huyết: dựa trên Hư / Thực ở chi dưới (Túc)
     const huyet =
       thucDuoi > huDuoi ? 'Huyết thịnh' :
       thucDuoi < huDuoi ? 'Huyết hư' :
