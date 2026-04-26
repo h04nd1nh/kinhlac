@@ -7,6 +7,7 @@ const PatientsView = () => import('@/views/PatientsView.vue')
 const PatientDetailView = () => import('@/views/PatientDetailView.vue')
 const NewExaminationView = () => import('@/views/NewExaminationView.vue')
 const MeridianResultsView = () => import('@/views/MeridianResultsView.vue')
+const AppointmentsView = () => import('@/views/AppointmentsView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -33,6 +34,11 @@ const router = createRouter({
           path: 'patients',
           name: 'patients',
           component: PatientsView,
+        },
+        {
+          path: 'appointments',
+          name: 'appointments',
+          component: AppointmentsView,
         },
         {
           path: 'patients/:id',

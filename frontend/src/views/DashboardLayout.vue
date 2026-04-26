@@ -11,6 +11,7 @@ const isSidebarCollapsed = ref(false)
 
 const navItems = [
   { name: 'Trang chủ', routeName: 'home', icon: 'home' },
+  { name: 'Lịch khám', routeName: 'appointments', icon: 'calendar' },
   { name: 'Bệnh nhân', routeName: 'patients', icon: 'patients' },
 ]
 
@@ -66,6 +67,8 @@ function handleLogout() {
             <svg v-if="item.icon === 'home'" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
             </svg>
+            <!-- Calendar icon -->
+            <svg v-if="item.icon === 'calendar'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             <!-- Patients icon -->
             <svg v-if="item.icon === 'patients'" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
@@ -109,7 +112,7 @@ function handleLogout() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
           </button>
           <h1 class="page-title">
-            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ') }}
+            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (currentRouteName === 'new-examination' ? 'Khám mới' : currentRouteName === 'meridian-results' ? 'Kết quả đo kinh lạc' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ')) }}
           </h1>
         </div>
         <div class="header-right">
