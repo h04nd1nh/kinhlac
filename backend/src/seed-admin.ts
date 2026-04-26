@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { AdminsService } from './controllers/admin.controller';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
