@@ -171,25 +171,55 @@ const diagnosis = computed(() => {
   if (diffAmDuong < 0) amDuong = 'Dương hư'
   else if (diffAmDuong > 0) amDuong = 'Âm hư'
   
-  // 2. Khí & Huyết (Đếm 24 đầu điểm)
-  let thucTren = 0, huTren = 0, thucDuoi = 0, huDuoi = 0
-  
+  // 2. Khí (Dựa trên 6 kinh Chi trên)
+  let huTrenCount = 0
+  let sumDiffTren = 0
+  let allTrenZero = true
+
   upperRows.value.forEach(r => {
-    if (r.leftSign === '+') thucTren++
-    if (r.leftSign === '-') huTren++
-    if (r.rightSign === '+') thucTren++
-    if (r.rightSign === '-') huTren++
+    const diff = round2(r.avg - upperStats.value.mean)
+    sumDiffTren += diff
+    if (r.avg !== 0) allTrenZero = false
+    if (diff < 0) huTrenCount++
   })
-  
+
+  let khi = 'Bình thường'
+  if (allTrenZero) {
+    khi = ''
+  } else {
+    if (huTrenCount > 3) khi = 'Khí hư'
+    else if (huTrenCount < 3) khi = 'Khí thịnh'
+    else {
+      if (sumDiffTren < 0) khi = 'Khí hư'
+      else if (sumDiffTren > 0) khi = 'Khí thịnh'
+      else khi = ''
+    }
+  }
+
+  // 3. Huyết (Dựa trên 6 kinh Chi dưới)
+  let huDuoiCount = 0
+  let sumDiffDuoi = 0
+  let allDuoiZero = true
+
   lowerRows.value.forEach(r => {
-    if (r.leftSign === '+') thucDuoi++
-    if (r.leftSign === '-') huDuoi++
-    if (r.rightSign === '+') thucDuoi++
-    if (r.rightSign === '-') huDuoi++
+    const diff = round2(r.avg - lowerStats.value.mean)
+    sumDiffDuoi += diff
+    if (r.avg !== 0) allDuoiZero = false
+    if (diff < 0) huDuoiCount++
   })
-  
-  const khi = thucTren > huTren ? 'Khí thịnh' : (thucTren < huTren ? 'Khí hư' : 'Bình thường')
-  const huyet = thucDuoi > huDuoi ? 'Huyết thịnh' : (thucDuoi < huDuoi ? 'Huyết hư' : 'Bình thường')
+
+  let huyet = 'Bình thường'
+  if (allDuoiZero) {
+    huyet = ''
+  } else {
+    if (huDuoiCount > 3) huyet = 'Huyết hư'
+    else if (huDuoiCount < 3) huyet = 'Huyết thịnh'
+    else {
+      if (sumDiffDuoi < 0) huyet = 'Huyết hư'
+      else if (sumDiffDuoi > 0) huyet = 'Huyết thịnh'
+      else huyet = ''
+    }
+  }
   
   return { amDuong, khi, huyet }
 })

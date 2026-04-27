@@ -183,7 +183,6 @@ export class MeridiansService {
 
     // --- Bước 2.2: Tính Cờ Trạng Thái (Flags) ---
     const flags: AnalyzeOutputDto['flags'] = [];
-    let thucTren = 0, huTren = 0, thucDuoi = 0, huDuoi = 0;
 
     for (let i = 0; i < 12; i++) {
       const bounds = i < 6 ? boundsUpper : boundsLower;
@@ -200,19 +199,6 @@ export class MeridiansService {
 
       // C11: phải so với giới hạn
       const c11 = R > bounds.upperLimit ? 1 : R < bounds.lowerLimit ? -1 : 0;
-
-      // Đếm Hư / Thực trên 24 đầu điểm để chẩn đoán Khí Huyết
-      if (i < 6) {
-        if (L > bounds.upperLimit) thucTren++;
-        if (L < bounds.lowerLimit) huTren++;
-        if (R > bounds.upperLimit) thucTren++;
-        if (R < bounds.lowerLimit) huTren++;
-      } else {
-        if (L > bounds.upperLimit) thucDuoi++;
-        if (L < bounds.lowerLimit) huDuoi++;
-        if (R > bounds.upperLimit) thucDuoi++;
-        if (R < bounds.lowerLimit) huDuoi++;
-      }
 
       // C12: lệch 2 bên
       const diff = L - R;
@@ -236,17 +222,63 @@ export class MeridiansService {
       am_duong = 'Âm hư';
     }
 
-    // Khí: dựa trên Hư / Thực ở chi trên (Thủ)
-    const khi =
-      thucTren > huTren ? 'Khí thịnh' :
-      thucTren < huTren ? 'Khí hư' :
-      'Bình thường';
+    // --- Bước 3.1: Chẩn đoán Khí (Dựa trên 6 kinh Chi trên) ---
+    let huTrenCount = 0;
+    let sumDiffTren = 0;
+    let allTrenZero = true;
 
-    // Huyết: dựa trên Hư / Thực ở chi dưới (Túc)
-    const huyet =
-      thucDuoi > huDuoi ? 'Huyết thịnh' :
-      thucDuoi < huDuoi ? 'Huyết hư' :
-      'Bình thường';
+    for (let i = 0; i < 6; i++) {
+      const f = flags[i];
+      const diff = this.round2(f.Avg - boundsUpper.midPoint);
+      sumDiffTren += diff;
+      if (f.Avg !== 0) allTrenZero = false;
+      if (diff < 0) huTrenCount++;
+    }
+
+    let khi = 'Bình thường';
+    if (allTrenZero) {
+      khi = '';
+    } else {
+      if (huTrenCount > 3) {
+        khi = 'Khí hư';
+      } else if (huTrenCount < 3) {
+        khi = 'Khí thịnh';
+      } else {
+        // huTrenCount == 3
+        if (sumDiffTren < 0) khi = 'Khí hư';
+        else if (sumDiffTren > 0) khi = 'Khí thịnh';
+        else khi = '';
+      }
+    }
+
+    // --- Bước 3.2: Chẩn đoán Huyết (Dựa trên 6 kinh Chi dưới) ---
+    let huDuoiCount = 0;
+    let sumDiffDuoi = 0;
+    let allDuoiZero = true;
+
+    for (let i = 6; i < 12; i++) {
+      const f = flags[i];
+      const diff = this.round2(f.Avg - boundsLower.midPoint);
+      sumDiffDuoi += diff;
+      if (f.Avg !== 0) allDuoiZero = false;
+      if (diff < 0) huDuoiCount++;
+    }
+
+    let huyet = 'Bình thường';
+    if (allDuoiZero) {
+      huyet = '';
+    } else {
+      if (huDuoiCount > 3) {
+        huyet = 'Huyết hư';
+      } else if (huDuoiCount < 3) {
+        huyet = 'Huyết thịnh';
+      } else {
+        // huDuoiCount == 3
+        if (sumDiffDuoi < 0) huyet = 'Huyết hư';
+        else if (sumDiffDuoi > 0) huyet = 'Huyết thịnh';
+        else huyet = '';
+      }
+    }
 
     // --- Bước 4: Khớp CSDL bệnh chứng luận trị (Logic chấm điểm tương đồng) ---
     const allSyndromes = await this.meridianRepo.find();
