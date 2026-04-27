@@ -131,8 +131,10 @@ function processRows(data: any[], stats: any) {
 const upperRows = computed(() => processRows(rawUpper.value, upperStats.value))
 const lowerRows = computed(() => processRows(rawLower.value, lowerStats.value))
 
-const BIEU_CHANNELS = ['Tiểu', 'Đại', 'Tam', 'Bàng', 'Đảm', 'Vị']
-const LY_CHANNELS = ['Tâm', 'Phế', 'Bào', 'Thận', 'Can', 'Tỳ']
+const HAN_LY = ['Tâm', 'Thận', 'Đảm', 'Tiểu', 'Tam', 'Vị']
+const HAN_BIEU = ['Bào', 'Đại', 'Phế', 'Bàng', 'Can', 'Tỳ']
+const NHIET_LY = ['Tiểu', 'Tam', 'Phế', 'Vị', 'Can', 'Tâm', 'Đại', 'Bàng', 'Đảm']
+const NHIET_BIEU = ['Bào', 'Thận', 'Tỳ']
 
 function getSyndromeList(targetSign: string, channels: string[]) {
   const result: string[] = []
@@ -226,10 +228,10 @@ const diagnosis = computed(() => {
 
 const batCuong = computed(() => {
   return {
-    hanBieu: getSyndromeList('-', BIEU_CHANNELS),
-    hanLy: getSyndromeList('-', LY_CHANNELS),
-    nhietBieu: getSyndromeList('+', BIEU_CHANNELS),
-    nhietLy: getSyndromeList('+', LY_CHANNELS),
+    hanBieu: getSyndromeList('-', HAN_BIEU),
+    hanLy: getSyndromeList('-', HAN_LY),
+    nhietBieu: getSyndromeList('+', NHIET_BIEU),
+    nhietLy: getSyndromeList('+', NHIET_LY),
   }
 })
 
