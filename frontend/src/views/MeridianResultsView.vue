@@ -159,13 +159,17 @@ function getSyndromeList(targetSign: string, channels: string[]) {
 const diagnosis = computed(() => {
   if (!examination.value?.inputData) return { amDuong: '—', khi: '—', huyet: '—' }
   
-  const upper = upperStats.value
   const lower = lowerStats.value
-  
-  // 1. Âm / Dương (Thủ vs Túc)
-  let amDuong = 'Cân bằng'
-  if (upper.mean > lower.mean + 0.2) amDuong = 'Dương hư'
-  else if (lower.mean > upper.mean + 0.2) amDuong = 'Âm hư'
+
+  // 1. Âm / Dương (Dựa trên kinh Đảm so với trị số bình quân nhóm Chi dưới)
+  const d = examination.value.inputData
+  const avgDam = round2(((d.damtrai || 0) + (d.damphai || 0)) / 2)
+  const midTuc = lower.mean
+  const diffAmDuong = round2(avgDam - midTuc)
+
+  let amDuong = 'Bình thường'
+  if (diffAmDuong < 0) amDuong = 'Dương hư'
+  else if (diffAmDuong > 0) amDuong = 'Âm hư'
   
   // 2. Khí & Huyết (Đếm 24 đầu điểm)
   let thucTren = 0, huTren = 0, thucDuoi = 0, huDuoi = 0

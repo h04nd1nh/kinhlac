@@ -224,16 +224,16 @@ export class MeridiansService {
     }
 
     // --- Bước 3: Suy luận Âm-Dương & Khí-Huyết ---
-    // Âm / Dương: So sánh trung bình Thủ (Tay) vs Túc (Chân)
-    // Ngưỡng 0.2 là ngưỡng tiêu chuẩn
-    const avg_tren = boundsUpper.midPoint;
-    const avg_duoi = boundsLower.midPoint;
+    // Âm / Dương: Dựa trên trung bình kinh Đảm so với trị số bình quân nhóm Chi dưới
+    const avg_dam = this.round2((data.damtrai + data.damphai) / 2.0);
+    const mid_tuc = boundsLower.midPoint; // (Max + Min) / 2 của nhóm Chi dưới
+    const diff_am_duong = this.round2(avg_dam - mid_tuc);
     
-    let am_duong = 'Cân bằng';
-    if (avg_tren > avg_duoi + 0.2) {
-      am_duong = 'Dương hư'; // Tay nóng hơn chân
-    } else if (avg_duoi > avg_tren + 0.2) {
-      am_duong = 'Âm hư'; // Chân nóng hơn tay
+    let am_duong = 'Bình thường';
+    if (diff_am_duong < 0) {
+      am_duong = 'Dương hư';
+    } else if (diff_am_duong > 0) {
+      am_duong = 'Âm hư';
     }
 
     // Khí: dựa trên Hư / Thực ở chi trên (Thủ)
