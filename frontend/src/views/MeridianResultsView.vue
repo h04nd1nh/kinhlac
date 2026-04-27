@@ -152,9 +152,15 @@ const BIEU_LIST = ['Tam tiêu', 'Tâm bào', 'Đại tràng', 'Phế', 'Bàng qu
 function getSyndromeList(targetSign: string, channelNames: string[]) {
   const result: string[] = []
   
+  // Map ngược từ tên đầy đủ sang tên gốc (short name)
+  const reverseMap: Record<string, string> = {
+    'Tiêu trường': 'Tiểu', 'Tâm': 'Tâm', 'Tam tiêu': 'Tam', 'Tâm bào': 'Bào',
+    'Đại tràng': 'Đại', 'Phế': 'Phế', 'Bàng quang': 'Bàng', 'Thận': 'Thận',
+    'Đảm': 'Đảm', 'Vị': 'Vị', 'Can': 'Can', 'Tỳ': 'Tỳ'
+  }
+  
   channelNames.forEach(fullChName => {
-     // Tìm mapping ngược từ tên đầy đủ sang tên ngắn dùng trong logic
-     const shortName = Object.keys(CHANNELS_FULL).find(key => CHANNELS_FULL[key as keyof typeof CHANNELS_FULL] === fullChName)
+     const shortName = reverseMap[fullChName]
      if (!shortName) return
 
      const row = upperRows.value.find((r: any) => r.name === shortName) || lowerRows.value.find((r: any) => r.name === shortName)
@@ -457,7 +463,7 @@ function goBack() {
                 </div>
 
                 <div class="bc-tieu-ket mt-4">
-                  <h4 class="info-label mb-3">Tiểu kết Bát cương</h4>
+                  <h4 class="info-label mb-3">TIỂU KẾT BÁT CƯƠNG (V2.0)</h4>
                   <div class="tieu-ket-list">
                     <div class="tk-item">
                       <span class="tk-label">Lý Hàn:</span>
