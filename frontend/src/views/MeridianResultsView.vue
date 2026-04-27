@@ -437,40 +437,24 @@ function goBack() {
                   </div>
                 </div>
 
-                <div class="bc-details-grid mt-4">
-                  <!-- Hàn Card -->
-                  <div class="bc-box border-blue-200">
-                    <div class="box-header text-blue-700 bg-blue-50 border-b border-blue-200">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m0-18l-3 3m3-3l3 3m-9 3h18M6 12l3-3m-3 3l3 3m9-3l-3-3m3 3l-3 3"/></svg>
-                      HÀN CHỨNG
+                <div class="bc-tieu-ket mt-4">
+                  <h4 class="info-label mb-3">Tiểu kết Bát cương</h4>
+                  <div class="tieu-ket-list">
+                    <div class="tk-item">
+                      <span class="tk-label">Lý Hàn:</span>
+                      <span class="tk-val">{{ batCuong.hanLy || '—' }}</span>
                     </div>
-                    <div class="box-body bg-white">
-                      <div class="bc-row">
-                        <span class="bc-sub-label text-blue-600">Biểu:</span>
-                        <span class="bc-sub-val">{{ batCuong.hanBieu || '—' }}</span>
-                      </div>
-                      <div class="bc-row mt-2">
-                        <span class="bc-sub-label text-blue-600">Lý:</span>
-                        <span class="bc-sub-val">{{ batCuong.hanLy || '—' }}</span>
-                      </div>
+                    <div class="tk-item">
+                      <span class="tk-label">Biểu Hàn:</span>
+                      <span class="tk-val">{{ batCuong.hanBieu || '—' }}</span>
                     </div>
-                  </div>
-
-                  <!-- Nhiệt Card -->
-                  <div class="bc-box border-red-200">
-                    <div class="box-header text-red-700 bg-red-50 border-b border-red-200">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.601a8.983 8.983 0 013.361-6.866 8.21 8.21 0 003 2.48z"/></svg>
-                      NHIỆT CHỨNG
+                    <div class="tk-item">
+                      <span class="tk-label">Biểu Nhiệt:</span>
+                      <span class="tk-val">{{ batCuong.nhietBieu || '—' }}</span>
                     </div>
-                    <div class="box-body bg-white">
-                      <div class="bc-row">
-                        <span class="bc-sub-label text-red-600">Biểu:</span>
-                        <span class="bc-sub-val">{{ batCuong.nhietBieu || '—' }}</span>
-                      </div>
-                      <div class="bc-row mt-2">
-                        <span class="bc-sub-label text-red-600">Lý:</span>
-                        <span class="bc-sub-val">{{ batCuong.nhietLy || '—' }}</span>
-                      </div>
+                    <div class="tk-item">
+                      <span class="tk-label">Lý Nhiệt:</span>
+                      <span class="tk-val">{{ batCuong.nhietLy || '—' }}</span>
                     </div>
                   </div>
                 </div>
@@ -612,6 +596,12 @@ function goBack() {
 .bc-row { display: flex; flex-direction: column; gap: 2px; }
 .bc-sub-label { font-weight: 600; font-size: var(--font-size-xs); text-transform: uppercase; opacity: 0.8; }
 .bc-sub-val { color: var(--gray-800); font-weight: 500; min-height: 20px; }
+
+.bc-tieu-ket { background: #fdfbf8; border: 1px solid var(--brown-100); border-radius: var(--radius-md); padding: var(--space-4); }
+.tieu-ket-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.tk-item { display: flex; gap: var(--space-2); align-items: flex-start; font-size: var(--font-size-sm); line-height: 1.5; }
+.tk-label { font-weight: 700; color: var(--brown-700); min-width: 85px; flex-shrink: 0; }
+.tk-val { color: var(--gray-800); font-weight: 500; }
 
 .text-blue-600 { color: #2563eb; }
 .text-red-600 { color: #dc2626; }
