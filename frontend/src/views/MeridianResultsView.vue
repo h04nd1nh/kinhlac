@@ -131,27 +131,44 @@ function processRows(data: any[], stats: any) {
 const upperRows = computed(() => processRows(rawUpper.value, upperStats.value))
 const lowerRows = computed(() => processRows(rawLower.value, lowerStats.value))
 
-const HAN_LY = ['Tâm', 'Thận', 'Đảm', 'Tiểu', 'Tam', 'Vị']
-const HAN_BIEU = ['Bào', 'Đại', 'Phế', 'Bàng', 'Can', 'Tỳ']
-const NHIET_LY = ['Tiểu', 'Tam', 'Phế', 'Vị', 'Can', 'Tâm', 'Đại', 'Bàng', 'Đảm']
-const NHIET_BIEU = ['Bào', 'Thận', 'Tỳ']
+const CHANNELS_FULL = {
+  'Tiểu': 'Tiêu trường',
+  'Tâm': 'Tâm',
+  'Tam': 'Tam tiêu',
+  'Bào': 'Tâm bào',
+  'Đại': 'Đại tràng',
+  'Phế': 'Phế',
+  'Bàng': 'Bàng quang',
+  'Thận': 'Thận',
+  'Đảm': 'Đảm',
+  'Vị': 'Vị',
+  'Can': 'Can',
+  'Tỳ': 'Tỳ'
+}
 
-function getSyndromeList(targetSign: string, channels: string[]) {
+const LY_LIST = ['Tiêu trường', 'Tâm', 'Can', 'Đảm']
+const BIEU_LIST = ['Tam tiêu', 'Tâm bào', 'Đại tràng', 'Phế', 'Bàng quang', 'Thận', 'Vị', 'Tỳ']
+
+function getSyndromeList(targetSign: string, channelNames: string[]) {
   const result: string[] = []
   
-  channels.forEach(ch => {
-     const row = upperRows.value.find((r: any) => r.name === ch) || lowerRows.value.find((r: any) => r.name === ch)
+  channelNames.forEach(fullChName => {
+     // Tìm mapping ngược từ tên đầy đủ sang tên ngắn dùng trong logic
+     const shortName = Object.keys(CHANNELS_FULL).find(key => CHANNELS_FULL[key as keyof typeof CHANNELS_FULL] === fullChName)
+     if (!shortName) return
+
+     const row = upperRows.value.find((r: any) => r.name === shortName) || lowerRows.value.find((r: any) => r.name === shortName)
      if (!row) return
      
      const lMatch = row.leftSign === targetSign
      const rMatch = row.rightSign === targetSign
      
      if (lMatch && rMatch) {
-        result.push(ch)
+        result.push(fullChName)
      } else if (lMatch) {
-        result.push(`${ch} trái`)
+        result.push(`${fullChName} trái`)
      } else if (rMatch) {
-        result.push(`${ch} phải`)
+        result.push(`${fullChName} phải`)
      }
   })
   
@@ -228,10 +245,10 @@ const diagnosis = computed(() => {
 
 const batCuong = computed(() => {
   return {
-    hanBieu: getSyndromeList('-', HAN_BIEU),
-    hanLy: getSyndromeList('-', HAN_LY),
-    nhietBieu: getSyndromeList('+', NHIET_BIEU),
-    nhietLy: getSyndromeList('+', NHIET_LY),
+    hanBieu: getSyndromeList('-', BIEU_LIST),
+    hanLy: getSyndromeList('-', LY_LIST),
+    nhietBieu: getSyndromeList('+', BIEU_LIST),
+    nhietLy: getSyndromeList('+', LY_LIST),
   }
 })
 
