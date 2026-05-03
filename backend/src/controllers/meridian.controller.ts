@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MeridianSyndrome } from '../models/meridian-syndrome.model';
+import { LegacyMeridianSyndrome } from '../models/legacy-meridian-syndrome.model';
 
 export class AnalyzeInputDto {
   tieutruongtrai: number;
@@ -42,6 +43,7 @@ export class AnalyzeOutputDto {
     Avg: number;
     c8: number;
     c10: number;
+    c10Legacy?: number;
     c11: number;
     c12: number;
   }>;
@@ -50,6 +52,12 @@ export class AnalyzeOutputDto {
    * rate: tỉ lệ khớp (0..1) trên các điều kiện có trong mô hình
    */
   syndromes: Array<MeridianSyndrome & { rate?: number; matchScore?: number; totalInModel?: number }>;
+  currentSyndromes?: Array<MeridianSyndrome & { rate?: number; matchScore?: number; totalInModel?: number }>;
+  legacySyndromes?: Array<LegacyMeridianSyndrome & { rate?: number; matchedCount?: number; totalInModel?: number }>;
+  comparisonRows?: Array<{
+    current: (MeridianSyndrome & { rate?: number; matchScore?: number }) | null;
+    legacy: (LegacyMeridianSyndrome & { rate?: number }) | null;
+  }>;
 }
 
 const CHANNELS = [
@@ -72,6 +80,8 @@ export class MeridiansService {
   constructor(
     @InjectRepository(MeridianSyndrome)
     private readonly meridianRepo: Repository<MeridianSyndrome>,
+    @InjectRepository(LegacyMeridianSyndrome)
+    private readonly legacyMeridianRepo: Repository<LegacyMeridianSyndrome>,
   ) {}
 
   private round2(n: number): number {
@@ -193,6 +203,8 @@ export class MeridiansService {
 
       // C10: Trạng thái của kinh (Hàn/Bình/Nhiệt)
       const c10 = avg > bounds.upperLimit ? 1 : (avg < bounds.lowerLimit ? -1 : 0);
+      // C10 gốc app 32-bit: so với midpoint, không dùng corridor upper/lower.
+      const c10Legacy = avg > bounds.midPoint ? 1 : (avg < bounds.midPoint ? -1 : 0);
 
       // C8: trái so với giới hạn
       const c8 = L > bounds.upperLimit ? 1 : L < bounds.lowerLimit ? -1 : 0;
@@ -206,7 +218,7 @@ export class MeridiansService {
         ? (diff > 0 ? 1 : -1)
         : 0;
 
-      flags.push({ channelIndex: i, channelName: CHANNELS[i], L, R, Avg: avg, c8, c10, c11, c12 });
+      flags.push({ channelIndex: i, channelName: CHANNELS[i], L, R, Avg: avg, c8, c10, c10Legacy, c11, c12 });
     }
 
     // --- Bước 3: Suy luận Âm-Dương & Khí-Huyết ---
@@ -338,11 +350,63 @@ export class MeridiansService {
     })
     .slice(0, 15);
 
+    // --- Bước 5: Đối chiếu mô hình app gốc (legacy) ---
+    const legacyRows = await this.legacyMeridianRepo.find({
+      order: { nhomid: 'ASC', tieuket: 'ASC', id: 'ASC' },
+    });
+
+    const legacySuggested = legacyRows
+      .map((dbRow) => {
+        let totalConditions = 0;
+        let matchedConditions = 0;
+        let allMatched = true;
+
+        for (let i = 0; i < 12; i++) {
+          const ch = CHANNELS[i];
+          const f = flags[i];
+          const dbC10 = (dbRow[ch as keyof LegacyMeridianSyndrome] as number) ?? 0;
+          const dbC8 = (dbRow[`${ch}_c8` as keyof LegacyMeridianSyndrome] as number) ?? 0;
+          const dbC11 = (dbRow[`${ch}_c11` as keyof LegacyMeridianSyndrome] as number) ?? 0;
+
+          if (dbC10 !== 0 || dbC8 !== 0 || dbC11 !== 0) {
+            totalConditions++;
+            const channelMatched =
+              (dbC10 === 0 || dbC10 === (f.c10Legacy ?? 0)) &&
+              (dbC8 === 0 || dbC8 === f.c8) &&
+              (dbC11 === 0 || dbC11 === f.c11);
+
+            if (channelMatched) matchedConditions++;
+            else allMatched = false;
+          }
+        }
+
+        if (totalConditions === 0 || !allMatched) return null;
+
+        const rate = matchedConditions / totalConditions;
+        return Object.assign(dbRow, {
+          rate,
+          matchedCount: matchedConditions,
+          totalInModel: totalConditions,
+        });
+      })
+      .filter((x): x is LegacyMeridianSyndrome & { rate?: number; matchedCount?: number; totalInModel?: number } => !!x);
+
+    const comparisonRows = Array.from(
+      { length: Math.max(suggested.length, legacySuggested.length) },
+      (_, idx) => ({
+        current: suggested[idx] ?? null,
+        legacy: legacySuggested[idx] ?? null,
+      }),
+    );
+
     return {
       am_duong,
       khi,
       huyet,
       flags,
+      currentSyndromes: suggested,
+      legacySyndromes: legacySuggested,
+      comparisonRows,
       syndromes: suggested,
     };
   }

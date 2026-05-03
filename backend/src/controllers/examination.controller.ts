@@ -67,7 +67,11 @@ export class ExaminationsService {
     });
 
     try {
-      return await this.examinationRepository.save(examination);
+      const saved = await this.examinationRepository.save(examination);
+      (saved as any).currentSyndromes = result.currentSyndromes ?? result.syndromes ?? [];
+      (saved as any).legacySyndromes = result.legacySyndromes ?? [];
+      (saved as any).comparisonRows = result.comparisonRows ?? [];
+      return saved;
     } catch (error) {
       // 23505 is PostgreSQL unique_violation.
       // If it's a conflict on the primary key, we try to fix the sequence and retry.
@@ -77,7 +81,11 @@ export class ExaminationsService {
       ) {
         console.warn('Primary key sequence out of sync, fixing and retrying...');
         await this.fixSequence();
-        return await this.examinationRepository.save(examination);
+        const saved = await this.examinationRepository.save(examination);
+        (saved as any).currentSyndromes = result.currentSyndromes ?? result.syndromes ?? [];
+        (saved as any).legacySyndromes = result.legacySyndromes ?? [];
+        (saved as any).comparisonRows = result.comparisonRows ?? [];
+        return saved;
       }
       throw error;
     }
@@ -130,7 +138,11 @@ export class ExaminationsService {
       existing.notes = dto.notes;
     }
 
-    return this.examinationRepository.save(existing);
+    const saved = await this.examinationRepository.save(existing);
+    (saved as any).currentSyndromes = result.currentSyndromes ?? result.syndromes ?? [];
+    (saved as any).legacySyndromes = result.legacySyndromes ?? [];
+    (saved as any).comparisonRows = result.comparisonRows ?? [];
+    return saved;
   }
 
   async findByPatient(patientId: number): Promise<Examination[]> {
@@ -149,6 +161,9 @@ export class ExaminationsService {
           exam.huyet = fresh.huyet;
           exam.flags = fresh.flags;
           exam.syndromes = fresh.syndromes as any[];
+          (exam as any).currentSyndromes = fresh.currentSyndromes ?? fresh.syndromes ?? [];
+          (exam as any).legacySyndromes = fresh.legacySyndromes ?? [];
+          (exam as any).comparisonRows = fresh.comparisonRows ?? [];
         } catch (e) {}
       }
     }
@@ -170,6 +185,9 @@ export class ExaminationsService {
         examination.huyet = fresh.huyet;
         examination.flags = fresh.flags;
         examination.syndromes = fresh.syndromes as any[];
+        (examination as any).currentSyndromes = fresh.currentSyndromes ?? fresh.syndromes ?? [];
+        (examination as any).legacySyndromes = fresh.legacySyndromes ?? [];
+        (examination as any).comparisonRows = fresh.comparisonRows ?? [];
       } catch (e) {
         console.warn(`Failed to re-analyze examination #${id} on the fly`, e);
       }

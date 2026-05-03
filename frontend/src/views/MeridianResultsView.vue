@@ -14,8 +14,23 @@ const examination = ref<any>(null)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
 
-const syndromesList = computed(() => {
-  return examination.value?.syndromes || []
+const currentSyndromesList = computed(() => {
+  return examination.value?.currentSyndromes || examination.value?.syndromes || []
+})
+
+const legacySyndromesList = computed(() => {
+  return examination.value?.legacySyndromes || []
+})
+
+const comparisonRows = computed(() => {
+  const rows = examination.value?.comparisonRows
+  if (Array.isArray(rows) && rows.length) return rows
+
+  const maxLen = Math.max(currentSyndromesList.value.length, legacySyndromesList.value.length)
+  return Array.from({ length: maxLen }, (_, idx) => ({
+    current: currentSyndromesList.value[idx] || null,
+    legacy: legacySyndromesList.value[idx] || null
+  }))
 })
 
 const examDisplay = computed(() => {
@@ -530,11 +545,22 @@ function goBack() {
             <div class="result-card p-5">
               <div class="info-group">
                 <h4 class="info-label mb-3">Mô Hình Bệnh Lý</h4>
-                <div v-if="syndromesList.length" class="flex flex-col gap-2">
-                  <div v-for="(synd, idx) in syndromesList" :key="idx" class="syndrome-tag">
-                    <span class="synd-idx">{{ Number(idx) + 1 }}</span>
-                    <span class="synd-name">{{ synd.tieuket }}</span>
-                    <span v-if="synd.rate" class="synd-rate">{{ Math.round(synd.rate * 100) }}%</span>
+                <div v-if="comparisonRows.length" class="comparison-list">
+                  <div class="comparison-header">
+                    <span class="col-left">Mô hình app gốc</span>
+                    <span class="col-right">Mô hình hiện tại</span>
+                  </div>
+                  <div v-for="(row, idx) in comparisonRows" :key="idx" class="comparison-row">
+                    <div class="comparison-cell">
+                      <span class="synd-idx">{{ Number(idx) + 1 }}</span>
+                      <span class="synd-name">{{ row.legacy?.tieuket || '—' }}</span>
+                      <span v-if="row.legacy?.rate" class="synd-rate">{{ Math.round(row.legacy.rate * 100) }}%</span>
+                    </div>
+                    <div class="comparison-cell">
+                      <span class="synd-idx">{{ Number(idx) + 1 }}</span>
+                      <span class="synd-name">{{ row.current?.tieuket || '—' }}</span>
+                      <span v-if="row.current?.rate" class="synd-rate">{{ Math.round(row.current.rate * 100) }}%</span>
+                    </div>
                   </div>
                 </div>
                 <div v-else class="pathology-placeholder">
@@ -720,6 +746,41 @@ function goBack() {
   border-radius: var(--radius-md);
   box-shadow: 0 1px 2px rgba(0,0,0,0.02);
   transition: all var(--transition-fast);
+}
+.comparison-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.comparison-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--brown-700);
+  text-transform: uppercase;
+  padding: 0 var(--space-1);
+}
+.comparison-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+.comparison-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--white);
+  border: 1px solid var(--brown-200);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+}
+.col-left, .col-right {
+  background: var(--brown-50);
+  border: 1px solid var(--brown-100);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
 }
 .syndrome-tag:hover {
   border-color: var(--brown-400);
