@@ -146,8 +146,9 @@ const CHANNELS_FULL = {
   'Tỳ': 'Tỳ'
 }
 
-const LY_LIST = ['Tiêu trường', 'Tâm', 'Can', 'Đảm']
-const BIEU_LIST = ['Tam tiêu', 'Tâm bào', 'Đại tràng', 'Phế', 'Bàng quang', 'Thận', 'Vị', 'Tỳ']
+// Phân nhóm Biểu/Lý theo quy ước Bát cương của hệ thống V2.0
+const LY_LIST = ['Tam tiêu', 'Thận', 'Đảm', 'Vị', 'Can', 'Tỳ']
+const BIEU_LIST = ['Tiêu trường', 'Tâm', 'Tâm bào', 'Đại tràng', 'Phế', 'Bàng quang']
 
 function getSyndromeList(targetSign: string, channelNames: string[]) {
   const result: string[] = []
