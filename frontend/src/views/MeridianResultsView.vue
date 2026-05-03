@@ -146,33 +146,51 @@ const CHANNELS_FULL = {
   'Tỳ': 'Tỳ'
 }
 
-function buildBatCuongBySign(targetSign: string) {
-  const ly: string[] = []
-  const bieu: string[] = []
-  const rows = [...upperRows.value, ...lowerRows.value]
+function signToInt(sign: string) {
+  if (sign === '+') return 1
+  if (sign === '-') return -1
+  return 0
+}
 
-  rows.forEach((row: any) => {
-    const fullName = CHANNELS_FULL[row.name as keyof typeof CHANNELS_FULL]
-    if (!fullName) return
+function groupingV2(
+  lyNhiet: string[],
+  bieuNhiet: string[],
+  lyHan: string[],
+  bieuHan: string[],
+  tenKinh: string,
+  dauC8: number,
+  dauC10: number,
+  dauC11: number,
+  c10: number,
+  saiSo: number
+) {
+  const sum = dauC8 + dauC10 + dauC11
 
-    const lMatch = row.leftSign === targetSign
-    const rMatch = row.rightSign === targetSign
-
-    // Quy ước V2.0:
-    // - Cả 2 bên cùng dấu (+/+ hoặc -/-) => Lý
-    // - Chỉ 1 bên mang dấu mục tiêu => Biểu (ghi rõ trái/phải)
-    if (lMatch && rMatch) {
-      ly.push(fullName)
-    } else if (lMatch) {
-      bieu.push(`${fullName} trái`)
-    } else if (rMatch) {
-      bieu.push(`${fullName} phải`)
-    }
-  })
-
-  return {
-    ly: ly.join(', '),
-    bieu: bieu.join(', ')
+  if (sum === -3 && Math.abs(c10) > saiSo) {
+    lyHan.push(tenKinh)
+  } else if (sum === 3 && Math.abs(c10) > saiSo) {
+    lyNhiet.push(tenKinh)
+  } else if (sum === 2) {
+    const side = dauC8 !== 0 ? ' trái' : ' phải'
+    bieuNhiet.push(tenKinh + side)
+  } else if (sum === -2) {
+    const side = dauC8 !== 0 ? ' trái' : ' phải'
+    bieuHan.push(tenKinh + side)
+  } else if (sum === 1) {
+    const side = dauC8 === dauC10 ? ' trái' : ' phải'
+    bieuNhiet.push(tenKinh + side)
+  } else if (sum === -1) {
+    const side = dauC8 === dauC10 ? ' trái' : ' phải'
+    bieuHan.push(tenKinh + side)
+  } else if (dauC8 + dauC11 === 0 && dauC10 === 0) {
+    bieuHan.push((dauC8 === -1 ? tenKinh + ' trái' : tenKinh + ' phải'))
+    bieuNhiet.push((dauC8 === 1 ? tenKinh + ' trái' : tenKinh + ' phải'))
+  } else if (dauC8 + dauC11 === 1) {
+    const side = dauC8 === 1 ? ' trái' : ' phải'
+    bieuNhiet.push(tenKinh + side)
+  } else if (dauC8 + dauC11 === -1) {
+    const side = dauC8 === -1 ? ' trái' : ' phải'
+    bieuHan.push(tenKinh + side)
   }
 }
 
@@ -245,14 +263,33 @@ const diagnosis = computed(() => {
 })
 
 const batCuong = computed(() => {
-  const han = buildBatCuongBySign('-')
-  const nhiet = buildBatCuongBySign('+')
+  const lyNhiet: string[] = []
+  const bieuNhiet: string[] = []
+  const lyHan: string[] = []
+  const bieuHan: string[] = []
+
+  const process = (row: any, saiSo: number) => {
+    const tenKinh = CHANNELS_FULL[row.name as keyof typeof CHANNELS_FULL]
+    if (!tenKinh) return
+
+    const dauC8 = signToInt(row.leftSign)
+    const dauC10 = signToInt(row.diff > 0 ? '+' : row.diff < 0 ? '-' : '0')
+    const dauC11 = signToInt(row.rightSign)
+
+    const dauC12 = row.absDiff > saiSo ? (row.left > row.right ? 1 : -1) : 0
+    void dauC12 // Giữ biến để đồng bộ ngữ nghĩa với thuật toán gốc
+
+    groupingV2(lyNhiet, bieuNhiet, lyHan, bieuHan, tenKinh, dauC8, dauC10, dauC11, row.diff, saiSo)
+  }
+
+  upperRows.value.forEach((row: any) => process(row, upperStats.value.sd))
+  lowerRows.value.forEach((row: any) => process(row, lowerStats.value.sd))
 
   return {
-    hanBieu: han.bieu,
-    hanLy: han.ly,
-    nhietBieu: nhiet.bieu,
-    nhietLy: nhiet.ly,
+    hanBieu: bieuHan.join(', '),
+    hanLy: lyHan.join(', '),
+    nhietBieu: bieuNhiet.join(', '),
+    nhietLy: lyNhiet.join(', '),
   }
 })
 
