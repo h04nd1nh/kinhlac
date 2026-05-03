@@ -146,40 +146,34 @@ const CHANNELS_FULL = {
   'Tỳ': 'Tỳ'
 }
 
-// Phân nhóm Biểu/Lý theo quy ước Bát cương của hệ thống V2.0
-const LY_LIST = ['Tam tiêu', 'Thận', 'Đảm', 'Vị', 'Can', 'Tỳ']
-const BIEU_LIST = ['Tiêu trường', 'Tâm', 'Tâm bào', 'Đại tràng', 'Phế', 'Bàng quang']
+function buildBatCuongBySign(targetSign: string) {
+  const ly: string[] = []
+  const bieu: string[] = []
+  const rows = [...upperRows.value, ...lowerRows.value]
 
-function getSyndromeList(targetSign: string, channelNames: string[]) {
-  const result: string[] = []
-  
-  // Map ngược từ tên đầy đủ sang tên gốc (short name)
-  const reverseMap: Record<string, string> = {
-    'Tiêu trường': 'Tiểu', 'Tâm': 'Tâm', 'Tam tiêu': 'Tam', 'Tâm bào': 'Bào',
-    'Đại tràng': 'Đại', 'Phế': 'Phế', 'Bàng quang': 'Bàng', 'Thận': 'Thận',
-    'Đảm': 'Đảm', 'Vị': 'Vị', 'Can': 'Can', 'Tỳ': 'Tỳ'
-  }
-  
-  channelNames.forEach(fullChName => {
-     const shortName = reverseMap[fullChName]
-     if (!shortName) return
+  rows.forEach((row: any) => {
+    const fullName = CHANNELS_FULL[row.name as keyof typeof CHANNELS_FULL]
+    if (!fullName) return
 
-     const row = upperRows.value.find((r: any) => r.name === shortName) || lowerRows.value.find((r: any) => r.name === shortName)
-     if (!row) return
-     
-     const lMatch = row.leftSign === targetSign
-     const rMatch = row.rightSign === targetSign
-     
-     if (lMatch && rMatch) {
-        result.push(fullChName)
-     } else if (lMatch) {
-        result.push(`${fullChName} trái`)
-     } else if (rMatch) {
-        result.push(`${fullChName} phải`)
-     }
+    const lMatch = row.leftSign === targetSign
+    const rMatch = row.rightSign === targetSign
+
+    // Quy ước V2.0:
+    // - Cả 2 bên cùng dấu (+/+ hoặc -/-) => Lý
+    // - Chỉ 1 bên mang dấu mục tiêu => Biểu (ghi rõ trái/phải)
+    if (lMatch && rMatch) {
+      ly.push(fullName)
+    } else if (lMatch) {
+      bieu.push(`${fullName} trái`)
+    } else if (rMatch) {
+      bieu.push(`${fullName} phải`)
+    }
   })
-  
-  return result.join(', ')
+
+  return {
+    ly: ly.join(', '),
+    bieu: bieu.join(', ')
+  }
 }
 
 const diagnosis = computed(() => {
@@ -251,11 +245,14 @@ const diagnosis = computed(() => {
 })
 
 const batCuong = computed(() => {
+  const han = buildBatCuongBySign('-')
+  const nhiet = buildBatCuongBySign('+')
+
   return {
-    hanBieu: getSyndromeList('-', BIEU_LIST),
-    hanLy: getSyndromeList('-', LY_LIST),
-    nhietBieu: getSyndromeList('+', BIEU_LIST),
-    nhietLy: getSyndromeList('+', LY_LIST),
+    hanBieu: han.bieu,
+    hanLy: han.ly,
+    nhietBieu: nhiet.bieu,
+    nhietLy: nhiet.ly,
   }
 })
 
