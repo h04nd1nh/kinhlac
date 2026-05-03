@@ -88,6 +88,86 @@ export class MeridiansService {
     return Math.round(n * 100) / 100;
   }
 
+  private buildConditionMap(
+    row: Record<string, any>,
+    useLegacyC10: boolean,
+  ): Map<string, number> {
+    const cond = new Map<string, number>();
+    for (const ch of CHANNELS) {
+      const c8 = Number(row[`${ch}_c8`] ?? 0);
+      const c10 = Number(row[ch] ?? 0);
+      const c11 = Number(row[`${ch}_c11`] ?? 0);
+      if (c8 !== 0) cond.set(`${ch}:c8`, c8);
+      if (c10 !== 0) cond.set(`${ch}:${useLegacyC10 ? 'c10_legacy' : 'c10'}`, c10);
+      if (c11 !== 0) cond.set(`${ch}:c11`, c11);
+    }
+    return cond;
+  }
+
+  private pairByConditionSimilarity(
+    current: Array<MeridianSyndrome & { rate?: number; matchScore?: number }>,
+    legacy: Array<LegacyMeridianSyndrome & { rate?: number }>,
+  ): Array<{
+    current: (MeridianSyndrome & { rate?: number; matchScore?: number }) | null;
+    legacy: (LegacyMeridianSyndrome & { rate?: number }) | null;
+    similarity: number;
+  }> {
+    const usedLegacy = new Set<number>();
+    const rows: Array<{
+      current: (MeridianSyndrome & { rate?: number; matchScore?: number }) | null;
+      legacy: (LegacyMeridianSyndrome & { rate?: number }) | null;
+      similarity: number;
+    }> = [];
+
+    const legacyConds = legacy.map((l) => this.buildConditionMap(l as any, true));
+
+    for (const c of current) {
+      const cCond = this.buildConditionMap(c as any, false);
+      let bestIdx = -1;
+      let bestScore = -1;
+
+      for (let i = 0; i < legacy.length; i++) {
+        if (usedLegacy.has(i)) continue;
+        const lCond = legacyConds[i];
+        let overlap = 0;
+        for (const [k, v] of cCond.entries()) {
+          // C10 và C10_legacy đều đại diện điều kiện "trung bình", vẫn so theo channel
+          if (k.endsWith(':c10')) {
+            const lk = k.replace(':c10', ':c10_legacy');
+            if (lCond.has(lk) && lCond.get(lk) === v) overlap++;
+          } else if (lCond.has(k) && lCond.get(k) === v) {
+            overlap++;
+          }
+        }
+        const base = Math.max(cCond.size, lCond.size, 1);
+        const score = overlap / base;
+        if (score > bestScore) {
+          bestScore = score;
+          bestIdx = i;
+        }
+      }
+
+      if (bestIdx >= 0) {
+        usedLegacy.add(bestIdx);
+        rows.push({
+          current: c,
+          legacy: legacy[bestIdx],
+          similarity: this.round2(bestScore),
+        });
+      } else {
+        rows.push({ current: c, legacy: null, similarity: 0 });
+      }
+    }
+
+    for (let i = 0; i < legacy.length; i++) {
+      if (!usedLegacy.has(i)) {
+        rows.push({ current: null, legacy: legacy[i], similarity: 0 });
+      }
+    }
+
+    return rows;
+  }
+
   /**
    * Chuẩn hoá dữ liệu nhiệt độ kinh lạc về đúng khoảng sinh lý 20..40 °C.
    *
@@ -391,12 +471,9 @@ export class MeridiansService {
       })
       .filter((x): x is LegacyMeridianSyndrome & { rate?: number; matchedCount?: number; totalInModel?: number } => !!x);
 
-    const comparisonRows = Array.from(
-      { length: Math.max(suggested.length, legacySuggested.length) },
-      (_, idx) => ({
-        current: suggested[idx] ?? null,
-        legacy: legacySuggested[idx] ?? null,
-      }),
+    const comparisonRows = this.pairByConditionSimilarity(
+      suggested as Array<MeridianSyndrome & { rate?: number; matchScore?: number }>,
+      legacySuggested as Array<LegacyMeridianSyndrome & { rate?: number }>,
     );
 
     return {
