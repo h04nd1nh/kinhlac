@@ -219,6 +219,7 @@ export class MeridiansService {
    * Dựng bộ chỉ số theo map Excel để match bảng benh_dong_y_excel:
    * - E7, E10..E15 cho nhóm chi trên
    * - E18, E21..E26 cho nhóm chi dưới
+   * - A7/A8/A18/A19 lấy theo MAX/MIN toàn bộ số đo trái+phải của từng nhóm
    */
   private buildExcelIndicators(data: AnalyzeInputDto): Record<string, number> {
     const d10 = this.round2((data.tieutruongtrai + data.tieutruongphai) / 2);
@@ -228,7 +229,21 @@ export class MeridiansService {
     const d14 = this.round2((data.daitrangtrai + data.daitrangphai) / 2);
     const d15 = this.round2((data.phetrai + data.phephai) / 2);
 
-    const upperVals = [d10, d11, d12, d13, d14, d15].filter((v) => v > 0);
+    const upperRawVals = [
+      data.tieutruongtrai,
+      data.tieutruongphai,
+      data.tamtrai,
+      data.tamphai,
+      data.tamtieutrai,
+      data.tamtieuphai,
+      data.tambaotrai,
+      data.tambaophai,
+      data.daitrangtrai,
+      data.daitrangphai,
+      data.phetrai,
+      data.phephai,
+    ].filter((v) => v > 0);
+    const upperVals = upperRawVals;
     const a7 = upperVals.length ? Math.max(...upperVals) : 0;
     const a8 = upperVals.length ? Math.min(...upperVals) : 0;
     const d7 = this.round2((a7 + a8) / 2);
@@ -241,7 +256,21 @@ export class MeridiansService {
     const d25 = this.round2((data.cantrai + data.canphai) / 2);
     const d26 = this.round2((data.tytrai + data.typhai) / 2);
 
-    const lowerVals = [d21, d22, d23, d24, d25, d26].filter((v) => v > 0);
+    const lowerRawVals = [
+      data.bangquangtrai,
+      data.bangquangphai,
+      data.thantrai,
+      data.thanphai,
+      data.damtrai,
+      data.damphai,
+      data.vitrai,
+      data.viphai,
+      data.cantrai,
+      data.canphai,
+      data.tytrai,
+      data.typhai,
+    ].filter((v) => v > 0);
+    const lowerVals = lowerRawVals;
     const a18 = lowerVals.length ? Math.max(...lowerVals) : 0;
     const a19 = lowerVals.length ? Math.min(...lowerVals) : 0;
     const d18 = this.round2((a18 + a19) / 2);

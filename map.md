@@ -1,5 +1,5 @@
-A7 = MAX Giá trị của Tiểu Tâm Tam Bào Đại Phế
-A8 = MIN Giá trị của Tiểu Tâm Tam Bào Đại Phế
+A7 = MAX toàn bộ số đo Chi trên (C10..C15 và F10..F15, gồm cả trái + phải)
+A8 = MIN toàn bộ số đo Chi trên (C10..C15 và F10..F15, gồm cả trái + phải)
 B7 = A7 - A8
 D7 = (A7+A8)/2
 E7 = B7/6
@@ -40,8 +40,8 @@ H13=ABS(C13-F13)
 H14=ABS(C14-F14)
 H15=ABS(C15-F15)
 
-A18 = Max giá trị Bàng Thận Đảm Vị Can Tỳ
-A19 = Min giá trị Bàng Thận Đảm Vị Can Tỳ
+A18 = MAX toàn bộ số đo Chi dưới (C21..C26 và F21..F26, gồm cả trái + phải)
+A19 = MIN toàn bộ số đo Chi dưới (C21..C26 và F21..F26, gồm cả trái + phải)
 B18=A18-A19
 D18=(A18+A19)/2
 E18=B18/6
