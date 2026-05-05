@@ -33,6 +33,10 @@ const comparisonRows = computed(() => {
   }))
 })
 
+const excelSyndromesList = computed(() => {
+  return examination.value?.excelSyndromes || []
+})
+
 const examDisplay = computed(() => {
   if (!examination.value) return {
     ticketNumber: '#' + examId.value,
@@ -565,6 +569,24 @@ function goBack() {
                 </div>
                 <div v-else class="pathology-placeholder">
                   <p>Không có mô hình bệnh lý nào được tìm thấy</p>
+                </div>
+              </div>
+
+              <div class="info-group mt-4">
+                <h4 class="info-label mb-3">Mô hình bệnh từ Excel</h4>
+                <div v-if="excelSyndromesList.length" class="comparison-list">
+                  <div
+                    v-for="(item, idx) in excelSyndromesList"
+                    :key="item.code || idx"
+                    class="comparison-cell"
+                  >
+                    <span class="synd-idx">{{ Number(idx) + 1 }}</span>
+                    <span class="synd-name">{{ item.name }}</span>
+                    <span class="synd-rate">{{ item.outputCell }}</span>
+                  </div>
+                </div>
+                <div v-else class="pathology-placeholder">
+                  <p>Không có mô hình Excel nào khớp điều kiện</p>
                 </div>
               </div>
             </div>
