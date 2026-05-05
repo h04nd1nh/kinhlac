@@ -67,6 +67,12 @@ export class AnalyzeOutputDto {
   }>;
 }
 
+type LegacySuggestedRow = LegacyMeridianSyndrome & {
+  rate: number;
+  matchedCount: number;
+  totalInModel: number;
+};
+
 const CHANNELS = [
   'tieutruong', // 0: Tiểu trường
   'tam',        // 1: Tâm
@@ -493,7 +499,7 @@ export class MeridiansService {
       order: { nhomid: 'ASC', tieuket: 'ASC', id: 'ASC' },
     });
 
-    const legacySuggested = legacyRows
+    const legacySuggested: LegacySuggestedRow[] = legacyRows
       .map((dbRow) => {
         let totalConditions = 0;
         let matchedConditions = 0;
@@ -525,9 +531,9 @@ export class MeridiansService {
           rate,
           matchedCount: matchedConditions,
           totalInModel: totalConditions,
-        });
+        }) as LegacySuggestedRow;
       })
-      .filter((x): x is LegacyMeridianSyndrome & { rate?: number; matchedCount?: number; totalInModel?: number } => !!x);
+      .filter((x): x is LegacySuggestedRow => x !== null);
 
     const comparisonRows = this.pairByConditionSimilarity(
       suggested as Array<MeridianSyndrome & { rate?: number; matchScore?: number }>,
