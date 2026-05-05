@@ -70,6 +70,7 @@ export class ExaminationsService {
       const saved = await this.examinationRepository.save(examination);
       (saved as any).currentSyndromes = result.currentSyndromes ?? result.syndromes ?? [];
       (saved as any).legacySyndromes = result.legacySyndromes ?? [];
+      (saved as any).excelSyndromes = result.excelSyndromes ?? [];
       (saved as any).comparisonRows = result.comparisonRows ?? [];
       return saved;
     } catch (error) {
@@ -84,6 +85,7 @@ export class ExaminationsService {
         const saved = await this.examinationRepository.save(examination);
         (saved as any).currentSyndromes = result.currentSyndromes ?? result.syndromes ?? [];
         (saved as any).legacySyndromes = result.legacySyndromes ?? [];
+        (saved as any).excelSyndromes = result.excelSyndromes ?? [];
         (saved as any).comparisonRows = result.comparisonRows ?? [];
         return saved;
       }
@@ -141,6 +143,7 @@ export class ExaminationsService {
     const saved = await this.examinationRepository.save(existing);
     (saved as any).currentSyndromes = result.currentSyndromes ?? result.syndromes ?? [];
     (saved as any).legacySyndromes = result.legacySyndromes ?? [];
+    (saved as any).excelSyndromes = result.excelSyndromes ?? [];
     (saved as any).comparisonRows = result.comparisonRows ?? [];
     return saved;
   }
@@ -163,6 +166,7 @@ export class ExaminationsService {
           exam.syndromes = fresh.syndromes as any[];
           (exam as any).currentSyndromes = fresh.currentSyndromes ?? fresh.syndromes ?? [];
           (exam as any).legacySyndromes = fresh.legacySyndromes ?? [];
+          (exam as any).excelSyndromes = fresh.excelSyndromes ?? [];
           (exam as any).comparisonRows = fresh.comparisonRows ?? [];
         } catch (e) {}
       }
@@ -187,6 +191,7 @@ export class ExaminationsService {
         examination.syndromes = fresh.syndromes as any[];
         (examination as any).currentSyndromes = fresh.currentSyndromes ?? fresh.syndromes ?? [];
         (examination as any).legacySyndromes = fresh.legacySyndromes ?? [];
+        (examination as any).excelSyndromes = fresh.excelSyndromes ?? [];
         (examination as any).comparisonRows = fresh.comparisonRows ?? [];
       } catch (e) {
         console.warn(`Failed to re-analyze examination #${id} on the fly`, e);

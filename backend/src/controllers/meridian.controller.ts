@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MeridianSyndrome } from '../models/meridian-syndrome.model';
 import { LegacyMeridianSyndrome } from '../models/legacy-meridian-syndrome.model';
+import { BenhDongYExcelService } from './benh-dong-y-excel.controller';
 
 export class AnalyzeInputDto {
   tieutruongtrai: number;
@@ -58,6 +59,12 @@ export class AnalyzeOutputDto {
     current: (MeridianSyndrome & { rate?: number; matchScore?: number }) | null;
     legacy: (LegacyMeridianSyndrome & { rate?: number }) | null;
   }>;
+  excelSyndromes?: Array<{
+    id: number;
+    code: string;
+    name: string;
+    outputCell: string;
+  }>;
 }
 
 const CHANNELS = [
@@ -82,6 +89,7 @@ export class MeridiansService {
     private readonly meridianRepo: Repository<MeridianSyndrome>,
     @InjectRepository(LegacyMeridianSyndrome)
     private readonly legacyMeridianRepo: Repository<LegacyMeridianSyndrome>,
+    private readonly benhDongYExcelService: BenhDongYExcelService,
   ) {}
 
   private round2(n: number): number {
@@ -199,6 +207,56 @@ export class MeridiansService {
       `Chỉ chấp nhận trong khoảng 20..40 °C. Nếu bạn nhập theo dạng "x10/x100" ` +
       `(ví dụ 354 -> 35.4, 3544 -> 35.44) thì hệ thống sẽ tự quy đổi.`,
     );
+  }
+
+  /**
+   * Dựng bộ chỉ số theo map Excel để match bảng benh_dong_y_excel:
+   * - E7, E10..E15 cho nhóm chi trên
+   * - E18, E21..E26 cho nhóm chi dưới
+   */
+  private buildExcelIndicators(data: AnalyzeInputDto): Record<string, number> {
+    const d10 = this.round2((data.tieutruongtrai + data.tieutruongphai) / 2);
+    const d11 = this.round2((data.tamtrai + data.tamphai) / 2);
+    const d12 = this.round2((data.tamtieutrai + data.tamtieuphai) / 2);
+    const d13 = this.round2((data.tambaotrai + data.tambaophai) / 2);
+    const d14 = this.round2((data.daitrangtrai + data.daitrangphai) / 2);
+    const d15 = this.round2((data.phetrai + data.phephai) / 2);
+
+    const upperVals = [d10, d11, d12, d13, d14, d15].filter((v) => v > 0);
+    const a7 = upperVals.length ? Math.max(...upperVals) : 0;
+    const a8 = upperVals.length ? Math.min(...upperVals) : 0;
+    const d7 = this.round2((a7 + a8) / 2);
+    const e7 = this.round2((a7 - a8) / 6);
+
+    const d21 = this.round2((data.bangquangtrai + data.bangquangphai) / 2);
+    const d22 = this.round2((data.thantrai + data.thanphai) / 2);
+    const d23 = this.round2((data.damtrai + data.damphai) / 2);
+    const d24 = this.round2((data.vitrai + data.viphai) / 2);
+    const d25 = this.round2((data.cantrai + data.canphai) / 2);
+    const d26 = this.round2((data.tytrai + data.typhai) / 2);
+
+    const lowerVals = [d21, d22, d23, d24, d25, d26].filter((v) => v > 0);
+    const a18 = lowerVals.length ? Math.max(...lowerVals) : 0;
+    const a19 = lowerVals.length ? Math.min(...lowerVals) : 0;
+    const d18 = this.round2((a18 + a19) / 2);
+    const e18 = this.round2((a18 - a19) / 6);
+
+    return {
+      E7: e7,
+      E10: this.round2(d10 - d7),
+      E11: this.round2(d11 - d7),
+      E12: this.round2(d12 - d7),
+      E13: this.round2(d13 - d7),
+      E14: this.round2(d14 - d7),
+      E15: this.round2(d15 - d7),
+      E18: e18,
+      E21: this.round2(d21 - d18),
+      E22: this.round2(d22 - d18),
+      E23: this.round2(d23 - d18),
+      E24: this.round2(d24 - d18),
+      E25: this.round2(d25 - d18),
+      E26: this.round2(d26 - d18),
+    };
   }
 
   async analyze(data: AnalyzeInputDto): Promise<AnalyzeOutputDto> {
@@ -476,6 +534,9 @@ export class MeridiansService {
       legacySuggested as Array<LegacyMeridianSyndrome & { rate?: number }>,
     );
 
+    const excelIndicators = this.buildExcelIndicators(data);
+    const excelDiagnose = await this.benhDongYExcelService.diagnose(excelIndicators);
+
     return {
       am_duong,
       khi,
@@ -483,6 +544,7 @@ export class MeridiansService {
       flags,
       currentSyndromes: suggested,
       legacySyndromes: legacySuggested,
+      excelSyndromes: excelDiagnose.matched,
       comparisonRows,
       syndromes: suggested,
     };
