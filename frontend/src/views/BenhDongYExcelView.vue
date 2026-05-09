@@ -116,7 +116,7 @@ function splitCellRefs(s: string, maxLen: number): { kind: 'ref' | 'text'; v: st
   return parts.length ? parts : [{ kind: 'text', v: t }]
 }
 
-/** Tooltip khi hover ô trong lưới Excel (theo map.md) */
+/** Tooltip: công thức diễn đầy đủ; C/F theo map.md dòng 8–20, D/E/H suy ra từ tên kinh trái/phải */
 const EXCEL_CELL_HINTS: Record<string, string> = (() => {
   const h: Record<string, string> = {}
   h.A7 = 'MAX(C10:C15, F10:F15) — MAX toàn bộ số đo chi trên'
@@ -127,15 +127,20 @@ const EXCEL_CELL_HINTS: Record<string, string> = (() => {
   h.F7 = 'D7+E7'
   h.F8 = 'D7−E7'
 
+  /** map.md 8–14 */
   const uL = ['Tiểu trái', 'Tâm trái', 'Tam trái', 'Bào phải', 'Đại trái', 'Phế trái']
+  /** map.md 15–20 */
   const uR = ['Tiểu phải', 'Tâm phải', 'Tam phải', 'Bào phải', 'Đại phải', 'Phế phải']
   for (let i = 0; i < 6; i++) {
     const r = 10 + i
-    h[`C${r}`] = `Nhập đo trái · ${uL[i]}`
-    h[`F${r}`] = `Nhập đo phải · ${uR[i]}`
-    h[`D${r}`] = `(C${r}+F${r})/2`
-    h[`E${r}`] = `D${r}−D7`
-    h[`H${r}`] = `ABS(C${r}−F${r})`
+    const L = uL[i]
+    const R = uR[i]
+    const tb = `(${L} + ${R}) / 2`
+    h[`C${r}`] = `${L} — ô nhập giá trị đo trái (map.md)`
+    h[`F${r}`] = `${R} — ô nhập giá trị đo phải (map.md)`
+    h[`D${r}`] = tb
+    h[`E${r}`] = `${tb} − D7`
+    h[`H${r}`] = `ABS(${L} − ${R})`
   }
 
   h.A18 = 'MAX(C21:C26, F21:F26) — MAX chi dưới'
@@ -150,14 +155,17 @@ const EXCEL_CELL_HINTS: Record<string, string> = (() => {
   const lR = ['Bàng phải', 'Thận phải', 'Đảm phải', 'Vị phải', 'Can phải', 'Tỳ phải']
   for (let i = 0; i < 6; i++) {
     const r = 21 + i
-    h[`C${r}`] = `Nhập đo trái · ${lL[i]}`
-    h[`F${r}`] = `Nhập đo phải · ${lR[i]}`
-    h[`D${r}`] = `(C${r}+F${r})/2`
-    h[`E${r}`] = `D${r}−D18`
-    h[`H${r}`] = `ABS(C${r}−F${r})`
+    const L = lL[i]
+    const R = lR[i]
+    const tb = `(${L} + ${R}) / 2`
+    h[`C${r}`] = `${L} — ô nhập giá trị đo trái (map.md)`
+    h[`F${r}`] = `${R} — ô nhập giá trị đo phải (map.md)`
+    h[`D${r}`] = tb
+    h[`E${r}`] = `${tb} − D18`
+    h[`H${r}`] = `ABS(${L} − ${R})`
   }
 
-  h.H28 = 'D7−D18 — chênh hai đường cơ sở chi trên và chi dưới'
+  h.H28 = '(đường cơ sở chi trên) − (đường cơ sở chi dưới) = D7 − D18'
   return h
 })()
 
@@ -279,7 +287,7 @@ async function handleDelete() {
         <div class="excel-map-body">
           <p class="excel-map-intro">
             Lưới giống Excel: hàng 7–8 và 18–19 là tổng hợp; hàng 10–15 (chi trên) và 21–26 (chi dưới) là từng kinh.
-            Ô hiển thị <strong>tên ô</strong> (A7, C10…) — <strong>đưa chuột vào ô</strong> để xem công thức tính (ví dụ <code>D10</code> → <code>(C10+F10)/2</code>).
+            Ô hiển thị <strong>tên ô</strong> (A7, C10…) — <strong>đưa chuột vào ô</strong> để xem <strong>công thức diễn đầy đủ</strong> theo <code>map.md</code> (ví dụ <code>D10</code> → <code>(Tiểu trái + Tiểu phải) / 2</code>).
           </p>
 
           <div class="excel-sheet-scroll">
