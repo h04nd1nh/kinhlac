@@ -109,7 +109,8 @@ function splitCellRefs(s: string, maxLen: number): { kind: 'ref' | 'text'; v: st
   const rx = new RegExp(re.source, re.flags)
   while ((m = rx.exec(t)) !== null) {
     if (m.index > last) parts.push({ kind: 'text', v: t.slice(last, m.index) })
-    parts.push({ kind: 'ref', v: m[1] })
+    const cap = m[1] ?? m[0]
+    parts.push({ kind: 'ref', v: cap })
     last = m.index + m[0].length
   }
   if (last < t.length) parts.push({ kind: 'text', v: t.slice(last) })
