@@ -1,8 +1,17 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { BenhDongYExcel } from '../models/benh-dong-y-excel.model';
-import { InputChiSo } from '../models/benh-dong-y-excel.dto';
+import {
+  CreateBenhDongYExcelDto,
+  InputChiSo,
+  UpdateBenhDongYExcelDto,
+} from '../models/benh-dong-y-excel.dto';
 
 type RuleClause = {
   left: string;
@@ -16,6 +25,87 @@ export class BenhDongYExcelService {
     @InjectRepository(BenhDongYExcel)
     private readonly repo: Repository<BenhDongYExcel>,
   ) {}
+
+  private static isUniqueViolation(err: unknown): boolean {
+    return (
+      err instanceof QueryFailedError &&
+      (err as QueryFailedError & { driverError?: { code?: string } }).driverError?.code === '23505'
+    );
+  }
+
+  async findAll(): Promise<BenhDongYExcel[]> {
+    return this.repo.find({ order: { id: 'ASC' } });
+  }
+
+  async findOne(id: number): Promise<BenhDongYExcel> {
+    const row = await this.repo.findOne({ where: { id } });
+    if (!row) {
+      throw new NotFoundException(`Không tìm thấy quy tắc id=${id}`);
+    }
+    return row;
+  }
+
+  async create(dto: CreateBenhDongYExcelDto): Promise<BenhDongYExcel> {
+    const required: (keyof CreateBenhDongYExcelDto)[] = [
+      'code',
+      'name',
+      'outputCell',
+      'excelFormula',
+      'logicExpression',
+      'sqlCaseText',
+      'sqlCaseBoolean',
+    ];
+    for (const k of required) {
+      const v = dto[k];
+      if (v === undefined || v === null || (typeof v === 'string' && !v.trim())) {
+        throw new BadRequestException(`Thiếu hoặc rỗng trường bắt buộc: ${String(k)}`);
+      }
+    }
+
+    const entity = this.repo.create({
+      code: dto.code.trim(),
+      name: dto.name.trim(),
+      outputCell: dto.outputCell.trim(),
+      excelFormula: dto.excelFormula,
+      logicExpression: dto.logicExpression,
+      sqlCaseText: dto.sqlCaseText,
+      sqlCaseBoolean: dto.sqlCaseBoolean,
+    });
+    try {
+      return await this.repo.save(entity);
+    } catch (err) {
+      if (BenhDongYExcelService.isUniqueViolation(err)) {
+        throw new ConflictException(`Mã code "${entity.code}" đã tồn tại.`);
+      }
+      throw err;
+    }
+  }
+
+  async update(id: number, dto: UpdateBenhDongYExcelDto): Promise<BenhDongYExcel> {
+    const entity = await this.findOne(id);
+    if (dto.code !== undefined) entity.code = dto.code.trim();
+    if (dto.name !== undefined) entity.name = dto.name.trim();
+    if (dto.outputCell !== undefined) entity.outputCell = dto.outputCell.trim();
+    if (dto.excelFormula !== undefined) entity.excelFormula = dto.excelFormula;
+    if (dto.logicExpression !== undefined) entity.logicExpression = dto.logicExpression;
+    if (dto.sqlCaseText !== undefined) entity.sqlCaseText = dto.sqlCaseText;
+    if (dto.sqlCaseBoolean !== undefined) entity.sqlCaseBoolean = dto.sqlCaseBoolean;
+    try {
+      return await this.repo.save(entity);
+    } catch (err) {
+      if (BenhDongYExcelService.isUniqueViolation(err)) {
+        throw new ConflictException(`Mã code "${entity.code}" đã tồn tại.`);
+      }
+      throw err;
+    }
+  }
+
+  async remove(id: number): Promise<void> {
+    const res = await this.repo.delete(id);
+    if (!res.affected) {
+      throw new NotFoundException(`Không tìm thấy quy tắc id=${id}`);
+    }
+  }
 
   private normalizeInput(raw: Record<string, unknown>): InputChiSo {
     const result: InputChiSo = {};

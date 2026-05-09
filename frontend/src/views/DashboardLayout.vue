@@ -15,6 +15,7 @@ const navItems = [
   { name: 'Lịch khám', routeName: 'appointments', icon: 'calendar' },
   { name: 'Bệnh tây y', routeName: 'western-medicine', icon: 'stethoscope' },
   { name: 'Bệnh kinh lạc', routeName: 'meridian-diseases', icon: 'activity' },
+  { name: 'Quy tắc Excel Đông y', routeName: 'benh-dong-y-excel', icon: 'rules' },
   { name: 'Quản lý thuốc', routeName: 'medicines', icon: 'pill' },
   { name: 'Triệu chứng', routeName: 'symptoms', icon: 'clipboard' },
   { name: 'Pháp trị', routeName: 'treatments', icon: 'shield' },
@@ -78,6 +79,8 @@ function handleLogout() {
             <svg v-if="item.icon === 'stethoscope'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13a9 9 0 0018 0v-5m-9 14a5 5 0 01-5-5V7a2 2 0 012-2h6a2 2 0 012 2v5a5 5 0 01-5 5zm0 0v-4" /></svg>
             <!-- Activity (Meridian) icon -->
             <svg v-if="item.icon === 'activity'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+            <!-- Table / rules (benh_dong_y_excel) icon -->
+            <svg v-if="item.icon === 'rules'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M3 12h18M3 18h18M3 6v12M9 6v12M15 6v12M21 6v12" /></svg>
             <!-- Pill (Medicines) icon -->
             <svg v-if="item.icon === 'pill'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 20.5L3.5 13.5a5 5 0 017.07-7.07l7 7a5 5 0 01-7.07 7.07z" /><path stroke-linecap="round" stroke-linejoin="round" d="M8.5 8.5l7 7" /></svg>
             <!-- Clipboard (Symptoms) icon -->
@@ -127,7 +130,7 @@ function handleLogout() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
           </button>
           <h1 class="page-title">
-            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (currentRouteName === 'new-examination' ? 'Khám mới' : currentRouteName === 'meridian-results' ? 'Kết quả đo kinh lạc' : currentRouteName === 'western-medicine' ? 'Bệnh tây y' : currentRouteName === 'meridian-diseases' ? 'Bệnh kinh lạc' : currentRouteName === 'medicines' ? 'Quản lý thuốc' : currentRouteName === 'symptoms' ? 'Triệu chứng' : currentRouteName === 'treatments' ? 'Pháp trị' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ')) }}
+            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (currentRouteName === 'new-examination' ? 'Khám mới' : currentRouteName === 'meridian-results' ? 'Kết quả đo kinh lạc' : currentRouteName === 'western-medicine' ? 'Bệnh tây y' : currentRouteName === 'meridian-diseases' ? 'Bệnh kinh lạc' : currentRouteName === 'benh-dong-y-excel' ? 'Quy tắc Excel Đông y' : currentRouteName === 'medicines' ? 'Quản lý thuốc' : currentRouteName === 'symptoms' ? 'Triệu chứng' : currentRouteName === 'treatments' ? 'Pháp trị' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ')) }}
           </h1>
         </div>
         <div class="header-right">
