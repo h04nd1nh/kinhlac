@@ -506,13 +506,17 @@ function goBack() {
                 <h4 class="info-label mb-3">Chẩn Đoán Bát Cương</h4>
                 
                 <div class="bc-summary-grid">
-                  <div class="bc-summary-item">
-                    <span class="bc-label">Âm / Dương:</span>
-                    <span class="bc-value">{{ diagnosis.amDuong }}</span>
+                  <div class="bc-summary-card">
+                    <span class="bc-card-label">Âm / Dương</span>
+                    <span class="bc-card-value">{{ diagnosis.amDuong }}</span>
                   </div>
-                  <div class="bc-summary-item">
-                    <span class="bc-label">Hư / Thực:</span>
-                    <span class="bc-value">{{ diagnosis.khi }}, {{ diagnosis.huyet }}</span>
+                  <div class="bc-summary-card">
+                    <span class="bc-card-label">Khí</span>
+                    <span class="bc-card-value">{{ diagnosis.khi || '—' }}</span>
+                  </div>
+                  <div class="bc-summary-card">
+                    <span class="bc-card-label">Huyết</span>
+                    <span class="bc-card-value">{{ diagnosis.huyet || '—' }}</span>
                   </div>
                 </div>
 
@@ -683,11 +687,39 @@ function goBack() {
 
 .bg-gray { background-color: var(--gray-50); }
 .text-brown-600 { color: var(--brown-600); }
-/* Bat Cuong Design */
-.bc-summary-grid { display: flex; flex-direction: column; gap: var(--space-2); background: var(--brown-50); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--brown-100); }
-.bc-summary-item { display: flex; justify-content: space-between; align-items: center; font-size: var(--font-size-sm); }
-.bc-label { color: var(--gray-600); font-weight: 600; }
-.bc-value { color: var(--brown-800); font-weight: 700; }
+/* Bat Cuong Design — 3 thẻ: Âm/Dương, Khí, Huyết */
+.bc-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+@media (max-width: 1024px) {
+  .bc-summary-grid { grid-template-columns: 1fr; }
+}
+.bc-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  background: var(--brown-50);
+  border: 1px solid var(--brown-100);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  min-width: 0;
+}
+.bc-card-label {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--gray-600);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.bc-card-value {
+  font-size: var(--font-size-sm);
+  color: var(--brown-800);
+  font-weight: 700;
+  line-height: 1.35;
+  word-break: break-word;
+}
 
 .bc-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
 .bc-box { border: 1px solid; border-radius: var(--radius-md); overflow: hidden; }
