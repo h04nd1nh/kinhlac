@@ -449,8 +449,10 @@ function statColFromLetters(col: string): number | null {
 function refToHint(ref: string): ExcelHint | null {
   const m = ref.trim().match(/^([A-Z]+)(\d+)$/i)
   if (!m) return null
-  const letters = m[1].toUpperCase()
-  const row = parseInt(m[2], 10)
+  const [, matchedLetters, matchedRow] = m
+  if (!matchedLetters || !matchedRow) return null
+  const letters = matchedLetters.toUpperCase()
+  const row = parseInt(matchedRow, 10)
 
   if (letters.length > 3) return null
 
