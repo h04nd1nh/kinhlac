@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { usePatientStore, type Patient } from '@/stores/patient'
 import { api } from '@/services/api'
@@ -358,10 +358,6 @@ function goBack() {
 type BatCuongFocusKey = 'amDuong' | 'khi' | 'huyet'
 const batCuongFocus = ref<BatCuongFocusKey | null>(null)
 
-function toggleBatCuongFocus(key: BatCuongFocusKey) {
-  batCuongFocus.value = batCuongFocus.value === key ? null : key
-}
-
 function statsRowClass(which: 'upper' | 'lower') {
   const f = batCuongFocus.value
   if (!f) return ''
@@ -397,6 +393,162 @@ function sectionTitleClass(which: 'upper' | 'lower') {
 
 function footerDiffClass() {
   return batCuongFocus.value ? 'bc-footer-stat--dim' : ''
+}
+
+/** --- Mô hình Excel → highlight ô theo map.md / logic_expression --- */
+type ExcelHint =
+  | { zone: 'upperStat'; statCol: number }
+  | { zone: 'lowerStat'; statCol: number }
+  | { zone: 'upperBody'; row: number; col: number }
+  | { zone: 'lowerBody'; row: number; col: number }
+  | { zone: 'footer' }
+
+const excelFocusRuleId = ref<number | null>(null)
+
+watch(
+  () => excelSyndromesList.value,
+  (list) => {
+    if (excelFocusRuleId.value != null && !list.some((x: { id: number }) => x.id === excelFocusRuleId.value)) {
+      excelFocusRuleId.value = null
+    }
+  }
+)
+
+const excelHighlightHints = computed<ExcelHint[]>(() => {
+  if (excelFocusRuleId.value == null) return []
+  const item = excelSyndromesList.value.find((x: { id: number }) => x.id === excelFocusRuleId.value)
+  const logic = item?.logicExpression
+  if (!logic || typeof logic !== 'string') return []
+  return extractExcelRefsFromLogic(logic).map(refToHint).filter((h): h is ExcelHint => h !== null)
+})
+
+function extractExcelRefsFromLogic(logic: string): string[] {
+  const out = new Set<string>()
+  const u = logic.toUpperCase().replace(/\s+/g, ' ')
+  let m: RegExpExecArray | null
+  const absRe = /ABS\(\s*([A-Z]{1,3})(\d+)\s*\)/g
+  while ((m = absRe.exec(u)) !== null) {
+    out.add(`${m[1]}${m[2]}`)
+  }
+  const cellRe = /\b([A-Z]{1,3})(\d+)\b/g
+  while ((m = cellRe.exec(u)) !== null) {
+    out.add(`${m[1]}${m[2]}`)
+  }
+  return [...out]
+}
+
+function statColFromLetters(col: string): number | null {
+  if (col === 'A') return 0
+  if (col === 'B') return 1
+  if (col === 'D') return 2
+  if (col === 'E') return 3
+  if (col === 'F') return 4
+  return null
+}
+
+function refToHint(ref: string): ExcelHint | null {
+  const m = ref.trim().match(/^([A-Z]+)(\d+)$/i)
+  if (!m) return null
+  const letters = m[1].toUpperCase()
+  const row = parseInt(m[2], 10)
+
+  if (letters.length > 3) return null
+
+  if (row === 28 && letters === 'H') return { zone: 'footer' }
+
+  if (row === 7 || row === 8) {
+    const sc = statColFromLetters(letters)
+    if (sc !== null) return { zone: 'upperStat', statCol: sc }
+  }
+  if (row === 18 || row === 19) {
+    const sc = statColFromLetters(letters)
+    if (sc !== null) return { zone: 'lowerStat', statCol: sc }
+  }
+
+  const bodyColMap: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4, F: 5, G: 6, H: 7 }
+
+  if (row >= 10 && row <= 15) {
+    const c = bodyColMap[letters]
+    if (c !== undefined) return { zone: 'upperBody', row: row - 10, col: c }
+  }
+  if (row >= 21 && row <= 26) {
+    const c = bodyColMap[letters]
+    if (c !== undefined) return { zone: 'lowerBody', row: row - 21, col: c }
+  }
+
+  return null
+}
+
+function toggleExcelFocus(id: number) {
+  batCuongFocus.value = null
+  excelFocusRuleId.value = excelFocusRuleId.value === id ? null : id
+}
+
+function toggleBatCuongFocus(key: BatCuongFocusKey) {
+  excelFocusRuleId.value = null
+  batCuongFocus.value = batCuongFocus.value === key ? null : key
+}
+
+function sectionTouchesExcel(which: 'upper' | 'lower'): boolean {
+  const hints = excelHighlightHints.value
+  if (!hints.length) return false
+  if (which === 'upper') {
+    return hints.some(h => h.zone === 'upperStat' || h.zone === 'upperBody')
+  }
+  return hints.some(h => h.zone === 'lowerStat' || h.zone === 'lowerBody')
+}
+
+function sectionTitleClassMerged(which: 'upper' | 'lower') {
+  if (excelFocusRuleId.value != null) {
+    if (!excelHighlightHints.value.length) return ''
+    return sectionTouchesExcel(which) ? '' : 'bc-section-title--dim'
+  }
+  return sectionTitleClass(which)
+}
+
+function statsRowClassMerged(which: 'upper' | 'lower') {
+  if (excelFocusRuleId.value != null) return ''
+  return statsRowClass(which)
+}
+
+function excelStatColClass(which: 'upper' | 'lower', statIdx: number): string {
+  if (excelFocusRuleId.value == null) return ''
+  const hints = excelHighlightHints.value
+  const want = which === 'upper' ? 'upperStat' : 'lowerStat'
+  const statHints = hints.filter((h): h is Extract<ExcelHint, { zone: 'upperStat' | 'lowerStat' }> => h.zone === want)
+  if (!statHints.length) return ''
+  const match = statHints.some(h => h.statCol === statIdx)
+  return match ? 'excel-stat-col--focus' : 'excel-stat-col--dim'
+}
+
+function excelTdClass(which: 'upper' | 'lower', rowIdx: number, colIdx: number): string {
+  if (excelFocusRuleId.value == null) return ''
+  const hints = excelHighlightHints.value
+  const bodyZone = which === 'upper' ? 'upperBody' : 'lowerBody'
+  const bodyHints = hints.filter((h): h is Extract<ExcelHint, { zone: 'upperBody' | 'lowerBody' }> => h.zone === bodyZone)
+  if (!bodyHints.length) return ''
+  const match = bodyHints.some(h => h.row === rowIdx && h.col === colIdx)
+  return match ? 'meridian-cell--focus' : 'meridian-cell--dim'
+}
+
+function upperRowClassMerged(idx: number) {
+  if (excelFocusRuleId.value != null) return ''
+  return upperRowClass(idx)
+}
+
+function lowerRowClassMerged(idx: number) {
+  if (excelFocusRuleId.value != null) return ''
+  return lowerRowClass(idx)
+}
+
+function footerDiffClassMerged() {
+  if (excelFocusRuleId.value != null) {
+    const hints = excelHighlightHints.value
+    if (!hints.length) return ''
+    if (hints.some(h => h.zone === 'footer')) return 'excel-footer--focus'
+    return 'bc-footer-stat--dim'
+  }
+  return footerDiffClass()
 }
 </script>
 
@@ -477,61 +629,61 @@ function footerDiffClass() {
               </div>
 
               <!-- Chi Trên -->
-              <div class="table-section-title" :class="sectionTitleClass('upper')">Chi trên</div>
-              <div class="stats-summary-row" :class="statsRowClass('upper')">
-                <div class="stat-col"><span class="val max-val">{{ fmt(upperStats.max, 1) }}</span><br/><span class="val min-val">{{ fmt(upperStats.min, 1) }}</span></div>
-                <div class="stat-col"><span class="val">{{ fmt(upperStats.range, 1) }}</span><br/><span>&nbsp;</span></div>
-                <div class="stat-col"><span class="val bg-gray">{{ fmt(upperStats.mean, 2) }}</span><br/><span>&nbsp;</span></div>
-                <div class="stat-col"><span class="val">{{ fmt(upperStats.sd, 2) }}</span><br/><span>&nbsp;</span></div>
-                <div class="stat-col"><span class="val text-brown-600">{{ fmt(upperStats.upperBound, 2) }}</span><br/><span class="val text-brown-600">{{ fmt(upperStats.lowerBound, 2) }}</span></div>
+              <div class="table-section-title" :class="sectionTitleClassMerged('upper')">Chi trên</div>
+              <div class="stats-summary-row" :class="statsRowClassMerged('upper')">
+                <div class="stat-col" :class="excelStatColClass('upper', 0)"><span class="val max-val">{{ fmt(upperStats.max, 1) }}</span><br/><span class="val min-val">{{ fmt(upperStats.min, 1) }}</span></div>
+                <div class="stat-col" :class="excelStatColClass('upper', 1)"><span class="val">{{ fmt(upperStats.range, 1) }}</span><br/><span>&nbsp;</span></div>
+                <div class="stat-col" :class="excelStatColClass('upper', 2)"><span class="val bg-gray">{{ fmt(upperStats.mean, 2) }}</span><br/><span>&nbsp;</span></div>
+                <div class="stat-col" :class="excelStatColClass('upper', 3)"><span class="val">{{ fmt(upperStats.sd, 2) }}</span><br/><span>&nbsp;</span></div>
+                <div class="stat-col" :class="excelStatColClass('upper', 4)"><span class="val text-brown-600">{{ fmt(upperStats.upperBound, 2) }}</span><br/><span class="val text-brown-600">{{ fmt(upperStats.lowerBound, 2) }}</span></div>
               </div>
 
               <div class="table-responsive">
                 <table class="data-table meridian-data-table">
                   <tbody>
-                    <tr v-for="(item, idx) in upperRows" :key="'upper-'+idx" :class="upperRowClass(idx)">
-                      <td class="font-bold">{{ item.name }}</td>
-                      <td :class="getSignClass(item.leftSign)">{{ item.leftSign }}</td>
-                      <td class="font-medium">{{ fmt(item.left, 1) }}</td>
-                      <td class="bg-gray">{{ fmt(item.avg, 2) }}</td>
-                      <td :class="item.diff > 0 ? 'text-brown-600' : (item.diff < 0 ? 'text-blue-600' : '')">{{ item.diff > 0 ? '+' : '' }}{{ fmt(item.diff, 2) }}</td>
-                      <td class="font-medium">{{ fmt(item.right, 1) }}</td>
-                      <td :class="getSignClass(item.rightSign)">{{ item.rightSign }}</td>
-                      <td>{{ fmt(item.absDiff, 1) }}</td>
+                    <tr v-for="(item, idx) in upperRows" :key="'upper-'+idx" :class="upperRowClassMerged(idx)">
+                      <td class="font-bold" :class="excelTdClass('upper', idx, 0)">{{ item.name }}</td>
+                      <td :class="[getSignClass(item.leftSign), excelTdClass('upper', idx, 1)]">{{ item.leftSign }}</td>
+                      <td class="font-medium" :class="excelTdClass('upper', idx, 2)">{{ fmt(item.left, 1) }}</td>
+                      <td class="bg-gray" :class="excelTdClass('upper', idx, 3)">{{ fmt(item.avg, 2) }}</td>
+                      <td :class="[item.diff > 0 ? 'text-brown-600' : (item.diff < 0 ? 'text-blue-600' : ''), excelTdClass('upper', idx, 4)]">{{ item.diff > 0 ? '+' : '' }}{{ fmt(item.diff, 2) }}</td>
+                      <td class="font-medium" :class="excelTdClass('upper', idx, 5)">{{ fmt(item.right, 1) }}</td>
+                      <td :class="[getSignClass(item.rightSign), excelTdClass('upper', idx, 6)]">{{ item.rightSign }}</td>
+                      <td :class="excelTdClass('upper', idx, 7)">{{ fmt(item.absDiff, 1) }}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
               <!-- Chi Dưới -->
-              <div class="table-section-title" :class="sectionTitleClass('lower')">Chi dưới</div>
-              <div class="stats-summary-row" :class="statsRowClass('lower')">
-                <div class="stat-col"><span class="val max-val">{{ fmt(lowerStats.max, 1) }}</span><br/><span class="val min-val">{{ fmt(lowerStats.min, 1) }}</span></div>
-                <div class="stat-col"><span class="val">{{ fmt(lowerStats.range, 1) }}</span><br/><span>&nbsp;</span></div>
-                <div class="stat-col"><span class="val bg-gray">{{ fmt(lowerStats.mean, 2) }}</span><br/><span>&nbsp;</span></div>
-                <div class="stat-col"><span class="val">{{ fmt(lowerStats.sd, 2) }}</span><br/><span>&nbsp;</span></div>
-                <div class="stat-col"><span class="val text-brown-600">{{ fmt(lowerStats.upperBound, 2) }}</span><br/><span class="val text-brown-600">{{ fmt(lowerStats.lowerBound, 2) }}</span></div>
+              <div class="table-section-title" :class="sectionTitleClassMerged('lower')">Chi dưới</div>
+              <div class="stats-summary-row" :class="statsRowClassMerged('lower')">
+                <div class="stat-col" :class="excelStatColClass('lower', 0)"><span class="val max-val">{{ fmt(lowerStats.max, 1) }}</span><br/><span class="val min-val">{{ fmt(lowerStats.min, 1) }}</span></div>
+                <div class="stat-col" :class="excelStatColClass('lower', 1)"><span class="val">{{ fmt(lowerStats.range, 1) }}</span><br/><span>&nbsp;</span></div>
+                <div class="stat-col" :class="excelStatColClass('lower', 2)"><span class="val bg-gray">{{ fmt(lowerStats.mean, 2) }}</span><br/><span>&nbsp;</span></div>
+                <div class="stat-col" :class="excelStatColClass('lower', 3)"><span class="val">{{ fmt(lowerStats.sd, 2) }}</span><br/><span>&nbsp;</span></div>
+                <div class="stat-col" :class="excelStatColClass('lower', 4)"><span class="val text-brown-600">{{ fmt(lowerStats.upperBound, 2) }}</span><br/><span class="val text-brown-600">{{ fmt(lowerStats.lowerBound, 2) }}</span></div>
               </div>
 
               <div class="table-responsive">
                 <table class="data-table meridian-data-table">
                   <tbody>
-                    <tr v-for="(item, idx) in lowerRows" :key="'lower-'+idx" :class="lowerRowClass(idx)">
-                      <td class="font-bold">{{ item.name }}</td>
-                      <td :class="getSignClass(item.leftSign)">{{ item.leftSign }}</td>
-                      <td class="font-medium">{{ fmt(item.left, 1) }}</td>
-                      <td class="bg-gray">{{ fmt(item.avg, 2) }}</td>
-                      <td :class="item.diff > 0 ? 'text-brown-600' : (item.diff < 0 ? 'text-blue-600' : '')">{{ item.diff > 0 ? '+' : '' }}{{ fmt(item.diff, 2) }}</td>
-                      <td class="font-medium">{{ fmt(item.right, 1) }}</td>
-                      <td :class="getSignClass(item.rightSign)">{{ item.rightSign }}</td>
-                      <td>{{ fmt(item.absDiff, 1) }}</td>
+                    <tr v-for="(item, idx) in lowerRows" :key="'lower-'+idx" :class="lowerRowClassMerged(idx)">
+                      <td class="font-bold" :class="excelTdClass('lower', idx, 0)">{{ item.name }}</td>
+                      <td :class="[getSignClass(item.leftSign), excelTdClass('lower', idx, 1)]">{{ item.leftSign }}</td>
+                      <td class="font-medium" :class="excelTdClass('lower', idx, 2)">{{ fmt(item.left, 1) }}</td>
+                      <td class="bg-gray" :class="excelTdClass('lower', idx, 3)">{{ fmt(item.avg, 2) }}</td>
+                      <td :class="[item.diff > 0 ? 'text-brown-600' : (item.diff < 0 ? 'text-blue-600' : ''), excelTdClass('lower', idx, 4)]">{{ item.diff > 0 ? '+' : '' }}{{ fmt(item.diff, 2) }}</td>
+                      <td class="font-medium" :class="excelTdClass('lower', idx, 5)">{{ fmt(item.right, 1) }}</td>
+                      <td :class="[getSignClass(item.rightSign), excelTdClass('lower', idx, 6)]">{{ item.rightSign }}</td>
+                      <td :class="excelTdClass('lower', idx, 7)">{{ fmt(item.absDiff, 1) }}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
               <!-- Footer Stats -->
-              <div class="table-footer-stat" :class="footerDiffClass()">
+              <div class="table-footer-stat" :class="footerDiffClassMerged()">
                 <span>Chênh lệch trung bình chi trên và chi dưới:</span>
                 <span class="font-bold text-brown-700 ml-4">{{ fmt(Math.abs(upperStats.mean - lowerStats.mean), 2) }}</span>
               </div>
@@ -654,7 +806,14 @@ function footerDiffClass() {
                   <div
                     v-for="(item, idx) in excelSyndromesList"
                     :key="item.code || idx"
-                    class="comparison-cell"
+                    class="comparison-cell comparison-cell--clickable"
+                    :class="{ 'comparison-cell--active': excelFocusRuleId === item.id }"
+                    role="button"
+                    tabindex="0"
+                    :title="item.logicExpression ? 'Xem ô chỉ số liên quan trên bảng I' : 'Chọn mô hình'"
+                    @click="toggleExcelFocus(item.id)"
+                    @keydown.enter.prevent="toggleExcelFocus(item.id)"
+                    @keydown.space.prevent="toggleExcelFocus(item.id)"
                   >
                     <span class="synd-idx">{{ Number(idx) + 1 }}</span>
                     <span class="synd-name">{{ item.name }}</span>
@@ -832,6 +991,31 @@ function footerDiffClass() {
   background-color: rgba(254, 243, 199, 0.55) !important;
   box-shadow: inset 0 0 0 1px rgba(180, 83, 9, 0.35);
 }
+.meridian-data-table td.meridian-cell--focus {
+  opacity: 1 !important;
+  filter: none !important;
+  background-color: rgba(254, 243, 199, 0.7) !important;
+  box-shadow: inset 0 0 0 2px rgba(120, 53, 15, 0.45);
+  z-index: 1;
+}
+.meridian-data-table td.meridian-cell--dim {
+  opacity: 0.32;
+  filter: grayscale(0.2);
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+.stat-col.excel-stat-col--focus {
+  box-shadow: inset 0 0 0 2px rgba(120, 53, 15, 0.45);
+  background: rgba(254, 243, 199, 0.55);
+  border-radius: var(--radius-sm);
+}
+.stat-col.excel-stat-col--dim {
+  opacity: 0.32;
+  filter: grayscale(0.15);
+}
+.table-footer-stat.excel-footer--focus {
+  box-shadow: inset 0 0 0 2px rgba(120, 53, 15, 0.35);
+  background: rgba(254, 243, 199, 0.45);
+}
 .table-footer-stat.bc-footer-stat--dim {
   opacity: 0.42;
 }
@@ -944,6 +1128,19 @@ function footerDiffClass() {
   border: 1px solid var(--brown-200);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
+}
+.comparison-cell--clickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.comparison-cell--clickable:hover {
+  border-color: var(--brown-400);
+  background: var(--brown-50);
+}
+.comparison-cell--active {
+  border-color: var(--brown-500);
+  box-shadow: 0 0 0 2px rgba(120, 53, 15, 0.12);
+  background: var(--brown-50);
 }
 .col-left, .col-right {
   background: var(--brown-50);

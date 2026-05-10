@@ -64,6 +64,7 @@ export class AnalyzeOutputDto {
     code: string;
     name: string;
     outputCell: string;
+    logicExpression?: string;
   }>;
 }
 

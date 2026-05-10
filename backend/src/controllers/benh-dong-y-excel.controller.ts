@@ -205,6 +205,7 @@ export class BenhDongYExcelService {
         code: rule.code,
         name: rule.name,
         outputCell: rule.outputCell,
+        logicExpression: rule.logicExpression,
       }));
 
     return {
