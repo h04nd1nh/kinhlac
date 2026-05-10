@@ -353,6 +353,51 @@ async function loadData() {
 function goBack() {
   router.push({ name: 'patient-detail', params: { id: patientId.value } })
 }
+
+/** Tab Chẩn đoán Bát cương → highlight ô liên quan ở bảng I */
+type BatCuongFocusKey = 'amDuong' | 'khi' | 'huyet'
+const batCuongFocus = ref<BatCuongFocusKey | null>(null)
+
+function toggleBatCuongFocus(key: BatCuongFocusKey) {
+  batCuongFocus.value = batCuongFocus.value === key ? null : key
+}
+
+function statsRowClass(which: 'upper' | 'lower') {
+  const f = batCuongFocus.value
+  if (!f) return ''
+  const rel =
+    (which === 'upper' && f === 'khi') ||
+    (which === 'lower' && (f === 'amDuong' || f === 'huyet'))
+  return rel ? 'bc-stats--focus' : 'bc-stats--dim'
+}
+
+function upperRowClass(_idx: number) {
+  const f = batCuongFocus.value
+  if (!f) return ''
+  return f === 'khi' ? 'meridian-row--focus' : 'meridian-row--dim'
+}
+
+function lowerRowClass(idx: number) {
+  const f = batCuongFocus.value
+  if (!f) return ''
+  if (f === 'huyet') return 'meridian-row--focus'
+  if (f === 'amDuong') {
+    const row = lowerRows.value[idx]
+    return row?.name === 'Đảm' ? 'meridian-row--focus' : 'meridian-row--dim'
+  }
+  return 'meridian-row--dim'
+}
+
+function sectionTitleClass(which: 'upper' | 'lower') {
+  const f = batCuongFocus.value
+  if (!f) return ''
+  const rel = (which === 'upper' && f === 'khi') || (which === 'lower' && (f === 'amDuong' || f === 'huyet'))
+  return rel ? '' : 'bc-section-title--dim'
+}
+
+function footerDiffClass() {
+  return batCuongFocus.value ? 'bc-footer-stat--dim' : ''
+}
 </script>
 
 <template>
@@ -432,8 +477,8 @@ function goBack() {
               </div>
 
               <!-- Chi Trên -->
-              <div class="table-section-title">Chi trên</div>
-              <div class="stats-summary-row">
+              <div class="table-section-title" :class="sectionTitleClass('upper')">Chi trên</div>
+              <div class="stats-summary-row" :class="statsRowClass('upper')">
                 <div class="stat-col"><span class="val max-val">{{ fmt(upperStats.max, 1) }}</span><br/><span class="val min-val">{{ fmt(upperStats.min, 1) }}</span></div>
                 <div class="stat-col"><span class="val">{{ fmt(upperStats.range, 1) }}</span><br/><span>&nbsp;</span></div>
                 <div class="stat-col"><span class="val bg-gray">{{ fmt(upperStats.mean, 2) }}</span><br/><span>&nbsp;</span></div>
@@ -444,7 +489,7 @@ function goBack() {
               <div class="table-responsive">
                 <table class="data-table meridian-data-table">
                   <tbody>
-                    <tr v-for="(item, idx) in upperRows" :key="'upper-'+idx">
+                    <tr v-for="(item, idx) in upperRows" :key="'upper-'+idx" :class="upperRowClass(idx)">
                       <td class="font-bold">{{ item.name }}</td>
                       <td :class="getSignClass(item.leftSign)">{{ item.leftSign }}</td>
                       <td class="font-medium">{{ fmt(item.left, 1) }}</td>
@@ -459,8 +504,8 @@ function goBack() {
               </div>
 
               <!-- Chi Dưới -->
-              <div class="table-section-title">Chi dưới</div>
-              <div class="stats-summary-row">
+              <div class="table-section-title" :class="sectionTitleClass('lower')">Chi dưới</div>
+              <div class="stats-summary-row" :class="statsRowClass('lower')">
                 <div class="stat-col"><span class="val max-val">{{ fmt(lowerStats.max, 1) }}</span><br/><span class="val min-val">{{ fmt(lowerStats.min, 1) }}</span></div>
                 <div class="stat-col"><span class="val">{{ fmt(lowerStats.range, 1) }}</span><br/><span>&nbsp;</span></div>
                 <div class="stat-col"><span class="val bg-gray">{{ fmt(lowerStats.mean, 2) }}</span><br/><span>&nbsp;</span></div>
@@ -471,7 +516,7 @@ function goBack() {
               <div class="table-responsive">
                 <table class="data-table meridian-data-table">
                   <tbody>
-                    <tr v-for="(item, idx) in lowerRows" :key="'lower-'+idx">
+                    <tr v-for="(item, idx) in lowerRows" :key="'lower-'+idx" :class="lowerRowClass(idx)">
                       <td class="font-bold">{{ item.name }}</td>
                       <td :class="getSignClass(item.leftSign)">{{ item.leftSign }}</td>
                       <td class="font-medium">{{ fmt(item.left, 1) }}</td>
@@ -486,7 +531,7 @@ function goBack() {
               </div>
 
               <!-- Footer Stats -->
-              <div class="table-footer-stat">
+              <div class="table-footer-stat" :class="footerDiffClass()">
                 <span>Chênh lệch trung bình chi trên và chi dưới:</span>
                 <span class="font-bold text-brown-700 ml-4">{{ fmt(Math.abs(upperStats.mean - lowerStats.mean), 2) }}</span>
               </div>
@@ -506,15 +551,42 @@ function goBack() {
                 <h4 class="info-label mb-3">Chẩn Đoán Bát Cương</h4>
                 
                 <div class="bc-summary-grid">
-                  <div class="bc-summary-card">
+                  <div
+                    class="bc-summary-card bc-summary-card--clickable"
+                    :class="{ 'bc-summary-card--active': batCuongFocus === 'amDuong' }"
+                    role="button"
+                    tabindex="0"
+                    title="Xem chỉ số kinh lạc liên quan Âm/Dương"
+                    @click="toggleBatCuongFocus('amDuong')"
+                    @keydown.enter.prevent="toggleBatCuongFocus('amDuong')"
+                    @keydown.space.prevent="toggleBatCuongFocus('amDuong')"
+                  >
                     <span class="bc-card-label">Âm / Dương</span>
                     <span class="bc-card-value">{{ diagnosis.amDuong }}</span>
                   </div>
-                  <div class="bc-summary-card">
+                  <div
+                    class="bc-summary-card bc-summary-card--clickable"
+                    :class="{ 'bc-summary-card--active': batCuongFocus === 'khi' }"
+                    role="button"
+                    tabindex="0"
+                    title="Xem chỉ số kinh lạc liên quan Khí"
+                    @click="toggleBatCuongFocus('khi')"
+                    @keydown.enter.prevent="toggleBatCuongFocus('khi')"
+                    @keydown.space.prevent="toggleBatCuongFocus('khi')"
+                  >
                     <span class="bc-card-label">Khí</span>
                     <span class="bc-card-value">{{ diagnosis.khi || '—' }}</span>
                   </div>
-                  <div class="bc-summary-card">
+                  <div
+                    class="bc-summary-card bc-summary-card--clickable"
+                    :class="{ 'bc-summary-card--active': batCuongFocus === 'huyet' }"
+                    role="button"
+                    tabindex="0"
+                    title="Xem chỉ số kinh lạc liên quan Huyết"
+                    @click="toggleBatCuongFocus('huyet')"
+                    @keydown.enter.prevent="toggleBatCuongFocus('huyet')"
+                    @keydown.space.prevent="toggleBatCuongFocus('huyet')"
+                  >
                     <span class="bc-card-label">Huyết</span>
                     <span class="bc-card-value">{{ diagnosis.huyet || '—' }}</span>
                   </div>
@@ -719,6 +791,49 @@ function goBack() {
   font-weight: 700;
   line-height: 1.35;
   word-break: break-word;
+}
+
+.bc-summary-card--clickable {
+  cursor: pointer;
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+.bc-summary-card--clickable:hover {
+  border-color: var(--brown-300);
+  background: var(--white);
+}
+.bc-summary-card--active {
+  border-color: var(--brown-500);
+  box-shadow: 0 0 0 2px rgba(120, 53, 15, 0.15);
+  background: var(--white);
+}
+
+/* Bảng I: làm nổi ô theo tab Bát cương */
+.bc-stats--dim {
+  opacity: 0.38;
+  filter: grayscale(0.25);
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+.bc-stats--focus {
+  transition: box-shadow 0.2s ease;
+  box-shadow: inset 0 0 0 2px rgba(180, 83, 9, 0.35);
+  border-radius: var(--radius-sm);
+}
+.table-section-title.bc-section-title--dim {
+  opacity: 0.4;
+}
+.meridian-row--dim td {
+  opacity: 0.38;
+  filter: grayscale(0.2);
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+.meridian-row--focus td {
+  opacity: 1;
+  filter: none;
+  background-color: rgba(254, 243, 199, 0.55) !important;
+  box-shadow: inset 0 0 0 1px rgba(180, 83, 9, 0.35);
+}
+.table-footer-stat.bc-footer-stat--dim {
+  opacity: 0.42;
 }
 
 .bc-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
