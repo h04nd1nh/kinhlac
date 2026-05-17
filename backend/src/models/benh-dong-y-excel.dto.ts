@@ -12,6 +12,7 @@ export class CreateBenhDongYExcelDto {
   logicExpression: string;
   sqlCaseText: string;
   sqlCaseBoolean: string;
+  id_phap_tri?: number | null;
 }
 
 export class UpdateBenhDongYExcelDto {
@@ -22,4 +23,5 @@ export class UpdateBenhDongYExcelDto {
   logicExpression?: string;
   sqlCaseText?: string;
   sqlCaseBoolean?: string;
+  id_phap_tri?: number | null;
 }

@@ -34,15 +34,22 @@ export class BenhDongYExcelService {
   }
 
   async findAll(): Promise<BenhDongYExcel[]> {
-    return this.repo.find({ order: { id: 'ASC' } });
+    return this.repo.find({ order: { id: 'ASC' }, relations: { phapTri: true } });
   }
 
   async findOne(id: number): Promise<BenhDongYExcel> {
-    const row = await this.repo.findOne({ where: { id } });
+    const row = await this.repo.findOne({ where: { id }, relations: { phapTri: true } });
     if (!row) {
       throw new NotFoundException(`Không tìm thấy quy tắc id=${id}`);
     }
     return row;
+  }
+
+  private normalizePhapTriId(raw: unknown): number | null | undefined {
+    if (raw === undefined) return undefined;
+    if (raw === null || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
   }
 
   async create(dto: CreateBenhDongYExcelDto): Promise<BenhDongYExcel> {
@@ -62,6 +69,7 @@ export class BenhDongYExcelService {
       }
     }
 
+    const idPhapTri = this.normalizePhapTriId(dto.id_phap_tri);
     const entity = this.repo.create({
       code: dto.code.trim(),
       name: dto.name.trim(),
@@ -70,9 +78,11 @@ export class BenhDongYExcelService {
       logicExpression: dto.logicExpression,
       sqlCaseText: dto.sqlCaseText,
       sqlCaseBoolean: dto.sqlCaseBoolean,
+      idPhapTri: idPhapTri === undefined ? null : idPhapTri,
     });
     try {
-      return await this.repo.save(entity);
+      const saved = await this.repo.save(entity);
+      return this.findOne(saved.id);
     } catch (err) {
       if (BenhDongYExcelService.isUniqueViolation(err)) {
         throw new ConflictException(`Mã code "${entity.code}" đã tồn tại.`);
@@ -82,7 +92,10 @@ export class BenhDongYExcelService {
   }
 
   async update(id: number, dto: UpdateBenhDongYExcelDto): Promise<BenhDongYExcel> {
-    const entity = await this.findOne(id);
+    const entity = await this.repo.findOne({ where: { id } });
+    if (!entity) {
+      throw new NotFoundException(`Không tìm thấy quy tắc id=${id}`);
+    }
     if (dto.code !== undefined) entity.code = dto.code.trim();
     if (dto.name !== undefined) entity.name = dto.name.trim();
     if (dto.outputCell !== undefined) entity.outputCell = dto.outputCell.trim();
@@ -90,8 +103,13 @@ export class BenhDongYExcelService {
     if (dto.logicExpression !== undefined) entity.logicExpression = dto.logicExpression;
     if (dto.sqlCaseText !== undefined) entity.sqlCaseText = dto.sqlCaseText;
     if (dto.sqlCaseBoolean !== undefined) entity.sqlCaseBoolean = dto.sqlCaseBoolean;
+    const idPhapTri = this.normalizePhapTriId(dto.id_phap_tri);
+    if (idPhapTri !== undefined) {
+      entity.idPhapTri = idPhapTri;
+    }
     try {
-      return await this.repo.save(entity);
+      await this.repo.save(entity);
+      return this.findOne(id);
     } catch (err) {
       if (BenhDongYExcelService.isUniqueViolation(err)) {
         throw new ConflictException(`Mã code "${entity.code}" đã tồn tại.`);

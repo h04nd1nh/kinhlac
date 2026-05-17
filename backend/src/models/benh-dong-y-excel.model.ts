@@ -1,4 +1,5 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { PhapTri } from './phap-tri.model';
 
 @Entity('benh_dong_y_excel')
 export class BenhDongYExcel {
@@ -25,4 +26,11 @@ export class BenhDongYExcel {
 
   @Column({ type: 'text', name: 'sql_case_boolean' })
   sqlCaseBoolean: string;
+
+  @Column({ type: 'int', name: 'id_phap_tri', nullable: true })
+  idPhapTri: number | null;
+
+  @ManyToOne(() => PhapTri, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'id_phap_tri' })
+  phapTri: PhapTri | null;
 }

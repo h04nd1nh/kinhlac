@@ -2,6 +2,12 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { api } from '@/services/api'
 
+interface PhapTriLite {
+  id: number
+  nguyen_tac: string | null
+  chung_trang: string | null
+}
+
 interface BenhDongYExcelRow {
   id: number
   code: string
@@ -11,16 +17,20 @@ interface BenhDongYExcelRow {
   logicExpression: string
   sqlCaseText: string
   sqlCaseBoolean: string
+  idPhapTri: number | null
+  phapTri: PhapTriLite | null
 }
 
-type FormState = Omit<BenhDongYExcelRow, 'id'>
+type FormState = Omit<BenhDongYExcelRow, 'id' | 'phapTri'>
 
 const isLoading = ref(true)
 const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const dataList = ref<BenhDongYExcelRow[]>([])
+const phapTriOptions = ref<PhapTriLite[]>([])
 const searchQuery = ref('')
+const phapTriSearch = ref('')
 
 const showModal = ref(false)
 const showDeleteConfirm = ref(false)
@@ -35,6 +45,7 @@ const emptyForm = (): FormState => ({
   logicExpression: '',
   sqlCaseText: '',
   sqlCaseBoolean: '',
+  idPhapTri: null,
 })
 
 const form = ref<FormState>(emptyForm())
@@ -43,7 +54,7 @@ const currentPage = ref(1)
 const itemsPerPage = ref(10)
 
 onMounted(async () => {
-  await fetchData()
+  await Promise.all([fetchData(), fetchPhapTri()])
 })
 
 watch(searchQuery, () => {
@@ -63,6 +74,25 @@ async function fetchData() {
     isLoading.value = false
   }
 }
+
+async function fetchPhapTri() {
+  try {
+    const res: any = await api.get('/phap-tri')
+    phapTriOptions.value = Array.isArray(res) ? res : res?.data ?? []
+  } catch (err) {
+    console.error('Không tải được danh sách pháp trị', err)
+  }
+}
+
+function phapTriLabel(p: PhapTriLite): string {
+  return (p.nguyen_tac || p.chung_trang || `#${p.id}`).trim()
+}
+
+const filteredPhapTriOptions = computed(() => {
+  const q = phapTriSearch.value.trim().toLowerCase()
+  if (!q) return phapTriOptions.value
+  return phapTriOptions.value.filter((p) => phapTriLabel(p).toLowerCase().includes(q))
+})
 
 const filteredList = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
@@ -175,6 +205,7 @@ function openCreateModal() {
   editingId.value = null
   form.value = emptyForm()
   formError.value = null
+  phapTriSearch.value = ''
   showModal.value = true
 }
 
@@ -188,8 +219,10 @@ function openEditModal(row: BenhDongYExcelRow) {
     logicExpression: row.logicExpression,
     sqlCaseText: row.sqlCaseText,
     sqlCaseBoolean: row.sqlCaseBoolean,
+    idPhapTri: row.idPhapTri ?? null,
   }
   formError.value = null
+  phapTriSearch.value = ''
   showModal.value = true
 }
 
@@ -202,7 +235,7 @@ async function handleSubmit() {
   if (isSubmitting.value) return
   formError.value = null
   const f = form.value
-  const fields: (keyof FormState)[] = [
+  const requiredText: (keyof FormState)[] = [
     'code',
     'name',
     'outputCell',
@@ -211,18 +244,28 @@ async function handleSubmit() {
     'sqlCaseText',
     'sqlCaseBoolean',
   ]
-  for (const k of fields) {
-    if (!String(f[k]).trim()) {
+  for (const k of requiredText) {
+    if (!String(f[k] ?? '').trim()) {
       formError.value = `Vui lòng điền đầy đủ các trường (thiếu: ${k})`
       return
     }
   }
+  const payload = {
+    code: f.code,
+    name: f.name,
+    outputCell: f.outputCell,
+    excelFormula: f.excelFormula,
+    logicExpression: f.logicExpression,
+    sqlCaseText: f.sqlCaseText,
+    sqlCaseBoolean: f.sqlCaseBoolean,
+    id_phap_tri: f.idPhapTri,
+  }
   isSubmitting.value = true
   try {
     if (editingId.value != null) {
-      await api.put(`/benh-dong-y-excel/${editingId.value}`, f)
+      await api.put(`/benh-dong-y-excel/${editingId.value}`, payload)
     } else {
-      await api.post('/benh-dong-y-excel', f)
+      await api.post('/benh-dong-y-excel', payload)
     }
     await fetchData()
     currentPage.value = 1
@@ -580,9 +623,9 @@ async function handleDelete() {
             <thead>
               <tr>
                 <th width="72">ID</th>
-                <th width="120">Mã (code)</th>
-                <th width="200">Tên</th>
+                <th width="220">Tên</th>
                 <th width="88">Ô output</th>
+                <th width="220">Pháp trị</th>
                 <th>Logic (rút gọn)</th>
                 <th width="140" class="text-right">Thao tác</th>
               </tr>
@@ -595,9 +638,12 @@ async function handleDelete() {
               </tr>
               <tr v-for="item in pagedList" :key="item.id">
                 <td>#{{ item.id }}</td>
-                <td class="font-medium text-brown-700">{{ item.code }}</td>
                 <td class="font-bold text-brown-900">{{ item.name }}</td>
                 <td><span class="cell-tag">{{ item.outputCell }}</span></td>
+                <td>
+                  <span v-if="item.phapTri" class="chip chip-phap">{{ phapTriLabel(item.phapTri) }}</span>
+                  <span v-else class="muted">—</span>
+                </td>
                 <td class="text-gray-600 mono-preview logic-preview">
                   <template v-for="(seg, si) in splitCellRefs(item.logicExpression, 140)" :key="si">
                     <span v-if="seg.kind === 'ref'" class="logic-ref">{{ seg.v }}</span>
@@ -668,6 +714,40 @@ async function handleDelete() {
               <span>SQL CASE (boolean) <abbr title="bắt buộc">*</abbr></span>
               <textarea v-model="form.sqlCaseBoolean" class="textarea mono" rows="4" spellcheck="false"></textarea>
             </label>
+
+            <div class="field field--full">
+              <div class="field-head">
+                <span>Pháp trị (1 bệnh ↔ 1 pháp trị)</span>
+                <span class="field-count">{{ form.idPhapTri != null ? 'Đã chọn' : 'Chưa chọn' }}</span>
+              </div>
+              <div v-if="phapTriOptions.length === 0" class="muted">Chưa có pháp trị</div>
+              <template v-else>
+                <div class="picker-search">
+                  <input v-model="phapTriSearch" type="search" class="input input--sm" placeholder="Tìm pháp trị..." />
+                </div>
+                <div class="chip-picker chip-picker--scroll">
+                  <button
+                    type="button"
+                    class="chip-toggle"
+                    :class="{ active: form.idPhapTri == null }"
+                    @click="form.idPhapTri = null"
+                  >
+                    — Không chọn —
+                  </button>
+                  <button
+                    v-for="p in filteredPhapTriOptions"
+                    :key="p.id"
+                    type="button"
+                    class="chip-toggle"
+                    :class="{ active: form.idPhapTri === p.id }"
+                    @click="form.idPhapTri = p.id"
+                  >
+                    {{ phapTriLabel(p) }}
+                  </button>
+                  <span v-if="filteredPhapTriOptions.length === 0" class="muted">Không khớp "{{ phapTriSearch }}"</span>
+                </div>
+              </template>
+            </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn-secondary" :disabled="isSubmitting" @click="closeModal">Hủy</button>
@@ -1386,6 +1466,80 @@ async function handleDelete() {
   font-family: ui-monospace, monospace;
   font-size: var(--font-size-xs);
   line-height: 1.5;
+}
+
+.chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  border: 1px solid transparent;
+}
+.chip-phap {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+.muted {
+  color: var(--gray-400);
+  font-style: italic;
+}
+
+.field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.field-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brown-600);
+  background: var(--brown-50);
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+.picker-search {
+  margin-bottom: 6px;
+}
+.input--sm {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.chip-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: var(--space-2);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--gray-50);
+}
+.chip-picker--scroll {
+  max-height: 200px;
+  overflow-y: auto;
+}
+.chip-toggle {
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid var(--gray-300);
+  background: var(--white);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.chip-toggle:hover {
+  border-color: var(--brown-400);
+  color: var(--brown-700);
+}
+.chip-toggle.active {
+  background: var(--brown-600);
+  color: var(--white);
+  border-color: var(--brown-600);
 }
 
 @media (max-width: 640px) {
