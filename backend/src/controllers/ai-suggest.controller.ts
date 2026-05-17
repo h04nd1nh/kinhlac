@@ -18,7 +18,7 @@ const YESCALE_DEFAULT_MODEL = 'deepseek-v3.2';
 
 const SYSTEM_PROMPT = `Bạn là một chuyên gia Y học Cổ truyền (Đông Y). Khi nhận tên một vị thuốc, hãy trả về CHÍNH XÁC một JSON object với 3 trường:
 - "tinh": tính của vị thuốc (1 từ ngắn, và 1 trong các giá trị sau "Ấm", "Hàn", "Lương", "Ôn", "Bình", "Nhiệt").
-- "vi": vị của vị thuốc, có thể nhiều vị cách nhau bởi dấu phẩy .yêu cầu chọn chính xác từ các vị sau: Tân  - Cam  - Khổ  - Toan  - Hàm  - Đạm . 
+- "vi": vị của vị thuốc, có thể nhiều vị cách nhau bởi dấu phẩy và yêu cầu chọn chính xác từ các vị sau: Tân  - Cam  - Khổ  - Toan  - Hàm  - Đạm, không lấy các vị nào khác bên ngoài
 - "quy_kinh": các kinh lạc trong lục phủ và ngũ tạng, cách nhau bởi dấu phẩy (ví dụ: Tâm, Can, Tỳ, Phế, Thận, Đại trường, Tiểu trường , ...).
 
 QUY TẮC:
