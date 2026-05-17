@@ -1,12 +1,42 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, nextTick, reactive } from 'vue'
+import * as XLSX from 'xlsx'
+import {
+  Chart,
+  RadarController,
+  PointElement,
+  LineElement,
+  Filler,
+  Tooltip,
+  Legend,
+  RadialLinearScale,
+} from 'chart.js'
 import { api } from '@/services/api'
 import PharmacologyManager from '@/components/PharmacologyManager.vue'
+
+Chart.register(RadarController, PointElement, LineElement, Filler, Tooltip, Legend, RadialLinearScale)
+
+interface CongDungLink { id_cong_dung?: number; ghi_chu?: string | null; congDung?: { ten_cong_dung?: string | null } | null }
+interface ChuTriLink { id_chu_tri?: number; ghi_chu?: string | null; chuTri?: { ten_chu_tri?: string | null } | null }
+interface KiengKyLink { id_kieng_ky?: number; ghi_chu?: string | null; kiengKy?: { ten_kieng_ky?: string | null } | null }
+
+interface ViThuocLite {
+  id: number
+  ten_vi_thuoc: string
+  tinh?: string | null
+  vi?: string | null
+  quy_kinh?: string | null
+  congDungLinks?: CongDungLink[] | null
+  chuTriLinks?: ChuTriLink[] | null
+  kiengKyLinks?: KiengKyLink[] | null
+}
 
 interface BaiThuocChiTietLite {
   id_vi_thuoc?: number
   lieu_luong: string | null
-  viThuoc?: { id: number; ten_vi_thuoc: string } | null
+  quy_kinh?: string | null
+  vai_tro?: string | null
+  viThuoc?: ViThuocLite | null
 }
 
 interface PhapTriLite {
@@ -31,6 +61,7 @@ interface BaiThuoc {
   ten_bai_thuoc: string
   nguon_goc: string | null
   cach_dung: string | null
+  chung_trang?: string | null
   trieu_chung: string | null
   trieuChungList?: TrieuChungLite[] | null
   phapTriLinks?: BaiThuocPhapTriLink[] | null
@@ -75,6 +106,15 @@ const baiThuocList = ref<BaiThuoc[]>([])
 const viThuocList = ref<ViThuoc[]>([])
 const phapTriOptions = ref<PhapTriLite[]>([])
 const trieuChungOptions = ref<TrieuChungLite[]>([])
+
+interface NhomNhoLite {
+  id: number
+  ten_nhom: string
+  nhomLon?: { id: number; ten_nhom: string } | null
+  viThuocLinks?: Array<{ idViThuoc: number; viThuoc?: { id: number } | null }> | null
+  chuTriLinks?: Array<{ idChuTri: number; chuTri?: { ten_chu_tri: string } | null }> | null
+}
+const nhomNhoList = ref<NhomNhoLite[]>([])
 
 // Pagination
 const itemsPerPage = ref(10)
@@ -203,16 +243,18 @@ async function fetchData() {
   isLoading.value = true
   error.value = null
   try {
-    const [btRes, vtRes, ptRes, tcRes] = await Promise.all([
+    const [btRes, vtRes, ptRes, tcRes, nnRes] = await Promise.all([
       api.get<any>('/bai-thuoc'),
       api.get<any>('/vi-thuoc'),
       api.get<any>('/phap-tri'),
       api.get<any>('/trieu-chung'),
+      api.get<any>('/nhom-nho-duoc-ly'),
     ])
     baiThuocList.value = Array.isArray(btRes) ? btRes : (btRes.data || [])
     viThuocList.value = Array.isArray(vtRes) ? vtRes : (vtRes.data || [])
     phapTriOptions.value = Array.isArray(ptRes) ? ptRes : (ptRes.data || [])
     trieuChungOptions.value = Array.isArray(tcRes) ? tcRes : (tcRes.data || [])
+    nhomNhoList.value = Array.isArray(nnRes) ? nnRes : (nnRes.data || [])
   } catch (err: any) {
     console.error(err)
     error.value = 'Lỗi khi tải dữ liệu: ' + err.message
@@ -416,6 +458,1021 @@ async function deleteBaiThuoc() {
   }
 }
 
+// ─── EXCEL IMPORT / EXPORT (BÀI THUỐC) ────────────────────────────────────
+const BT_EXCEL_COLS = [
+  'Tên bài thuốc',
+  'Nguồn gốc',
+  'Cách dùng',
+  'Thể bệnh',
+  'Triệu chứng',
+  'Thành phần',
+] as const
+
+const btIsExporting = ref(false)
+const btIsImporting = ref(false)
+const btImportProgress = ref({ current: 0, total: 0 })
+const btImportFileInput = ref<HTMLInputElement | null>(null)
+const btImportResult = ref<{
+  rowsProcessed: number
+  baiThuocCreated: number
+  baiThuocUpdated: number
+  errors: string[]
+  missingViThuoc: { name: string; rows: number[] }[]
+  missingPhapTri: { name: string; rows: number[] }[]
+  missingTrieuChung: { name: string; rows: number[] }[]
+} | null>(null)
+const btShowImportResult = ref(false)
+
+function btNormKey(s: string): string {
+  return s.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function btSplitCsv(raw: unknown): string[] {
+  if (raw == null) return []
+  const text = String(raw)
+  if (!text.trim()) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const part of text.split(',')) {
+    const t = part.trim().replace(/\s+/g, ' ')
+    if (!t) continue
+    const k = t.toLowerCase()
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push(t)
+  }
+  return out
+}
+
+// Parse "Tên (liều), Tên 2 (liều 2), Tên 3" → [{name, lieu}, ...]
+function btParseThanhPhan(raw: unknown): { name: string; lieu: string }[] {
+  if (raw == null) return []
+  const text = String(raw).trim()
+  if (!text) return []
+  const out: { name: string; lieu: string }[] = []
+  // Tách theo dấu phẩy ngoài ngoặc đơn
+  let depth = 0
+  let buf = ''
+  const parts: string[] = []
+  for (const ch of text) {
+    if (ch === '(') depth++
+    else if (ch === ')') depth = Math.max(0, depth - 1)
+    if (ch === ',' && depth === 0) {
+      parts.push(buf)
+      buf = ''
+    } else {
+      buf += ch
+    }
+  }
+  if (buf.trim()) parts.push(buf)
+  for (const p of parts) {
+    const t = p.trim()
+    if (!t) continue
+    const m = t.match(/^(.*?)\s*\(([^)]*)\)\s*$/)
+    if (m) {
+      out.push({ name: (m[1] ?? '').trim(), lieu: (m[2] ?? '').trim() })
+    } else {
+      out.push({ name: t, lieu: '' })
+    }
+  }
+  return out.filter((x) => x.name)
+}
+
+function btExportToExcel() {
+  if (btIsExporting.value) return
+  btIsExporting.value = true
+  try {
+    const rows: Record<string, string>[] = []
+    for (const bt of baiThuocList.value) {
+      const theBenh = theBenhLabels(bt).join(', ')
+      const trieuChung = trieuChungLabels(bt).join(', ')
+      const thanhPhan = thanhPhanItems(bt)
+        .map((it) => (it.lieu ? `${it.ten} (${it.lieu})` : it.ten))
+        .join(', ')
+      rows.push({
+        [BT_EXCEL_COLS[0]]: bt.ten_bai_thuoc,
+        [BT_EXCEL_COLS[1]]: bt.nguon_goc ?? '',
+        [BT_EXCEL_COLS[2]]: bt.cach_dung ?? '',
+        [BT_EXCEL_COLS[3]]: theBenh,
+        [BT_EXCEL_COLS[4]]: trieuChung,
+        [BT_EXCEL_COLS[5]]: thanhPhan,
+      })
+    }
+    const ws = XLSX.utils.json_to_sheet(rows, { header: [...BT_EXCEL_COLS] })
+    ws['!cols'] = [
+      { wch: 28 }, { wch: 22 }, { wch: 22 }, { wch: 28 }, { wch: 36 }, { wch: 50 },
+    ]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Bai thuoc')
+    const stamp = new Date().toISOString().slice(0, 10)
+    XLSX.writeFile(wb, `bai-thuoc-${stamp}.xlsx`)
+  } catch (err: any) {
+    alert('Xuất Excel thất bại: ' + (err?.message ?? String(err)))
+  } finally {
+    btIsExporting.value = false
+  }
+}
+
+function btTriggerImport() {
+  btImportFileInput.value?.click()
+}
+
+async function btHandleImportFile(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // reset để lần sau chọn lại cùng file vẫn fire
+  if (!file) return
+  await btImportFromExcel(file)
+}
+
+function pushMissing(map: Map<string, Set<number>>, name: string, rowNum: number) {
+  const k = btNormKey(name)
+  if (!k) return
+  let set = map.get(k)
+  if (!set) {
+    set = new Set()
+    map.set(k, set)
+  }
+  set.add(rowNum)
+}
+
+async function btImportFromExcel(file: File) {
+  if (btIsImporting.value) return
+  btIsImporting.value = true
+  btImportProgress.value = { current: 0, total: 0 }
+
+  const stats = {
+    rowsProcessed: 0,
+    baiThuocCreated: 0,
+    baiThuocUpdated: 0,
+    errors: [] as string[],
+    missingViThuoc: [] as { name: string; rows: number[] }[],
+    missingPhapTri: [] as { name: string; rows: number[] }[],
+    missingTrieuChung: [] as { name: string; rows: number[] }[],
+  }
+
+  const missingViMap = new Map<string, Set<number>>()
+  const missingPtMap = new Map<string, Set<number>>()
+  const missingTcMap = new Map<string, Set<number>>()
+  const missingViNames = new Map<string, string>() // norm → original
+  const missingPtNames = new Map<string, string>()
+  const missingTcNames = new Map<string, string>()
+
+  try {
+    const buf = await file.arrayBuffer()
+    const wb = XLSX.read(buf, { type: 'array' })
+    const sheetName = wb.SheetNames[0]
+    if (!sheetName) throw new Error('File không có sheet nào')
+    const ws = wb.Sheets[sheetName]
+    if (!ws) throw new Error(`Không đọc được sheet "${sheetName}"`)
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
+
+    btImportProgress.value = { current: 0, total: rows.length }
+
+    // Build lookup maps
+    const viByKey = new Map<string, ViThuoc>()
+    for (const v of viThuocList.value) viByKey.set(btNormKey(v.ten_vi_thuoc), v)
+
+    const ptByTheBenh = new Map<string, PhapTriLite>()
+    for (const p of phapTriOptions.value) {
+      const k = btNormKey(p.chung_trang || '')
+      if (k && !ptByTheBenh.has(k)) ptByTheBenh.set(k, p)
+    }
+
+    const tcByKey = new Map<string, TrieuChungLite>()
+    for (const t of trieuChungOptions.value) tcByKey.set(btNormKey(t.ten_trieu_chung), t)
+
+    const btByKey = new Map<string, BaiThuoc>()
+    for (const bt of baiThuocList.value) btByKey.set(btNormKey(bt.ten_bai_thuoc), bt)
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      if (!row) {
+        btImportProgress.value = { current: i + 1, total: rows.length }
+        continue
+      }
+      const rowNum = i + 2 // header = row 1
+      try {
+        const tenBt = String(row[BT_EXCEL_COLS[0]] ?? '').trim()
+        if (!tenBt) {
+          stats.errors.push(`Dòng ${rowNum}: thiếu «Tên bài thuốc»`)
+          btImportProgress.value = { current: i + 1, total: rows.length }
+          continue
+        }
+        const nguonGoc = String(row[BT_EXCEL_COLS[1]] ?? '').trim()
+        const cachDung = String(row[BT_EXCEL_COLS[2]] ?? '').trim()
+
+        // Thể bệnh → phap_tri_ids
+        const theBenhNames = btSplitCsv(row[BT_EXCEL_COLS[3]])
+        const phapTriIds: number[] = []
+        for (const name of theBenhNames) {
+          const found = ptByTheBenh.get(btNormKey(name))
+          if (found) phapTriIds.push(found.id)
+          else {
+            pushMissing(missingPtMap, name, rowNum)
+            missingPtNames.set(btNormKey(name), name)
+          }
+        }
+
+        // Triệu chứng
+        const trieuChungNames = btSplitCsv(row[BT_EXCEL_COLS[4]])
+        const trieuChungIds: number[] = []
+        for (const name of trieuChungNames) {
+          const found = tcByKey.get(btNormKey(name))
+          if (found) trieuChungIds.push(found.id)
+          else {
+            pushMissing(missingTcMap, name, rowNum)
+            missingTcNames.set(btNormKey(name), name)
+          }
+        }
+
+        // Thành phần (vị thuốc + liều)
+        const tpList = btParseThanhPhan(row[BT_EXCEL_COLS[5]])
+        const chiTiet: { id_vi_thuoc: number; lieu_luong?: string }[] = []
+        for (const it of tpList) {
+          const found = viByKey.get(btNormKey(it.name))
+          if (found) {
+            chiTiet.push({ id_vi_thuoc: found.id, lieu_luong: it.lieu || undefined })
+          } else {
+            pushMissing(missingViMap, it.name, rowNum)
+            missingViNames.set(btNormKey(it.name), it.name)
+            // bỏ qua, không thêm vào chi_tiet
+          }
+        }
+
+        const payload = {
+          ten_bai_thuoc: tenBt,
+          nguon_goc: nguonGoc || undefined,
+          cach_dung: cachDung || undefined,
+          phap_tri_ids: phapTriIds,
+          trieu_chung_ids: trieuChungIds,
+          chi_tiet: chiTiet,
+        }
+
+        const existing = btByKey.get(btNormKey(tenBt))
+        if (existing) {
+          await api.put(`/bai-thuoc/${existing.id}`, payload)
+          stats.baiThuocUpdated += 1
+        } else {
+          const res: any = await api.post('/bai-thuoc', payload)
+          const newId: number | undefined = res?.id ?? res?.data?.id
+          if (newId) {
+            const newBt: BaiThuoc = {
+              id: newId,
+              ten_bai_thuoc: tenBt,
+              nguon_goc: nguonGoc || null,
+              cach_dung: cachDung || null,
+              trieu_chung: null,
+            }
+            btByKey.set(btNormKey(tenBt), newBt)
+          }
+          stats.baiThuocCreated += 1
+        }
+        stats.rowsProcessed += 1
+      } catch (err: any) {
+        stats.errors.push(`Dòng ${rowNum}: ${err?.message ?? String(err)}`)
+      } finally {
+        btImportProgress.value = { current: i + 1, total: rows.length }
+      }
+    }
+
+    // Aggregate missing
+    for (const [k, set] of missingViMap) {
+      stats.missingViThuoc.push({ name: missingViNames.get(k) || k, rows: [...set].sort((a, b) => a - b) })
+    }
+    for (const [k, set] of missingPtMap) {
+      stats.missingPhapTri.push({ name: missingPtNames.get(k) || k, rows: [...set].sort((a, b) => a - b) })
+    }
+    for (const [k, set] of missingTcMap) {
+      stats.missingTrieuChung.push({ name: missingTcNames.get(k) || k, rows: [...set].sort((a, b) => a - b) })
+    }
+    stats.missingViThuoc.sort((a, b) => a.name.localeCompare(b.name))
+    stats.missingPhapTri.sort((a, b) => a.name.localeCompare(b.name))
+    stats.missingTrieuChung.sort((a, b) => a.name.localeCompare(b.name))
+
+    btImportResult.value = stats
+    btShowImportResult.value = true
+    await fetchData()
+  } catch (err: any) {
+    stats.errors.push(err?.message ?? String(err))
+    btImportResult.value = stats
+    btShowImportResult.value = true
+  } finally {
+    btIsImporting.value = false
+  }
+}
+
+// ─── PHÂN TÍCH BÀI THUỐC (port từ thuoc-yhct-analysis.js) ─────────────────
+const YHCT_KINH_ORDER = [
+  'Tâm', 'Can', 'Tỳ', 'Phế', 'Thận', 'Tâm Bào',
+  'Đại Trường', 'Tiểu Trường', 'Bàng Quang', 'Đởm', 'Vị', 'Tam Tiêu',
+] as const
+
+const YHCT_KINH_ALIAS: Record<string, string> = {
+  'tam': 'Tâm', 'tâm': 'Tâm', 'can': 'Can', 'ty': 'Tỳ', 'tỳ': 'Tỳ',
+  'phe': 'Phế', 'phế': 'Phế', 'than': 'Thận', 'thận': 'Thận',
+  'tambao': 'Tâm Bào', 'tâm bào': 'Tâm Bào', 'tam bao': 'Tâm Bào',
+  'daitrang': 'Đại Trường', 'đại trường': 'Đại Trường', 'dai truong': 'Đại Trường',
+  'tieutruong': 'Tiểu Trường', 'tiểu trường': 'Tiểu Trường', 'tieu truong': 'Tiểu Trường',
+  'bangquang': 'Bàng Quang', 'bàng quang': 'Bàng Quang', 'bang quang': 'Bàng Quang',
+  'dam': 'Đởm', 'đởm': 'Đởm', 'vi': 'Vị', 'vị': 'Vị',
+  'tamtieu': 'Tam Tiêu', 'tam tiêu': 'Tam Tiêu',
+}
+
+function normalizeKinh(raw: string): string {
+  const s = (raw || '').trim()
+  return YHCT_KINH_ALIAS[s.toLowerCase()] ?? s
+}
+
+interface AnalysisVtRow {
+  id: number
+  ten: string
+  gram: number
+  simGram: number
+  pct: number
+  vai_tro: 'Quân' | 'Thần' | 'Tá' | 'Sứ'
+  vai_tro_nhap: string
+  color: string
+  tinh: string
+  vi: string
+  quy_kinh: string
+  nguViVec: number[]
+  tgptVec: number[]
+}
+
+interface AnalysisResult {
+  empty: boolean
+  ten: string
+  W: number
+  quyKinhNorm: Record<string, number>
+  viThuocList: AnalysisVtRow[]
+  tuKhi: { daiHan: number; han: number; luong: number; binh: number; on: number; nhiet: number; daiNhiet: number }
+  nguVi: { chua: number; dang: number; ngot: number; cay: number; man: number }
+  tgpt: { thang: number; phu: number; giang: number; tram: number }
+  chungTrangBaiThuoc: string
+  tacDungChips: string[]
+  chuTriBaiThuoc: string[]
+  kiengKyBaiThuoc: string[]
+}
+
+/** Map viThuocId → các nhóm dược lý mà vị thuốc thuộc về (mỗi nhóm có chu_tri của nhóm). */
+const vtIdToGroups = computed(() => {
+  const m = new Map<number, NhomNhoLite[]>()
+  for (const nn of nhomNhoList.value) {
+    for (const link of nn.viThuocLinks ?? []) {
+      const id = link.idViThuoc ?? link.viThuoc?.id
+      if (id == null) continue
+      const arr = m.get(id) ?? []
+      arr.push(nn)
+      m.set(id, arr)
+    }
+  }
+  return m
+})
+
+const ROLE_COLORS: Record<string, string> = {
+  'Quân': '#DC2626', 'Thần': '#F97316', 'Tá': '#16A34A', 'Sứ': '#2563EB',
+}
+
+function parseLieuToGram(s: string | null | undefined): number {
+  if (!s) return 9
+  const t = s.toString().trim().toLowerCase()
+  if (t === '*') return 2.25
+  if (t === '#') return 22.5
+  let m: RegExpMatchArray | null
+  m = t.match(/^([\d.]+)\s*tiền?/); if (m) return parseFloat(m[1]) * 3
+  m = t.match(/^([\d.]+)\s*lư?ợng/); if (m) return parseFloat(m[1]) * 30
+  m = t.match(/^([\d.]+)/); if (m) return parseFloat(m[1])
+  return 9
+}
+
+function nguViVecFromViString(viRaw: string): number[] {
+  const parts = String(viRaw || '').split(/[,;，、]/).map(s => s.trim().toLowerCase()).filter(Boolean)
+  if (!parts.length) return [0, 0, 0, 0, 0]
+  const uniq = [...new Set(parts)]
+  const each = 1 / uniq.length
+  const o = { chua: 0, dang: 0, ngot: 0, cay: 0, man: 0 }
+  for (const v of uniq) {
+    if (v.includes('chua')) o.chua += each
+    else if (v.includes('đắng') || v.includes('dang')) o.dang += each
+    else if (v.includes('ngọt') || v.includes('ngot')) o.ngot += each
+    else if (v.includes('cay')) o.cay += each
+    else if (v.includes('mặn') || v.includes('man')) o.man += each
+  }
+  return [o.chua, o.dang, o.ngot, o.cay, o.man]
+}
+
+function tgptVecFromItem(item: { tinh: string; quy_kinh: string }): number[] {
+  const tinh = (item.tinh || '').toLowerCase()
+  const qk = (item.quy_kinh || '').toLowerCase()
+  let th = 0, ph = 0, gi = 0, tr = 0
+  if (tinh.includes('ôn') || tinh.includes('on') || tinh.includes('nóng') || tinh.includes('nong')) { th += 0.35; ph += 0.35 }
+  if (tinh.includes('hàn') || tinh.includes('han') || tinh.includes('lương') || tinh.includes('luong')) { gi += 0.35; tr += 0.35 }
+  if (qk.includes('phế') || qk.includes('phe') || qk.includes('tâm')) th += 0.15
+  if (qk.includes('thận') || qk.includes('than') || qk.includes('bàng quang') || qk.includes('bang quang')) tr += 0.15
+  const base = 0.15
+  th += base; gi += base; ph += base; tr += base
+  return [th, ph, gi, tr]
+}
+
+function addNguViBucket(bucket: { chua: number; dang: number; ngot: number; cay: number; man: number }, viRaw: string, wPct: number) {
+  const parts = String(viRaw || '').split(/[,;，、]/).map(s => s.trim().toLowerCase()).filter(Boolean)
+  if (!parts.length) return
+  const uniq = [...new Set(parts)]
+  const each = wPct / uniq.length
+  for (const v of uniq) {
+    if (v.includes('chua')) bucket.chua += each
+    else if (v.includes('đắng') || v.includes('dang')) bucket.dang += each
+    else if (v.includes('ngọt') || v.includes('ngot')) bucket.ngot += each
+    else if (v.includes('cay')) bucket.cay += each
+    else if (v.includes('mặn') || v.includes('man')) bucket.man += each
+  }
+}
+
+function addTgptBucket(bucket: { thang: number; phu: number; giang: number; tram: number }, item: { tinh: string; quy_kinh: string }, wPct: number) {
+  const tinh = (item.tinh || '').toLowerCase()
+  const qk = (item.quy_kinh || '').toLowerCase()
+  if (tinh.includes('ôn') || tinh.includes('on') || tinh.includes('nóng') || tinh.includes('nong')) { bucket.thang += wPct * 0.35; bucket.phu += wPct * 0.35 }
+  if (tinh.includes('hàn') || tinh.includes('han') || tinh.includes('lương') || tinh.includes('luong')) { bucket.giang += wPct * 0.35; bucket.tram += wPct * 0.35 }
+  if (qk.includes('phế') || qk.includes('phe') || qk.includes('tâm')) bucket.thang += wPct * 0.15
+  if (qk.includes('thận') || qk.includes('than') || qk.includes('bàng quang') || qk.includes('bang quang')) bucket.tram += wPct * 0.15
+  const base = wPct * 0.15
+  bucket.thang += base; bucket.giang += base; bucket.phu += base; bucket.tram += base
+}
+
+function aggregateNguViFromSim(list: AnalysisVtRow[]) {
+  const o = { chua: 0, dang: 0, ngot: 0, cay: 0, man: 0 }
+  const W = list.reduce((s, v) => s + (v.simGram ?? v.gram), 0) || 1
+  for (const v of list) addNguViBucket(o, v.vi, (v.simGram ?? v.gram) / W)
+  return o
+}
+
+function aggregateTgptFromSim(list: AnalysisVtRow[]) {
+  const o = { thang: 0, phu: 0, giang: 0, tram: 0 }
+  const W = list.reduce((s, v) => s + (v.simGram ?? v.gram), 0) || 1
+  for (const v of list) addTgptBucket(o, v, (v.simGram ?? v.gram) / W)
+  return o
+}
+
+function nguViToRadar5(o: { chua: number; dang: number; ngot: number; cay: number; man: number }) {
+  return [o.chua, o.dang, o.ngot, o.cay, o.man]
+}
+
+function tgptToRadar4(o: { thang: number; phu: number; giang: number; tram: number }) {
+  return [o.thang, o.phu, o.giang, o.tram]
+}
+
+function mergeChungTrangFromBt(bt: BaiThuoc): string {
+  const raw = (bt.chung_trang || '').trim()
+  const linkTexts = [...(bt.phapTriLinks ?? [])]
+    .sort((a, b) => (a.thuTu ?? 0) - (b.thuTu ?? 0))
+    .map(l => (l.phapTri?.chung_trang || '').trim())
+    .filter(Boolean)
+  const linkStr = linkTexts.join(', ')
+  if (!raw) return linkStr
+  if (!linkStr) return raw
+  return `${raw}, ${linkStr}`
+}
+
+/**
+ * Chủ trị + Kiêng kỵ + Tác dụng cho bài thuốc.
+ * - Chủ trị: lấy từ `nhom_nho_chu_tri` của các nhóm nhỏ mà các vị thuốc thuộc về (theo yêu cầu).
+ * - Tác dụng: chip "Nhóm lớn - Nhóm nhỏ" cho mọi nhóm các vị thuốc thuộc về (loại trùng).
+ * - Kiêng kỵ: giữ nguyên — từ `vi_thuoc_kieng_ky` trực tiếp trên vị thuốc.
+ */
+function deriveBaiThuocAggregates(items: { vt: ViThuocLite }[]) {
+  const normKey = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+  const seenCt = new Set<string>()
+  const seenKk = new Set<string>()
+  const seenTd = new Set<string>()
+  const ct: string[] = []
+  const kk: string[] = []
+  const td: string[] = []
+  const groupsMap = vtIdToGroups.value
+
+  for (const { vt } of items) {
+    // Tác dụng + chủ trị từ nhóm dược lý
+    const groups = groupsMap.get(vt.id) ?? []
+    for (const g of groups) {
+      const tenNho = (g.ten_nhom || '').trim()
+      const tenLon = (g.nhomLon?.ten_nhom || '').trim()
+      const label = tenLon && tenNho ? `${tenLon} - ${tenNho}` : (tenNho || tenLon)
+      if (label) {
+        const k = normKey(label)
+        if (!seenTd.has(k)) { seenTd.add(k); td.push(label) }
+      }
+      for (const l of g.chuTriLinks ?? []) {
+        const n = (l.chuTri?.ten_chu_tri || '').trim()
+        if (!n) continue
+        const k = normKey(n)
+        if (seenCt.has(k)) continue
+        seenCt.add(k)
+        ct.push(n)
+      }
+    }
+    // Kiêng kỵ vẫn từ vi_thuoc
+    for (const l of vt.kiengKyLinks ?? []) {
+      const n = (l.kiengKy?.ten_kieng_ky || '').trim()
+      if (!n) continue
+      const g = (l.ghi_chu || '').trim()
+      const display = g ? `${n} (${g})` : n
+      const k = normKey(display)
+      if (seenKk.has(k)) continue
+      seenKk.add(k)
+      kk.push(display)
+    }
+  }
+  ct.sort((a, b) => a.localeCompare(b, 'vi'))
+  kk.sort((a, b) => a.localeCompare(b, 'vi'))
+  td.sort((a, b) => a.localeCompare(b, 'vi'))
+  return { chuTriBaiThuoc: ct, kiengKyBaiThuoc: kk, tacDungChips: td }
+}
+
+function analyzeBaiThuoc(bt: BaiThuoc): AnalysisResult {
+  const details = bt.chiTietViThuoc ?? []
+  const items = details
+    .map(d => {
+      const vt = d.viThuoc ?? viThuocById.value.get(d.id_vi_thuoc ?? -1) ?? null
+      return vt ? { d, vt: vt as ViThuocLite, gram: parseLieuToGram(d.lieu_luong) } : null
+    })
+    .filter((x): x is { d: BaiThuocChiTietLite; vt: ViThuocLite; gram: number } => !!x && !!x.vt?.id)
+
+  const empty = items.length === 0
+  if (empty) {
+    return {
+      empty: true,
+      ten: bt.ten_bai_thuoc,
+      W: 0,
+      quyKinhNorm: {},
+      viThuocList: [],
+      tuKhi: { daiHan: 0, han: 0, luong: 0, binh: 0, on: 0, nhiet: 0, daiNhiet: 0 },
+      nguVi: { chua: 0, dang: 0, ngot: 0, cay: 0, man: 0 },
+      tgpt: { thang: 0, phu: 0, giang: 0, tram: 0 },
+      chungTrangBaiThuoc: '',
+      tacDungChips: [],
+      chuTriBaiThuoc: [],
+      kiengKyBaiThuoc: [],
+    }
+  }
+
+  const W = items.reduce((s, x) => s + x.gram, 0) || 1
+
+  // Quy kinh - tích lũy theo gram
+  const qkRaw: Record<string, number> = {}
+  YHCT_KINH_ORDER.forEach(k => { qkRaw[k] = 0 })
+  for (const { d, vt, gram } of items) {
+    const qkStr = vt.quy_kinh || d.quy_kinh || ''
+    qkStr.split(/[,;，、]/).map(k => k.trim()).filter(Boolean).forEach(k => {
+      const norm = normalizeKinh(k)
+      if (norm in qkRaw) qkRaw[norm] += gram
+      else {
+        const found = YHCT_KINH_ORDER.find(ref => norm.includes(ref) || ref.includes(norm))
+        if (found) qkRaw[found] += gram
+      }
+    })
+  }
+  const qkMax = Math.max(...Object.values(qkRaw), 0.01)
+  const quyKinhNorm: Record<string, number> = {}
+  YHCT_KINH_ORDER.forEach(k => { quyKinhNorm[k] = Math.round((qkRaw[k] / qkMax) * 10) / 10 })
+
+  // Vai trò Quân - Thần - Tá - Sứ
+  const sorted = [...items].sort((a, b) => b.gram - a.gram)
+  const quanQK = (sorted[0]?.vt?.quy_kinh || '').split(/[,;，、]/).map(k => normalizeKinh(k.trim()))
+  const roleMap: Record<number, 'Quân' | 'Thần' | 'Tá' | 'Sứ'> = {}
+  sorted.forEach((x, i) => {
+    const ten = (x.vt.ten_vi_thuoc || '').toLowerCase()
+    const pct = x.gram / W
+    const vtQK = (x.vt.quy_kinh || '').split(/[,;，、]/).map(k => normalizeKinh(k.trim()))
+    if (i === 0) roleMap[x.vt.id] = 'Quân'
+    else if ((ten.includes('cam thảo') || ten.includes('đại táo')) && pct < 0.1) roleMap[x.vt.id] = 'Sứ'
+    else if (pct >= 0.15 && vtQK.some(k => quanQK.includes(k))) roleMap[x.vt.id] = 'Thần'
+    else roleMap[x.vt.id] = 'Tá'
+  })
+
+  const viThuocList: AnalysisVtRow[] = items.map(({ d, vt, gram }) => {
+    const row: AnalysisVtRow = {
+      id: vt.id,
+      ten: vt.ten_vi_thuoc || '—',
+      gram,
+      simGram: gram,
+      pct: Math.round((gram / W) * 100),
+      vai_tro: roleMap[vt.id] ?? 'Tá',
+      vai_tro_nhap: (d.vai_tro || '').trim(),
+      color: ROLE_COLORS[roleMap[vt.id] ?? 'Tá'],
+      tinh: vt.tinh || '',
+      vi: vt.vi || '',
+      quy_kinh: vt.quy_kinh || '',
+      nguViVec: nguViVecFromViString(vt.vi || ''),
+      tgptVec: [],
+    }
+    row.tgptVec = tgptVecFromItem(row)
+    return row
+  })
+
+  const tuKhi = { daiHan: 0, han: 0, luong: 0, binh: 0, on: 0, nhiet: 0, daiNhiet: 0 }
+  const nguVi = { chua: 0, dang: 0, ngot: 0, cay: 0, man: 0 }
+  const tgpt = { thang: 0, phu: 0, giang: 0, tram: 0 }
+
+  const addTuKhi = (tinhRaw: string, wPct: number) => {
+    const t = (tinhRaw || '').trim().toLowerCase()
+    if (!t) return
+    if (t.includes('đại hàn') || t.includes('dai han')) { tuKhi.daiHan += wPct; return }
+    if (t.includes('hơi hàn') || t.includes('hoi han')) { tuKhi.han += wPct * 0.7; tuKhi.luong += wPct * 0.3; return }
+    if (t.includes('hàn') || t.includes('han')) { tuKhi.han += wPct; return }
+    if (t.includes('lương') || t.includes('luong')) { tuKhi.luong += wPct; return }
+    if (t.includes('bình') || t.includes('binh')) { tuKhi.binh += wPct; return }
+    if (t.includes('đại nhiệt') || t.includes('dai nhiet')) { tuKhi.daiNhiet += wPct; return }
+    if (t.includes('nhiệt') || t.includes('nhiet') || t.includes('nóng') || t.includes('nong')) { tuKhi.nhiet += wPct; return }
+    if (t.includes('hơi ôn') || t.includes('hoi on')) { tuKhi.on += wPct * 0.7; tuKhi.binh += wPct * 0.3; return }
+    if (t.includes('ôn') || t.includes('on')) { tuKhi.on += wPct; return }
+    tuKhi.binh += wPct
+  }
+
+  for (const v of viThuocList) {
+    const wPct = v.gram / W
+    addTuKhi(v.tinh, wPct)
+    addNguViBucket(nguVi, v.vi, wPct)
+    addTgptBucket(tgpt, v, wPct)
+  }
+
+  const { chuTriBaiThuoc, kiengKyBaiThuoc, tacDungChips } = deriveBaiThuocAggregates(items)
+
+  return {
+    empty: false,
+    ten: bt.ten_bai_thuoc,
+    W,
+    quyKinhNorm,
+    viThuocList,
+    tuKhi,
+    nguVi,
+    tgpt,
+    chungTrangBaiThuoc: mergeChungTrangFromBt(bt),
+    tacDungChips,
+    chuTriBaiThuoc,
+    kiengKyBaiThuoc,
+  }
+}
+
+const TU_KHI_SEGS = [
+  { key: 'daiHan' as const, vn: 'Đại Hàn', zh: '大寒', c: '#1565C0' },
+  { key: 'han' as const, vn: 'Hàn', zh: '寒', c: '#29B6F6' },
+  { key: 'luong' as const, vn: 'Lương', zh: '凉', c: '#26A69A' },
+  { key: 'binh' as const, vn: 'Bình', zh: '平', c: '#E6E38A' },
+  { key: 'on' as const, vn: 'Ôn', zh: '温', c: '#FFB74D' },
+  { key: 'nhiet' as const, vn: 'Nhiệt', zh: '热', c: '#FF7043' },
+  { key: 'daiNhiet' as const, vn: 'Đại Nhiệt', zh: '大热', c: '#C62828' },
+]
+
+const anaShowModal = ref(false)
+const anaResult = ref<AnalysisResult | null>(null)
+// Reactive copy of viThuocList so input bindings & template re-render khi sửa gram
+const anaVtRows = reactive<AnalysisVtRow[]>([])
+
+const anaTotalSim = computed(() => {
+  const s = anaVtRows.reduce((acc, v) => acc + (v.simGram ?? v.gram), 0)
+  return s > 0 ? s : (anaResult.value?.W ?? 1)
+})
+
+const anaSortedVtRows = computed(() => {
+  const order: Record<string, number> = { 'Quân': 0, 'Thần': 1, 'Tá': 2, 'Sứ': 3 }
+  return [...anaVtRows].sort((a, b) => (order[a.vai_tro] ?? 3) - (order[b.vai_tro] ?? 3) || b.gram - a.gram)
+})
+
+const anaTuKhiVals = computed(() => {
+  if (!anaResult.value) return TU_KHI_SEGS.map(() => 0)
+  const tk = anaResult.value.tuKhi
+  return TU_KHI_SEGS.map(s => Number(tk[s.key]) || 0)
+})
+
+const anaTuKhiTipIdx = computed(() => {
+  let idx = 3 // mặc định 'Bình' nếu không có gì
+  let maxV = -1
+  anaTuKhiVals.value.forEach((v, i) => { if (v > maxV) { maxV = v; idx = i } })
+  return maxV <= 0 ? 3 : idx
+})
+
+const anaSimDirty = computed(() => {
+  return anaVtRows.some(v => Math.abs((v.simGram ?? v.gram) - v.gram) > 0.02)
+})
+
+// Chart instances
+const radarNguViRef = ref<HTMLCanvasElement | null>(null)
+const radarQuyKinhRef = ref<HTMLCanvasElement | null>(null)
+const radarTgptRef = ref<HTMLCanvasElement | null>(null)
+const chartNguVi = ref<Chart | null>(null)
+const chartQuyKinh = ref<Chart | null>(null)
+const chartTgpt = ref<Chart | null>(null)
+
+function destroyAnaCharts() {
+  for (const ref_ of [chartNguVi, chartQuyKinh, chartTgpt]) {
+    const c = ref_.value
+    if (c) {
+      const cleanup = (c as Chart & { _yhctDragCleanup?: () => void })._yhctDragCleanup
+      if (cleanup) try { cleanup() } catch { /* noop */ }
+      try { c.destroy() } catch { /* noop */ }
+    }
+    ref_.value = null
+  }
+}
+
+function openAnalysis(bt: BaiThuoc) {
+  const r = analyzeBaiThuoc(bt)
+  anaResult.value = r
+  anaVtRows.splice(0, anaVtRows.length, ...r.viThuocList)
+  anaShowModal.value = true
+  nextTick(() => initAnaCharts())
+}
+
+function closeAnalysis() {
+  destroyAnaCharts()
+  anaShowModal.value = false
+  anaResult.value = null
+  anaVtRows.splice(0, anaVtRows.length)
+}
+
+function onGramInput(id: number, raw: string) {
+  const v = anaVtRows.find(x => x.id === id)
+  if (!v) return
+  const num = parseFloat(String(raw).replace(',', '.'))
+  v.simGram = Number.isFinite(num) ? Math.max(0, num) : 0
+  refreshOverlays()
+}
+
+function refreshOverlays() {
+  const dirty = anaSimDirty.value
+  const nguViAgg = aggregateNguViFromSim(anaVtRows)
+  const tgptAgg = aggregateTgptFromSim(anaVtRows)
+  if (chartNguVi.value && chartNguVi.value.data.datasets[1]) {
+    chartNguVi.value.data.datasets[1].data = nguViToRadar5(nguViAgg)
+    chartNguVi.value.data.datasets[1].hidden = !dirty
+    chartNguVi.value.update('none')
+  }
+  if (chartTgpt.value && chartTgpt.value.data.datasets[1]) {
+    chartTgpt.value.data.datasets[1].data = tgptToRadar4(tgptAgg)
+    chartTgpt.value.data.datasets[1].hidden = !dirty
+    chartTgpt.value.update('none')
+  }
+}
+
+function radarValueFromPointer(chart: Chart, datasetIndex: number, index: number, pos: { x: number; y: number }) {
+  const scale = chart.scales.r as unknown as {
+    getCenterPoint(): { x: number; y: number }
+    getValueForDistanceFromCenter?: (d: number) => number
+    getDistanceFromCenterForValue: (v: number) => number
+    min: number
+    max: number
+  }
+  const meta = chart.getDatasetMeta(datasetIndex)
+  const el = meta.data[index] as { x: number; y: number; skip?: boolean } | undefined
+  if (!el || el.skip) return null
+  const center = scale.getCenterPoint()
+  const vx = el.x - center.x
+  const vy = el.y - center.y
+  const vlen = Math.hypot(vx, vy)
+  if (vlen < 1e-6) return scale.min
+  const ux = vx / vlen, uy = vy / vlen
+  const relx = pos.x - center.x, rely = pos.y - center.y
+  let distAlong = relx * ux + rely * uy
+  distAlong = Math.max(0, distAlong)
+  let val: number
+  if (typeof scale.getValueForDistanceFromCenter === 'function') {
+    val = scale.getValueForDistanceFromCenter(distAlong)
+  } else {
+    const d0 = scale.getDistanceFromCenterForValue(scale.min)
+    const d1 = scale.getDistanceFromCenterForValue(scale.max)
+    const t = Math.abs(d1 - d0) < 1e-9 ? 0 : (distAlong - d0) / (d1 - d0)
+    val = scale.min + t * (scale.max - scale.min)
+  }
+  return Math.max(scale.min, Math.min(scale.max, val))
+}
+
+function redistributeGramsByRadarTarget(kind: 'nguVi' | 'tgpt', targetArr: number[]) {
+  const list = anaVtRows
+  const W = list.reduce((s, v) => s + (v.simGram ?? v.gram), 0) || 1
+  const eps = 0.06
+  const scores = list.map(v => {
+    const vec = kind === 'nguVi' ? v.nguViVec : v.tgptVec
+    let d = 0
+    for (let j = 0; j < targetArr.length; j++) d += (vec[j] || 0) * targetArr[j]
+    const g = v.simGram ?? v.gram
+    return d + eps * (g / W)
+  })
+  const sumS = scores.reduce((a, b) => a + b, 0)
+  if (sumS < 1e-9) return
+  list.forEach((v, i) => { v.simGram = W * scores[i] / sumS })
+}
+
+function attachRadarDrag(chart: Chart, kind: 'nguVi' | 'tgpt') {
+  const canvas = chart.canvas
+  canvas.style.cursor = 'grab'
+  canvas.style.touchAction = 'none'
+  let dragIdx = -1
+  let activePointerId: number | null = null
+
+  const eventToPx = (e: PointerEvent) => {
+    const rect = canvas.getBoundingClientRect()
+    const sx = canvas.width / Math.max(rect.width, 1)
+    const sy = canvas.height / Math.max(rect.height, 1)
+    return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy }
+  }
+
+  const nearestPointIndex = (pos: { x: number; y: number }) => {
+    const dsIdx = chart.data.datasets[1].hidden ? 0 : 1
+    const meta = chart.getDatasetMeta(dsIdx)
+    const scale = chart.scales.r as unknown as { getCenterPoint(): { x: number; y: number } }
+    const center = scale.getCenterPoint()
+    const dx = pos.x - center.x
+    const dy = pos.y - center.y
+    const dist = Math.hypot(dx, dy)
+    if (dist < 12) return -1
+    let maxR = 0
+    for (const pt of meta.data as Array<{ x: number; y: number; skip?: boolean }>) {
+      if (!pt || pt.skip) continue
+      maxR = Math.max(maxR, Math.hypot(pt.x - center.x, pt.y - center.y))
+    }
+    if (maxR > 0 && dist > maxR + 72) return -1
+    const clickAng = Math.atan2(dy, dx)
+    let bestIdx = -1
+    let bestDiff = Infinity
+    ;(meta.data as Array<{ x: number; y: number; skip?: boolean }>).forEach((pt, i) => {
+      if (!pt || pt.skip) return
+      const a = Math.atan2(pt.y - center.y, pt.x - center.x)
+      let diff = Math.abs(clickAng - a)
+      if (diff > Math.PI) diff = 2 * Math.PI - diff
+      if (diff < bestDiff) { bestDiff = diff; bestIdx = i }
+    })
+    return bestIdx
+  }
+
+  const applyDrag = (idx: number, pos: { x: number; y: number }) => {
+    const dsIdx = chart.data.datasets[1].hidden ? 0 : 1
+    const agg = kind === 'nguVi' ? aggregateNguViFromSim(anaVtRows) : aggregateTgptFromSim(anaVtRows)
+    const target = (kind === 'nguVi' ? nguViToRadar5(agg) : tgptToRadar4(agg)).slice()
+    const val = radarValueFromPointer(chart, dsIdx, idx, pos)
+    if (val == null) return
+    target[idx] = val
+    redistributeGramsByRadarTarget(kind, target)
+    refreshOverlays()
+  }
+
+  const onDown = (e: PointerEvent) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    e.preventDefault()
+    const pos = eventToPx(e)
+    const idx = nearestPointIndex(pos)
+    if (idx < 0) return
+    dragIdx = idx
+    activePointerId = e.pointerId
+    try { canvas.setPointerCapture(e.pointerId) } catch { /* noop */ }
+    applyDrag(idx, pos)
+  }
+  const onMove = (e: PointerEvent) => {
+    if (dragIdx < 0) return
+    if (activePointerId != null && e.pointerId !== activePointerId) return
+    if (e.cancelable) e.preventDefault()
+    applyDrag(dragIdx, eventToPx(e))
+  }
+  const onUp = (e: PointerEvent) => {
+    if (activePointerId != null && e.pointerId === activePointerId) {
+      try { canvas.releasePointerCapture(e.pointerId) } catch { /* noop */ }
+    }
+    dragIdx = -1
+    activePointerId = null
+  }
+
+  canvas.addEventListener('pointerdown', onDown)
+  canvas.addEventListener('pointermove', onMove)
+  canvas.addEventListener('pointerup', onUp)
+  canvas.addEventListener('pointercancel', onUp)
+  canvas.addEventListener('lostpointercapture', onUp)
+  ;(chart as Chart & { _yhctDragCleanup?: () => void })._yhctDragCleanup = () => {
+    canvas.removeEventListener('pointerdown', onDown)
+    canvas.removeEventListener('pointermove', onMove)
+    canvas.removeEventListener('pointerup', onUp)
+    canvas.removeEventListener('pointercancel', onUp)
+    canvas.removeEventListener('lostpointercapture', onUp)
+  }
+}
+
+function initAnaCharts() {
+  destroyAnaCharts()
+  const r = anaResult.value
+  if (!r || r.empty) return
+
+  const baseOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      r: {
+        beginAtZero: true,
+        suggestedMax: 1,
+        ticks: { stepSize: 0.2, backdropColor: 'transparent' },
+        grid: { color: '#E8E2D6' },
+        pointLabels: { color: '#6B7280', font: { size: 10 } },
+        angleLines: { color: '#ECE7DC' },
+      },
+    },
+  } as const
+
+  const mkInteractive = (canvas: HTMLCanvasElement | null, labels: string[], baseArr: number[], color: string, kind: 'nguVi' | 'tgpt') => {
+    if (!canvas) return null
+    const baseData = baseArr.map(x => Number(x) || 0)
+    const chart = new Chart(canvas.getContext('2d')!, {
+      type: 'radar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'calc',
+            data: baseData,
+            borderColor: color,
+            backgroundColor: color.replace('1)', '0.12)'),
+            borderWidth: 2,
+            pointRadius: 2,
+            pointHoverRadius: 4,
+            pointHitRadius: 24,
+          },
+          {
+            label: 'sim',
+            data: baseData.slice(),
+            borderColor: color.replace('1)', '0.85)'),
+            backgroundColor: color.replace('1)', '0.06)'),
+            borderWidth: 2.5,
+            borderDash: [5, 4],
+            pointRadius: 2,
+            pointHoverRadius: 4,
+            pointHitRadius: 24,
+            hidden: true,
+          },
+        ],
+      },
+      options: { ...baseOpts, plugins: { legend: { display: false }, tooltip: { enabled: true } } },
+    })
+    attachRadarDrag(chart, kind)
+    return chart
+  }
+
+  chartNguVi.value = mkInteractive(
+    radarNguViRef.value,
+    ['Chua', 'Đắng', 'Ngọt', 'Cay', 'Mặn'],
+    [r.nguVi.chua, r.nguVi.dang, r.nguVi.ngot, r.nguVi.cay, r.nguVi.man],
+    'rgba(239, 68, 68, 1)',
+    'nguVi',
+  )
+
+  if (radarQuyKinhRef.value) {
+    chartQuyKinh.value = new Chart(radarQuyKinhRef.value.getContext('2d')!, {
+      type: 'radar',
+      data: {
+        labels: [...YHCT_KINH_ORDER],
+        datasets: [{
+          data: YHCT_KINH_ORDER.map(k => r.quyKinhNorm[k] || 0),
+          borderColor: 'rgba(234, 179, 8, 1)',
+          backgroundColor: 'rgba(234, 179, 8, 0.12)',
+          borderWidth: 2,
+          pointRadius: 2,
+        }],
+      },
+      options: baseOpts,
+    })
+  }
+
+  chartTgpt.value = mkInteractive(
+    radarTgptRef.value,
+    ['Thăng', 'Phù', 'Giáng', 'Trầm'],
+    [r.tgpt.thang, r.tgpt.phu, r.tgpt.giang, r.tgpt.tram],
+    'rgba(59, 130, 246, 1)',
+    'tgpt',
+  )
+}
+
+function resetSimGrams() {
+  for (const v of anaVtRows) v.simGram = v.gram
+  refreshOverlays()
+}
+
+/** Map vai trò người dùng nhập (có thể viết hoa/thường, có dấu/không dấu) về 1 trong 4 chuẩn để lấy màu. */
+function normalizeVaiTroNhap(raw: string): 'Quân' | 'Thần' | 'Tá' | 'Sứ' | '' {
+  const t = (raw || '').trim().toLowerCase()
+  if (!t) return ''
+  if (t.includes('quân') || t.includes('quan')) return 'Quân'
+  if (t.includes('thần') || t.includes('than')) return 'Thần'
+  if (t.includes('sứ') || t === 'su') return 'Sứ'
+  if (t.includes('tá') || t === 'ta') return 'Tá'
+  return ''
+}
+
+function vaiTroNhapColor(raw: string): string {
+  const k = normalizeVaiTroNhap(raw)
+  return k ? ROLE_COLORS[k] : '#9CA3AF'
+}
+
+function vaiTroMatchSuyLuan(row: AnalysisVtRow): boolean {
+  const k = normalizeVaiTroNhap(row.vai_tro_nhap)
+  return k !== '' && k === row.vai_tro
+}
+
 // ─── VỊ THUỐC CRUD ────────────────────────────────────────────────────────
 const vtShowModal = ref(false)
 const vtEditingId = ref<number | null>(null)
@@ -588,7 +1645,22 @@ async function deleteViThuoc() {
               <h3>Danh sách Bài Thuốc</h3>
               <span class="badge badge-info">{{ filteredBaiThuoc.length }} bài thuốc</span>
             </div>
-            <button type="button" class="btn-primary" @click="openCreateBaiThuoc">+ Thêm bài thuốc</button>
+            <div class="header-actions">
+              <button type="button" class="btn-secondary" :disabled="btIsExporting || !baiThuocList.length" @click="btExportToExcel">
+                {{ btIsExporting ? 'Đang xuất…' : '↓ Xuất Excel' }}
+              </button>
+              <button type="button" class="btn-secondary" :disabled="btIsImporting" @click="btTriggerImport">
+                ↑ Nhập Excel
+              </button>
+              <input
+                ref="btImportFileInput"
+                type="file"
+                accept=".xlsx,.xls"
+                hidden
+                @change="btHandleImportFile"
+              />
+              <button type="button" class="btn-primary" @click="openCreateBaiThuoc">+ Thêm bài thuốc</button>
+            </div>
           </div>
           <div class="table-responsive">
             <table class="data-table">
@@ -601,7 +1673,7 @@ async function deleteViThuoc() {
                   <th width="200">Triệu Chứng</th>
                   <th width="180">Cách Dùng</th>
                   <th>Thành Phần</th>
-                  <th width="120">Thao tác</th>
+                  <th width="200">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -641,6 +1713,7 @@ async function deleteViThuoc() {
                   </td>
                   <td>
                     <div class="row-actions">
+                      <button type="button" class="btn-action btn-analyze" @click="openAnalysis(bt)">Phân tích</button>
                       <button type="button" class="btn-action btn-edit" @click="openEditBaiThuoc(bt)">Sửa</button>
                       <button type="button" class="btn-action btn-delete" @click="confirmDeleteBaiThuoc(bt)">Xóa</button>
                     </div>
@@ -891,6 +1964,127 @@ async function deleteViThuoc() {
       </div>
     </div>
 
+    <!-- IMPORT LOADING OVERLAY -->
+    <div v-if="btIsImporting" class="modal-overlay">
+      <div class="modal modal--sm" @click.stop>
+        <div class="modal-header">
+          <h3>Đang nhập Excel…</h3>
+        </div>
+        <div class="modal-body">
+          <p class="import-progress-text">
+            Đã xử lý <strong>{{ btImportProgress.current }}</strong> /
+            <strong>{{ btImportProgress.total }}</strong> dòng
+          </p>
+          <div class="progress-bar">
+            <div
+              class="progress-bar-fill"
+              :style="{
+                width: btImportProgress.total
+                  ? Math.round((btImportProgress.current / btImportProgress.total) * 100) + '%'
+                  : '0%',
+              }"
+            ></div>
+          </div>
+          <p class="text-gray-500 text-center" style="margin-top: 8px; font-size: 12px;">
+            Vui lòng chờ, không đóng cửa sổ.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPORT RESULT MODAL -->
+    <div v-if="btShowImportResult && btImportResult" class="modal-overlay" @click.self="btShowImportResult = false">
+      <div class="modal modal--wide" @click.stop>
+        <div class="modal-header">
+          <h3>Kết quả nhập Excel</h3>
+          <button type="button" class="modal-close" @click="btShowImportResult = false">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="import-summary">
+            <div class="summary-item">
+              <span class="summary-label">Dòng xử lý</span>
+              <span class="summary-value">{{ btImportResult.rowsProcessed }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Tạo mới</span>
+              <span class="summary-value summary-value-success">{{ btImportResult.baiThuocCreated }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Cập nhật</span>
+              <span class="summary-value summary-value-info">{{ btImportResult.baiThuocUpdated }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Lỗi</span>
+              <span class="summary-value summary-value-error">{{ btImportResult.errors.length }}</span>
+            </div>
+          </div>
+
+          <div v-if="btImportResult.missingViThuoc.length" class="import-section">
+            <h4 class="import-section-title">
+              Vị thuốc chưa tồn tại
+              <span class="badge badge-warn">{{ btImportResult.missingViThuoc.length }}</span>
+            </h4>
+            <p class="import-section-hint">Các vị thuốc dưới đây không có trong hệ thống — đã bỏ qua khi import.</p>
+            <ul class="missing-list">
+              <li v-for="(m, idx) in btImportResult.missingViThuoc" :key="'vi-' + idx">
+                <span class="missing-name">{{ m.name }}</span>
+                <span class="missing-rows">Dòng: {{ m.rows.join(', ') }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="btImportResult.missingPhapTri.length" class="import-section">
+            <h4 class="import-section-title">
+              Thể bệnh chưa tồn tại
+              <span class="badge badge-warn">{{ btImportResult.missingPhapTri.length }}</span>
+            </h4>
+            <ul class="missing-list">
+              <li v-for="(m, idx) in btImportResult.missingPhapTri" :key="'pt-' + idx">
+                <span class="missing-name">{{ m.name }}</span>
+                <span class="missing-rows">Dòng: {{ m.rows.join(', ') }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="btImportResult.missingTrieuChung.length" class="import-section">
+            <h4 class="import-section-title">
+              Triệu chứng chưa tồn tại
+              <span class="badge badge-warn">{{ btImportResult.missingTrieuChung.length }}</span>
+            </h4>
+            <ul class="missing-list">
+              <li v-for="(m, idx) in btImportResult.missingTrieuChung" :key="'tc-' + idx">
+                <span class="missing-name">{{ m.name }}</span>
+                <span class="missing-rows">Dòng: {{ m.rows.join(', ') }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="btImportResult.errors.length" class="import-section">
+            <h4 class="import-section-title">
+              Lỗi
+              <span class="badge badge-error">{{ btImportResult.errors.length }}</span>
+            </h4>
+            <ul class="missing-list">
+              <li v-for="(e, idx) in btImportResult.errors" :key="'err-' + idx">
+                <span class="missing-name">{{ e }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <p
+            v-if="!btImportResult.missingViThuoc.length && !btImportResult.missingPhapTri.length && !btImportResult.missingTrieuChung.length && !btImportResult.errors.length"
+            class="text-center text-gray-500"
+            style="padding: 16px 0;"
+          >
+            Không có cảnh báo. Tất cả dữ liệu được khớp đầy đủ.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-primary" @click="btShowImportResult = false">Đóng</button>
+        </div>
+      </div>
+    </div>
+
     <!-- VỊ THUỐC MODAL -->
     <div v-if="vtShowModal" class="modal-overlay">
       <div class="modal" @click.stop>
@@ -953,6 +2147,186 @@ async function deleteViThuoc() {
           <button type="button" class="btn-danger" :disabled="vtSubmitting" @click="deleteViThuoc">
             {{ vtSubmitting ? 'Đang xóa…' : 'Xóa' }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHÂN TÍCH BÀI THUỐC MODAL -->
+    <div v-if="anaShowModal" class="modal-overlay ana-overlay" @click.self="closeAnalysis">
+      <div class="modal ana-modal" @click.stop>
+        <div class="modal-header">
+          <h3>Phân tích: {{ anaResult?.ten ?? '' }}</h3>
+          <button type="button" class="modal-close" @click="closeAnalysis">✕</button>
+        </div>
+        <div class="modal-body ana-body">
+          <template v-if="anaResult && !anaResult.empty">
+            <!-- Tứ khí -->
+            <div class="ana-card">
+              <div class="ana-section-title">1) Phân tích Tứ khí</div>
+              <div class="tukhi-strip">
+                <div class="tukhi-row">
+                  <div
+                    v-for="(seg, i) in TU_KHI_SEGS"
+                    :key="'arrow-' + seg.key"
+                    class="tukhi-arrow"
+                  >
+                    <span v-if="i === anaTuKhiTipIdx" class="tukhi-arrow-mark">▼</span>
+                  </div>
+                </div>
+                <div class="tukhi-row">
+                  <div
+                    v-for="seg in TU_KHI_SEGS"
+                    :key="'color-' + seg.key"
+                    class="tukhi-bar"
+                    :style="{ background: seg.c }"
+                  ></div>
+                </div>
+                <div class="tukhi-row tukhi-labels">
+                  <div v-for="seg in TU_KHI_SEGS" :key="'label-' + seg.key" class="tukhi-label">
+                    <div class="tukhi-label-vn">{{ seg.vn }}</div>
+                    <div class="tukhi-label-zh">({{ seg.zh }})</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="ana-layout">
+              <div class="ana-left">
+                <div class="ana-card ana-radar-card">
+                  <div class="ana-radar-side">
+                    <div class="ana-section-title">2) Ngũ vị</div>
+                    <div class="ana-hint">Liền nét = gốc · Nét đứt = kéo giả lập.</div>
+                  </div>
+                  <div class="ana-radar-canvas-wrap">
+                    <canvas ref="radarNguViRef"></canvas>
+                  </div>
+                </div>
+
+                <div class="ana-card ana-radar-card">
+                  <div class="ana-radar-side">
+                    <div class="ana-section-title">3) Quy kinh</div>
+                  </div>
+                  <div class="ana-radar-canvas-wrap">
+                    <canvas ref="radarQuyKinhRef"></canvas>
+                  </div>
+                </div>
+
+                <div class="ana-card ana-radar-card">
+                  <div class="ana-radar-side">
+                    <div class="ana-section-title">4) Thăng – Giáng – Phù – Trầm</div>
+                    <div class="ana-hint">Liền nét = gốc · Nét đứt = kéo giả lập.</div>
+                  </div>
+                  <div class="ana-radar-canvas-wrap">
+                    <canvas ref="radarTgptRef"></canvas>
+                  </div>
+                </div>
+
+                <div class="ana-card">
+                  <div class="ana-section-title">5) Tổng hợp</div>
+                  <div v-if="anaResult.chungTrangBaiThuoc" class="ana-chip-row">
+                    <span
+                      v-for="(p, i) in anaResult.chungTrangBaiThuoc.split(/[,;]+/).map(s => s.trim()).filter(Boolean)"
+                      :key="'pt-' + i"
+                      class="ana-chip ana-chip-phap"
+                    >{{ p }}</span>
+                  </div>
+                  <div v-else class="ana-muted">Chưa gán chứng trạng.</div>
+
+                  <div class="ana-sub-title">Tác dụng <span class="ana-sub-hint">(nhóm lớn - nhóm nhỏ)</span></div>
+                  <div v-if="anaResult.tacDungChips.length" class="ana-chip-row">
+                    <span
+                      v-for="(t, i) in anaResult.tacDungChips"
+                      :key="'td-' + i"
+                      class="ana-chip ana-chip-tacdung"
+                    >{{ t }}</span>
+                  </div>
+                  <div v-else class="ana-muted">Vị thuốc trong bài chưa được gán nhóm dược lý.</div>
+
+                  <div class="ana-sub-title">Chủ trị <span class="ana-sub-hint">(từ nhóm dược lý)</span></div>
+                  <div v-if="anaResult.chuTriBaiThuoc.length" class="ana-chip-row">
+                    <span
+                      v-for="(t, i) in anaResult.chuTriBaiThuoc"
+                      :key="'ct-' + i"
+                      class="ana-chip ana-chip-cong"
+                    >{{ t }}</span>
+                  </div>
+                  <div v-else class="ana-muted">Nhóm dược lý của các vị thuốc chưa gắn chủ trị.</div>
+
+                  <div class="ana-sub-title">Kiêng kỵ</div>
+                  <div v-if="anaResult.kiengKyBaiThuoc.length" class="ana-chip-row">
+                    <span
+                      v-for="(t, i) in anaResult.kiengKyBaiThuoc"
+                      :key="'kk-' + i"
+                      class="ana-chip ana-chip-kk"
+                    >{{ t }}</span>
+                  </div>
+                  <div v-else class="ana-muted">Chưa có kiêng kỵ từ các vị thuốc trong bài.</div>
+                </div>
+              </div>
+
+              <div class="ana-right">
+                <div class="ana-dosage">
+                  <div class="ana-dosage-head">
+                    <span>Quân–Thần–Tá–Sứ</span>
+                    <span class="ana-dosage-total">Tổng ≈ {{ anaTotalSim.toFixed(1) }}g</span>
+                    <button
+                      v-if="anaSimDirty"
+                      type="button"
+                      class="ana-reset-btn"
+                      @click="resetSimGrams"
+                    >Khôi phục gốc</button>
+                  </div>
+                  <div class="ana-hint ana-dosage-hint">Sửa Gram để giả lập; % và radar nét đứt đồng bộ.</div>
+                  <div class="ana-dosage-tbl-wrap">
+                    <table class="ana-dosage-tbl">
+                      <thead>
+                        <tr>
+                          <th>Vị thuốc</th>
+                          <th>Gram</th>
+                          <th>%</th>
+                          <th title="Vai trò người dùng nhập khi tạo bài thuốc">Nhập</th>
+                          <th title="Vai trò suy luận tự động từ liều lượng & quy kinh">Suy luận</th>
+                          <th>Quy kinh</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="v in anaSortedVtRows" :key="v.id">
+                          <td class="ana-vt-name">{{ v.ten }}</td>
+                          <td class="ana-vt-gram">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              :value="(v.simGram ?? v.gram).toFixed(1)"
+                              @input="onGramInput(v.id, ($event.target as HTMLInputElement).value)"
+                            />
+                          </td>
+                          <td class="ana-vt-pct">{{ anaTotalSim > 0 ? Math.round((v.simGram ?? v.gram) / anaTotalSim * 100) : 0 }}%</td>
+                          <td class="ana-vt-role">
+                            <span
+                              v-if="v.vai_tro_nhap"
+                              class="ana-role-chip"
+                              :class="{ 'ana-role-chip--outline': !vaiTroMatchSuyLuan(v) }"
+                              :style="{ background: vaiTroNhapColor(v.vai_tro_nhap) }"
+                            >{{ v.vai_tro_nhap }}</span>
+                            <span v-else class="ana-role-empty">—</span>
+                          </td>
+                          <td class="ana-vt-role">
+                            <span class="ana-role-chip" :style="{ background: v.color }">{{ v.vai_tro }}</span>
+                          </td>
+                          <td class="ana-vt-qk">{{ v.quy_kinh || '—' }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+          <div v-else class="ana-empty">Bài thuốc chưa có vị thuốc nào để phân tích.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" @click="closeAnalysis">Đóng</button>
         </div>
       </div>
     </div>
@@ -1138,4 +2512,240 @@ async function deleteViThuoc() {
   border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; color: inherit;
 }
 .chip-x:hover { background: rgba(0,0,0,0.18); }
+
+/* Header actions */
+.header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Import progress */
+.import-progress-text { margin: 0 0 12px; font-size: var(--font-size-md); color: var(--gray-700); text-align: center; }
+.progress-bar { width: 100%; height: 10px; background: var(--gray-200); border-radius: 999px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--brown-500), var(--brown-700)); transition: width 0.2s ease; }
+
+/* Import result summary + sections */
+.import-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+.summary-item { display: flex; flex-direction: column; align-items: center; padding: 10px; background: var(--gray-50); border-radius: var(--radius-md); border: 1px solid var(--gray-200); }
+.summary-label { font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; }
+.summary-value { font-size: 22px; font-weight: 700; color: var(--gray-800); margin-top: 4px; }
+.summary-value-success { color: #059669; }
+.summary-value-info { color: #0369a1; }
+.summary-value-error { color: var(--danger); }
+
+.import-section { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--gray-200); }
+.import-section-title { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: var(--font-size-md); font-weight: 700; color: var(--brown-900); }
+.import-section-hint { margin: 0 0 8px; font-size: 12px; color: var(--gray-500); }
+.missing-list { list-style: none; padding: 0; margin: 0; max-height: 240px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: var(--radius-md); }
+.missing-list li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 12px; border-bottom: 1px solid var(--gray-100); font-size: 13px; }
+.missing-list li:last-child { border-bottom: none; }
+.missing-name { color: var(--gray-800); font-weight: 500; }
+.missing-rows { color: var(--gray-500); font-size: 12px; white-space: nowrap; }
+.badge-warn { background: #fef3c7; color: #92400e; }
+.badge-error { background: #fee2e2; color: var(--danger); }
+
+/* ─── Phân tích bài thuốc ─── */
+.btn-analyze { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+.btn-analyze:hover { background: #fde68a; border-color: #f59e0b; color: #78350f; }
+
+.ana-overlay { padding: var(--space-2); }
+.ana-modal {
+  max-width: 1180px;
+  width: 100%;
+  max-height: 95vh;
+}
+.ana-body { padding: var(--space-4); background: #FAF8F3; }
+.ana-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #A09580;
+  font-style: italic;
+}
+
+.ana-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+}
+.ana-section-title {
+  font-weight: 700;
+  color: var(--brown-800);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.ana-sub-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-600);
+  margin: 12px 0 6px;
+}
+.ana-hint {
+  font-size: 11px;
+  color: var(--gray-400);
+  line-height: 1.4;
+}
+.ana-muted { color: var(--gray-400); font-size: 13px; font-style: italic; }
+
+/* Tứ khí strip */
+.tukhi-strip {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--white);
+}
+.tukhi-row { display: flex; }
+.tukhi-arrow {
+  flex: 1;
+  min-height: 24px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 2px;
+}
+.tukhi-arrow-mark { font-size: 14px; line-height: 1; color: #111; }
+.tukhi-bar { flex: 1; height: 26px; }
+.tukhi-labels { background: #FAFAF8; }
+.tukhi-label {
+  flex: 1;
+  border-top: 1px solid var(--gray-200);
+  padding: 6px 2px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.25;
+}
+.tukhi-label-vn { font-weight: 600; color: var(--brown-800); }
+.tukhi-label-zh { color: var(--gray-500); font-size: 10px; }
+
+/* Layout 2 cột */
+.ana-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 36%);
+  gap: var(--space-3);
+  align-items: start;
+}
+.ana-left { display: flex; flex-direction: column; min-width: 0; }
+.ana-right { min-width: 0; }
+@media (max-width: 900px) {
+  .ana-layout { grid-template-columns: 1fr; }
+}
+
+/* Radar card */
+.ana-radar-card {
+  display: grid;
+  grid-template-columns: minmax(120px, 22%) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+}
+.ana-radar-side { min-width: 0; }
+.ana-radar-canvas-wrap {
+  position: relative;
+  height: 200px;
+  min-height: 160px;
+  width: 100%;
+}
+.ana-radar-canvas-wrap canvas { display: block; width: 100% !important; height: 100% !important; }
+
+/* Dosage table */
+.ana-dosage {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  position: sticky;
+  top: 0;
+}
+.ana-dosage-head {
+  font-weight: 700;
+  color: var(--brown-800);
+  font-size: 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.ana-dosage-total { font-weight: 400; font-size: 12px; color: var(--gray-400); }
+.ana-reset-btn {
+  margin-left: auto;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--brown-300);
+  background: var(--brown-50);
+  color: var(--brown-700);
+  cursor: pointer;
+}
+.ana-reset-btn:hover { background: var(--brown-100); }
+.ana-dosage-hint { margin-bottom: 8px; }
+
+.ana-dosage-tbl-wrap { overflow-x: auto; }
+.ana-dosage-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ana-dosage-tbl thead tr {
+  background: var(--gray-50);
+  border-bottom: 2px solid var(--gray-200);
+}
+.ana-dosage-tbl th {
+  padding: 6px 6px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+.ana-dosage-tbl th:nth-child(2),
+.ana-dosage-tbl th:nth-child(3),
+.ana-dosage-tbl th:nth-child(4) { text-align: center; }
+.ana-dosage-tbl td { padding: 5px 6px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+.ana-vt-name { font-weight: 600; color: var(--brown-900); }
+.ana-vt-gram { text-align: center; }
+.ana-vt-gram input {
+  width: 72px;
+  text-align: center;
+  padding: 5px 6px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  background: #FFFCF7;
+  color: var(--gray-800);
+}
+.ana-vt-gram input:focus {
+  outline: none;
+  border-color: var(--brown-500);
+  box-shadow: 0 0 0 2px rgba(146, 64, 14, 0.12);
+}
+.ana-vt-pct { text-align: center; color: var(--gray-600); }
+.ana-vt-role { text-align: center; }
+.ana-role-chip {
+  display: inline-block;
+  color: var(--white);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+/* Nhập khác Suy luận → viền đứt, nền nhạt, chữ đậm để cảnh báo lệch */
+.ana-role-chip--outline {
+  background: transparent !important;
+  color: var(--gray-700);
+  border: 1.5px dashed currentColor;
+  padding: 1px 9px;
+}
+.ana-role-empty { color: var(--gray-400); font-style: italic; font-size: 12px; }
+.ana-vt-qk { font-size: 11px; color: var(--gray-500); }
+
+/* Chip phân tích */
+.ana-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.ana-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+.ana-chip-phap { border-color: #7A9B8E; background: #E8F2EE; color: #2D4A3E; }
+.ana-chip-cong { border-color: #D4C5A0; background: #F5F0E8; color: #5B3A1A; }
+.ana-chip-kk { border-color: #E8A598; background: #FDF5F3; color: #7A2E23; }
+.ana-chip-tacdung { border-color: #C49A6C; background: #FAEBD8; color: #5B3A1A; }
+.ana-sub-hint { font-weight: 400; color: var(--gray-400); font-size: 10px; }
 </style>

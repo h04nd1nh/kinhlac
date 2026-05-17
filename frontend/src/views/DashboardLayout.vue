@@ -14,7 +14,7 @@ const navItems = [
   { name: 'Bệnh nhân', routeName: 'patients', icon: 'patients' },
   { name: 'Lịch khám', routeName: 'appointments', icon: 'calendar' },
   { name: 'Bệnh tây y', routeName: 'western-medicine', icon: 'stethoscope' },
-  { name: 'Bệnh đông y', routeName: 'meridian-diseases', icon: 'rules' },
+  { name: 'Bệnh đo kinh lạc', routeName: 'meridian-diseases', icon: 'rules' },
   { name: 'Quản lý thuốc', routeName: 'medicines', icon: 'pill' },
   { name: 'Triệu chứng', routeName: 'symptoms', icon: 'clipboard' },
   { name: 'Pháp trị', routeName: 'treatments', icon: 'shield' },
@@ -129,7 +129,7 @@ function handleLogout() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
           </button>
           <h1 class="page-title">
-            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (currentRouteName === 'new-examination' ? 'Khám mới' : currentRouteName === 'meridian-results' ? 'Kết quả đo kinh lạc' : currentRouteName === 'western-medicine' ? 'Bệnh tây y' : currentRouteName === 'meridian-diseases' ? 'Bệnh đông y' : currentRouteName === 'medicines' ? 'Quản lý thuốc' : currentRouteName === 'symptoms' ? 'Triệu chứng' : currentRouteName === 'treatments' ? 'Pháp trị' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ')) }}
+            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (currentRouteName === 'new-examination' ? 'Khám mới' : currentRouteName === 'meridian-results' ? 'Kết quả đo kinh lạc' : currentRouteName === 'western-medicine' ? 'Bệnh tây y' : currentRouteName === 'meridian-diseases' ? 'Bệnh đo kinh lạc' : currentRouteName === 'medicines' ? 'Quản lý thuốc' : currentRouteName === 'symptoms' ? 'Triệu chứng' : currentRouteName === 'treatments' ? 'Pháp trị' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ')) }}
           </h1>
         </div>
         <div class="header-right">

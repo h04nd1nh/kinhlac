@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { MeridianSyndrome } from '../models/meridian-syndrome.model';
 import { LegacyMeridianSyndrome } from '../models/legacy-meridian-syndrome.model';
 import { BenhDongYExcelService } from './benh-dong-y-excel.controller';
+import { BenhDongYHienDaiService } from './benh-dong-y-hien-dai.controller';
 
 export class AnalyzeInputDto {
   tieutruongtrai: number;
@@ -66,6 +67,13 @@ export class AnalyzeOutputDto {
     outputCell: string;
     logicExpression?: string;
   }>;
+  modernSyndromes?: Array<{
+    id: number;
+    code: string;
+    name: string;
+    outputCell: string;
+    logicExpression?: string;
+  }>;
 }
 
 type LegacySuggestedRow = LegacyMeridianSyndrome & {
@@ -97,6 +105,7 @@ export class MeridiansService {
     @InjectRepository(LegacyMeridianSyndrome)
     private readonly legacyMeridianRepo: Repository<LegacyMeridianSyndrome>,
     private readonly benhDongYExcelService: BenhDongYExcelService,
+    private readonly benhDongYHienDaiService: BenhDongYHienDaiService,
   ) {}
 
   private round2(n: number): number {
@@ -571,7 +580,10 @@ export class MeridiansService {
     );
 
     const excelIndicators = this.buildExcelIndicators(data);
-    const excelDiagnose = await this.benhDongYExcelService.diagnose(excelIndicators);
+    const [excelDiagnose, modernDiagnose] = await Promise.all([
+      this.benhDongYExcelService.diagnose(excelIndicators),
+      this.benhDongYHienDaiService.diagnose(excelIndicators),
+    ]);
 
     return {
       am_duong,
@@ -581,6 +593,7 @@ export class MeridiansService {
       currentSyndromes: suggested,
       legacySyndromes: legacySuggested,
       excelSyndromes: excelDiagnose.matched,
+      modernSyndromes: modernDiagnose.matched,
       comparisonRows,
       syndromes: suggested,
     };

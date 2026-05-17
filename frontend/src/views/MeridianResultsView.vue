@@ -37,6 +37,10 @@ const excelSyndromesList = computed(() => {
   return examination.value?.excelSyndromes || []
 })
 
+const modernSyndromesList = computed(() => {
+  return examination.value?.modernSyndromes || []
+})
+
 const examDisplay = computed(() => {
   if (!examination.value) return {
     ticketNumber: '#' + examId.value,
@@ -404,6 +408,13 @@ type ExcelHint =
   | { zone: 'footer' }
 
 const excelFocusRuleId = ref<number | null>(null)
+const modernFocusRuleId = ref<number | null>(null)
+const showMoHinhBenhLy = ref(false)
+
+// Có focus rule (Excel hoặc Hiện đại) — dùng để giữ logic dim/highlight chung
+const anyRuleFocusActive = computed(
+  () => excelFocusRuleId.value != null || modernFocusRuleId.value != null,
+)
 
 watch(
   () => excelSyndromesList.value,
@@ -414,10 +425,22 @@ watch(
   }
 )
 
+watch(
+  () => modernSyndromesList.value,
+  (list) => {
+    if (modernFocusRuleId.value != null && !list.some((x: { id: number }) => x.id === modernFocusRuleId.value)) {
+      modernFocusRuleId.value = null
+    }
+  }
+)
+
 const excelHighlightHints = computed<ExcelHint[]>(() => {
-  if (excelFocusRuleId.value == null) return []
-  const item = excelSyndromesList.value.find((x: { id: number }) => x.id === excelFocusRuleId.value)
-  const logic = item?.logicExpression
+  let logic: string | null | undefined
+  if (excelFocusRuleId.value != null) {
+    logic = excelSyndromesList.value.find((x: { id: number }) => x.id === excelFocusRuleId.value)?.logicExpression
+  } else if (modernFocusRuleId.value != null) {
+    logic = modernSyndromesList.value.find((x: { id: number }) => x.id === modernFocusRuleId.value)?.logicExpression
+  }
   if (!logic || typeof logic !== 'string') return []
   return extractExcelRefsFromLogic(logic).map(refToHint).filter((h): h is ExcelHint => h !== null)
 })
@@ -483,11 +506,19 @@ function refToHint(ref: string): ExcelHint | null {
 
 function toggleExcelFocus(id: number) {
   batCuongFocus.value = null
+  modernFocusRuleId.value = null
   excelFocusRuleId.value = excelFocusRuleId.value === id ? null : id
+}
+
+function toggleModernFocus(id: number) {
+  batCuongFocus.value = null
+  excelFocusRuleId.value = null
+  modernFocusRuleId.value = modernFocusRuleId.value === id ? null : id
 }
 
 function toggleBatCuongFocus(key: BatCuongFocusKey) {
   excelFocusRuleId.value = null
+  modernFocusRuleId.value = null
   batCuongFocus.value = batCuongFocus.value === key ? null : key
 }
 
@@ -501,7 +532,7 @@ function sectionTouchesExcel(which: 'upper' | 'lower'): boolean {
 }
 
 function sectionTitleClassMerged(which: 'upper' | 'lower') {
-  if (excelFocusRuleId.value != null) {
+  if (anyRuleFocusActive.value) {
     if (!excelHighlightHints.value.length) return ''
     return sectionTouchesExcel(which) ? '' : 'bc-section-title--dim'
   }
@@ -509,12 +540,12 @@ function sectionTitleClassMerged(which: 'upper' | 'lower') {
 }
 
 function statsRowClassMerged(which: 'upper' | 'lower') {
-  if (excelFocusRuleId.value != null) return ''
+  if (anyRuleFocusActive.value) return ''
   return statsRowClass(which)
 }
 
 function excelStatColClass(which: 'upper' | 'lower', statIdx: number): string {
-  if (excelFocusRuleId.value == null) return ''
+  if (!anyRuleFocusActive.value) return ''
   const hints = excelHighlightHints.value
   const want = which === 'upper' ? 'upperStat' : 'lowerStat'
   const statHints = hints.filter((h): h is Extract<ExcelHint, { zone: 'upperStat' | 'lowerStat' }> => h.zone === want)
@@ -524,7 +555,7 @@ function excelStatColClass(which: 'upper' | 'lower', statIdx: number): string {
 }
 
 function excelTdClass(which: 'upper' | 'lower', rowIdx: number, colIdx: number): string {
-  if (excelFocusRuleId.value == null) return ''
+  if (!anyRuleFocusActive.value) return ''
   const hints = excelHighlightHints.value
   const bodyZone = which === 'upper' ? 'upperBody' : 'lowerBody'
   const bodyHints = hints.filter((h): h is Extract<ExcelHint, { zone: 'upperBody' | 'lowerBody' }> => h.zone === bodyZone)
@@ -534,17 +565,17 @@ function excelTdClass(which: 'upper' | 'lower', rowIdx: number, colIdx: number):
 }
 
 function upperRowClassMerged(idx: number) {
-  if (excelFocusRuleId.value != null) return ''
+  if (anyRuleFocusActive.value) return ''
   return upperRowClass(idx)
 }
 
 function lowerRowClassMerged(idx: number) {
-  if (excelFocusRuleId.value != null) return ''
+  if (anyRuleFocusActive.value) return ''
   return lowerRowClass(idx)
 }
 
 function footerDiffClassMerged() {
-  if (excelFocusRuleId.value != null) {
+  if (anyRuleFocusActive.value) {
     const hints = excelHighlightHints.value
     if (!hints.length) return ''
     if (hints.some(h => h.zone === 'footer')) return 'excel-footer--focus'
@@ -778,36 +809,11 @@ function footerDiffClassMerged() {
             </h2>
             <div class="result-card p-5">
               <div class="info-group">
-                <h4 class="info-label mb-3">Mô Hình Bệnh Lý</h4>
-                <div v-if="comparisonRows.length" class="comparison-list">
-                  <div class="comparison-header">
-                    <span class="col-left">Mô hình app gốc</span>
-                    <span class="col-right">Mô hình hiện tại</span>
-                  </div>
-                  <div v-for="(row, idx) in comparisonRows" :key="idx" class="comparison-row">
-                    <div class="comparison-cell">
-                      <span class="synd-idx">{{ Number(idx) + 1 }}</span>
-                      <span class="synd-name">{{ row.legacy?.tieuket || '—' }}</span>
-                      <span v-if="row.legacy?.rate" class="synd-rate">{{ Math.round(row.legacy.rate * 100) }}%</span>
-                    </div>
-                    <div class="comparison-cell">
-                      <span class="synd-idx">{{ Number(idx) + 1 }}</span>
-                      <span class="synd-name">{{ row.current?.tieuket || '—' }}</span>
-                      <span v-if="row.current?.rate" class="synd-rate">{{ Math.round(row.current.rate * 100) }}%</span>
-                    </div>
-                  </div>
-                </div>
-                <div v-else class="pathology-placeholder">
-                  <p>Không có mô hình bệnh lý nào được tìm thấy</p>
-                </div>
-              </div>
-
-              <div class="info-group mt-4">
                 <h4 class="info-label mb-3">Mô hình bệnh từ Excel</h4>
                 <div v-if="excelSyndromesList.length" class="comparison-list">
                   <div
                     v-for="(item, idx) in excelSyndromesList"
-                    :key="item.code || idx"
+                    :key="'excel-' + (item.code || idx)"
                     class="comparison-cell comparison-cell--clickable"
                     :class="{ 'comparison-cell--active': excelFocusRuleId === item.id }"
                     role="button"
@@ -824,6 +830,69 @@ function footerDiffClassMerged() {
                 </div>
                 <div v-else class="pathology-placeholder">
                   <p>Không có mô hình Excel nào khớp điều kiện</p>
+                </div>
+              </div>
+
+              <div class="info-group mt-4">
+                <h4 class="info-label mb-3">Mô hình bệnh đông y hiện đại</h4>
+                <div v-if="modernSyndromesList.length" class="comparison-list">
+                  <div
+                    v-for="(item, idx) in modernSyndromesList"
+                    :key="'modern-' + (item.code || idx)"
+                    class="comparison-cell comparison-cell--clickable comparison-cell--modern"
+                    :class="{ 'comparison-cell--active': modernFocusRuleId === item.id }"
+                    role="button"
+                    tabindex="0"
+                    :title="item.logicExpression ? 'Xem ô chỉ số liên quan trên bảng I' : 'Chọn mô hình'"
+                    @click="toggleModernFocus(item.id)"
+                    @keydown.enter.prevent="toggleModernFocus(item.id)"
+                    @keydown.space.prevent="toggleModernFocus(item.id)"
+                  >
+                    <span class="synd-idx">{{ Number(idx) + 1 }}</span>
+                    <span class="synd-name">{{ item.name }}</span>
+                    <span class="synd-rate">{{ item.outputCell }}</span>
+                  </div>
+                </div>
+                <div v-else class="pathology-placeholder">
+                  <p>Không có mô hình hiện đại nào khớp điều kiện</p>
+                </div>
+              </div>
+
+              <div class="info-group mt-4">
+                <button
+                  type="button"
+                  class="mhbl-toggle"
+                  :class="{ 'mhbl-toggle--open': showMoHinhBenhLy }"
+                  :aria-expanded="showMoHinhBenhLy"
+                  @click="showMoHinhBenhLy = !showMoHinhBenhLy"
+                >
+                  <span class="mhbl-toggle-caret">▸</span>
+                  <span class="mhbl-toggle-label">Mô Hình Bệnh Lý</span>
+                  <span class="mhbl-toggle-hint">(App gốc &amp; Hiện tại)</span>
+                  <span class="mhbl-toggle-action">{{ showMoHinhBenhLy ? 'Ẩn' : 'Hiện' }}</span>
+                </button>
+                <div v-if="showMoHinhBenhLy" class="mhbl-content">
+                  <div v-if="comparisonRows.length" class="comparison-list">
+                    <div class="comparison-header">
+                      <span class="col-left">Mô hình app gốc</span>
+                      <span class="col-right">Mô hình hiện tại</span>
+                    </div>
+                    <div v-for="(row, idx) in comparisonRows" :key="idx" class="comparison-row">
+                      <div class="comparison-cell">
+                        <span class="synd-idx">{{ Number(idx) + 1 }}</span>
+                        <span class="synd-name">{{ row.legacy?.tieuket || '—' }}</span>
+                        <span v-if="row.legacy?.rate" class="synd-rate">{{ Math.round(row.legacy.rate * 100) }}%</span>
+                      </div>
+                      <div class="comparison-cell">
+                        <span class="synd-idx">{{ Number(idx) + 1 }}</span>
+                        <span class="synd-name">{{ row.current?.tieuket || '—' }}</span>
+                        <span v-if="row.current?.rate" class="synd-rate">{{ Math.round(row.current.rate * 100) }}%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="pathology-placeholder">
+                    <p>Không có mô hình bệnh lý nào được tìm thấy</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1144,6 +1213,67 @@ function footerDiffClassMerged() {
   box-shadow: 0 0 0 2px rgba(120, 53, 15, 0.12);
   background: var(--brown-50);
 }
+/* Mô hình hiện đại — viền/nền xanh để phân biệt với Excel màu nâu */
+.comparison-cell--modern {
+  border-color: #93c5fd;
+  background: #f0f9ff;
+}
+.comparison-cell--modern.comparison-cell--clickable:hover {
+  border-color: #3b82f6;
+  background: #dbeafe;
+}
+.comparison-cell--modern.comparison-cell--active {
+  border-color: #2563eb;
+  background: #dbeafe;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+/* Toggle Mô Hình Bệnh Lý */
+.mhbl-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--brown-50);
+  border: 1px dashed var(--brown-200);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--brown-800);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.mhbl-toggle:hover {
+  background: var(--brown-100);
+  border-color: var(--brown-400);
+}
+.mhbl-toggle-caret {
+  display: inline-block;
+  transition: transform 0.2s ease;
+  color: var(--brown-500);
+}
+.mhbl-toggle--open .mhbl-toggle-caret { transform: rotate(90deg); }
+.mhbl-toggle-hint {
+  font-weight: 400;
+  text-transform: none;
+  color: var(--gray-500);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0;
+}
+.mhbl-toggle-action {
+  margin-left: auto;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--brown-600);
+  background: var(--white);
+  border: 1px solid var(--brown-300);
+  padding: 2px 10px;
+  border-radius: 999px;
+  letter-spacing: 0;
+}
+.mhbl-content { margin-top: var(--space-3); }
 .col-left, .col-right {
   background: var(--brown-50);
   border: 1px solid var(--brown-100);

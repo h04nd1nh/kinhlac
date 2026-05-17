@@ -9,7 +9,7 @@ const NewExaminationView = () => import('@/views/NewExaminationView.vue')
 const MeridianResultsView = () => import('@/views/MeridianResultsView.vue')
 const AppointmentsView = () => import('@/views/AppointmentsView.vue')
 const WesternMedicineView = () => import('@/views/WesternMedicineView.vue')
-const MeridianDiseasesView = () => import('@/views/MeridianDiseasesView.vue')
+const MeridianDiseasesTabsView = () => import('@/views/MeridianDiseasesTabsView.vue')
 const MedicinesView = () => import('@/views/MedicinesView.vue')
 const SymptomsView = () => import('@/views/SymptomsView.vue')
 const TreatmentsView = () => import('@/views/TreatmentsView.vue')
@@ -53,7 +53,7 @@ const router = createRouter({
         {
           path: 'meridian-diseases',
           name: 'meridian-diseases',
-          component: MeridianDiseasesView,
+          component: MeridianDiseasesTabsView,
         },
         {
           path: 'medicines',
