@@ -44,9 +44,12 @@ function todayYMD(): string {
 const currentDate = ref(parseYMD(todayYMD()))
 const selectedDate = ref<string>(todayYMD())
 
-const isLoading = ref(false)
+const isLoadingMonth = ref(false)
+const isLoadingDay = ref(false)
 const error = ref<string | null>(null)
 const actionLoading = ref(false)
+const actionSlotId = ref<number | null>(null)
+const actionType = ref<string | null>(null)
 
 const slotsByDate = ref<Record<string, AppointmentSlot[]>>({})
 const summaryByDate = ref<Record<string, DaySummary>>({})
@@ -101,7 +104,7 @@ function monthRange(date: Date): { from: string; to: string } {
 }
 
 async function loadMonth() {
-  isLoading.value = true
+  isLoadingMonth.value = true
   error.value = null
   try {
     const { from, to } = monthRange(currentDate.value)
@@ -113,11 +116,12 @@ async function loadMonth() {
     console.error(err)
     error.value = 'Lỗi tải dữ liệu: ' + err.message
   } finally {
-    isLoading.value = false
+    isLoadingMonth.value = false
   }
 }
 
 async function loadDay(date: string) {
+  isLoadingDay.value = true
   try {
     const [slots, eff] = await Promise.all([
       api.get<AppointmentSlot[]>(`/appointment-slots?date=${date}`),
@@ -128,6 +132,8 @@ async function loadDay(date: string) {
   } catch (err: any) {
     console.error(err)
     error.value = 'Lỗi tải ngày: ' + err.message
+  } finally {
+    isLoadingDay.value = false
   }
 }
 
@@ -226,6 +232,7 @@ function isToday(ymd: string) {
 async function generateForDate() {
   if (!confirm('Sinh vé khám cho ngày ' + selectedDate.value + ' ?')) return
   actionLoading.value = true
+  actionType.value = 'gen-day'
   try {
     const res = await api.post<{ created: number; total: number }>(
       `/clinic-schedule/generate/${selectedDate.value}`,
@@ -237,6 +244,7 @@ async function generateForDate() {
     alert('Lỗi: ' + err.message)
   } finally {
     actionLoading.value = false
+    actionType.value = null
   }
 }
 
@@ -250,6 +258,7 @@ async function generateForWeek() {
   const to = formatYMD(end)
   if (!confirm(`Sinh vé cho tuần ${from} → ${to}?`)) return
   actionLoading.value = true
+  actionType.value = 'gen-week'
   try {
     const res = await api.post<{ date: string; created: number; total: number }[]>(
       `/clinic-schedule/generate-range?from=${from}&to=${to}`,
@@ -262,56 +271,49 @@ async function generateForWeek() {
     alert('Lỗi: ' + err.message)
   } finally {
     actionLoading.value = false
+    actionType.value = null
+  }
+}
+
+async function runSlotAction(
+  slot: AppointmentSlot,
+  type: 'close' | 'open' | 'cancel' | 'complete',
+  endpoint: string,
+) {
+  actionLoading.value = true
+  actionSlotId.value = slot.id
+  actionType.value = type
+  try {
+    await api.put(`/appointment-slots/${slot.id}/${endpoint}`, {})
+    await Promise.all([loadDay(selectedDate.value), loadMonth()])
+  } catch (err: any) {
+    alert('Lỗi: ' + err.message)
+  } finally {
+    actionLoading.value = false
+    actionSlotId.value = null
+    actionType.value = null
   }
 }
 
 async function closeSlot(slot: AppointmentSlot) {
-  actionLoading.value = true
-  try {
-    await api.put(`/appointment-slots/${slot.id}/close`, {})
-    await Promise.all([loadDay(selectedDate.value), loadMonth()])
-  } catch (err: any) {
-    alert('Lỗi: ' + err.message)
-  } finally {
-    actionLoading.value = false
-  }
+  await runSlotAction(slot, 'close', 'close')
 }
 
 async function openSlot(slot: AppointmentSlot) {
-  actionLoading.value = true
-  try {
-    await api.put(`/appointment-slots/${slot.id}/open`, {})
-    await Promise.all([loadDay(selectedDate.value), loadMonth()])
-  } catch (err: any) {
-    alert('Lỗi: ' + err.message)
-  } finally {
-    actionLoading.value = false
-  }
+  await runSlotAction(slot, 'open', 'open')
 }
 
 async function cancelSlot(slot: AppointmentSlot) {
   if (!confirm('Huỷ vé này?')) return
-  actionLoading.value = true
-  try {
-    await api.put(`/appointment-slots/${slot.id}/cancel`, {})
-    await Promise.all([loadDay(selectedDate.value), loadMonth()])
-  } catch (err: any) {
-    alert('Lỗi: ' + err.message)
-  } finally {
-    actionLoading.value = false
-  }
+  await runSlotAction(slot, 'cancel', 'cancel')
 }
 
 async function completeSlot(slot: AppointmentSlot) {
-  actionLoading.value = true
-  try {
-    await api.put(`/appointment-slots/${slot.id}/complete`, {})
-    await Promise.all([loadDay(selectedDate.value), loadMonth()])
-  } catch (err: any) {
-    alert('Lỗi: ' + err.message)
-  } finally {
-    actionLoading.value = false
-  }
+  await runSlotAction(slot, 'complete', 'complete')
+}
+
+function isSlotBusy(slot: AppointmentSlot) {
+  return actionSlotId.value === slot.id
 }
 
 function openBookModal(slot: AppointmentSlot) {
@@ -404,17 +406,22 @@ function goToPatient(id: number) {
       <div class="calendar-card">
         <div class="cal-toolbar">
           <div class="cal-nav">
-            <button class="btn-icon" @click="prevMonth"><span>‹</span></button>
-            <button class="btn-today" @click="goToday">Hôm nay</button>
-            <button class="btn-icon" @click="nextMonth"><span>›</span></button>
+            <button class="btn-icon" :disabled="isLoadingMonth" @click="prevMonth"><span>‹</span></button>
+            <button class="btn-today" :disabled="isLoadingMonth" @click="goToday">Hôm nay</button>
+            <button class="btn-icon" :disabled="isLoadingMonth" @click="nextMonth"><span>›</span></button>
           </div>
-          <h2 class="cal-title">{{ calendarTitle }}</h2>
+          <div class="cal-title-wrap">
+            <h2 class="cal-title">{{ calendarTitle }}</h2>
+            <span v-if="isLoadingMonth" class="inline-spinner" aria-label="Đang tải"></span>
+          </div>
         </div>
+
+        <div class="progress-bar" :class="{ 'is-loading': isLoadingMonth }"></div>
 
         <div class="cal-header-row">
           <div>T2</div><div>T3</div><div>T4</div><div>T5</div><div>T6</div><div>T7</div><div>CN</div>
         </div>
-        <div class="cal-grid">
+        <div class="cal-grid" :class="{ 'is-loading': isLoadingMonth }">
           <div
             v-for="cell in monthGrid"
             :key="cell.ymd"
@@ -450,8 +457,12 @@ function goToPatient(id: number) {
 
       <!-- Day panel (right) -->
       <div class="day-card">
+        <div class="progress-bar" :class="{ 'is-loading': isLoadingDay }"></div>
         <div class="day-header">
-          <h2 class="day-title">{{ parseYMD(selectedDate).toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</h2>
+          <h2 class="day-title">
+            {{ parseYMD(selectedDate).toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}
+            <span v-if="isLoadingDay" class="inline-spinner inline-spinner-dark" aria-label="Đang tải ngày"></span>
+          </h2>
           <div v-if="effectiveSchedule" class="day-meta">
             <span v-if="effectiveSchedule.isClosed" class="badge badge-danger">Nghỉ</span>
             <template v-else>
@@ -486,31 +497,42 @@ function goToPatient(id: number) {
         <div class="day-actions">
           <button
             class="btn btn-primary"
-            :disabled="actionLoading"
+            :disabled="actionLoading || isLoadingDay"
             @click="generateForDate"
           >
-            Sinh vé cho ngày này
+            <span v-if="actionType === 'gen-day'" class="inline-spinner inline-spinner-light"></span>
+            {{ actionType === 'gen-day' ? 'Đang sinh vé...' : 'Sinh vé cho ngày này' }}
           </button>
           <button
             class="btn btn-secondary"
-            :disabled="actionLoading"
+            :disabled="actionLoading || isLoadingDay"
             @click="generateForWeek"
           >
-            Sinh vé cho cả tuần
+            <span v-if="actionType === 'gen-week'" class="inline-spinner"></span>
+            {{ actionType === 'gen-week' ? 'Đang sinh vé...' : 'Sinh vé cho cả tuần' }}
           </button>
         </div>
 
-        <div v-if="daySlots.length === 0" class="empty">
+        <!-- Skeleton khi load ngày lần đầu -->
+        <div v-if="isLoadingDay && daySlots.length === 0" class="slots-grid">
+          <div v-for="i in 6" :key="'skel-' + i" class="slot-card slot-skeleton">
+            <div class="skel-line skel-time"></div>
+            <div class="skel-line skel-status"></div>
+            <div class="skel-line skel-actions"></div>
+          </div>
+        </div>
+
+        <div v-else-if="daySlots.length === 0" class="empty">
           <p>Chưa có vé nào cho ngày này.</p>
           <p class="empty-hint">Nhấn "Sinh vé cho ngày này" để tạo theo cấu hình.</p>
         </div>
 
-        <div v-else class="slots-grid">
+        <div v-else class="slots-grid" :class="{ 'is-loading': isLoadingDay }">
           <div
             v-for="slot in daySlots"
             :key="slot.id"
             class="slot-card"
-            :class="'slot-' + slot.status.toLowerCase()"
+            :class="['slot-' + slot.status.toLowerCase(), { 'is-busy': isSlotBusy(slot) }]"
           >
             <div class="slot-head">
               <span class="slot-time">{{ slot.slotTime }}</span>
@@ -543,6 +565,10 @@ function goToPatient(id: number) {
               <template v-else-if="slot.status === 'CANCELLED'">
                 <button class="btn-sm btn-primary" :disabled="actionLoading" @click="openSlot(slot)">Mở lại</button>
               </template>
+            </div>
+
+            <div v-if="isSlotBusy(slot)" class="slot-overlay">
+              <span class="inline-spinner inline-spinner-dark"></span>
             </div>
           </div>
         </div>
@@ -578,7 +604,10 @@ function goToPatient(id: number) {
         </div>
         <div class="modal-actions">
           <button class="btn btn-ghost" @click="closeBookModal">Huỷ</button>
-          <button class="btn btn-primary" :disabled="actionLoading || !bookPatientId" @click="confirmBook">Đặt vé</button>
+          <button class="btn btn-primary" :disabled="actionLoading || !bookPatientId" @click="confirmBook">
+            <span v-if="actionLoading && bookModal" class="inline-spinner inline-spinner-light"></span>
+            {{ actionLoading && bookModal ? 'Đang đặt...' : 'Đặt vé' }}
+          </button>
         </div>
       </div>
     </div>
@@ -609,6 +638,67 @@ function goToPatient(id: number) {
 .btn-today { padding: 4px 12px; border: 1px solid var(--brown-300); border-radius: var(--radius-md); background: var(--white); color: var(--brown-700); font-weight: 600; font-size: var(--font-size-sm); }
 .btn-today:hover { background: var(--brown-100); }
 .cal-title { font-size: var(--font-size-md); font-weight: 700; color: var(--brown-900); }
+.cal-title-wrap { display: flex; align-items: center; gap: var(--space-2); }
+
+/* --- Loading indicators --- */
+.progress-bar { height: 3px; background: transparent; overflow: hidden; position: relative; }
+.progress-bar.is-loading::before {
+  content: ''; position: absolute; top: 0; left: 0; height: 100%; width: 35%;
+  background: linear-gradient(90deg, transparent, var(--brown-500), transparent);
+  animation: progress-slide 1.1s ease-in-out infinite;
+}
+@keyframes progress-slide {
+  0% { left: -35%; }
+  100% { left: 100%; }
+}
+
+.inline-spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid var(--brown-200);
+  border-top-color: var(--brown-600);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  vertical-align: middle;
+}
+.inline-spinner-dark {
+  border-color: rgba(120, 53, 15, 0.2);
+  border-top-color: var(--brown-700);
+}
+.inline-spinner-light {
+  border-color: rgba(255,255,255,0.4);
+  border-top-color: var(--white);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.cal-grid.is-loading { opacity: 0.55; pointer-events: none; transition: opacity .2s; }
+.slots-grid.is-loading { opacity: 0.6; transition: opacity .2s; }
+
+/* Skeleton slot card */
+.slot-skeleton { background: var(--gray-50); border-color: var(--gray-200); pointer-events: none; min-height: 120px; }
+.skel-line {
+  background: linear-gradient(90deg, #eef0f2 0%, #f7f8fa 50%, #eef0f2 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s linear infinite;
+  border-radius: 4px;
+}
+.skel-time { height: 14px; width: 60%; }
+.skel-status { height: 10px; width: 40%; }
+.skel-actions { height: 22px; width: 80%; margin-top: auto; }
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Slot busy overlay */
+.slot-card { position: relative; }
+.slot-card.is-busy .slot-actions button { opacity: 0.4; }
+.slot-overlay {
+  position: absolute; inset: 0; background: rgba(255,255,255,0.65);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(1px);
+}
 
 .cal-header-row { display: grid; grid-template-columns: repeat(7, 1fr); background: var(--gray-50); border-bottom: 1px solid var(--gray-200); }
 .cal-header-row > div { padding: var(--space-2); text-align: center; font-size: var(--font-size-xs); font-weight: 700; color: var(--gray-500); }
