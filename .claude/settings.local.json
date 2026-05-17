@@ -6,7 +6,9 @@
       "Bash(npx tsc *)",
       "Bash(npx vue-tsc *)",
       "Bash(echo \"exit=$?\")",
-      "Bash(npx nest *)"
+      "Bash(npx nest *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"const fs=require\\('fs'\\); const t=fs.readFileSync\\('src/components/PharmacologyManager.vue','utf8'\\); console.log\\('lines:', t.split\\('\\\\n'\\).length\\); console.log\\('script start:', t.indexOf\\('<script'\\)\\); console.log\\('script close:', t.indexOf\\('</script>'\\)\\); console.log\\('template start:', t.indexOf\\('<template>'\\)\\); console.log\\('template close:', t.indexOf\\('</template>'\\)\\); console.log\\('style start:', t.indexOf\\('<style'\\)\\); console.log\\('style close:', t.indexOf\\('</style>'\\)\\);\")"
     ]
   }
 }

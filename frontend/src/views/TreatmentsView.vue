@@ -47,6 +47,7 @@ interface FormState {
 }
 
 const isLoading = ref(true)
+const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const dataList = ref<PhapTriRow[]>([])
@@ -275,6 +276,7 @@ function toggleMultiId(list: number[], id: number): number[] {
 }
 
 async function handleSubmit() {
+  if (isSubmitting.value) return
   formError.value = null
   const f = form.value
   if (!f.chung_trang.trim() && !f.nguyen_tac.trim()) {
@@ -289,6 +291,7 @@ async function handleSubmit() {
     id_trieu_chung_list: f.id_trieu_chung_list,
     id_bai_thuoc_list: f.id_bai_thuoc_list,
   }
+  isSubmitting.value = true
   try {
     if (editingId.value != null) {
       await api.put(`/phap-tri/${editingId.value}`, payload)
@@ -299,6 +302,8 @@ async function handleSubmit() {
     closeModal()
   } catch (err: any) {
     formError.value = err.message || 'Không lưu được dữ liệu'
+  } finally {
+    isSubmitting.value = false
   }
 }
 
@@ -308,7 +313,9 @@ function confirmDelete(row: PhapTriRow) {
 }
 
 async function handleDelete() {
+  if (isSubmitting.value) return
   if (!deletingItem.value) return
+  isSubmitting.value = true
   try {
     await api.delete(`/phap-tri/${deletingItem.value.id}`)
     showDeleteConfirm.value = false
@@ -321,6 +328,8 @@ async function handleDelete() {
     error.value = err.message || 'Không xóa được bản ghi'
     showDeleteConfirm.value = false
     deletingItem.value = null
+  } finally {
+    isSubmitting.value = false
   }
 }
 </script>
@@ -617,8 +626,10 @@ async function handleDelete() {
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn-secondary" @click="closeModal">Hủy</button>
-            <button type="submit" class="btn-primary">Lưu</button>
+            <button type="button" class="btn-secondary" :disabled="isSubmitting" @click="closeModal">Hủy</button>
+            <button type="submit" class="btn-primary" :disabled="isSubmitting">
+              {{ isSubmitting ? 'Đang lưu…' : 'Lưu' }}
+            </button>
           </div>
         </form>
       </div>
@@ -638,8 +649,10 @@ async function handleDelete() {
           </p>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn-secondary" @click="showDeleteConfirm = false">Hủy</button>
-          <button type="button" class="btn-danger" @click="handleDelete">Xóa</button>
+          <button type="button" class="btn-secondary" :disabled="isSubmitting" @click="showDeleteConfirm = false">Hủy</button>
+          <button type="button" class="btn-danger" :disabled="isSubmitting" @click="handleDelete">
+            {{ isSubmitting ? 'Đang xóa…' : 'Xóa' }}
+          </button>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import * as XLSX from 'xlsx'
 import { api } from '@/services/api'
 
 interface ViThuoc { id: number; ten_vi_thuoc: string }
@@ -25,6 +26,7 @@ interface NhomLon {
 }
 
 const isLoading = ref(true)
+const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 
 const nhomLonList = ref<NhomLon[]>([])
@@ -63,6 +65,15 @@ const filteredViThuoc = computed(() => {
     .filter((v) => !q || v.ten_vi_thuoc.toLowerCase().includes(q))
     .slice(0, 20)
 })
+
+/** Có khớp chính xác (case-insensitive) trong toàn bộ catalog không? — dùng để hiện nút "Tạo mới". */
+const viThuocExactMatch = computed(() => {
+  const q = viThuocFilter.value.trim().toLowerCase()
+  if (!q) return true
+  return viThuocCatalog.value.some((v) => v.ten_vi_thuoc.trim().toLowerCase() === q)
+})
+
+const creatingViThuoc = ref(false)
 
 const filteredChuTri = computed(() => {
   const q = chuTriFilter.value.trim().toLowerCase()
@@ -123,10 +134,12 @@ function openEditNhomLon(nl: NhomLon) {
 }
 
 async function saveNhomLon() {
+  if (isSubmitting.value) return
   if (!nhomLonForm.value.ten_nhom.trim()) {
     alert('Vui lòng nhập tên nhóm lớn')
     return
   }
+  isSubmitting.value = true
   try {
     const body = {
       ten_nhom: nhomLonForm.value.ten_nhom.trim(),
@@ -144,17 +157,23 @@ async function saveNhomLon() {
     await fetchAll()
   } catch (err: any) {
     alert('Lưu thất bại: ' + err.message)
+  } finally {
+    isSubmitting.value = false
   }
 }
 
 async function deleteNhomLon(nl: NhomLon) {
+  if (isSubmitting.value) return
   if (!confirm(`Xóa nhóm lớn «${nl.ten_nhom}»? Tất cả nhóm nhỏ thuộc nhóm này cũng bị xóa.`)) return
+  isSubmitting.value = true
   try {
     await api.delete(`/nhom-lon-duoc-ly/${nl.id}`)
     if (selectedNhomLonId.value === nl.id) selectedNhomLonId.value = null
     await fetchAll()
   } catch (err: any) {
     alert('Xóa thất bại: ' + err.message)
+  } finally {
+    isSubmitting.value = false
   }
 }
 
@@ -194,11 +213,13 @@ function openEditNhomNho(nn: NhomNho) {
 }
 
 async function saveNhomNho() {
+  if (isSubmitting.value) return
   if (!nhomNhoForm.value.ten_nhom.trim()) {
     alert('Vui lòng nhập tên nhóm nhỏ')
     return
   }
   if (!selectedNhomLonId.value) return
+  isSubmitting.value = true
   try {
     const body = {
       id_nhom_lon: selectedNhomLonId.value,
@@ -218,16 +239,22 @@ async function saveNhomNho() {
     await fetchAll()
   } catch (err: any) {
     alert('Lưu thất bại: ' + err.message)
+  } finally {
+    isSubmitting.value = false
   }
 }
 
 async function deleteNhomNho(nn: NhomNho) {
+  if (isSubmitting.value) return
   if (!confirm(`Xóa nhóm nhỏ «${nn.ten_nhom}»?`)) return
+  isSubmitting.value = true
   try {
     await api.delete(`/nhom-nho-duoc-ly/${nn.id}`)
     await fetchAll()
   } catch (err: any) {
     alert('Xóa thất bại: ' + err.message)
+  } finally {
+    isSubmitting.value = false
   }
 }
 
@@ -236,6 +263,24 @@ function addViThuoc(id: number) {
     nhomNhoForm.value.vi_thuoc_ids.push(id)
   }
   viThuocFilter.value = ''
+}
+
+async function createAndAddViThuoc() {
+  const name = viThuocFilter.value.trim()
+  if (!name || creatingViThuoc.value) return
+  creatingViThuoc.value = true
+  try {
+    const res: any = await api.post('/vi-thuoc', { ten_vi_thuoc: name })
+    const newId: number | undefined = res?.id ?? res?.data?.id
+    const newName: string = res?.data?.ten_vi_thuoc ?? name
+    if (!newId) throw new Error('Server không trả về id vị thuốc mới')
+    viThuocCatalog.value = [...viThuocCatalog.value, { id: newId, ten_vi_thuoc: newName }]
+    addViThuoc(newId)
+  } catch (err: any) {
+    alert('Tạo vị thuốc thất bại: ' + err.message)
+  } finally {
+    creatingViThuoc.value = false
+  }
 }
 function removeViThuoc(id: number) {
   nhomNhoForm.value.vi_thuoc_ids = nhomNhoForm.value.vi_thuoc_ids.filter((x) => x !== id)
@@ -249,6 +294,318 @@ function addChuTri(id: number) {
 function removeChuTri(id: number) {
   nhomNhoForm.value.chu_tri_ids = nhomNhoForm.value.chu_tri_ids.filter((x) => x !== id)
 }
+
+// ── Excel Import / Export ──────────────────────────────────────
+const EXCEL_COLS = [
+  'Nhóm lớn',
+  'Mô tả nhóm lớn',
+  'Thứ tự nhóm lớn',
+  'Nhóm nhỏ',
+  'Liều lượng',
+  'Mô tả nhóm nhỏ',
+  'Thứ tự nhóm nhỏ',
+  'Vị thuốc',
+  'Chủ trị',
+] as const
+
+const isExporting = ref(false)
+const isImporting = ref(false)
+const importFileInput = ref<HTMLInputElement | null>(null)
+const importResult = ref<{
+  rowsProcessed: number
+  nhomLonCreated: number
+  nhomLonUpdated: number
+  nhomNhoCreated: number
+  nhomNhoUpdated: number
+  viThuocCreated: number
+  chuTriCreated: number
+  errors: string[]
+} | null>(null)
+const showImportResultModal = ref(false)
+
+function normKey(s: string): string {
+  return s.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function splitCsv(raw: unknown): string[] {
+  if (raw == null) return []
+  const text = String(raw)
+  if (!text.trim()) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const part of text.split(',')) {
+    const t = part.trim().replace(/\s+/g, ' ')
+    if (!t) continue
+    const k = t.toLowerCase()
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push(t)
+  }
+  return out
+}
+
+function exportToExcel() {
+  if (isExporting.value) return
+  isExporting.value = true
+  try {
+    const rows: Record<string, string | number>[] = []
+    for (const nl of nhomLonList.value) {
+      const nhomNhoArr = nl.nhomNhoList ?? []
+      if (!nhomNhoArr.length) {
+        rows.push({
+          [EXCEL_COLS[0]]: nl.ten_nhom,
+          [EXCEL_COLS[1]]: nl.mo_ta ?? '',
+          [EXCEL_COLS[2]]: nl.thu_tu ?? 0,
+          [EXCEL_COLS[3]]: '',
+          [EXCEL_COLS[4]]: '',
+          [EXCEL_COLS[5]]: '',
+          [EXCEL_COLS[6]]: '',
+          [EXCEL_COLS[7]]: '',
+          [EXCEL_COLS[8]]: '',
+        })
+        continue
+      }
+      for (const nn of nhomNhoArr) {
+        const viNames = (nn.viThuocLinks ?? [])
+          .map((l) => l.viThuoc?.ten_vi_thuoc || viThuocName(l.idViThuoc))
+          .join(', ')
+        const ctNames = (nn.chuTriLinks ?? [])
+          .map((l) => l.chuTri?.ten_chu_tri || chuTriName(l.idChuTri))
+          .join(', ')
+        rows.push({
+          [EXCEL_COLS[0]]: nl.ten_nhom,
+          [EXCEL_COLS[1]]: nl.mo_ta ?? '',
+          [EXCEL_COLS[2]]: nl.thu_tu ?? 0,
+          [EXCEL_COLS[3]]: nn.ten_nhom,
+          [EXCEL_COLS[4]]: nn.lieu_luong ?? '',
+          [EXCEL_COLS[5]]: nn.mo_ta ?? '',
+          [EXCEL_COLS[6]]: nn.thu_tu ?? 0,
+          [EXCEL_COLS[7]]: viNames,
+          [EXCEL_COLS[8]]: ctNames,
+        })
+      }
+    }
+
+    const ws = XLSX.utils.json_to_sheet(rows, { header: [...EXCEL_COLS] })
+    ws['!cols'] = [
+      { wch: 22 }, { wch: 28 }, { wch: 8 },
+      { wch: 26 }, { wch: 12 }, { wch: 28 }, { wch: 8 },
+      { wch: 40 }, { wch: 40 },
+    ]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Nhom duoc ly')
+    const stamp = new Date().toISOString().slice(0, 10)
+    XLSX.writeFile(wb, `nhom-duoc-ly-${stamp}.xlsx`)
+  } catch (err: any) {
+    alert('Xuất Excel thất bại: ' + err.message)
+  } finally {
+    isExporting.value = false
+  }
+}
+
+function triggerImport() {
+  importFileInput.value?.click()
+}
+
+async function findOrCreateViThuocId(
+  name: string,
+  catalogByKey: Map<string, ViThuoc>,
+  stats: { viThuocCreated: number },
+): Promise<number> {
+  const k = normKey(name)
+  const existing = catalogByKey.get(k)
+  if (existing) return existing.id
+  const res: any = await api.post('/vi-thuoc', { ten_vi_thuoc: name })
+  const newId: number | undefined = res?.id ?? res?.data?.id
+  const newName: string = res?.data?.ten_vi_thuoc ?? name
+  if (!newId) throw new Error('Server không trả về id vị thuốc mới')
+  const created: ViThuoc = { id: newId, ten_vi_thuoc: newName }
+  catalogByKey.set(normKey(newName), created)
+  viThuocCatalog.value = [...viThuocCatalog.value, created]
+  stats.viThuocCreated += 1
+  return newId
+}
+
+async function findOrCreateChuTriId(
+  name: string,
+  catalogByKey: Map<string, ChuTri>,
+  stats: { chuTriCreated: number },
+): Promise<number> {
+  const k = normKey(name)
+  const existing = catalogByKey.get(k)
+  if (existing) return existing.id
+  const res: any = await api.post('/chu-tri', { ten_chu_tri: name })
+  // chu-tri POST returns the entity directly (no { data } wrapper) — may also return existing if duplicate.
+  const newId: number | undefined = res?.id ?? res?.data?.id
+  const newName: string = res?.ten_chu_tri ?? res?.data?.ten_chu_tri ?? name
+  if (!newId) throw new Error('Server không trả về id chủ trị mới')
+  const created: ChuTri = { id: newId, ten_chu_tri: newName }
+  catalogByKey.set(normKey(newName), created)
+  chuTriCatalog.value = [...chuTriCatalog.value, created]
+  // If server returned existing row (de-dupe), it's not "created" — detect by checking if id was already known.
+  if (!existing) stats.chuTriCreated += 1
+  return newId
+}
+
+async function onImportFileChange(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (isImporting.value) return
+  if (!confirm(`Nhập dữ liệu từ «${file.name}»? Các nhóm trùng tên sẽ được cập nhật.`)) return
+
+  isImporting.value = true
+  const stats = {
+    rowsProcessed: 0,
+    nhomLonCreated: 0,
+    nhomLonUpdated: 0,
+    nhomNhoCreated: 0,
+    nhomNhoUpdated: 0,
+    viThuocCreated: 0,
+    chuTriCreated: 0,
+    errors: [] as string[],
+  }
+
+  try {
+    const buf = await file.arrayBuffer()
+    const wb = XLSX.read(buf, { type: 'array' })
+    const sheetName = wb.SheetNames[0]
+    if (!sheetName) throw new Error('File không có sheet nào')
+    const ws = wb.Sheets[sheetName]
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
+
+    const viByKey = new Map<string, ViThuoc>()
+    for (const v of viThuocCatalog.value) viByKey.set(normKey(v.ten_vi_thuoc), v)
+    const ctByKey = new Map<string, ChuTri>()
+    for (const c of chuTriCatalog.value) ctByKey.set(normKey(c.ten_chu_tri), c)
+    const nhomLonByKey = new Map<string, NhomLon>()
+    for (const nl of nhomLonList.value) nhomLonByKey.set(normKey(nl.ten_nhom), nl)
+    const nhomNhoByKey = new Map<string, NhomNho>() // key = `${idNhomLon}|normKey(ten)`
+    for (const nl of nhomLonList.value) {
+      for (const nn of nl.nhomNhoList ?? []) {
+        nhomNhoByKey.set(`${nl.id}|${normKey(nn.ten_nhom)}`, nn)
+      }
+    }
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const rowNum = i + 2 // header is row 1
+      try {
+        const tenNhomLon = String(row[EXCEL_COLS[0]] ?? '').trim()
+        if (!tenNhomLon) {
+          stats.errors.push(`Dòng ${rowNum}: thiếu «Nhóm lớn»`)
+          continue
+        }
+        const moTaNhomLon = String(row[EXCEL_COLS[1]] ?? '').trim()
+        const thuTuNhomLonRaw = row[EXCEL_COLS[2]]
+        const thuTuNhomLon = Number(thuTuNhomLonRaw) || 0
+
+        const nlKey = normKey(tenNhomLon)
+        let nhomLon = nhomLonByKey.get(nlKey)
+        if (nhomLon) {
+          // Update only if values changed and provided.
+          const patch: any = {}
+          const provMoTa = String(row[EXCEL_COLS[1]] ?? '')
+          if (provMoTa.trim() !== '' && (nhomLon.mo_ta ?? '') !== moTaNhomLon) {
+            patch.mo_ta = moTaNhomLon || null
+          }
+          if (thuTuNhomLonRaw !== '' && thuTuNhomLonRaw != null && nhomLon.thu_tu !== thuTuNhomLon) {
+            patch.thu_tu = thuTuNhomLon
+          }
+          if (Object.keys(patch).length) {
+            const res: any = await api.put(`/nhom-lon-duoc-ly/${nhomLon.id}`, patch)
+            const upd: NhomLon = res?.data ?? { ...nhomLon, ...patch }
+            nhomLon = { ...nhomLon, ...upd }
+            nhomLonByKey.set(nlKey, nhomLon)
+            stats.nhomLonUpdated += 1
+          }
+        } else {
+          const res: any = await api.post('/nhom-lon-duoc-ly', {
+            ten_nhom: tenNhomLon,
+            mo_ta: moTaNhomLon || null,
+            thu_tu: thuTuNhomLon,
+          })
+          const newId: number | undefined = res?.id ?? res?.data?.id
+          if (!newId) throw new Error('Không lấy được id nhóm lớn mới')
+          nhomLon = {
+            id: newId,
+            ten_nhom: tenNhomLon,
+            mo_ta: moTaNhomLon || null,
+            thu_tu: thuTuNhomLon,
+            nhomNhoList: [],
+          }
+          nhomLonByKey.set(nlKey, nhomLon)
+          stats.nhomLonCreated += 1
+        }
+
+        const tenNhomNho = String(row[EXCEL_COLS[3]] ?? '').trim()
+        if (!tenNhomNho) {
+          // Row defines only a nhóm lớn — accepted.
+          stats.rowsProcessed += 1
+          continue
+        }
+        const lieuLuong = String(row[EXCEL_COLS[4]] ?? '').trim()
+        const moTaNhomNho = String(row[EXCEL_COLS[5]] ?? '').trim()
+        const thuTuNhomNhoRaw = row[EXCEL_COLS[6]]
+        const thuTuNhomNho = Number(thuTuNhomNhoRaw) || 0
+
+        const viNames = splitCsv(row[EXCEL_COLS[7]])
+        const ctNames = splitCsv(row[EXCEL_COLS[8]])
+
+        const viIds: number[] = []
+        for (const name of viNames) {
+          viIds.push(await findOrCreateViThuocId(name, viByKey, stats))
+        }
+        const ctIds: number[] = []
+        for (const name of ctNames) {
+          ctIds.push(await findOrCreateChuTriId(name, ctByKey, stats))
+        }
+
+        const nnKey = `${nhomLon.id}|${normKey(tenNhomNho)}`
+        const existingNhomNho = nhomNhoByKey.get(nnKey)
+        const body = {
+          id_nhom_lon: nhomLon.id,
+          ten_nhom: tenNhomNho,
+          lieu_luong: lieuLuong || null,
+          mo_ta: moTaNhomNho || null,
+          thu_tu: thuTuNhomNho,
+          vi_thuoc_ids: viIds,
+          chu_tri_ids: ctIds,
+        }
+        if (existingNhomNho) {
+          await api.put(`/nhom-nho-duoc-ly/${existingNhomNho.id}`, body)
+          stats.nhomNhoUpdated += 1
+        } else {
+          const res: any = await api.post('/nhom-nho-duoc-ly', body)
+          const newId: number | undefined = res?.id ?? res?.data?.id
+          if (newId) {
+            nhomNhoByKey.set(nnKey, {
+              id: newId,
+              idNhomLon: nhomLon.id,
+              ten_nhom: tenNhomNho,
+              lieu_luong: lieuLuong || null,
+              mo_ta: moTaNhomNho || null,
+              thu_tu: thuTuNhomNho,
+            })
+          }
+          stats.nhomNhoCreated += 1
+        }
+        stats.rowsProcessed += 1
+      } catch (err: any) {
+        stats.errors.push(`Dòng ${rowNum}: ${err?.message ?? err}`)
+      }
+    }
+
+    importResult.value = stats
+    showImportResultModal.value = true
+    await fetchAll()
+  } catch (err: any) {
+    alert('Nhập Excel thất bại: ' + (err?.message ?? err))
+  } finally {
+    isImporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -259,7 +616,36 @@ function removeChuTri(id: number) {
       <button class="btn-secondary mt-4" @click="fetchAll">Thử lại</button>
     </div>
 
-    <div v-else class="duoc-ly-grid">
+    <div v-else>
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button
+            class="btn-secondary sm"
+            :disabled="isExporting || !nhomLonList.length"
+            @click="exportToExcel"
+          >
+            <span v-if="isExporting">Đang xuất…</span>
+            <span v-else>⬇ Xuất Excel</span>
+          </button>
+          <button class="btn-primary sm" :disabled="isImporting" @click="triggerImport">
+            <span v-if="isImporting">Đang nhập…</span>
+            <span v-else>⬆ Nhập Excel</span>
+          </button>
+          <input
+            ref="importFileInput"
+            type="file"
+            accept=".xlsx,.xls"
+            class="hidden-input"
+            @change="onImportFileChange"
+          />
+        </div>
+        <p class="toolbar-hint">
+          Cột «Vị thuốc», «Chủ trị» dùng dấu phẩy để ngăn cách. Trùng tên nhóm sẽ được cập nhật, vị
+          thuốc / chủ trị mới sẽ được tự tạo.
+        </p>
+      </div>
+
+    <div class="duoc-ly-grid">
       <!-- Cột trái: Nhóm lớn -->
       <aside class="nhom-lon-pane">
         <div class="pane-header">
@@ -282,7 +668,12 @@ function removeChuTri(id: number) {
             <div class="nhom-lon-meta">{{ nl.nhomNhoList?.length || 0 }} nhóm nhỏ</div>
             <div class="row-actions">
               <button class="icon-btn" title="Sửa" @click.stop="openEditNhomLon(nl)">✎</button>
-              <button class="icon-btn danger" title="Xóa" @click.stop="deleteNhomLon(nl)">×</button>
+              <button
+                class="icon-btn danger"
+                title="Xóa"
+                :disabled="isSubmitting"
+                @click.stop="deleteNhomLon(nl)"
+              >×</button>
             </div>
           </li>
         </ul>
@@ -345,13 +736,19 @@ function removeChuTri(id: number) {
                 </td>
                 <td class="row-actions">
                   <button class="icon-btn" title="Sửa" @click="openEditNhomNho(nn)">✎</button>
-                  <button class="icon-btn danger" title="Xóa" @click="deleteNhomNho(nn)">×</button>
+                  <button
+                    class="icon-btn danger"
+                    title="Xóa"
+                    :disabled="isSubmitting"
+                    @click="deleteNhomNho(nn)"
+                  >×</button>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
       </section>
+    </div>
     </div>
 
     <!-- Modal: Nhóm lớn -->
@@ -376,8 +773,10 @@ function removeChuTri(id: number) {
           </label>
         </div>
         <footer class="modal-footer">
-          <button class="btn-secondary" @click="showNhomLonModal = false">Hủy</button>
-          <button class="btn-primary" @click="saveNhomLon">Lưu</button>
+          <button class="btn-secondary" :disabled="isSubmitting" @click="showNhomLonModal = false">Hủy</button>
+          <button class="btn-primary" :disabled="isSubmitting" @click="saveNhomLon">
+            {{ isSubmitting ? 'Đang lưu…' : 'Lưu' }}
+          </button>
         </footer>
       </div>
     </div>
@@ -419,10 +818,25 @@ function removeChuTri(id: number) {
                 <button class="chip-x" @click="removeViThuoc(id)">×</button>
               </span>
             </div>
-            <input v-model="viThuocFilter" class="picker-input" type="text" placeholder="Gõ để tìm vị thuốc..." />
-            <div v-if="viThuocFilter && filteredViThuoc.length" class="picker-dropdown">
+            <input
+              v-model="viThuocFilter"
+              class="picker-input"
+              type="text"
+              placeholder="Gõ để tìm hoặc tạo vị thuốc mới..."
+              @keydown.enter.prevent="!viThuocExactMatch && createAndAddViThuoc()"
+            />
+            <div v-if="viThuocFilter && (filteredViThuoc.length || !viThuocExactMatch)" class="picker-dropdown">
               <button v-for="v in filteredViThuoc" :key="v.id" class="picker-item" @click="addViThuoc(v.id)">
                 {{ v.ten_vi_thuoc }}
+              </button>
+              <button
+                v-if="!viThuocExactMatch"
+                class="picker-item picker-item-create"
+                :disabled="creatingViThuoc"
+                @click="createAndAddViThuoc"
+              >
+                + Tạo mới «{{ viThuocFilter.trim() }}»
+                <span v-if="creatingViThuoc" class="creating-hint">(đang tạo…)</span>
               </button>
             </div>
           </div>
@@ -446,8 +860,44 @@ function removeChuTri(id: number) {
           </div>
         </div>
         <footer class="modal-footer">
-          <button class="btn-secondary" @click="showNhomNhoModal = false">Hủy</button>
-          <button class="btn-primary" @click="saveNhomNho">Lưu</button>
+          <button class="btn-secondary" :disabled="isSubmitting" @click="showNhomNhoModal = false">Hủy</button>
+          <button class="btn-primary" :disabled="isSubmitting" @click="saveNhomNho">
+            {{ isSubmitting ? 'Đang lưu…' : 'Lưu' }}
+          </button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Modal: Kết quả nhập Excel -->
+    <div
+      v-if="showImportResultModal && importResult"
+      class="modal-backdrop"
+      @click.self="showImportResultModal = false"
+    >
+      <div class="modal">
+        <header class="modal-header">
+          <h3>Kết quả nhập Excel</h3>
+          <button class="icon-btn" @click="showImportResultModal = false">×</button>
+        </header>
+        <div class="modal-body">
+          <ul class="import-summary">
+            <li>Dòng đã xử lý: <strong>{{ importResult.rowsProcessed }}</strong></li>
+            <li>Nhóm lớn mới: <strong>{{ importResult.nhomLonCreated }}</strong></li>
+            <li>Nhóm lớn cập nhật: <strong>{{ importResult.nhomLonUpdated }}</strong></li>
+            <li>Nhóm nhỏ mới: <strong>{{ importResult.nhomNhoCreated }}</strong></li>
+            <li>Nhóm nhỏ cập nhật: <strong>{{ importResult.nhomNhoUpdated }}</strong></li>
+            <li>Vị thuốc tạo mới: <strong>{{ importResult.viThuocCreated }}</strong></li>
+            <li>Chủ trị tạo mới: <strong>{{ importResult.chuTriCreated }}</strong></li>
+          </ul>
+          <div v-if="importResult.errors.length" class="import-errors">
+            <h4>Lỗi ({{ importResult.errors.length }})</h4>
+            <ul>
+              <li v-for="(e, i) in importResult.errors" :key="i">{{ e }}</li>
+            </ul>
+          </div>
+        </div>
+        <footer class="modal-footer">
+          <button class="btn-primary" @click="showImportResultModal = false">Đóng</button>
         </footer>
       </div>
     </div>
@@ -456,6 +906,20 @@ function removeChuTri(id: number) {
 
 <style scoped>
 .duoc-ly-wrapper { width: 100%; }
+
+/* Toolbar */
+.toolbar { display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--space-4); }
+.toolbar-left { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.toolbar-hint { margin: 0; font-size: var(--font-size-xs); color: var(--gray-500); }
+.hidden-input { display: none; }
+
+/* Import result modal */
+.import-summary { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px var(--space-4); font-size: var(--font-size-sm); }
+.import-summary li { padding: 6px 0; border-bottom: 1px dashed var(--gray-100); color: var(--gray-700); }
+.import-summary strong { color: var(--brown-900); }
+.import-errors { margin-top: var(--space-4); padding: var(--space-3) var(--space-4); background: #fef2f2; border-radius: var(--radius-md); }
+.import-errors h4 { margin: 0 0 6px; color: var(--danger); font-size: var(--font-size-sm); }
+.import-errors ul { margin: 0; padding-left: 1.2em; max-height: 200px; overflow-y: auto; font-size: var(--font-size-xs); color: var(--gray-700); }
 
 /* Layout */
 .duoc-ly-grid { display: grid; grid-template-columns: 320px 1fr; gap: var(--space-5); align-items: start; }
@@ -505,6 +969,10 @@ function removeChuTri(id: number) {
 .picker-dropdown { margin-top: 4px; max-height: 220px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: var(--radius-md); background: var(--white); box-shadow: var(--shadow-md); }
 .picker-item { display: block; width: 100%; text-align: left; padding: 8px 12px; font-size: var(--font-size-sm); transition: background .12s; }
 .picker-item:hover { background: var(--brown-50); }
+.picker-item-create { border-top: 1px dashed var(--gray-200); color: var(--brown-700); font-weight: 600; }
+.picker-item-create:hover { background: var(--brown-100); }
+.picker-item-create:disabled { opacity: .6; cursor: not-allowed; }
+.creating-hint { margin-left: 6px; font-weight: 400; font-size: var(--font-size-xs); color: var(--gray-500); }
 
 /* Buttons */
 .btn-primary { background: var(--brown-600); color: var(--white); padding: 10px 18px; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); transition: all .2s; }

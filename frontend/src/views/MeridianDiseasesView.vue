@@ -16,6 +16,7 @@ interface BenhDongYExcelRow {
 type FormState = Omit<BenhDongYExcelRow, 'id'>
 
 const isLoading = ref(true)
+const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const dataList = ref<BenhDongYExcelRow[]>([])
@@ -198,6 +199,7 @@ function closeModal() {
 }
 
 async function handleSubmit() {
+  if (isSubmitting.value) return
   formError.value = null
   const f = form.value
   const fields: (keyof FormState)[] = [
@@ -215,6 +217,7 @@ async function handleSubmit() {
       return
     }
   }
+  isSubmitting.value = true
   try {
     if (editingId.value != null) {
       await api.put(`/benh-dong-y-excel/${editingId.value}`, f)
@@ -226,6 +229,8 @@ async function handleSubmit() {
     closeModal()
   } catch (err: any) {
     formError.value = err.message || 'Không lưu được dữ liệu'
+  } finally {
+    isSubmitting.value = false
   }
 }
 
@@ -235,7 +240,9 @@ function confirmDelete(row: BenhDongYExcelRow) {
 }
 
 async function handleDelete() {
+  if (isSubmitting.value) return
   if (!deletingItem.value) return
+  isSubmitting.value = true
   try {
     await api.delete(`/benh-dong-y-excel/${deletingItem.value.id}`)
     showDeleteConfirm.value = false
@@ -248,6 +255,8 @@ async function handleDelete() {
     error.value = err.message || 'Không xóa được bản ghi'
     showDeleteConfirm.value = false
     deletingItem.value = null
+  } finally {
+    isSubmitting.value = false
   }
 }
 </script>
@@ -661,8 +670,10 @@ async function handleDelete() {
             </label>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn-secondary" @click="closeModal">Hủy</button>
-            <button type="submit" class="btn-primary">Lưu</button>
+            <button type="button" class="btn-secondary" :disabled="isSubmitting" @click="closeModal">Hủy</button>
+            <button type="submit" class="btn-primary" :disabled="isSubmitting">
+              {{ isSubmitting ? 'Đang lưu…' : 'Lưu' }}
+            </button>
           </div>
         </form>
       </div>
@@ -680,8 +691,10 @@ async function handleDelete() {
           </p>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn-secondary" @click="showDeleteConfirm = false">Hủy</button>
-          <button type="button" class="btn-danger" @click="handleDelete">Xóa</button>
+          <button type="button" class="btn-secondary" :disabled="isSubmitting" @click="showDeleteConfirm = false">Hủy</button>
+          <button type="button" class="btn-danger" :disabled="isSubmitting" @click="handleDelete">
+            {{ isSubmitting ? 'Đang xóa…' : 'Xóa' }}
+          </button>
         </div>
       </div>
     </div>

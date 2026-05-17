@@ -11,6 +11,7 @@ const patientStore = usePatientStore()
 const patientId = computed(() => Number(route.params.id))
 const patient = ref<Patient | null>(null)
 const isLoading = ref(true)
+const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 
 // Form states
@@ -85,6 +86,8 @@ const keyMap: Record<string, string> = {
 }
 
 async function saveExamination() {
+  if (isSubmitting.value) return
+  isSubmitting.value = true
   try {
     const dto: any = {
       patientId: patientId.value,
@@ -106,12 +109,12 @@ async function saveExamination() {
     })
 
     const response = await api.post<any>('/examinations', dto)
-    
+
     if (response && response.success && response.id) {
       alert('Đã lưu phiếu khám thành công!')
-      router.push({ 
-        name: 'meridian-results', 
-        params: { patientId: patientId.value, examId: response.id } 
+      router.push({
+        name: 'meridian-results',
+        params: { patientId: patientId.value, examId: response.id }
       })
     } else {
       throw new Error('Không nhận được ID phiếu khám từ máy chủ')
@@ -119,6 +122,8 @@ async function saveExamination() {
   } catch (err: any) {
     console.error(err)
     alert('Lỗi khi lưu phiếu khám: ' + (err.message || ''))
+  } finally {
+    isSubmitting.value = false
   }
 }
 </script>
@@ -275,10 +280,10 @@ async function saveExamination() {
 
       <!-- Actions -->
       <div class="form-actions">
-        <button class="btn-secondary" @click="goBack">Hủy</button>
-        <button class="btn-primary" @click="saveExamination">
+        <button class="btn-secondary" :disabled="isSubmitting" @click="goBack">Hủy</button>
+        <button class="btn-primary" :disabled="isSubmitting" @click="saveExamination">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-          Lưu phiếu khám
+          {{ isSubmitting ? 'Đang lưu…' : 'Lưu phiếu khám' }}
         </button>
       </div>
     </template>

@@ -67,6 +67,7 @@ function closeModal() {
 }
 
 async function handleSubmit() {
+  if (store.isLoading) return
   if (!form.value.fullName.trim()) {
     store.error = 'Vui lòng nhập họ tên bệnh nhân'
     return
@@ -86,6 +87,7 @@ function confirmDelete(id: number) {
 }
 
 async function handleDelete() {
+  if (store.isLoading) return
   if (deletingPatientId.value !== null) {
     await store.deletePatient(deletingPatientId.value)
   }
