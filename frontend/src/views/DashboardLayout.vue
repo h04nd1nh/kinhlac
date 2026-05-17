@@ -64,7 +64,7 @@ function handleLogout() {
           v-for="item in navItems"
           :key="item.routeName"
           class="nav-item"
-          :class="{ active: currentRouteName === item.routeName || (item.routeName === 'patients' && currentRouteName === 'patient-detail') }"
+          :class="{ active: currentRouteName === item.routeName || (item.routeName === 'patients' && currentRouteName === 'patient-detail') || (item.routeName === 'appointments' && currentRouteName === 'schedule-config') }"
           @click="navigate(item.routeName)"
         >
           <span class="nav-icon">
@@ -94,7 +94,7 @@ function handleLogout() {
           <Transition name="fade-text">
             <span v-show="!isSidebarCollapsed" class="nav-label">{{ item.name }}</span>
           </Transition>
-          <span v-if="(currentRouteName === item.routeName || (item.routeName === 'patients' && currentRouteName === 'patient-detail')) && !isSidebarCollapsed" class="nav-active-dot"></span>
+          <span v-if="(currentRouteName === item.routeName || (item.routeName === 'patients' && currentRouteName === 'patient-detail') || (item.routeName === 'appointments' && currentRouteName === 'schedule-config')) && !isSidebarCollapsed" class="nav-active-dot"></span>
         </button>
       </nav>
 
@@ -129,7 +129,7 @@ function handleLogout() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
           </button>
           <h1 class="page-title">
-            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (currentRouteName === 'new-examination' ? 'Khám mới' : currentRouteName === 'meridian-results' ? 'Kết quả đo kinh lạc' : currentRouteName === 'western-medicine' ? 'Bệnh tây y' : currentRouteName === 'meridian-diseases' ? 'Bệnh đo kinh lạc' : currentRouteName === 'medicines' ? 'Quản lý thuốc' : currentRouteName === 'symptoms' ? 'Triệu chứng' : currentRouteName === 'treatments' ? 'Pháp trị' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ')) }}
+            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (currentRouteName === 'new-examination' ? 'Khám mới' : currentRouteName === 'meridian-results' ? 'Kết quả đo kinh lạc' : currentRouteName === 'western-medicine' ? 'Bệnh tây y' : currentRouteName === 'meridian-diseases' ? 'Bệnh đo kinh lạc' : currentRouteName === 'medicines' ? 'Quản lý thuốc' : currentRouteName === 'symptoms' ? 'Triệu chứng' : currentRouteName === 'treatments' ? 'Pháp trị' : currentRouteName === 'schedule-config' ? 'Cấu hình giờ khám' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ')) }}
           </h1>
         </div>
         <div class="header-right">

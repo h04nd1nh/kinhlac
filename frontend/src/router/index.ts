@@ -8,6 +8,7 @@ const PatientDetailView = () => import('@/views/PatientDetailView.vue')
 const NewExaminationView = () => import('@/views/NewExaminationView.vue')
 const MeridianResultsView = () => import('@/views/MeridianResultsView.vue')
 const AppointmentsView = () => import('@/views/AppointmentsView.vue')
+const ScheduleConfigView = () => import('@/views/ScheduleConfigView.vue')
 const WesternMedicineView = () => import('@/views/WesternMedicineView.vue')
 const MeridianDiseasesTabsView = () => import('@/views/MeridianDiseasesTabsView.vue')
 const MedicinesView = () => import('@/views/MedicinesView.vue')
@@ -44,6 +45,11 @@ const router = createRouter({
           path: 'appointments',
           name: 'appointments',
           component: AppointmentsView,
+        },
+        {
+          path: 'appointments/config',
+          name: 'schedule-config',
+          component: ScheduleConfigView,
         },
         {
           path: 'western-medicine',
