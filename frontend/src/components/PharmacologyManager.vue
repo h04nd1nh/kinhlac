@@ -94,8 +94,9 @@ async function fetchAll() {
     nhomLonList.value = Array.isArray(nhomLonRes) ? nhomLonRes : (nhomLonRes.data ?? [])
     viThuocCatalog.value = Array.isArray(viThuocRes) ? viThuocRes : (viThuocRes.data ?? [])
     chuTriCatalog.value = Array.isArray(chuTriRes) ? chuTriRes : (chuTriRes.data ?? [])
-    if (!selectedNhomLonId.value && nhomLonList.value.length) {
-      selectedNhomLonId.value = nhomLonList.value[0].id
+    const first = nhomLonList.value[0]
+    if (!selectedNhomLonId.value && first) {
+      selectedNhomLonId.value = first.id
     }
   } catch (err: any) {
     error.value = 'Lỗi khi tải dữ liệu: ' + err.message
