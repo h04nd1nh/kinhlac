@@ -64,6 +64,7 @@ const baiThuocSearch = ref('')
 const LUC_KINH_OPTIONS = [
   'Thái Dương Kinh Chứng',
   'Dương Minh Kinh Chứng',
+  'Thiếu Dương Kinh Chứng',
   'Thái Âm Kinh Chứng',
   'Quyết Âm Kinh Chứng',
   'Thiếu Âm Kinh Chứng',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { api } from '@/services/api'
 import PharmacologyManager from '@/components/PharmacologyManager.vue'
 
@@ -81,18 +81,60 @@ const itemsPerPage = ref(10)
 const baiThuocPage = ref(1)
 const viThuocPage = ref(1)
 
+// Search
+const baiThuocSearch = ref('')
+const viThuocSearch = ref('')
+
+const filteredBaiThuoc = computed(() => {
+  const q = baiThuocSearch.value.trim().toLowerCase()
+  if (!q) return baiThuocList.value
+  return baiThuocList.value.filter((bt) => {
+    const thanhPhan = (bt.chiTietViThuoc ?? [])
+      .map((ct) => ct.viThuoc?.ten_vi_thuoc || '')
+      .join(' ')
+    const hay = [
+      bt.ten_bai_thuoc,
+      bt.nguon_goc,
+      bt.cach_dung,
+      bt.trieu_chung,
+      ...phapTriLabels(bt),
+      ...theBenhLabels(bt),
+      thanhPhan,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return hay.includes(q)
+  })
+})
+
+const filteredViThuoc = computed(() => {
+  const q = viThuocSearch.value.trim().toLowerCase()
+  if (!q) return viThuocList.value
+  return viThuocList.value.filter((vt) => {
+    const hay = [vt.ten_vi_thuoc, vt.tinh, vt.vi, vt.quy_kinh]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return hay.includes(q)
+  })
+})
+
 const pagedBaiThuoc = computed(() => {
   const start = (baiThuocPage.value - 1) * itemsPerPage.value
-  return baiThuocList.value.slice(start, start + itemsPerPage.value)
+  return filteredBaiThuoc.value.slice(start, start + itemsPerPage.value)
 })
 
 const pagedViThuoc = computed(() => {
   const start = (viThuocPage.value - 1) * itemsPerPage.value
-  return viThuocList.value.slice(start, start + itemsPerPage.value)
+  return filteredViThuoc.value.slice(start, start + itemsPerPage.value)
 })
 
-const totalBTPage = computed(() => Math.ceil(baiThuocList.value.length / itemsPerPage.value))
-const totalVTPage = computed(() => Math.ceil(viThuocList.value.length / itemsPerPage.value))
+const totalBTPage = computed(() => Math.max(1, Math.ceil(filteredBaiThuoc.value.length / itemsPerPage.value)))
+const totalVTPage = computed(() => Math.max(1, Math.ceil(filteredViThuoc.value.length / itemsPerPage.value)))
+
+watch(baiThuocSearch, () => { baiThuocPage.value = 1 })
+watch(viThuocSearch, () => { viThuocPage.value = 1 })
 
 function getPageNumbers(current: number, total: number) {
   const pages: number[] = []
@@ -103,7 +145,11 @@ function getPageNumbers(current: number, total: number) {
 }
 
 function phapTriLabel(p: PhapTriLite): string {
-  return (p.nguyen_tac || p.chung_trang || `#${p.id}`).trim()
+  return (p.nguyen_tac || '').trim()
+}
+
+function theBenhOptionLabel(p: PhapTriLite): string {
+  return (p.chung_trang || '').trim()
 }
 
 function phapTriLabels(bt: BaiThuoc): string[] {
@@ -111,8 +157,23 @@ function phapTriLabels(bt: BaiThuoc): string[] {
     .slice()
     .sort((a, b) => (a.thuTu ?? 0) - (b.thuTu ?? 0))
   return links
-    .map((l) => (l.phapTri?.nguyen_tac || l.phapTri?.chung_trang || '').trim())
+    .map((l) => (l.phapTri?.nguyen_tac || '').trim())
     .filter((s) => s.length > 0)
+}
+
+function theBenhLabels(bt: BaiThuoc): string[] {
+  const links = (bt.phapTriLinks ?? [])
+    .slice()
+    .sort((a, b) => (a.thuTu ?? 0) - (b.thuTu ?? 0))
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const l of links) {
+    const v = (l.phapTri?.chung_trang || '').trim()
+    if (!v || seen.has(v)) continue
+    seen.add(v)
+    out.push(v)
+  }
+  return out
 }
 
 function trieuChungLabels(bt: BaiThuoc): string[] {
@@ -168,6 +229,32 @@ const btFormError = ref<string | null>(null)
 const btPhapTriSearch = ref('')
 const btTrieuChungSearch = ref('')
 const btViThuocSearch = ref<string[]>([])
+const btPhapTriOpen = ref(false)
+const btTrieuChungOpen = ref(false)
+const btViThuocAddSearch = ref('')
+
+const phapTriById = computed(() => {
+  const m = new Map<number, PhapTriLite>()
+  for (const p of phapTriOptions.value) m.set(p.id, p)
+  return m
+})
+
+const trieuChungById = computed(() => {
+  const m = new Map<number, TrieuChungLite>()
+  for (const t of trieuChungOptions.value) m.set(t.id, t)
+  return m
+})
+
+const viThuocById = computed(() => {
+  const m = new Map<number, ViThuoc>()
+  for (const v of viThuocList.value) m.set(v.id, v)
+  return m
+})
+
+function closeAfterBlur(fn: () => void) {
+  // Delay đóng dropdown để click vào option còn kịp fire
+  setTimeout(fn, 150)
+}
 
 const emptyBaiThuocForm = (): BaiThuocForm => ({
   ten_bai_thuoc: '',
@@ -184,9 +271,10 @@ const btShowDelete = ref(false)
 const btDeleting = ref<BaiThuoc | null>(null)
 
 const filteredBtPhapTri = computed(() => {
+  const withTheBenh = phapTriOptions.value.filter((p) => theBenhOptionLabel(p).length > 0)
   const q = btPhapTriSearch.value.trim().toLowerCase()
-  if (!q) return phapTriOptions.value
-  return phapTriOptions.value.filter((p) => phapTriLabel(p).toLowerCase().includes(q))
+  if (!q) return withTheBenh
+  return withTheBenh.filter((p) => theBenhOptionLabel(p).toLowerCase().includes(q))
 })
 
 const filteredBtTrieuChung = computed(() => {
@@ -195,10 +283,16 @@ const filteredBtTrieuChung = computed(() => {
   return trieuChungOptions.value.filter((t) => (t.ten_trieu_chung || '').toLowerCase().includes(q))
 })
 
-function filteredViThuocFor(index: number) {
-  const q = (btViThuocSearch.value[index] || '').trim().toLowerCase()
-  if (!q) return viThuocList.value
-  return viThuocList.value.filter((v) => (v.ten_vi_thuoc || '').toLowerCase().includes(q))
+function onViThuocAddChange() {
+  const name = btViThuocAddSearch.value.trim()
+  if (!name) return
+  const match = viThuocList.value.find(
+    (v) => (v.ten_vi_thuoc || '').toLowerCase() === name.toLowerCase(),
+  )
+  if (!match) return
+  btForm.value.chi_tiet.push({ id_vi_thuoc: match.id, lieu_luong: '' })
+  btViThuocSearch.value.push(match.ten_vi_thuoc)
+  btViThuocAddSearch.value = ''
 }
 
 function toggleId(list: number[], id: number): number[] {
@@ -212,6 +306,7 @@ function openCreateBaiThuoc() {
   btPhapTriSearch.value = ''
   btTrieuChungSearch.value = ''
   btViThuocSearch.value = []
+  btViThuocAddSearch.value = ''
   btShowModal.value = true
 }
 
@@ -237,7 +332,11 @@ function openEditBaiThuoc(bt: BaiThuoc) {
   btFormError.value = null
   btPhapTriSearch.value = ''
   btTrieuChungSearch.value = ''
-  btViThuocSearch.value = chiTiet.map(() => '')
+  btViThuocAddSearch.value = ''
+  btViThuocSearch.value = chiTiet.map((c) => {
+    if (c.id_vi_thuoc == null) return ''
+    return viThuocById.value.get(c.id_vi_thuoc)?.ten_vi_thuoc ?? ''
+  })
   btShowModal.value = true
 }
 
@@ -246,14 +345,15 @@ function closeBaiThuocModal() {
   btEditingId.value = null
 }
 
-function addChiTietRow() {
-  btForm.value.chi_tiet.push({ id_vi_thuoc: null, lieu_luong: '' })
-  btViThuocSearch.value.push('')
-}
-
 function removeChiTietRow(i: number) {
   btForm.value.chi_tiet.splice(i, 1)
   btViThuocSearch.value.splice(i, 1)
+}
+
+function chiTietDisplayName(i: number): string {
+  const row = btForm.value.chi_tiet[i]
+  if (!row || row.id_vi_thuoc == null) return btViThuocSearch.value[i] || '—'
+  return viThuocById.value.get(row.id_vi_thuoc)?.ten_vi_thuoc || `#${row.id_vi_thuoc}`
 }
 
 async function submitBaiThuoc() {
@@ -470,11 +570,23 @@ async function deleteViThuoc() {
     <div v-else class="content-body">
       <!-- TAB BÀI THUỐC -->
       <div v-if="activeTab === 'bai-thuoc'" class="tab-content">
+        <div class="toolbar">
+          <div class="search-wrap">
+            <input
+              v-model="baiThuocSearch"
+              type="search"
+              class="search-input"
+              placeholder="Tìm theo tên, nguồn gốc, thể bệnh, pháp trị, triệu chứng, vị thuốc..."
+            />
+            <button v-if="baiThuocSearch" type="button" class="search-clear" @click="baiThuocSearch = ''" aria-label="Xóa tìm kiếm">✕</button>
+          </div>
+          <span class="toolbar-count">{{ filteredBaiThuoc.length }} / {{ baiThuocList.length }} bài thuốc</span>
+        </div>
         <div class="data-card">
           <div class="card-header">
             <div class="card-header-left">
               <h3>Danh sách Bài Thuốc</h3>
-              <span class="badge badge-info">{{ baiThuocList.length }} bài thuốc</span>
+              <span class="badge badge-info">{{ filteredBaiThuoc.length }} bài thuốc</span>
             </div>
             <button type="button" class="btn-primary" @click="openCreateBaiThuoc">+ Thêm bài thuốc</button>
           </div>
@@ -484,6 +596,7 @@ async function deleteViThuoc() {
                 <tr>
                   <th width="200">Tên Bài Thuốc</th>
                   <th width="140">Nguồn Gốc</th>
+                  <th width="180">Thể Bệnh</th>
                   <th width="200">Pháp Trị</th>
                   <th width="200">Triệu Chứng</th>
                   <th width="180">Cách Dùng</th>
@@ -493,11 +606,17 @@ async function deleteViThuoc() {
               </thead>
               <tbody>
                 <tr v-if="pagedBaiThuoc.length === 0">
-                  <td colspan="7" class="text-center py-8 text-gray-500">Chưa có dữ liệu bài thuốc</td>
+                  <td colspan="8" class="text-center py-8 text-gray-500">Chưa có dữ liệu bài thuốc</td>
                 </tr>
                 <tr v-for="bt in pagedBaiThuoc" :key="bt.id">
                   <td class="font-bold text-brown-900">{{ bt.ten_bai_thuoc }}</td>
                   <td class="text-gray-600">{{ bt.nguon_goc || '—' }}</td>
+                  <td>
+                    <div v-if="theBenhLabels(bt).length" class="chip-row">
+                      <span v-for="(t, i) in theBenhLabels(bt)" :key="i" class="chip chip-the">{{ t }}</span>
+                    </div>
+                    <span v-else class="muted">—</span>
+                  </td>
                   <td>
                     <div v-if="phapTriLabels(bt).length" class="chip-row">
                       <span v-for="(p, i) in phapTriLabels(bt)" :key="i" class="chip chip-phap">{{ p }}</span>
@@ -541,11 +660,23 @@ async function deleteViThuoc() {
 
       <!-- TAB VỊ THUỐC -->
       <div v-else class="tab-content">
+        <div class="toolbar">
+          <div class="search-wrap">
+            <input
+              v-model="viThuocSearch"
+              type="search"
+              class="search-input"
+              placeholder="Tìm theo tên, tính, vị, quy kinh..."
+            />
+            <button v-if="viThuocSearch" type="button" class="search-clear" @click="viThuocSearch = ''" aria-label="Xóa tìm kiếm">✕</button>
+          </div>
+          <span class="toolbar-count">{{ filteredViThuoc.length }} / {{ viThuocList.length }} vị thuốc</span>
+        </div>
         <div class="data-card">
           <div class="card-header">
             <div class="card-header-left">
               <h3>Danh sách Vị Thuốc</h3>
-              <span class="badge badge-success">{{ viThuocList.length }} vị thuốc</span>
+              <span class="badge badge-success">{{ filteredViThuoc.length }} vị thuốc</span>
             </div>
             <button type="button" class="btn-primary" @click="openCreateViThuoc">+ Thêm vị thuốc</button>
           </div>
@@ -592,7 +723,7 @@ async function deleteViThuoc() {
     </div>
 
     <!-- BÀI THUỐC MODAL -->
-    <div v-if="btShowModal" class="modal-overlay" @click.self="closeBaiThuocModal">
+    <div v-if="btShowModal" class="modal-overlay">
       <div class="modal modal--wide" @click.stop>
         <div class="modal-header">
           <h3>{{ btEditingId != null ? 'Sửa bài thuốc' : 'Thêm bài thuốc' }}</h3>
@@ -619,26 +750,40 @@ async function deleteViThuoc() {
 
             <div class="field field--full">
               <div class="field-head">
-                <span class="field-label">Pháp trị</span>
+                <span class="field-label">Thể bệnh</span>
                 <span class="field-count">{{ btForm.phap_tri_ids.length }} đã chọn</span>
               </div>
-              <div v-if="phapTriOptions.length === 0" class="muted">Chưa có pháp trị</div>
+              <div v-if="phapTriOptions.length === 0" class="muted">Chưa có dữ liệu</div>
               <template v-else>
-                <div class="picker-search">
-                  <input v-model="btPhapTriSearch" type="search" class="input input--sm" placeholder="Tìm pháp trị..." />
+                <div v-if="btForm.phap_tri_ids.length" class="selected-chips">
+                  <span v-for="id in btForm.phap_tri_ids" :key="id" class="chip chip-the chip-removable">
+                    {{ theBenhOptionLabel(phapTriById.get(id) ?? { id, nguyen_tac: '', chung_trang: '' }) || '#' + id }}
+                    <button type="button" class="chip-x" aria-label="Bỏ chọn" @click="btForm.phap_tri_ids = btForm.phap_tri_ids.filter(x => x !== id)">×</button>
+                  </span>
                 </div>
-                <div class="chip-picker chip-picker--scroll">
-                  <button
-                    v-for="p in filteredBtPhapTri"
-                    :key="p.id"
-                    type="button"
-                    class="chip-toggle"
-                    :class="{ active: btForm.phap_tri_ids.includes(p.id) }"
-                    @click="btForm.phap_tri_ids = toggleId(btForm.phap_tri_ids, p.id)"
-                  >
-                    {{ phapTriLabel(p) }}
-                  </button>
-                  <span v-if="filteredBtPhapTri.length === 0" class="muted">Không khớp</span>
+                <div class="combo">
+                  <input
+                    v-model="btPhapTriSearch"
+                    type="search"
+                    class="input input--sm"
+                    placeholder="Tìm và chọn thể bệnh..."
+                    @focus="btPhapTriOpen = true"
+                    @blur="closeAfterBlur(() => (btPhapTriOpen = false))"
+                  />
+                  <ul v-if="btPhapTriOpen" class="combo-dropdown">
+                    <li
+                      v-for="p in filteredBtPhapTri.slice(0, 100)"
+                      :key="p.id"
+                      class="combo-item"
+                      :class="{ 'combo-item--selected': btForm.phap_tri_ids.includes(p.id) }"
+                      @mousedown.prevent="btForm.phap_tri_ids = toggleId(btForm.phap_tri_ids, p.id); btPhapTriSearch = ''"
+                    >
+                      <span class="combo-item-main">{{ theBenhOptionLabel(p) }}</span>
+                      <span v-if="p.nguyen_tac" class="combo-item-sub">{{ p.nguyen_tac }}</span>
+                      <span v-if="btForm.phap_tri_ids.includes(p.id)" class="combo-check">✓</span>
+                    </li>
+                    <li v-if="filteredBtPhapTri.length === 0" class="combo-empty">Không khớp</li>
+                  </ul>
                 </div>
               </template>
             </div>
@@ -650,21 +795,34 @@ async function deleteViThuoc() {
               </div>
               <div v-if="trieuChungOptions.length === 0" class="muted">Chưa có triệu chứng</div>
               <template v-else>
-                <div class="picker-search">
-                  <input v-model="btTrieuChungSearch" type="search" class="input input--sm" placeholder="Tìm triệu chứng..." />
+                <div v-if="btForm.trieu_chung_ids.length" class="selected-chips">
+                  <span v-for="id in btForm.trieu_chung_ids" :key="id" class="chip chip-trieu chip-removable">
+                    {{ trieuChungById.get(id)?.ten_trieu_chung || '#' + id }}
+                    <button type="button" class="chip-x" aria-label="Bỏ chọn" @click="btForm.trieu_chung_ids = btForm.trieu_chung_ids.filter(x => x !== id)">×</button>
+                  </span>
                 </div>
-                <div class="chip-picker chip-picker--scroll">
-                  <button
-                    v-for="t in filteredBtTrieuChung"
-                    :key="t.id"
-                    type="button"
-                    class="chip-toggle"
-                    :class="{ active: btForm.trieu_chung_ids.includes(t.id) }"
-                    @click="btForm.trieu_chung_ids = toggleId(btForm.trieu_chung_ids, t.id)"
-                  >
-                    {{ t.ten_trieu_chung }}
-                  </button>
-                  <span v-if="filteredBtTrieuChung.length === 0" class="muted">Không khớp</span>
+                <div class="combo">
+                  <input
+                    v-model="btTrieuChungSearch"
+                    type="search"
+                    class="input input--sm"
+                    placeholder="Tìm và chọn triệu chứng..."
+                    @focus="btTrieuChungOpen = true"
+                    @blur="closeAfterBlur(() => (btTrieuChungOpen = false))"
+                  />
+                  <ul v-if="btTrieuChungOpen" class="combo-dropdown">
+                    <li
+                      v-for="t in filteredBtTrieuChung.slice(0, 100)"
+                      :key="t.id"
+                      class="combo-item"
+                      :class="{ 'combo-item--selected': btForm.trieu_chung_ids.includes(t.id) }"
+                      @mousedown.prevent="btForm.trieu_chung_ids = toggleId(btForm.trieu_chung_ids, t.id); btTrieuChungSearch = ''"
+                    >
+                      <span class="combo-item-main">{{ t.ten_trieu_chung }}</span>
+                      <span v-if="btForm.trieu_chung_ids.includes(t.id)" class="combo-check">✓</span>
+                    </li>
+                    <li v-if="filteredBtTrieuChung.length === 0" class="combo-empty">Không khớp</li>
+                  </ul>
                 </div>
               </template>
             </div>
@@ -672,31 +830,36 @@ async function deleteViThuoc() {
             <div class="field field--full">
               <div class="field-head">
                 <span class="field-label">Thành phần (vị thuốc, liều lượng)</span>
-                <button type="button" class="btn-mini" @click="addChiTietRow">+ Thêm dòng</button>
+                <span class="field-count">{{ btForm.chi_tiet.length }} vị thuốc</span>
               </div>
-              <div v-if="btForm.chi_tiet.length === 0" class="muted">Chưa có vị thuốc nào — bấm "Thêm dòng" để thêm</div>
-              <div v-for="(row, i) in btForm.chi_tiet" :key="i" class="chi-tiet-row">
-                <div class="ct-vt">
+
+              <div v-if="btForm.chi_tiet.length" class="chi-tiet-list">
+                <div v-for="(row, i) in btForm.chi_tiet" :key="i" class="chi-tiet-row">
+                  <span class="ct-name">{{ chiTietDisplayName(i) }}</span>
                   <input
-                    v-model="btViThuocSearch[i]"
-                    type="search"
-                    class="input input--sm"
-                    placeholder="Tìm vị thuốc..."
+                    v-model="row.lieu_luong"
+                    class="input input--sm ct-lieu"
+                    placeholder="Liều (vd. 12g)"
                   />
-                  <select v-model.number="row.id_vi_thuoc" class="input input--sm">
-                    <option :value="null">— Chọn vị thuốc —</option>
-                    <option v-for="v in filteredViThuocFor(i)" :key="v.id" :value="v.id">
-                      {{ v.ten_vi_thuoc }}
-                    </option>
-                  </select>
+                  <button type="button" class="btn-mini btn-mini-danger" @click="removeChiTietRow(i)" aria-label="Xóa">✕</button>
                 </div>
-                <input
-                  v-model="row.lieu_luong"
-                  class="input input--sm ct-lieu"
-                  placeholder="Liều (vd. 12g)"
-                />
-                <button type="button" class="btn-mini btn-mini-danger" @click="removeChiTietRow(i)">✕</button>
               </div>
+
+              <input
+                v-model="btViThuocAddSearch"
+                type="search"
+                class="input input--sm"
+                list="vi-thuoc-options"
+                placeholder="+ Gõ tên vị thuốc để thêm..."
+                @change="onViThuocAddChange"
+              />
+              <datalist id="vi-thuoc-options">
+                <option
+                  v-for="v in viThuocList"
+                  :key="v.id"
+                  :value="v.ten_vi_thuoc"
+                >{{ [v.tinh, v.vi].filter(Boolean).join(' · ') }}</option>
+              </datalist>
             </div>
           </div>
 
@@ -729,7 +892,7 @@ async function deleteViThuoc() {
     </div>
 
     <!-- VỊ THUỐC MODAL -->
-    <div v-if="vtShowModal" class="modal-overlay" @click.self="closeViThuocModal">
+    <div v-if="vtShowModal" class="modal-overlay">
       <div class="modal" @click.stop>
         <div class="modal-header">
           <h3>{{ vtEditingId != null ? 'Sửa vị thuốc' : 'Thêm vị thuốc' }}</h3>
@@ -810,6 +973,15 @@ async function deleteViThuoc() {
 .toggle-btn:hover { color: var(--brown-600); }
 .toggle-btn.active { background: var(--brown-600); color: var(--white); box-shadow: 0 2px 4px rgba(161, 98, 7, 0.2); }
 
+/* Toolbar / search */
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.search-wrap { position: relative; flex: 1; min-width: 240px; max-width: 520px; }
+.search-input { width: 100%; padding: var(--space-2) 32px var(--space-2) var(--space-3); border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: var(--font-size-md); background: var(--white); }
+.search-input:focus { outline: none; border-color: var(--brown-500); box-shadow: 0 0 0 3px rgba(146, 64, 14, 0.1); }
+.search-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; background: var(--gray-100); border: none; border-radius: 50%; color: var(--gray-600); cursor: pointer; font-size: 12px; }
+.search-clear:hover { background: var(--gray-200); color: var(--gray-800); }
+.toolbar-count { font-size: var(--font-size-sm); color: var(--gray-500); font-weight: 600; }
+
 .data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); gap: var(--space-3); }
 .card-header-left { display: flex; align-items: center; gap: var(--space-3); }
@@ -844,6 +1016,7 @@ async function deleteViThuoc() {
 .chip-row { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.4; border: 1px solid transparent; }
 .chip-phap { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.chip-the { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
 .chip-trieu { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 .muted { color: var(--gray-400); font-style: italic; }
 
@@ -910,7 +1083,59 @@ async function deleteViThuoc() {
 .chip-toggle:hover { border-color: var(--brown-400); color: var(--brown-700); }
 .chip-toggle.active { background: var(--brown-600); color: var(--white); border-color: var(--brown-600); }
 
-.chi-tiet-row { display: grid; grid-template-columns: 1fr 140px 32px; gap: 6px; align-items: center; margin-top: 6px; }
-.ct-vt { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.chi-tiet-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; padding: 6px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); background: var(--gray-50); }
+.chi-tiet-row {
+  display: grid;
+  grid-template-columns: 1fr 140px 32px;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 8px;
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+.chi-tiet-row:hover { border-color: var(--brown-200); }
+.ct-name { font-weight: 600; color: var(--brown-900); font-size: 13px; }
 .ct-lieu { }
+
+/* Combobox typeahead */
+.combo { position: relative; }
+.combo .input { padding-right: 28px; }
+.combo .has-selected { background: var(--brown-50); border-color: var(--brown-300); font-weight: 600; color: var(--brown-800); }
+.combo-clear {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  background: var(--gray-100); border: none; border-radius: 50%;
+  color: var(--gray-600); cursor: pointer; font-size: 12px; line-height: 1;
+}
+.combo-clear:hover { background: var(--gray-200); color: var(--gray-800); }
+.combo-dropdown {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+  max-height: 240px; overflow-y: auto;
+  background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  z-index: 20;
+  margin: 0; padding: 4px; list-style: none;
+}
+.combo-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: var(--radius-sm); cursor: pointer;
+  font-size: 13px; color: var(--gray-800);
+}
+.combo-item:hover { background: var(--brown-50); }
+.combo-item--selected { background: var(--brown-50); color: var(--brown-800); font-weight: 600; }
+.combo-item-main { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo-item-sub { font-size: 11px; color: var(--gray-500); white-space: nowrap; }
+.combo-check { color: var(--brown-600); font-weight: 700; }
+.combo-empty { padding: 8px 10px; font-size: 12px; color: var(--gray-500); font-style: italic; text-align: center; }
+
+/* Selected chips row above combobox */
+.selected-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.chip-removable { display: inline-flex; align-items: center; gap: 4px; padding-right: 4px; }
+.chip-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border: none; background: rgba(0,0,0,0.08);
+  border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; color: inherit;
+}
+.chip-x:hover { background: rgba(0,0,0,0.18); }
 </style>
