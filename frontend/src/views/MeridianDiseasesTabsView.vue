@@ -2,35 +2,43 @@
 import { ref } from 'vue'
 import MeridianDiseasesView from './MeridianDiseasesView.vue'
 import ModernDiseasesView from './ModernDiseasesView.vue'
+import KinhMachView from './KinhMachView.vue'
+import HuyetViView from './HuyetViView.vue'
+import PhacDoDieuTriView from './PhacDoDieuTriView.vue'
 
-type SubTab = 'dong-y' | 'hien-dai'
+type SubTab = 'dong-y' | 'hien-dai' | 'kinh-mach' | 'huyet-vi' | 'phac-do'
 const activeSub = ref<SubTab>('dong-y')
+
+const tabs: { key: SubTab; label: string }[] = [
+  { key: 'dong-y', label: 'Bệnh đông y' },
+  { key: 'hien-dai', label: 'Bệnh đông y hiện đại' },
+  { key: 'kinh-mach', label: 'Kinh mạch' },
+  { key: 'huyet-vi', label: 'Huyệt vị' },
+  { key: 'phac-do', label: 'Phác đồ điều trị' },
+]
 </script>
 
 <template>
   <div class="diseases-tabs">
     <div class="sub-tab-bar">
       <button
+        v-for="t in tabs"
+        :key="t.key"
         type="button"
         class="sub-tab-btn"
-        :class="{ active: activeSub === 'dong-y' }"
-        @click="activeSub = 'dong-y'"
+        :class="{ active: activeSub === t.key }"
+        @click="activeSub = t.key"
       >
-        Bệnh đông y
-      </button>
-      <button
-        type="button"
-        class="sub-tab-btn"
-        :class="{ active: activeSub === 'hien-dai' }"
-        @click="activeSub = 'hien-dai'"
-      >
-        Bệnh đông y hiện đại
+        {{ t.label }}
       </button>
     </div>
 
     <KeepAlive>
       <MeridianDiseasesView v-if="activeSub === 'dong-y'" />
-      <ModernDiseasesView v-else />
+      <ModernDiseasesView v-else-if="activeSub === 'hien-dai'" />
+      <KinhMachView v-else-if="activeSub === 'kinh-mach'" />
+      <HuyetViView v-else-if="activeSub === 'huyet-vi'" />
+      <PhacDoDieuTriView v-else />
     </KeepAlive>
   </div>
 </template>
@@ -48,6 +56,7 @@ const activeSub = ref<SubTab>('dong-y')
   border-radius: var(--radius-lg);
   width: fit-content;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  flex-wrap: wrap;
 }
 .sub-tab-btn {
   padding: var(--space-2) var(--space-5);
