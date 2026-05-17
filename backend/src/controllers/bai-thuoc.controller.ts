@@ -133,7 +133,17 @@ export class BaiThuocService {
       const savedBt = await queryRunner.manager.save(bt);
 
       if (chi_tiet && chi_tiet.length > 0) {
-        const details = chi_tiet.map(d => this.detailRepo.create({ ...d, idBaiThuoc: savedBt.id }));
+        const details = chi_tiet.map((d) =>
+          this.detailRepo.create({
+            idBaiThuoc: savedBt.id,
+            idViThuoc: d.id_vi_thuoc,
+            lieu_luong: d.lieu_luong,
+            vai_tro: d.vai_tro,
+            ghi_chu: d.ghi_chu,
+            tinh_vi: d.tinh_vi,
+            quy_kinh: d.quy_kinh,
+          }),
+        );
         await queryRunner.manager.save(details);
       }
       await this.applyPhapTriLinks(queryRunner.manager, savedBt.id, dto, 'create');
@@ -158,9 +168,18 @@ export class BaiThuocService {
       const savedBt = await queryRunner.manager.findOneByOrFail(BaiThuoc, { id });
 
       if (chi_tiet) {
-        // Xóa cũ thêm mới cho đơn giản
         await queryRunner.manager.delete(BaiThuocChiTiet, { idBaiThuoc: id });
-        const details = chi_tiet.map(d => this.detailRepo.create({ ...d, idBaiThuoc: id }));
+        const details = chi_tiet.map((d) =>
+          this.detailRepo.create({
+            idBaiThuoc: id,
+            idViThuoc: d.id_vi_thuoc,
+            lieu_luong: d.lieu_luong,
+            vai_tro: d.vai_tro,
+            ghi_chu: d.ghi_chu,
+            tinh_vi: d.tinh_vi,
+            quy_kinh: d.quy_kinh,
+          }),
+        );
         await queryRunner.manager.save(details);
       }
       await this.applyPhapTriLinks(queryRunner.manager, id, dto, 'update');
