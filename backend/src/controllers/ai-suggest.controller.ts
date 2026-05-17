@@ -44,7 +44,7 @@ export class AiSuggestService {
     private readonly config: ConfigService,
     @InjectRepository(KinhMach)
     private readonly kinhMachRepo: Repository<KinhMach>,
-  ) {}
+  ) { }
 
   private getClient(): OpenAI {
     const apiKey = this.config.get<string>('YESCALE_API_KEY');

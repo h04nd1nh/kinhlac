@@ -108,6 +108,7 @@ interface ViThuocForm {
   tinh: string
   vi: string
   quy_kinh: string
+  lieu_dung: string
   kinh_mach_ids: number[]
 }
 
@@ -850,16 +851,45 @@ const ROLE_COLORS: Record<string, string> = {
   'Quân': '#DC2626', 'Thần': '#F97316', 'Tá': '#16A34A', 'Sứ': '#2563EB',
 }
 
+// Quy đổi đơn vị YHCT → gam:
+//   1 tiền = 1 chỉ  = 3 g
+//   1 lượng = 1 lạng = 30 g
+//   "*" / "#" → liều ước lượng giữa khoảng (xem `gramPreviewText` cho dải hiển thị)
 function parseLieuToGram(s: string | null | undefined): number {
   if (!s) return 9
-  const t = s.toString().trim().toLowerCase()
+  const t = s.toString().trim().toLowerCase().replace(',', '.')
   if (t === '*') return 2.25
   if (t === '#') return 22.5
   let m: RegExpMatchArray | null
-  m = t.match(/^([\d.]+)\s*tiền?/); if (m && m[1]) return parseFloat(m[1]) * 3
-  m = t.match(/^([\d.]+)\s*lư?ợng/); if (m && m[1]) return parseFloat(m[1]) * 30
-  m = t.match(/^([\d.]+)/); if (m && m[1]) return parseFloat(m[1])
+  m = t.match(/^([\d.]+)\s*(?:lượng|lạng)\b/); if (m && m[1]) return parseFloat(m[1]) * 30
+  m = t.match(/^([\d.]+)\s*(?:tiền|chỉ)\b/);   if (m && m[1]) return parseFloat(m[1]) * 3
+  m = t.match(/^([\d.]+)/);                     if (m && m[1]) return parseFloat(m[1])
   return 9
+}
+
+/** Chuỗi hiển thị tương đương gram cho ô liều lượng (giống logic reference). */
+function gramPreviewText(lieu: string | null | undefined): string {
+  if (lieu === '*') return '1.5g - 3g'
+  if (lieu === '#') return '15g - 30g'
+  if (!lieu) return '4.5g - 9g'
+  const lower = lieu.toString().toLowerCase().trim()
+  if (/^\d+(\.\d+)?g$/.test(lower)) return lower
+  if (/^\d+([.,]\d+)?$/.test(lower)) {
+    const val = parseFloat(lower.replace(',', '.'))
+    return isNaN(val) ? lieu : `${val}g`
+  }
+  if (/(tiền|chỉ|lượng|lạng)/.test(lower)) {
+    return lower
+      .replace(/([\d.,]+)\s*(lượng|lạng)/gi, (match, p1) => {
+        const val = parseFloat(p1.replace(',', '.'))
+        return isNaN(val) ? match : `${Math.round(val * 30 * 100) / 100}g`
+      })
+      .replace(/([\d.,]+)\s*(tiền|chỉ)/gi, (match, p1) => {
+        const val = parseFloat(p1.replace(',', '.'))
+        return isNaN(val) ? match : `${Math.round(val * 3 * 100) / 100}g`
+      })
+  }
+  return lieu
 }
 
 /** Map 1 vị (thuần Việt hoặc Hán-Việt) sang 1 trong 5 bucket ngũ vị. Trả null nếu không khớp (vd. "Đạm"). */
@@ -1520,6 +1550,7 @@ const emptyViThuocForm = (): ViThuocForm => ({
   tinh: '',
   vi: '',
   quy_kinh: '',
+  lieu_dung: '',
   kinh_mach_ids: [],
 })
 
@@ -1579,6 +1610,7 @@ function openEditViThuoc(vt: ViThuoc) {
     tinh: vt.tinh ?? '',
     vi: vt.vi ?? '',
     quy_kinh: vt.quy_kinh ?? '',
+    lieu_dung: vt.lieu_dung ?? '',
     kinh_mach_ids: kmIds,
   }
   vtFormError.value = null
@@ -1604,10 +1636,11 @@ async function submitViThuoc() {
   vtSubmitting.value = true
   try {
     if (isEdit) {
-      // Edit: chỉ gửi tinh / vi / quy kinh (qua kinh_mach_ids) — không đổi tên
+      // Edit: chỉ gửi tinh / vi / quy kinh (qua kinh_mach_ids) / liều dùng — không đổi tên
       const payload: Record<string, unknown> = {
         tinh: f.tinh.trim() || undefined,
         vi: f.vi.trim() || undefined,
+        lieu_dung: f.lieu_dung.trim() || undefined,
         kinh_mach_ids: f.kinh_mach_ids,
       }
       await api.put(`/vi-thuoc/${vtEditingId.value}`, payload)
@@ -1616,6 +1649,7 @@ async function submitViThuoc() {
         ten_vi_thuoc: f.ten_vi_thuoc.trim(),
         tinh: f.tinh.trim() || undefined,
         vi: f.vi.trim() || undefined,
+        lieu_dung: f.lieu_dung.trim() || undefined,
         kinh_mach_ids: f.kinh_mach_ids,
       }
       await api.post('/vi-thuoc', payload)
@@ -1880,19 +1914,27 @@ async function suggestViThuocAi() {
                   <th width="250">Tên Vị Thuốc</th>
                   <th width="140">Tính</th>
                   <th width="140">Vị</th>
+                  <th width="160">Liều Dùng</th>
                   <th>Quy Kinh</th>
                   <th width="120">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="pagedViThuoc.length === 0">
-                  <td colspan="6" class="text-center py-8 text-gray-500">Chưa có dữ liệu vị thuốc</td>
+                  <td colspan="7" class="text-center py-8 text-gray-500">Chưa có dữ liệu vị thuốc</td>
                 </tr>
                 <tr v-for="vt in pagedViThuoc" :key="vt.id">
                   <td>#{{ vt.id }}</td>
                   <td class="font-bold text-brown-900">{{ vt.ten_vi_thuoc }}</td>
                   <td class="text-gray-600">{{ vt.tinh || '—' }}</td>
                   <td class="text-gray-600">{{ vt.vi || '—' }}</td>
+                  <td class="text-gray-600">
+                    <template v-if="vt.lieu_dung">
+                      {{ vt.lieu_dung }}
+                      <span class="vt-lieu-preview">≈ {{ gramPreviewText(vt.lieu_dung) }}</span>
+                    </template>
+                    <template v-else>—</template>
+                  </td>
                   <td class="text-gray-600">{{ vt.quy_kinh || '—' }}</td>
                   <td>
                     <div class="row-actions">
@@ -2028,11 +2070,14 @@ async function suggestViThuocAi() {
               <div v-if="btForm.chi_tiet.length" class="chi-tiet-list">
                 <div v-for="(row, i) in btForm.chi_tiet" :key="i" class="chi-tiet-row">
                   <span class="ct-name">{{ chiTietDisplayName(i) }}</span>
-                  <input
-                    v-model="row.lieu_luong"
-                    class="input input--sm ct-lieu"
-                    placeholder="Liều (vd. 12g)"
-                  />
+                  <div class="ct-lieu-wrap">
+                    <input
+                      v-model="row.lieu_luong"
+                      class="input input--sm ct-lieu"
+                      placeholder="Liều (vd. 12g, 2 tiền, 1 lượng, *, #)"
+                    />
+                    <span class="ct-lieu-preview">≈ {{ gramPreviewText(row.lieu_luong) }}</span>
+                  </div>
                   <button type="button" class="btn-mini btn-mini-danger" @click="removeChiTietRow(i)" aria-label="Xóa">✕</button>
                 </div>
               </div>
@@ -2248,6 +2293,16 @@ async function suggestViThuocAi() {
               <span>Vị</span>
               <input v-model="vtForm.vi" class="input" placeholder="vd. Ngọt, Cay, Đắng..." />
             </label>
+
+            <div class="field field--full">
+              <span>Liều dùng</span>
+              <input
+                v-model="vtForm.lieu_dung"
+                class="input"
+                placeholder="vd. 12g, 2 tiền, 1 lượng, *, # (1 tiền=3g, 1 lượng=30g)"
+              />
+              <span class="ct-lieu-preview">≈ {{ gramPreviewText(vtForm.lieu_dung) }}</span>
+            </div>
 
             <div class="field field--full">
               <span>Quy kinh</span>
@@ -2633,7 +2688,7 @@ async function suggestViThuocAi() {
 .chi-tiet-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; padding: 6px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); background: var(--gray-50); }
 .chi-tiet-row {
   display: grid;
-  grid-template-columns: 1fr 140px 32px;
+  grid-template-columns: 1fr 180px 32px;
   gap: 8px;
   align-items: center;
   padding: 4px 8px;
@@ -2644,6 +2699,9 @@ async function suggestViThuocAi() {
 .chi-tiet-row:hover { border-color: var(--brown-200); }
 .ct-name { font-weight: 600; color: var(--brown-900); font-size: 13px; }
 .ct-lieu { }
+.ct-lieu-wrap { display: flex; flex-direction: column; gap: 2px; }
+.ct-lieu-preview { font-size: 11px; color: var(--gray-500); padding-left: 2px; line-height: 1.2; }
+.vt-lieu-preview { display: inline-block; margin-left: 6px; padding: 1px 6px; background: var(--brown-50); color: var(--brown-700); border-radius: 999px; font-size: 11px; font-weight: 600; }
 
 /* Combobox typeahead */
 .combo { position: relative; }

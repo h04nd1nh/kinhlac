@@ -16,7 +16,9 @@
       "Bash(curl -sL https://raw.githubusercontent.com/h04nd1nh/medicine/master/webapp/index.html -o /tmp/index.html)",
       "Bash(mkdir -p /c/tmp/kinhlac-ref)",
       "Bash(cp /tmp/thuoc-yhct-analysis.js /tmp/index.html /c/tmp/kinhlac-ref/)",
-      "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies.openai || 'not installed'\\)\")"
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies.openai || 'not installed'\\)\")",
+      "Bash(gh api *)",
+      "WebFetch(domain:api.github.com)"
     ]
   }
 }
