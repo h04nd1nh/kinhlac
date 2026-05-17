@@ -310,6 +310,7 @@ const EXCEL_COLS = [
 
 const isExporting = ref(false)
 const isImporting = ref(false)
+const importProgress = ref({ current: 0, total: 0 })
 const importFileInput = ref<HTMLInputElement | null>(null)
 const importResult = ref<{
   rowsProcessed: number
@@ -456,6 +457,7 @@ async function onImportFileChange(ev: Event) {
   if (!confirm(`Nhập dữ liệu từ «${file.name}»? Các nhóm trùng tên sẽ được cập nhật.`)) return
 
   isImporting.value = true
+  importProgress.value = { current: 0, total: 0 }
   const stats = {
     rowsProcessed: 0,
     nhomLonCreated: 0,
@@ -475,6 +477,7 @@ async function onImportFileChange(ev: Event) {
     const ws = wb.Sheets[sheetName]
     if (!ws) throw new Error(`Không đọc được sheet "${sheetName}"`)
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
+    importProgress.value = { current: 0, total: rows.length }
 
     const viByKey = new Map<string, ViThuoc>()
     for (const v of viThuocCatalog.value) viByKey.set(normKey(v.ten_vi_thuoc), v)
@@ -596,6 +599,8 @@ async function onImportFileChange(ev: Event) {
         stats.rowsProcessed += 1
       } catch (err: any) {
         stats.errors.push(`Dòng ${rowNum}: ${err?.message ?? err}`)
+      } finally {
+        importProgress.value = { current: i + 1, total: rows.length }
       }
     }
 
@@ -870,6 +875,32 @@ async function onImportFileChange(ev: Event) {
       </div>
     </div>
 
+    <!-- Overlay: tiến trình nhập Excel -->
+    <div v-if="isImporting" class="modal-backdrop">
+      <div class="modal modal-sm" @click.stop>
+        <header class="modal-header">
+          <h3>Đang nhập Excel…</h3>
+        </header>
+        <div class="modal-body">
+          <p class="import-progress-text">
+            Đã xử lý <strong>{{ importProgress.current }}</strong> /
+            <strong>{{ importProgress.total }}</strong> dòng
+          </p>
+          <div class="progress-bar">
+            <div
+              class="progress-bar-fill"
+              :style="{
+                width: importProgress.total
+                  ? Math.round((importProgress.current / importProgress.total) * 100) + '%'
+                  : '0%',
+              }"
+            ></div>
+          </div>
+          <p class="import-progress-hint">Vui lòng chờ, không đóng cửa sổ.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal: Kết quả nhập Excel -->
     <div
       v-if="showImportResultModal && importResult"
@@ -914,6 +945,13 @@ async function onImportFileChange(ev: Event) {
 .toolbar-left { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .toolbar-hint { margin: 0; font-size: var(--font-size-xs); color: var(--gray-500); }
 .hidden-input { display: none; }
+
+/* Import progress */
+.import-progress-text { margin: 0 0 12px; font-size: var(--font-size-md); color: var(--gray-700); text-align: center; }
+.import-progress-hint { margin: 8px 0 0; font-size: var(--font-size-xs); color: var(--gray-500); text-align: center; }
+.progress-bar { width: 100%; height: 10px; background: var(--gray-200); border-radius: 999px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--brown-500), var(--brown-700)); transition: width 0.2s ease; }
+.modal-sm { max-width: 380px; }
 
 /* Import result modal */
 .import-summary { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px var(--space-4); font-size: var(--font-size-sm); }

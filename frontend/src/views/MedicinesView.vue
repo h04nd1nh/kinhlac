@@ -1575,6 +1575,35 @@ async function deleteViThuoc() {
     vtSubmitting.value = false
   }
 }
+
+// ─── Gợi ý AI cho vị thuốc (yescale → deepseek-v3.2) ───────────────────────
+const vtAiLoading = ref(false)
+
+async function suggestViThuocAi() {
+  if (vtAiLoading.value || vtSubmitting.value) return
+  const ten = vtForm.value.ten_vi_thuoc.trim()
+  if (!ten) {
+    vtFormError.value = 'Nhập tên vị thuốc trước khi gợi ý AI'
+    return
+  }
+  vtAiLoading.value = true
+  vtFormError.value = null
+  try {
+    const res = await api.post<{ success: boolean; data: { tinh: string; vi: string; quy_kinh: string } }>(
+      '/ai-suggest/vi-thuoc',
+      { ten_vi_thuoc: ten },
+    )
+    const d = res?.data
+    if (!d) throw new Error('AI không trả về dữ liệu')
+    if (d.tinh) vtForm.value.tinh = d.tinh
+    if (d.vi) vtForm.value.vi = d.vi
+    if (d.quy_kinh) vtForm.value.quy_kinh = d.quy_kinh
+  } catch (err: any) {
+    vtFormError.value = 'Gợi ý AI thất bại: ' + (err?.message ?? err)
+  } finally {
+    vtAiLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -2097,6 +2126,19 @@ async function deleteViThuoc() {
         <form class="modal-body" @submit.prevent="submitViThuoc">
           <p v-if="vtFormError" class="form-error">{{ vtFormError }}</p>
 
+          <div v-if="vtEditingId != null" class="vt-ai-row">
+            <button
+              type="button"
+              class="btn-ai"
+              :disabled="vtAiLoading || vtSubmitting"
+              @click="suggestViThuocAi"
+            >
+              <span v-if="vtAiLoading">⏳ Đang gợi ý…</span>
+              <span v-else>✨ Gợi ý AI</span>
+            </button>
+            <span class="vt-ai-hint">AI sẽ điền Tính / Vị / Quy kinh dựa trên tên vị thuốc.</span>
+          </div>
+
           <div class="form-grid">
             <label class="field field--full">
               <span>Tên vị thuốc{{ vtEditingId != null ? '' : ' *' }}</span>
@@ -2414,6 +2456,11 @@ async function deleteViThuoc() {
 .btn-secondary:hover:not(:disabled) { background: var(--gray-50); }
 .btn-danger { padding: var(--space-2) var(--space-4); background: var(--danger); color: var(--white); border: none; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); cursor: pointer; }
 .btn-danger:hover:not(:disabled) { background: #b91c1c; }
+.btn-ai { padding: var(--space-2) var(--space-4); background: linear-gradient(135deg, #7c3aed, #4f46e5); color: var(--white); border: none; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); cursor: pointer; transition: filter var(--transition-fast); }
+.btn-ai:hover:not(:disabled) { filter: brightness(1.08); }
+.btn-ai:disabled { opacity: 0.6; cursor: not-allowed; }
+.vt-ai-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-2) var(--space-3); background: #f5f3ff; border: 1px dashed #c4b5fd; border-radius: var(--radius-md); margin-bottom: var(--space-3); }
+.vt-ai-hint { font-size: var(--font-size-xs); color: var(--gray-600); }
 .mt-4 { margin-top: var(--space-4); }
 
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
