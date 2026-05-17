@@ -252,6 +252,7 @@ export class PhapTriService {
       bat_phap: dto.bat_phap ?? null,
       bat_cuong: dto.bat_cuong ?? null,
       luc_dam: dto.luc_dam ?? null,
+      luc_kinh: dto.luc_kinh ?? null,
       am_duong: dto.am_duong ?? null,
       ton_thuong: dto.ton_thuong ?? null,
       tac_nhan: dto.tac_nhan ?? null,
@@ -285,6 +286,7 @@ export class PhapTriService {
     if (dto.bat_phap !== undefined) item.bat_phap = dto.bat_phap;
     if (dto.bat_cuong !== undefined) item.bat_cuong = dto.bat_cuong;
     if (dto.luc_dam !== undefined) item.luc_dam = dto.luc_dam;
+    if (dto.luc_kinh !== undefined) item.luc_kinh = dto.luc_kinh;
     if (dto.am_duong !== undefined) item.am_duong = dto.am_duong;
     if (dto.ton_thuong !== undefined) item.ton_thuong = dto.ton_thuong;
     if (dto.tac_nhan !== undefined) item.tac_nhan = dto.tac_nhan;

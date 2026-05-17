@@ -6,6 +6,7 @@ export class CreatePhapTriDto {
   bat_phap?: string | null;
   bat_cuong?: string | null;
   luc_dam?: string | null;
+  luc_kinh?: string | null;
   am_duong?: string | null;
   ton_thuong?: string | null;
   tac_nhan?: string | null;
@@ -39,6 +40,7 @@ export class UpdatePhapTriDto {
   bat_phap?: string | null;
   bat_cuong?: string | null;
   luc_dam?: string | null;
+  luc_kinh?: string | null;
   am_duong?: string | null;
   ton_thuong?: string | null;
   tac_nhan?: string | null;

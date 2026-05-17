@@ -14,8 +14,7 @@ const navItems = [
   { name: 'Bệnh nhân', routeName: 'patients', icon: 'patients' },
   { name: 'Lịch khám', routeName: 'appointments', icon: 'calendar' },
   { name: 'Bệnh tây y', routeName: 'western-medicine', icon: 'stethoscope' },
-  { name: 'Bệnh kinh lạc', routeName: 'meridian-diseases', icon: 'activity' },
-  { name: 'Quy tắc Excel Đông y', routeName: 'benh-dong-y-excel', icon: 'rules' },
+  { name: 'Bệnh đông y', routeName: 'meridian-diseases', icon: 'rules' },
   { name: 'Quản lý thuốc', routeName: 'medicines', icon: 'pill' },
   { name: 'Triệu chứng', routeName: 'symptoms', icon: 'clipboard' },
   { name: 'Pháp trị', routeName: 'treatments', icon: 'shield' },
@@ -130,7 +129,7 @@ function handleLogout() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
           </button>
           <h1 class="page-title">
-            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (currentRouteName === 'new-examination' ? 'Khám mới' : currentRouteName === 'meridian-results' ? 'Kết quả đo kinh lạc' : currentRouteName === 'western-medicine' ? 'Bệnh tây y' : currentRouteName === 'meridian-diseases' ? 'Bệnh kinh lạc' : currentRouteName === 'benh-dong-y-excel' ? 'Quy tắc Excel Đông y' : currentRouteName === 'medicines' ? 'Quản lý thuốc' : currentRouteName === 'symptoms' ? 'Triệu chứng' : currentRouteName === 'treatments' ? 'Pháp trị' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ')) }}
+            {{ currentRouteName === 'patient-detail' ? 'Chi tiết bệnh nhân' : (currentRouteName === 'new-examination' ? 'Khám mới' : currentRouteName === 'meridian-results' ? 'Kết quả đo kinh lạc' : currentRouteName === 'western-medicine' ? 'Bệnh tây y' : currentRouteName === 'meridian-diseases' ? 'Bệnh đông y' : currentRouteName === 'medicines' ? 'Quản lý thuốc' : currentRouteName === 'symptoms' ? 'Triệu chứng' : currentRouteName === 'treatments' ? 'Pháp trị' : (navItems.find(i => i.routeName === currentRouteName)?.name || 'Trang chủ')) }}
           </h1>
         </div>
         <div class="header-right">
@@ -162,7 +161,7 @@ function handleLogout() {
 
 /* Nav items */
 .sidebar-nav{flex:1;padding:var(--space-4) var(--space-3);display:flex;flex-direction:column;gap:var(--space-1);overflow-y:auto}
-.nav-item{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-3);border-radius:var(--radius-md);color:var(--gray-600);font-size:var(--font-size-sm);font-weight:500;transition:all var(--transition-fast);position:relative;overflow:hidden;white-space:nowrap}
+.nav-item{display:flex;align-items:center;gap:var(--space-3);padding:20px;border-radius:var(--radius-md);color:var(--gray-600);font-size:var(--font-size-sm);font-weight:500;transition:all var(--transition-fast);position:relative;overflow:hidden;white-space:nowrap}
 .nav-item:hover{background:var(--brown-50);color:var(--brown-700)}
 .nav-item.active{background:linear-gradient(135deg,var(--brown-50) 0%,rgba(192,139,66,.12) 100%);color:var(--brown-700);font-weight:600}
 .nav-item.active .nav-icon{color:var(--brown-600)}
@@ -198,7 +197,7 @@ function handleLogout() {
 .header-greeting{font-size:var(--font-size-sm);color:var(--gray-600)}
 .header-greeting strong{color:var(--brown-700);font-weight:600}
 
-.content-area{flex:1;padding:0}
+.content-area{flex:1;padding:50px}
 
 /* Responsive */
 @media(max-width:768px){
@@ -206,7 +205,6 @@ function handleLogout() {
   .collapsed .sidebar{transform:translateX(0)}
   .main-content,.collapsed .main-content{margin-left:0}
   .mobile-menu-btn{display:flex}
-  .content-area{padding:var(--space-4)}
   .top-header{padding:0 var(--space-4)}
 }
 </style>

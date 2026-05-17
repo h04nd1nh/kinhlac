@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell(Get-CimInstance *)",
+      "Bash(npx tsc *)",
+      "Bash(npx vue-tsc *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(npx nest *)"
+    ]
+  }
+}

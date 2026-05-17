@@ -40,6 +40,10 @@ export class PhapTri {
   @Column({ type: 'text', nullable: true })
   luc_dam: string | null;
 
+  /** Lục kinh (Thương Hàn Luận) — text tự do, vd: "Thái dương, Dương minh" */
+  @Column({ type: 'text', nullable: true })
+  luc_kinh: string | null;
+
   /** Cột bảng luận trị TCM (mẫu Excel/UI) */
   @Column({ type: 'text', nullable: true })
   am_duong: string | null;

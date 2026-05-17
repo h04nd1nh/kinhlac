@@ -12,6 +12,19 @@ export interface PaginatedPatients {
   totalPages: number;
 }
 
+// Postgres `date` column rejects empty strings; the create/edit form posts
+// `''` for any optional field the user leaves blank. Convert blanks to null
+// so the DB receives a valid value.
+function normalizePatientDto<T extends Partial<CreatePatientDto>>(dto: T): T {
+  const result: any = { ...dto };
+  for (const key of Object.keys(result)) {
+    if (typeof result[key] === 'string' && result[key].trim() === '') {
+      result[key] = null;
+    }
+  }
+  return result;
+}
+
 @Injectable()
 export class PatientsService {
   constructor(
@@ -62,13 +75,13 @@ export class PatientsService {
   }
 
   create(dto: CreatePatientDto): Promise<Patient> {
-    const patient = this.patientRepository.create(dto);
+    const patient = this.patientRepository.create(normalizePatientDto(dto));
     return this.patientRepository.save(patient);
   }
 
   async update(id: number, dto: UpdatePatientDto): Promise<Patient> {
     const patient = await this.findOne(id);
-    Object.assign(patient, dto);
+    Object.assign(patient, normalizePatientDto(dto));
     return this.patientRepository.save(patient);
   }
 

@@ -13,7 +13,6 @@ const MeridianDiseasesView = () => import('@/views/MeridianDiseasesView.vue')
 const MedicinesView = () => import('@/views/MedicinesView.vue')
 const SymptomsView = () => import('@/views/SymptomsView.vue')
 const TreatmentsView = () => import('@/views/TreatmentsView.vue')
-const BenhDongYExcelView = () => import('@/views/BenhDongYExcelView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -55,11 +54,6 @@ const router = createRouter({
           path: 'meridian-diseases',
           name: 'meridian-diseases',
           component: MeridianDiseasesView,
-        },
-        {
-          path: 'benh-dong-y-excel',
-          name: 'benh-dong-y-excel',
-          component: BenhDongYExcelView,
         },
         {
           path: 'medicines',
