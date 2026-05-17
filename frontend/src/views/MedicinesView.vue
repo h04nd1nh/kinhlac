@@ -840,9 +840,9 @@ function parseLieuToGram(s: string | null | undefined): number {
   if (t === '*') return 2.25
   if (t === '#') return 22.5
   let m: RegExpMatchArray | null
-  m = t.match(/^([\d.]+)\s*tiền?/); if (m) return parseFloat(m[1]) * 3
-  m = t.match(/^([\d.]+)\s*lư?ợng/); if (m) return parseFloat(m[1]) * 30
-  m = t.match(/^([\d.]+)/); if (m) return parseFloat(m[1])
+  m = t.match(/^([\d.]+)\s*tiền?/); if (m && m[1]) return parseFloat(m[1]) * 3
+  m = t.match(/^([\d.]+)\s*lư?ợng/); if (m && m[1]) return parseFloat(m[1]) * 30
+  m = t.match(/^([\d.]+)/); if (m && m[1]) return parseFloat(m[1])
   return 9
 }
 
@@ -1024,16 +1024,16 @@ function analyzeBaiThuoc(bt: BaiThuoc): AnalysisResult {
     const qkStr = vt.quy_kinh || d.quy_kinh || ''
     qkStr.split(/[,;，、]/).map(k => k.trim()).filter(Boolean).forEach(k => {
       const norm = normalizeKinh(k)
-      if (norm in qkRaw) qkRaw[norm] += gram
+      if (norm in qkRaw) qkRaw[norm] = (qkRaw[norm] ?? 0) + gram
       else {
         const found = YHCT_KINH_ORDER.find(ref => norm.includes(ref) || ref.includes(norm))
-        if (found) qkRaw[found] += gram
+        if (found) qkRaw[found] = (qkRaw[found] ?? 0) + gram
       }
     })
   }
   const qkMax = Math.max(...Object.values(qkRaw), 0.01)
   const quyKinhNorm: Record<string, number> = {}
-  YHCT_KINH_ORDER.forEach(k => { quyKinhNorm[k] = Math.round((qkRaw[k] / qkMax) * 10) / 10 })
+  YHCT_KINH_ORDER.forEach(k => { quyKinhNorm[k] = Math.round(((qkRaw[k] ?? 0) / qkMax) * 10) / 10 })
 
   // Vai trò Quân - Thần - Tá - Sứ
   const sorted = [...items].sort((a, b) => b.gram - a.gram)
@@ -1058,7 +1058,7 @@ function analyzeBaiThuoc(bt: BaiThuoc): AnalysisResult {
       pct: Math.round((gram / W) * 100),
       vai_tro: roleMap[vt.id] ?? 'Tá',
       vai_tro_nhap: (d.vai_tro || '').trim(),
-      color: ROLE_COLORS[roleMap[vt.id] ?? 'Tá'],
+      color: ROLE_COLORS[roleMap[vt.id] ?? 'Tá'] ?? '#9CA3AF',
       tinh: vt.tinh || '',
       vi: vt.vi || '',
       quy_kinh: vt.quy_kinh || '',
@@ -1253,13 +1253,13 @@ function redistributeGramsByRadarTarget(kind: 'nguVi' | 'tgpt', targetArr: numbe
   const scores = list.map(v => {
     const vec = kind === 'nguVi' ? v.nguViVec : v.tgptVec
     let d = 0
-    for (let j = 0; j < targetArr.length; j++) d += (vec[j] || 0) * targetArr[j]
+    for (let j = 0; j < targetArr.length; j++) d += (vec[j] ?? 0) * (targetArr[j] ?? 0)
     const g = v.simGram ?? v.gram
     return d + eps * (g / W)
   })
   const sumS = scores.reduce((a, b) => a + b, 0)
   if (sumS < 1e-9) return
-  list.forEach((v, i) => { v.simGram = W * scores[i] / sumS })
+  list.forEach((v, i) => { v.simGram = W * (scores[i] ?? 0) / sumS })
 }
 
 function attachRadarDrag(chart: Chart, kind: 'nguVi' | 'tgpt') {
@@ -1277,7 +1277,7 @@ function attachRadarDrag(chart: Chart, kind: 'nguVi' | 'tgpt') {
   }
 
   const nearestPointIndex = (pos: { x: number; y: number }) => {
-    const dsIdx = chart.data.datasets[1].hidden ? 0 : 1
+    const dsIdx = chart.data.datasets[1]?.hidden ? 0 : 1
     const meta = chart.getDatasetMeta(dsIdx)
     const scale = chart.scales.r as unknown as { getCenterPoint(): { x: number; y: number } }
     const center = scale.getCenterPoint()
@@ -1305,9 +1305,11 @@ function attachRadarDrag(chart: Chart, kind: 'nguVi' | 'tgpt') {
   }
 
   const applyDrag = (idx: number, pos: { x: number; y: number }) => {
-    const dsIdx = chart.data.datasets[1].hidden ? 0 : 1
-    const agg = kind === 'nguVi' ? aggregateNguViFromSim(anaVtRows) : aggregateTgptFromSim(anaVtRows)
-    const target = (kind === 'nguVi' ? nguViToRadar5(agg) : tgptToRadar4(agg)).slice()
+    const dsIdx = chart.data.datasets[1]?.hidden ? 0 : 1
+    // Tách 2 nhánh để TS narrow chính xác từng kiểu agg
+    const target: number[] = kind === 'nguVi'
+      ? nguViToRadar5(aggregateNguViFromSim(anaVtRows)).slice()
+      : tgptToRadar4(aggregateTgptFromSim(anaVtRows)).slice()
     const val = radarValueFromPointer(chart, dsIdx, idx, pos)
     if (val == null) return
     target[idx] = val
@@ -1465,7 +1467,7 @@ function normalizeVaiTroNhap(raw: string): 'Quân' | 'Thần' | 'Tá' | 'Sứ' |
 
 function vaiTroNhapColor(raw: string): string {
   const k = normalizeVaiTroNhap(raw)
-  return k ? ROLE_COLORS[k] : '#9CA3AF'
+  return k ? (ROLE_COLORS[k] ?? '#9CA3AF') : '#9CA3AF'
 }
 
 function vaiTroMatchSuyLuan(row: AnalysisVtRow): boolean {
