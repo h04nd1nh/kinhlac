@@ -3,6 +3,12 @@
 ALTER TABLE benh_dong_y_excel
   ADD COLUMN IF NOT EXISTS id_phap_tri INTEGER;
 
+-- Trigger set_benh_dong_y_excel_updated_at() set NEW.updated_at = NOW(),
+-- nhưng bảng không có cột updated_at → mọi UPDATE đều fail.
+-- Bổ sung cột với DEFAULT NOW() để trigger chạy được.
+ALTER TABLE benh_dong_y_excel
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
 DO $$
 BEGIN
   IF NOT EXISTS (

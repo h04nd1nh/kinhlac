@@ -490,6 +490,7 @@ async function onImportFileChange(ev: Event) {
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
+      if (!row) continue
       const rowNum = i + 2 // header is row 1
       try {
         const tenNhomLon = String(row[EXCEL_COLS[0]] ?? '').trim()

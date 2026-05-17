@@ -97,13 +97,19 @@ const filteredPhapTriOptions = computed(() => {
 const filteredList = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return dataList.value
-  return dataList.value.filter(
-    (row) =>
-      row.code.toLowerCase().includes(q) ||
-      row.name.toLowerCase().includes(q) ||
-      row.logicExpression.toLowerCase().includes(q) ||
-      row.outputCell.toLowerCase().includes(q),
-  )
+  return dataList.value.filter((row) => {
+    const hay = [
+      row.code,
+      row.name,
+      row.outputCell,
+      row.phapTri?.chung_trang,
+      row.phapTri?.nguyen_tac,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return hay.includes(q)
+  })
 })
 
 const pagedList = computed(() => {
@@ -308,12 +314,12 @@ async function handleDelete() {
   <div class="management-page">
     <div class="page-header">
       <div class="header-content">
-        <h1 class="page-title">Quản Lý Bệnh Đông Y</h1>
+        <h1 class="page-title">Quản Lý Bệnh Kinh lạc</h1>
         <p class="page-subtitle">
-          Quản lý bảng <code class="inline-code">benh_dong_y_excel</code>: mã, biểu thức logic, công thức và CASE SQL
+          Danh mục bệnh chẩn theo kinh lạc, liên kết với thể bệnh / pháp trị tương ứng
         </p>
       </div>
-      <button type="button" class="btn-primary" @click="openCreateModal">+ Thêm quy tắc</button>
+      <button type="button" class="btn-primary" @click="openCreateModal">+ Thêm bệnh</button>
     </div>
 
     <div v-if="isLoading" class="loading-state">
@@ -606,49 +612,52 @@ async function handleDelete() {
             v-model="searchQuery"
             type="search"
             class="search-input"
-            placeholder="Mã, tên, ô output, logic..."
+            placeholder="Tìm theo tên bệnh, mã, thể bệnh, pháp trị..."
             autocomplete="off"
           />
         </label>
-        <span class="toolbar-count">{{ filteredList.length }} / {{ dataList.length }} quy tắc</span>
+        <span class="toolbar-count">{{ filteredList.length }} / {{ dataList.length }} bệnh</span>
       </div>
 
       <div class="data-card">
         <div class="card-header">
-          <h3>Danh sách quy tắc</h3>
+          <h3>Bệnh Kinh lạc</h3>
           <span class="badge badge-info">{{ dataList.length }} bản ghi</span>
         </div>
         <div class="table-responsive">
-          <table class="data-table">
+          <table class="data-table data-table--balanced">
+            <colgroup>
+              <col class="col-id" />
+              <col class="col-name" />
+              <col class="col-the" />
+              <col class="col-phap" />
+              <col class="col-actions" />
+            </colgroup>
             <thead>
               <tr>
-                <th width="72">ID</th>
-                <th width="220">Tên</th>
-                <th width="88">Ô output</th>
-                <th width="220">Pháp trị</th>
-                <th>Logic (rút gọn)</th>
-                <th width="140" class="text-right">Thao tác</th>
+                <th>ID</th>
+                <th>Tên bệnh</th>
+                <th>Thể bệnh</th>
+                <th>Pháp trị</th>
+                <th class="text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="pagedList.length === 0">
-                <td colspan="6" class="text-center py-8 text-gray-500">
+                <td colspan="5" class="text-center py-8 text-gray-500">
                   {{ searchQuery.trim() ? 'Không khớp bản ghi nào' : 'Chưa có dữ liệu' }}
                 </td>
               </tr>
               <tr v-for="item in pagedList" :key="item.id">
-                <td>#{{ item.id }}</td>
-                <td class="font-bold text-brown-900">{{ item.name }}</td>
-                <td><span class="cell-tag">{{ item.outputCell }}</span></td>
+                <td class="cell-id">#{{ item.id }}</td>
+                <td class="cell-name font-bold text-brown-900">{{ item.name }}</td>
+                <td>
+                  <span v-if="item.phapTri?.chung_trang" class="chip chip-the">{{ item.phapTri.chung_trang }}</span>
+                  <span v-else class="muted">—</span>
+                </td>
                 <td>
                   <span v-if="item.phapTri" class="chip chip-phap">{{ phapTriLabel(item.phapTri) }}</span>
                   <span v-else class="muted">—</span>
-                </td>
-                <td class="text-gray-600 mono-preview logic-preview">
-                  <template v-for="(seg, si) in splitCellRefs(item.logicExpression, 140)" :key="si">
-                    <span v-if="seg.kind === 'ref'" class="logic-ref">{{ seg.v }}</span>
-                    <span v-else>{{ seg.v }}</span>
-                  </template>
                 </td>
                 <td class="text-right">
                   <div class="action-buttons">
@@ -680,7 +689,7 @@ async function handleDelete() {
     <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
       <div class="modal modal--wide" @click.stop>
         <div class="modal-header">
-          <h3>{{ editingId != null ? 'Sửa quy tắc' : 'Thêm quy tắc' }}</h3>
+          <h3>{{ editingId != null ? 'Sửa bệnh' : 'Thêm bệnh' }}</h3>
           <button type="button" class="modal-close" aria-label="Đóng" @click="closeModal">✕</button>
         </div>
         <form class="modal-body" @submit.prevent="handleSubmit">
@@ -767,7 +776,7 @@ async function handleDelete() {
         </div>
         <div class="modal-body">
           <p>
-            Xóa quy tắc <strong>{{ deletingItem?.code }}</strong> — {{ deletingItem?.name }}? Thao tác không hoàn tác.
+            Xóa bệnh <strong>{{ deletingItem?.name }}</strong>? Thao tác không hoàn tác.
           </p>
         </div>
         <div class="modal-footer">
@@ -950,6 +959,37 @@ async function handleDelete() {
 }
 .data-table tbody tr:hover {
   background: var(--gray-50);
+}
+.data-table td {
+  vertical-align: middle;
+  font-size: var(--font-size-md);
+  color: var(--gray-800);
+}
+
+/* Balanced layout cho bảng Bệnh Kinh lạc */
+.data-table--balanced {
+  table-layout: fixed;
+}
+.data-table--balanced .col-id { width: 64px; }
+.data-table--balanced .col-name { width: auto; }
+.data-table--balanced .col-the { width: 24%; }
+.data-table--balanced .col-phap { width: 28%; }
+.data-table--balanced .col-actions { width: 120px; }
+.data-table--balanced .cell-id {
+  color: var(--gray-500);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+.data-table--balanced .cell-name {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
+}
+.data-table--balanced .chip {
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+  text-align: left;
 }
 .cell-tag {
   display: inline-block;
@@ -1481,6 +1521,11 @@ async function handleDelete() {
   background: #fef3c7;
   color: #92400e;
   border-color: #fcd34d;
+}
+.chip-the {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
 }
 .muted {
   color: var(--gray-400);
