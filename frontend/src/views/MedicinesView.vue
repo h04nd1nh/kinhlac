@@ -68,6 +68,17 @@ interface BaiThuoc {
   chiTietViThuoc?: BaiThuocChiTietLite[] | null
 }
 
+interface KinhMachLink {
+  id_kinh_mach: number
+  kinhMach?: { idKinhMach?: number; ten_kinh_mach?: string | null } | null
+}
+
+interface KinhMachLite {
+  idKinhMach: number
+  ten_kinh_mach: string | null
+  ten_viet_tat?: string | null
+}
+
 interface ViThuoc {
   id: number
   ten_vi_thuoc: string
@@ -75,6 +86,7 @@ interface ViThuoc {
   vi: string | null
   quy_kinh: string | null
   lieu_dung?: string | null
+  kinhMachLinks?: KinhMachLink[] | null
 }
 
 interface BaiThuocFormChiTiet {
@@ -96,6 +108,7 @@ interface ViThuocForm {
   tinh: string
   vi: string
   quy_kinh: string
+  kinh_mach_ids: number[]
 }
 
 const activeTab = ref<'bai-thuoc' | 'vi-thuoc' | 'duoc-ly'>('bai-thuoc')
@@ -106,6 +119,7 @@ const baiThuocList = ref<BaiThuoc[]>([])
 const viThuocList = ref<ViThuoc[]>([])
 const phapTriOptions = ref<PhapTriLite[]>([])
 const trieuChungOptions = ref<TrieuChungLite[]>([])
+const kinhMachList = ref<KinhMachLite[]>([])
 
 interface NhomNhoLite {
   id: number
@@ -243,18 +257,20 @@ async function fetchData() {
   isLoading.value = true
   error.value = null
   try {
-    const [btRes, vtRes, ptRes, tcRes, nnRes] = await Promise.all([
+    const [btRes, vtRes, ptRes, tcRes, nnRes, kmRes] = await Promise.all([
       api.get<any>('/bai-thuoc'),
       api.get<any>('/vi-thuoc'),
       api.get<any>('/phap-tri'),
       api.get<any>('/trieu-chung'),
       api.get<any>('/nhom-nho-duoc-ly'),
+      api.get<any>('/kinh-mach'),
     ])
     baiThuocList.value = Array.isArray(btRes) ? btRes : (btRes.data || [])
     viThuocList.value = Array.isArray(vtRes) ? vtRes : (vtRes.data || [])
     phapTriOptions.value = Array.isArray(ptRes) ? ptRes : (ptRes.data || [])
     trieuChungOptions.value = Array.isArray(tcRes) ? tcRes : (tcRes.data || [])
     nhomNhoList.value = Array.isArray(nnRes) ? nnRes : (nnRes.data || [])
+    kinhMachList.value = Array.isArray(kmRes) ? kmRes : (kmRes.data || [])
   } catch (err: any) {
     console.error(err)
     error.value = 'Lỗi khi tải dữ liệu: ' + err.message
@@ -846,19 +862,37 @@ function parseLieuToGram(s: string | null | undefined): number {
   return 9
 }
 
+/** Map 1 vị (thuần Việt hoặc Hán-Việt) sang 1 trong 5 bucket ngũ vị. Trả null nếu không khớp (vd. "Đạm"). */
+function classifyVi(v: string): 'chua' | 'dang' | 'ngot' | 'cay' | 'man' | null {
+  const s = v.trim().toLowerCase()
+  if (!s) return null
+  // Chua = Toan (酸)
+  if (s.includes('chua') || s.includes('toan')) return 'chua'
+  // Đắng = Khổ (苦)
+  if (s.includes('đắng') || s.includes('dang') || s.includes('khổ') || s.includes('kho')) return 'dang'
+  // Ngọt = Cam (甘)
+  if (s.includes('ngọt') || s.includes('ngot') || s.includes('cam')) return 'ngot'
+  // Cay = Tân (辛)
+  if (s.includes('cay') || s.includes('tân') || s.includes('tan')) return 'cay'
+  // Mặn = Hàm (鹹)
+  if (s.includes('mặn') || s.includes('man') || s.includes('hàm') || s.includes('ham')) return 'man'
+  // Đạm (淡 — nhạt) không nằm trong ngũ vị chuẩn → bỏ qua.
+  return null
+}
+
 function nguViVecFromViString(viRaw: string): number[] {
-  const parts = String(viRaw || '').split(/[,;，、]/).map(s => s.trim().toLowerCase()).filter(Boolean)
+  const parts = String(viRaw || '').split(/[,;，、]/).map(s => s.trim()).filter(Boolean)
   if (!parts.length) return [0, 0, 0, 0, 0]
-  const uniq = [...new Set(parts)]
-  const each = 1 / uniq.length
-  const o = { chua: 0, dang: 0, ngot: 0, cay: 0, man: 0 }
+  const uniq = [...new Set(parts.map(s => s.toLowerCase()))]
+  const buckets: ('chua' | 'dang' | 'ngot' | 'cay' | 'man')[] = []
   for (const v of uniq) {
-    if (v.includes('chua')) o.chua += each
-    else if (v.includes('đắng') || v.includes('dang')) o.dang += each
-    else if (v.includes('ngọt') || v.includes('ngot')) o.ngot += each
-    else if (v.includes('cay')) o.cay += each
-    else if (v.includes('mặn') || v.includes('man')) o.man += each
+    const k = classifyVi(v)
+    if (k) buckets.push(k)
   }
+  if (!buckets.length) return [0, 0, 0, 0, 0]
+  const each = 1 / buckets.length
+  const o = { chua: 0, dang: 0, ngot: 0, cay: 0, man: 0 }
+  for (const k of buckets) o[k] += each
   return [o.chua, o.dang, o.ngot, o.cay, o.man]
 }
 
@@ -876,17 +910,17 @@ function tgptVecFromItem(item: { tinh: string; quy_kinh: string }): number[] {
 }
 
 function addNguViBucket(bucket: { chua: number; dang: number; ngot: number; cay: number; man: number }, viRaw: string, wPct: number) {
-  const parts = String(viRaw || '').split(/[,;，、]/).map(s => s.trim().toLowerCase()).filter(Boolean)
+  const parts = String(viRaw || '').split(/[,;，、]/).map(s => s.trim()).filter(Boolean)
   if (!parts.length) return
-  const uniq = [...new Set(parts)]
-  const each = wPct / uniq.length
+  const uniq = [...new Set(parts.map(s => s.toLowerCase()))]
+  const keys: ('chua' | 'dang' | 'ngot' | 'cay' | 'man')[] = []
   for (const v of uniq) {
-    if (v.includes('chua')) bucket.chua += each
-    else if (v.includes('đắng') || v.includes('dang')) bucket.dang += each
-    else if (v.includes('ngọt') || v.includes('ngot')) bucket.ngot += each
-    else if (v.includes('cay')) bucket.cay += each
-    else if (v.includes('mặn') || v.includes('man')) bucket.man += each
+    const k = classifyVi(v)
+    if (k) keys.push(k)
   }
+  if (!keys.length) return
+  const each = wPct / keys.length
+  for (const k of keys) bucket[k] += each
 }
 
 function addTgptBucket(bucket: { thang: number; phu: number; giang: number; tram: number }, item: { tinh: string; quy_kinh: string }, wPct: number) {
@@ -1486,7 +1520,40 @@ const emptyViThuocForm = (): ViThuocForm => ({
   tinh: '',
   vi: '',
   quy_kinh: '',
+  kinh_mach_ids: [],
 })
+
+const vtAiUnmatched = ref<string[]>([])
+const vtKinhMachFilter = ref('')
+
+function kinhMachName(id: number): string {
+  const km = kinhMachList.value.find((x) => x.idKinhMach === id)
+  return km?.ten_kinh_mach || `#${id}`
+}
+
+const vtFilteredKinhMach = computed(() => {
+  const q = vtKinhMachFilter.value.trim().toLowerCase()
+  const selected = new Set(vtForm.value.kinh_mach_ids)
+  return kinhMachList.value
+    .filter((k) => !selected.has(k.idKinhMach))
+    .filter((k) => {
+      if (!q) return true
+      const hay = [k.ten_kinh_mach, k.ten_viet_tat].filter(Boolean).join(' ').toLowerCase()
+      return hay.includes(q)
+    })
+    .slice(0, 20)
+})
+
+function addKinhMachId(id: number) {
+  if (!vtForm.value.kinh_mach_ids.includes(id)) {
+    vtForm.value.kinh_mach_ids.push(id)
+  }
+  vtKinhMachFilter.value = ''
+}
+
+function removeKinhMachId(id: number) {
+  vtForm.value.kinh_mach_ids = vtForm.value.kinh_mach_ids.filter((x) => x !== id)
+}
 
 const vtForm = ref<ViThuocForm>(emptyViThuocForm())
 
@@ -1497,18 +1564,26 @@ function openCreateViThuoc() {
   vtEditingId.value = null
   vtForm.value = emptyViThuocForm()
   vtFormError.value = null
+  vtAiUnmatched.value = []
+  vtKinhMachFilter.value = ''
   vtShowModal.value = true
 }
 
 function openEditViThuoc(vt: ViThuoc) {
   vtEditingId.value = vt.id
+  const kmIds = (vt.kinhMachLinks ?? [])
+    .map((l) => l.id_kinh_mach ?? l.kinhMach?.idKinhMach)
+    .filter((x): x is number => typeof x === 'number')
   vtForm.value = {
     ten_vi_thuoc: vt.ten_vi_thuoc ?? '',
     tinh: vt.tinh ?? '',
     vi: vt.vi ?? '',
     quy_kinh: vt.quy_kinh ?? '',
+    kinh_mach_ids: kmIds,
   }
   vtFormError.value = null
+  vtAiUnmatched.value = []
+  vtKinhMachFilter.value = ''
   vtShowModal.value = true
 }
 
@@ -1529,19 +1604,19 @@ async function submitViThuoc() {
   vtSubmitting.value = true
   try {
     if (isEdit) {
-      // Edit: chỉ gửi tinh / vi / quy_kinh — không đổi tên
-      const payload = {
+      // Edit: chỉ gửi tinh / vi / quy kinh (qua kinh_mach_ids) — không đổi tên
+      const payload: Record<string, unknown> = {
         tinh: f.tinh.trim() || undefined,
         vi: f.vi.trim() || undefined,
-        quy_kinh: f.quy_kinh.trim() || undefined,
+        kinh_mach_ids: f.kinh_mach_ids,
       }
       await api.put(`/vi-thuoc/${vtEditingId.value}`, payload)
     } else {
-      const payload = {
+      const payload: Record<string, unknown> = {
         ten_vi_thuoc: f.ten_vi_thuoc.trim(),
         tinh: f.tinh.trim() || undefined,
         vi: f.vi.trim() || undefined,
-        quy_kinh: f.quy_kinh.trim() || undefined,
+        kinh_mach_ids: f.kinh_mach_ids,
       }
       await api.post('/vi-thuoc', payload)
     }
@@ -1588,16 +1663,29 @@ async function suggestViThuocAi() {
   }
   vtAiLoading.value = true
   vtFormError.value = null
+  vtAiUnmatched.value = []
   try {
-    const res = await api.post<{ success: boolean; data: { tinh: string; vi: string; quy_kinh: string } }>(
-      '/ai-suggest/vi-thuoc',
-      { ten_vi_thuoc: ten },
-    )
+    const res = await api.post<{
+      success: boolean
+      data: {
+        tinh: string
+        vi: string
+        quy_kinh: string
+        kinh_mach_ids: number[]
+        kinh_mach_unmatched: string[]
+      }
+    }>('/ai-suggest/vi-thuoc', { ten_vi_thuoc: ten })
     const d = res?.data
     if (!d) throw new Error('AI không trả về dữ liệu')
     if (d.tinh) vtForm.value.tinh = d.tinh
     if (d.vi) vtForm.value.vi = d.vi
     if (d.quy_kinh) vtForm.value.quy_kinh = d.quy_kinh
+    if (Array.isArray(d.kinh_mach_ids) && d.kinh_mach_ids.length) {
+      const merged = new Set<number>(vtForm.value.kinh_mach_ids)
+      for (const id of d.kinh_mach_ids) merged.add(id)
+      vtForm.value.kinh_mach_ids = Array.from(merged)
+    }
+    vtAiUnmatched.value = Array.isArray(d.kinh_mach_unmatched) ? d.kinh_mach_unmatched : []
   } catch (err: any) {
     vtFormError.value = 'Gợi ý AI thất bại: ' + (err?.message ?? err)
   } finally {
@@ -2161,10 +2249,36 @@ async function suggestViThuocAi() {
               <input v-model="vtForm.vi" class="input" placeholder="vd. Ngọt, Cay, Đắng..." />
             </label>
 
-            <label class="field field--full">
+            <div class="field field--full">
               <span>Quy kinh</span>
-              <input v-model="vtForm.quy_kinh" class="input" placeholder="vd. Tỳ, Vị, Phế (cách nhau dấu phẩy)" />
-            </label>
+              <div class="vt-km-chips">
+                <span v-if="!vtForm.kinh_mach_ids.length" class="vt-km-empty">Chưa chọn kinh mạch nào</span>
+                <span v-for="id in vtForm.kinh_mach_ids" :key="id" class="vt-km-chip">
+                  {{ kinhMachName(id) }}
+                  <button type="button" class="vt-km-x" @click="removeKinhMachId(id)">×</button>
+                </span>
+              </div>
+              <input
+                v-model="vtKinhMachFilter"
+                class="input"
+                type="text"
+                placeholder="Gõ để tìm kinh mạch (tên hoặc viết tắt)…"
+              />
+              <div v-if="vtKinhMachFilter && vtFilteredKinhMach.length" class="vt-km-dropdown">
+                <button
+                  v-for="km in vtFilteredKinhMach"
+                  :key="km.idKinhMach"
+                  type="button"
+                  class="vt-km-option"
+                  @click="addKinhMachId(km.idKinhMach)"
+                >
+                  {{ km.ten_kinh_mach }}<span v-if="km.ten_viet_tat" class="vt-km-abbr">({{ km.ten_viet_tat }})</span>
+                </button>
+              </div>
+              <p v-if="vtAiUnmatched.length" class="vt-km-warn">
+                AI gợi ý nhưng không khớp được trong bảng kinh mạch: <strong>{{ vtAiUnmatched.join(', ') }}</strong>
+              </p>
+            </div>
           </div>
 
           <div class="modal-footer">
@@ -2461,6 +2575,16 @@ async function suggestViThuocAi() {
 .btn-ai:disabled { opacity: 0.6; cursor: not-allowed; }
 .vt-ai-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-2) var(--space-3); background: #f5f3ff; border: 1px dashed #c4b5fd; border-radius: var(--radius-md); margin-bottom: var(--space-3); }
 .vt-ai-hint { font-size: var(--font-size-xs); color: var(--gray-600); }
+.vt-km-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; background: var(--gray-50); border-radius: var(--radius-md); min-height: 36px; margin-bottom: 6px; }
+.vt-km-empty { color: var(--gray-400); font-size: var(--font-size-xs); padding: 4px 6px; }
+.vt-km-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: 999px; background: #dbeafe; color: #1e3a8a; font-size: var(--font-size-xs); font-weight: 600; }
+.vt-km-x { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(0,0,0,.08); font-size: 12px; line-height: 1; }
+.vt-km-x:hover { background: rgba(0,0,0,.18); }
+.vt-km-dropdown { margin-top: 4px; max-height: 200px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: var(--radius-md); background: var(--white); }
+.vt-km-option { display: block; width: 100%; text-align: left; padding: 8px 12px; font-size: var(--font-size-sm); cursor: pointer; }
+.vt-km-option:hover { background: var(--brown-50); }
+.vt-km-abbr { color: var(--gray-500); margin-left: 6px; font-size: var(--font-size-xs); }
+.vt-km-warn { margin: 8px 0 0; padding: 6px 10px; background: #fef3c7; color: #92400e; border-radius: var(--radius-sm); font-size: var(--font-size-xs); }
 .mt-4 { margin-top: var(--space-4); }
 
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }

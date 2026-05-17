@@ -5,12 +5,20 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import OpenAI from 'openai';
+import { KinhMach } from '../models/kinh-mach.model';
 
 export interface ViThuocAiSuggestion {
   tinh: string;
   vi: string;
+  /** Tên các kinh mạch ghép bằng dấu phẩy (hiển thị/legacy). */
   quy_kinh: string;
+  /** IDs khớp được với bảng `kinh_mach`. */
+  kinh_mach_ids: number[];
+  /** Tên AI đề xuất nhưng không khớp được kinh mạch nào trong DB. */
+  kinh_mach_unmatched: string[];
 }
 
 const YESCALE_DEFAULT_BASE_URL = 'https://api.yescale.vip/v1';
@@ -32,7 +40,11 @@ export class AiSuggestService {
   private clientKey = '';
   private clientBase = '';
 
-  constructor(private readonly config: ConfigService) { }
+  constructor(
+    private readonly config: ConfigService,
+    @InjectRepository(KinhMach)
+    private readonly kinhMachRepo: Repository<KinhMach>,
+  ) {}
 
   private getClient(): OpenAI {
     const apiKey = this.config.get<string>('YESCALE_API_KEY');
@@ -89,12 +101,86 @@ export class AiSuggestService {
       );
     }
 
+    const tinh = pickString(parsed, 'tinh');
+    const vi = pickString(parsed, 'vi');
+    const quyKinhRaw = pickString(parsed, 'quy_kinh');
+
+    const { ids, matchedNames, unmatched } = await this.mapKinhMachNames(
+      splitNames(quyKinhRaw),
+    );
+
     return {
-      tinh: pickString(parsed, 'tinh'),
-      vi: pickString(parsed, 'vi'),
-      quy_kinh: pickString(parsed, 'quy_kinh'),
+      tinh,
+      vi,
+      quy_kinh: matchedNames.join(', '),
+      kinh_mach_ids: ids,
+      kinh_mach_unmatched: unmatched,
     };
   }
+
+  private async mapKinhMachNames(names: string[]): Promise<{
+    ids: number[];
+    matchedNames: string[];
+    unmatched: string[];
+  }> {
+    if (!names.length) return { ids: [], matchedNames: [], unmatched: [] };
+
+    const all = await this.kinhMachRepo.find();
+    const byKey = new Map<string, KinhMach>();
+    for (const km of all) {
+      if (km.ten_kinh_mach) byKey.set(normKm(km.ten_kinh_mach), km);
+      if (km.ten_viet_tat) byKey.set(normKm(km.ten_viet_tat), km);
+    }
+
+    const ids: number[] = [];
+    const matchedNames: string[] = [];
+    const unmatched: string[] = [];
+    const seen = new Set<number>();
+
+    for (const name of names) {
+      const key = normKm(name);
+      let km = byKey.get(key);
+      if (!km) {
+        // Loose contains-match: "Đại Trường Kinh" vs "Đại Trường".
+        for (const candidate of all) {
+          const cKey = normKm(candidate.ten_kinh_mach || '');
+          if (!cKey) continue;
+          if (key.includes(cKey) || cKey.includes(key)) {
+            km = candidate;
+            break;
+          }
+        }
+      }
+      if (km && !seen.has(km.idKinhMach)) {
+        seen.add(km.idKinhMach);
+        ids.push(km.idKinhMach);
+        matchedNames.push(km.ten_kinh_mach || name);
+      } else if (!km) {
+        unmatched.push(name);
+      }
+    }
+    return { ids, matchedNames, unmatched };
+  }
+}
+
+function splitNames(raw: string): string[] {
+  if (!raw) return [];
+  return raw
+    .split(/[,;/]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Normalize meridian name: lowercase, strip diacritics, collapse whitespace, drop "kinh" suffix. */
+function normKm(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase()
+    .replace(/\bkinh\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function pickString(obj: Record<string, unknown>, key: string): string {

@@ -4,6 +4,7 @@ import { ViThuocCongDung } from './vi-thuoc-cong-dung.model';
 import { ViThuocChuTri } from './vi-thuoc-chu-tri.model';
 import { ViThuocKiengKy } from './vi-thuoc-kieng-ky.model';
 import { ViThuocTenGoiKhac } from './vi-thuoc-ten-goi-khac.model';
+import { ViThuocKinhMach } from './vi-thuoc-kinh-mach.model';
 
 @Entity('vi_thuoc')
 export class ViThuoc {
@@ -39,4 +40,7 @@ export class ViThuoc {
 
   @OneToMany(() => ViThuocTenGoiKhac, (row) => row.viThuoc)
   tenGoiKhacList: ViThuocTenGoiKhac[];
+
+  @OneToMany(() => ViThuocKinhMach, (link) => link.viThuoc)
+  kinhMachLinks: ViThuocKinhMach[];
 }

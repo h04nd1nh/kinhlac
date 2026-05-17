@@ -10,6 +10,8 @@ export class CreateViThuocDto {
   chu_tri_links?: { id_chu_tri: number; ghi_chu?: string }[];
   kieng_ky_links?: { id_kieng_ky: number; ghi_chu?: string }[];
   ten_goi_khac_list?: string[];
+  /** IDs các kinh mạch quy nạp. Cột text `quy_kinh` sẽ được sync tự động từ danh sách này. */
+  kinh_mach_ids?: number[];
 }
 export class UpdateViThuocDto extends CreateViThuocDto {}
 

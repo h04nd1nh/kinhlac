@@ -6,6 +6,8 @@ import { ViThuocCongDung } from '../models/vi-thuoc-cong-dung.model';
 import { ViThuocChuTri } from '../models/vi-thuoc-chu-tri.model';
 import { ViThuocKiengKy } from '../models/vi-thuoc-kieng-ky.model';
 import { ViThuocTenGoiKhac } from '../models/vi-thuoc-ten-goi-khac.model';
+import { ViThuocKinhMach } from '../models/vi-thuoc-kinh-mach.model';
+import { KinhMach } from '../models/kinh-mach.model';
 import { CreateViThuocDto, UpdateViThuocDto } from '../models/dongy-thuoc.dto';
 import { catalogKey, formatCatalogLabel } from '../utils/catalog-label.util';
 
@@ -14,6 +16,7 @@ const VI_THUOC_RELATIONS = {
   chuTriLinks: { chuTri: true },
   kiengKyLinks: { kiengKy: true },
   tenGoiKhacList: true,
+  kinhMachLinks: { kinhMach: true },
 } as const;
 
 @Injectable()
@@ -124,6 +127,37 @@ export class ViThuocService {
           id_vi_thuoc: viId,
           ten_goi_khac: t,
         });
+      }
+    }
+
+    const patchKm = dto.kinh_mach_ids;
+    if (patchKm !== undefined || isCreate) {
+      await mgr.delete(ViThuocKinhMach, { id_vi_thuoc: viId });
+      const seenKm = new Set<number>();
+      const orderedIds: number[] = [];
+      for (const raw of patchKm ?? []) {
+        const idKm = Number(raw);
+        if (!Number.isFinite(idKm) || seenKm.has(idKm)) continue;
+        seenKm.add(idKm);
+        orderedIds.push(idKm);
+        await mgr.insert(ViThuocKinhMach, {
+          id_vi_thuoc: viId,
+          id_kinh_mach: idKm,
+        });
+      }
+      // Sync denormalized text column `quy_kinh` so existing analytics keep working.
+      if (patchKm !== undefined) {
+        const rows = orderedIds.length
+          ? await mgr.find(KinhMach, {
+              where: orderedIds.map((id) => ({ idKinhMach: id })),
+            })
+          : [];
+        const byId = new Map(rows.map((r) => [r.idKinhMach, r]));
+        const text = orderedIds
+          .map((id) => byId.get(id)?.ten_kinh_mach?.trim())
+          .filter((s): s is string => !!s)
+          .join(', ');
+        await mgr.update(ViThuoc, viId, { quy_kinh: text || null } as any);
       }
     }
   }
