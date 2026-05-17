@@ -473,6 +473,7 @@ async function onImportFileChange(ev: Event) {
     const sheetName = wb.SheetNames[0]
     if (!sheetName) throw new Error('File không có sheet nào')
     const ws = wb.Sheets[sheetName]
+    if (!ws) throw new Error(`Không đọc được sheet "${sheetName}"`)
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
 
     const viByKey = new Map<string, ViThuoc>()
