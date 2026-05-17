@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { api } from '@/services/api'
+import PharmacologyManager from '@/components/PharmacologyManager.vue'
 
 interface BaiThuoc {
   id: number
@@ -16,7 +17,7 @@ interface ViThuoc {
   quy_kinh: string | null
 }
 
-const activeTab = ref<'bai-thuoc' | 'vi-thuoc'>('bai-thuoc')
+const activeTab = ref<'bai-thuoc' | 'vi-thuoc' | 'duoc-ly'>('bai-thuoc')
 const isLoading = ref(true)
 const error = ref<string | null>(null)
 
@@ -78,7 +79,7 @@ async function fetchData() {
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">Quản Lý Thuốc</h1>
-        <p class="page-subtitle">Quản lý hệ thống các bài thuốc và vị thuốc Đông Y</p>
+        <p class="page-subtitle">Quản lý bài thuốc, vị thuốc và phân loại dược lý Đông Y</p>
       </div>
       <div class="view-toggle">
         <button 
@@ -89,18 +90,31 @@ async function fetchData() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
           Bài Thuốc
         </button>
-        <button 
-          class="toggle-btn" 
+        <button
+          class="toggle-btn"
           :class="{ active: activeTab === 'vi-thuoc' }"
           @click="activeTab = 'vi-thuoc'"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
           Vị Thuốc
         </button>
+        <button
+          class="toggle-btn"
+          :class="{ active: activeTab === 'duoc-ly' }"
+          @click="activeTab = 'duoc-ly'"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2L2 7l10 5 10-5-10-5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2 17l10 5 10-5"/><path stroke-linecap="round" stroke-linejoin="round" d="M2 12l10 5 10-5"/></svg>
+          Dược Lý
+        </button>
       </div>
     </div>
 
-    <div v-if="isLoading" class="loading-state">
+    <!-- TAB DƯỢC LÝ (component tự quản lý loading + dữ liệu riêng) -->
+    <div v-if="activeTab === 'duoc-ly'" class="content-body">
+      <PharmacologyManager />
+    </div>
+
+    <div v-else-if="isLoading" class="loading-state">
       <div class="spinner"></div>
       <p>Đang tải dữ liệu...</p>
     </div>
