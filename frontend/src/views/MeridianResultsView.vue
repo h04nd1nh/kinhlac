@@ -834,7 +834,7 @@ function footerDiffClassMerged() {
               </div>
 
               <div class="info-group mt-4">
-                <h4 class="info-label mb-3">Mô hình bệnh đông y hiện đại</h4>
+                <h4 class="info-label mb-3">Mô hình Bệnh Y Học Hiện Đại</h4>
                 <div v-if="modernSyndromesList.length" class="comparison-list">
                   <div
                     v-for="(item, idx) in modernSyndromesList"

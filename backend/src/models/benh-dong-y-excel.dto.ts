@@ -13,6 +13,8 @@ export class CreateBenhDongYExcelDto {
   sqlCaseText: string;
   sqlCaseBoolean: string;
   id_phap_tri?: number | null;
+  id_trieu_chung_list?: number[];
+  id_bai_thuoc_list?: number[];
 }
 
 export class UpdateBenhDongYExcelDto {
@@ -24,4 +26,6 @@ export class UpdateBenhDongYExcelDto {
   sqlCaseText?: string;
   sqlCaseBoolean?: string;
   id_phap_tri?: number | null;
+  id_trieu_chung_list?: number[];
+  id_bai_thuoc_list?: number[];
 }

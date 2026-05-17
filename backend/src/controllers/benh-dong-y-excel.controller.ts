@@ -5,13 +5,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { In, QueryFailedError, Repository } from 'typeorm';
 import { BenhDongYExcel } from '../models/benh-dong-y-excel.model';
 import {
   CreateBenhDongYExcelDto,
   InputChiSo,
   UpdateBenhDongYExcelDto,
 } from '../models/benh-dong-y-excel.dto';
+import { TrieuChung } from '../models/trieu-chung.model';
+import { BaiThuoc } from '../models/bai-thuoc.model';
 
 type RuleClause = {
   left: string;
@@ -21,9 +23,19 @@ type RuleClause = {
 
 @Injectable()
 export class BenhDongYExcelService {
+  private static readonly RELATIONS = {
+    phapTri: true,
+    trieuChungList: true,
+    baiThuocList: true,
+  } as const;
+
   constructor(
     @InjectRepository(BenhDongYExcel)
     private readonly repo: Repository<BenhDongYExcel>,
+    @InjectRepository(TrieuChung)
+    private readonly trieuChungRepo: Repository<TrieuChung>,
+    @InjectRepository(BaiThuoc)
+    private readonly baiThuocRepo: Repository<BaiThuoc>,
   ) {}
 
   private static isUniqueViolation(err: unknown): boolean {
@@ -33,12 +45,36 @@ export class BenhDongYExcelService {
     );
   }
 
+  private static hasKey(dto: object, key: string): boolean {
+    return Object.prototype.hasOwnProperty.call(dto, key);
+  }
+
+  private static uniqueIds(ids: unknown): number[] {
+    if (!Array.isArray(ids)) return [];
+    const set = new Set<number>();
+    for (const v of ids) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) set.add(n);
+    }
+    return Array.from(set);
+  }
+
+  private async resolveTrieuChung(ids: number[]): Promise<TrieuChung[]> {
+    if (!ids.length) return [];
+    return this.trieuChungRepo.findBy({ id: In(ids) });
+  }
+
+  private async resolveBaiThuoc(ids: number[]): Promise<BaiThuoc[]> {
+    if (!ids.length) return [];
+    return this.baiThuocRepo.findBy({ id: In(ids) });
+  }
+
   async findAll(): Promise<BenhDongYExcel[]> {
-    return this.repo.find({ order: { id: 'ASC' }, relations: { phapTri: true } });
+    return this.repo.find({ order: { id: 'ASC' }, relations: BenhDongYExcelService.RELATIONS });
   }
 
   async findOne(id: number): Promise<BenhDongYExcel> {
-    const row = await this.repo.findOne({ where: { id }, relations: { phapTri: true } });
+    const row = await this.repo.findOne({ where: { id }, relations: BenhDongYExcelService.RELATIONS });
     if (!row) {
       throw new NotFoundException(`Không tìm thấy quy tắc id=${id}`);
     }
@@ -70,6 +106,8 @@ export class BenhDongYExcelService {
     }
 
     const idPhapTri = this.normalizePhapTriId(dto.id_phap_tri);
+    const trieuChungIds = BenhDongYExcelService.uniqueIds(dto.id_trieu_chung_list);
+    const baiThuocIds = BenhDongYExcelService.uniqueIds(dto.id_bai_thuoc_list);
     const entity = this.repo.create({
       code: dto.code.trim(),
       name: dto.name.trim(),
@@ -79,6 +117,8 @@ export class BenhDongYExcelService {
       sqlCaseText: dto.sqlCaseText,
       sqlCaseBoolean: dto.sqlCaseBoolean,
       idPhapTri: idPhapTri === undefined ? null : idPhapTri,
+      trieuChungList: await this.resolveTrieuChung(trieuChungIds),
+      baiThuocList: await this.resolveBaiThuoc(baiThuocIds),
     });
     try {
       const saved = await this.repo.save(entity);
@@ -92,7 +132,10 @@ export class BenhDongYExcelService {
   }
 
   async update(id: number, dto: UpdateBenhDongYExcelDto): Promise<BenhDongYExcel> {
-    const entity = await this.repo.findOne({ where: { id } });
+    const entity = await this.repo.findOne({
+      where: { id },
+      relations: BenhDongYExcelService.RELATIONS,
+    });
     if (!entity) {
       throw new NotFoundException(`Không tìm thấy quy tắc id=${id}`);
     }
@@ -106,6 +149,16 @@ export class BenhDongYExcelService {
     const idPhapTri = this.normalizePhapTriId(dto.id_phap_tri);
     if (idPhapTri !== undefined) {
       entity.idPhapTri = idPhapTri;
+    }
+    if (BenhDongYExcelService.hasKey(dto, 'id_trieu_chung_list')) {
+      entity.trieuChungList = await this.resolveTrieuChung(
+        BenhDongYExcelService.uniqueIds(dto.id_trieu_chung_list),
+      );
+    }
+    if (BenhDongYExcelService.hasKey(dto, 'id_bai_thuoc_list')) {
+      entity.baiThuocList = await this.resolveBaiThuoc(
+        BenhDongYExcelService.uniqueIds(dto.id_bai_thuoc_list),
+      );
     }
     try {
       await this.repo.save(entity);

@@ -256,7 +256,6 @@ async function handleDelete() {
           Danh mục quy tắc chẩn đoán độc lập, cùng cấu trúc với Bệnh Đông y Excel nhưng không liên kết tới bảng nào khác.
         </p>
       </div>
-      <button type="button" class="btn-primary" @click="openCreateModal">+ Thêm bệnh</button>
     </div>
 
     <div v-if="isLoading" class="loading-state">

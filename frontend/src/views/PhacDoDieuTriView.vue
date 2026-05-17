@@ -28,7 +28,6 @@ interface PhacDoRow {
   idPhacDo: number
   idBenh: number
   idHuyet: number
-  vai_tro_huyet: string | null
   phuong_phap_tac_dong: string | null
   ghi_chu_ky_thuat: string | null
   benh: BenhLite | null
@@ -37,18 +36,16 @@ interface PhacDoRow {
 
 interface FormState {
   id_benh: number | null
-  id_huyet: number | null
-  vai_tro_huyet: string
+  id_huyet_list: number[]
   phuong_phap_tac_dong: string
   ghi_chu_ky_thuat: string
 }
 
-const VAI_TRO_OPTIONS = [
-  'Chủ huyệt',
-  'Phối huyệt',
-  'A thị huyệt',
-  'Hỗ trợ',
-] as const
+interface BenhGroup {
+  idBenh: number
+  benh: BenhLite | null
+  items: PhacDoRow[]
+}
 
 const PHUONG_PHAP_OPTIONS = [
   'Châm',
@@ -71,16 +68,25 @@ const benhSearch = ref('')
 
 const showModal = ref(false)
 const showDeleteConfirm = ref(false)
-const editingId = ref<number | null>(null)
-const deletingItem = ref<PhacDoRow | null>(null)
+const editingBenhId = ref<number | null>(null)
+const editingItems = ref<PhacDoRow[]>([])
+const deletingGroup = ref<BenhGroup | null>(null)
 
 const emptyForm = (): FormState => ({
   id_benh: null,
-  id_huyet: null,
-  vai_tro_huyet: '',
+  id_huyet_list: [],
   phuong_phap_tac_dong: '',
   ghi_chu_ky_thuat: '',
 })
+
+function toggleHuyet(id: number) {
+  const idx = form.value.id_huyet_list.indexOf(id)
+  if (idx >= 0) {
+    form.value.id_huyet_list.splice(idx, 1)
+  } else {
+    form.value.id_huyet_list.push(id)
+  }
+}
 
 const form = ref<FormState>(emptyForm())
 
@@ -123,7 +129,7 @@ async function fetchBenh() {
     const res: any = await api.get('/benh-dong-y')
     benhOptions.value = Array.isArray(res) ? res : res?.data ?? []
   } catch (err) {
-    console.error('Không tải được danh sách bệnh đông y', err)
+    console.error('Không tải được danh sách Bệnh YHCT - Đông Y', err)
   }
 }
 
@@ -179,18 +185,54 @@ const filteredHuyetViOptions = computed(() => {
   })
 })
 
-const filteredList = computed(() => {
+const groupedList = computed<BenhGroup[]>(() => {
+  const map = new Map<number, BenhGroup>()
+  for (const row of dataList.value) {
+    let g = map.get(row.idBenh)
+    if (!g) {
+      g = { idBenh: row.idBenh, benh: row.benh, items: [] }
+      map.set(row.idBenh, g)
+    }
+    if (!g.benh && row.benh) g.benh = row.benh
+    g.items.push(row)
+  }
+  return Array.from(map.values()).sort((a, b) => a.idBenh - b.idBenh)
+})
+
+function uniqueStrings(list: (string | null | undefined)[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const s of list) {
+    const v = (s ?? '').trim()
+    if (!v || seen.has(v)) continue
+    seen.add(v)
+    out.push(v)
+  }
+  return out
+}
+
+function groupPhuongPhap(g: BenhGroup): string[] {
+  return uniqueStrings(g.items.map((i) => i.phuong_phap_tac_dong))
+}
+
+function groupGhiChu(g: BenhGroup): string[] {
+  return uniqueStrings(g.items.map((i) => i.ghi_chu_ky_thuat))
+}
+
+const filteredList = computed<BenhGroup[]>(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return dataList.value
-  return dataList.value.filter((row) => {
+  if (!q) return groupedList.value
+  return groupedList.value.filter((g) => {
     const hay = [
-      benhLabel(row.benh, row.idBenh),
-      huyetViLabel(row.huyetVi),
-      row.huyetVi?.ma_huyet,
-      kinhMachLabel(row.huyetVi?.kinhMach),
-      row.vai_tro_huyet,
-      row.phuong_phap_tac_dong,
-      row.ghi_chu_ky_thuat,
+      benhLabel(g.benh, g.idBenh),
+      g.benh?.code,
+      ...g.items.flatMap((row) => [
+        huyetViLabel(row.huyetVi),
+        row.huyetVi?.ma_huyet,
+        kinhMachLabel(row.huyetVi?.kinhMach),
+        row.phuong_phap_tac_dong,
+        row.ghi_chu_ky_thuat,
+      ]),
     ]
       .filter(Boolean)
       .join(' ')
@@ -199,7 +241,7 @@ const filteredList = computed(() => {
   })
 })
 
-const pagedList = computed(() => {
+const pagedList = computed<BenhGroup[]>(() => {
   const start = (currentPage.value - 1) * itemsPerPage.value
   return filteredList.value.slice(start, start + itemsPerPage.value)
 })
@@ -218,7 +260,8 @@ function getPageNumbers() {
 }
 
 function openCreateModal() {
-  editingId.value = null
+  editingBenhId.value = null
+  editingItems.value = []
   form.value = emptyForm()
   formError.value = null
   huyetViSearch.value = ''
@@ -226,14 +269,15 @@ function openCreateModal() {
   showModal.value = true
 }
 
-function openEditModal(row: PhacDoRow) {
-  editingId.value = row.idPhacDo
+function openEditModal(group: BenhGroup) {
+  editingBenhId.value = group.idBenh
+  editingItems.value = group.items.slice()
+  const first = group.items[0]
   form.value = {
-    id_benh: row.idBenh ?? null,
-    id_huyet: row.idHuyet ?? null,
-    vai_tro_huyet: row.vai_tro_huyet ?? '',
-    phuong_phap_tac_dong: row.phuong_phap_tac_dong ?? '',
-    ghi_chu_ky_thuat: row.ghi_chu_ky_thuat ?? '',
+    id_benh: group.idBenh,
+    id_huyet_list: group.items.map((r) => r.idHuyet).filter((id) => id != null),
+    phuong_phap_tac_dong: first?.phuong_phap_tac_dong ?? '',
+    ghi_chu_ky_thuat: first?.ghi_chu_ky_thuat ?? '',
   }
   formError.value = null
   huyetViSearch.value = ''
@@ -243,7 +287,8 @@ function openEditModal(row: PhacDoRow) {
 
 function closeModal() {
   showModal.value = false
-  editingId.value = null
+  editingBenhId.value = null
+  editingItems.value = []
 }
 
 async function handleSubmit() {
@@ -251,26 +296,44 @@ async function handleSubmit() {
   formError.value = null
   const f = form.value
   if (f.id_benh == null || Number.isNaN(Number(f.id_benh))) {
-    formError.value = 'Vui lòng nhập ID bệnh'
+    formError.value = 'Vui lòng chọn bệnh'
     return
   }
-  if (f.id_huyet == null) {
-    formError.value = 'Vui lòng chọn huyệt vị'
+  if (f.id_huyet_list.length === 0) {
+    formError.value = 'Vui lòng chọn ít nhất một huyệt vị'
     return
   }
-  const payload: Record<string, unknown> = {
+  const basePayload = {
     id_benh: Number(f.id_benh),
-    id_huyet: f.id_huyet,
-    vai_tro_huyet: f.vai_tro_huyet.trim() || null,
     phuong_phap_tac_dong: f.phuong_phap_tac_dong.trim() || null,
     ghi_chu_ky_thuat: f.ghi_chu_ky_thuat.trim() || null,
   }
   isSubmitting.value = true
   try {
-    if (editingId.value != null) {
-      await api.put(`/phac-do-dieu-tri/${editingId.value}`, payload)
+    if (editingBenhId.value != null) {
+      const existingByHuyet = new Map<number, PhacDoRow>()
+      for (const r of editingItems.value) existingByHuyet.set(r.idHuyet, r)
+      const desiredSet = new Set(f.id_huyet_list)
+      for (const r of editingItems.value) {
+        if (!desiredSet.has(r.idHuyet)) {
+          await api.delete(`/phac-do-dieu-tri/${r.idPhacDo}`)
+        }
+      }
+      for (const idHuyet of f.id_huyet_list) {
+        const existing = existingByHuyet.get(idHuyet)
+        if (existing) {
+          await api.put(`/phac-do-dieu-tri/${existing.idPhacDo}`, {
+            ...basePayload,
+            id_huyet: idHuyet,
+          })
+        } else {
+          await api.post('/phac-do-dieu-tri', { ...basePayload, id_huyet: idHuyet })
+        }
+      }
     } else {
-      await api.post('/phac-do-dieu-tri', payload)
+      for (const idHuyet of f.id_huyet_list) {
+        await api.post('/phac-do-dieu-tri', { ...basePayload, id_huyet: idHuyet })
+      }
     }
     await fetchData()
     closeModal()
@@ -281,19 +344,21 @@ async function handleSubmit() {
   }
 }
 
-function confirmDelete(row: PhacDoRow) {
-  deletingItem.value = row
+function confirmDelete(group: BenhGroup) {
+  deletingGroup.value = group
   showDeleteConfirm.value = true
 }
 
 async function handleDelete() {
   if (isSubmitting.value) return
-  if (!deletingItem.value) return
+  if (!deletingGroup.value) return
   isSubmitting.value = true
   try {
-    await api.delete(`/phac-do-dieu-tri/${deletingItem.value.idPhacDo}`)
+    for (const row of deletingGroup.value.items) {
+      await api.delete(`/phac-do-dieu-tri/${row.idPhacDo}`)
+    }
     showDeleteConfirm.value = false
-    deletingItem.value = null
+    deletingGroup.value = null
     await fetchData()
     if (pagedList.value.length === 0 && currentPage.value > 1) {
       currentPage.value--
@@ -301,7 +366,7 @@ async function handleDelete() {
   } catch (err: any) {
     error.value = err.message || 'Không xóa được bản ghi'
     showDeleteConfirm.value = false
-    deletingItem.value = null
+    deletingGroup.value = null
   } finally {
     isSubmitting.value = false
   }
@@ -312,12 +377,12 @@ async function handleDelete() {
   <div class="management-page">
     <div class="page-header">
       <div class="header-content">
-        <h1 class="page-title">Quản Lý Phác Đồ Điều Trị</h1>
+        <h1 class="page-title">Quản Lý Phương Huyệt</h1>
         <p class="page-subtitle">
-          Liên kết bệnh ↔ huyệt vị — vai trò huyệt, phương pháp tác động, ghi chú kỹ thuật
+          Liên kết bệnh ↔ huyệt vị — phương pháp tác động, ghi chú kỹ thuật
         </p>
       </div>
-      <button type="button" class="btn-primary" @click="openCreateModal">+ Thêm phác đồ</button>
+      <button type="button" class="btn-primary" @click="openCreateModal">+ Thêm phương huyệt</button>
     </div>
 
     <div v-if="isLoading" class="loading-state">
@@ -338,66 +403,81 @@ async function handleDelete() {
             v-model="searchQuery"
             type="search"
             class="search-input"
-            placeholder="Tìm theo bệnh, huyệt, vai trò, phương pháp..."
+            placeholder="Tìm theo bệnh, huyệt, phương pháp..."
             autocomplete="off"
           />
         </label>
-        <span class="toolbar-count">{{ filteredList.length }} / {{ dataList.length }} phác đồ</span>
+        <span class="toolbar-count">{{ filteredList.length }} / {{ groupedList.length }} bệnh</span>
       </div>
 
       <div class="data-card">
         <div class="card-header">
-          <h3>Danh sách Phác Đồ Điều Trị</h3>
-          <span class="badge badge-success">{{ filteredList.length }} bản ghi</span>
+          <h3>Danh sách Phương Huyệt</h3>
+          <span class="badge badge-success">{{ filteredList.length }} bệnh · {{ dataList.length }} liên kết</span>
         </div>
         <div class="table-responsive">
           <table class="data-table">
             <thead>
               <tr>
-                <th width="64">ID</th>
-                <th width="200">Bệnh</th>
-                <th width="220">Huyệt vị</th>
-                <th width="140">Vai trò</th>
-                <th width="140">Phương pháp</th>
-                <th>Ghi chú kỹ thuật</th>
+                <th width="64">ID bệnh</th>
+                <th width="220">Bệnh</th>
+                <th>Huyệt vị</th>
+                <th width="160">Phương pháp</th>
+                <th width="220">Ghi chú kỹ thuật</th>
                 <th width="120" class="text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="pagedList.length === 0">
-                <td colspan="7" class="text-center py-8 text-gray-500">
+                <td colspan="6" class="text-center py-8 text-gray-500">
                   {{ searchQuery.trim() ? 'Không khớp bản ghi nào' : 'Chưa có dữ liệu' }}
                 </td>
               </tr>
-              <tr v-for="item in pagedList" :key="item.idPhacDo">
-                <td class="font-bold cell-id">#{{ item.idPhacDo }}</td>
+              <tr v-for="group in pagedList" :key="group.idBenh">
+                <td class="font-bold cell-id">#{{ group.idBenh }}</td>
                 <td>
                   <div class="benh-cell">
-                    <span class="chip chip-benh">{{ benhLabel(item.benh, item.idBenh) }}</span>
-                    <small v-if="item.benh?.code" class="text-muted">{{ item.benh.code }}</small>
+                    <span class="chip chip-benh">{{ benhLabel(group.benh, group.idBenh) }}</span>
+                    <small v-if="group.benh?.code" class="text-muted">{{ group.benh.code }}</small>
                   </div>
                 </td>
                 <td>
-                  <div class="huyet-cell">
-                    <span class="chip chip-huyet">{{ huyetViLabel(item.huyetVi) }}</span>
-                    <small v-if="item.huyetVi?.kinhMach" class="text-muted">
-                      {{ kinhMachLabel(item.huyetVi.kinhMach) }}
-                    </small>
+                  <div v-if="group.items.length" class="chip-row">
+                    <span
+                      v-for="row in group.items"
+                      :key="row.idPhacDo"
+                      class="chip chip-huyet"
+                      :title="row.huyetVi?.kinhMach ? kinhMachLabel(row.huyetVi.kinhMach) : ''"
+                    >
+                      {{ huyetViLabel(row.huyetVi) }}
+                    </span>
                   </div>
-                </td>
-                <td>
-                  <span v-if="item.vai_tro_huyet" class="chip chip-role">{{ item.vai_tro_huyet }}</span>
                   <span v-else class="muted">—</span>
                 </td>
                 <td>
-                  <span v-if="item.phuong_phap_tac_dong" class="chip chip-method">{{ item.phuong_phap_tac_dong }}</span>
+                  <div v-if="groupPhuongPhap(group).length" class="chip-row">
+                    <span
+                      v-for="(pp, i) in groupPhuongPhap(group)"
+                      :key="i"
+                      class="chip chip-method"
+                    >
+                      {{ pp }}
+                    </span>
+                  </div>
                   <span v-else class="muted">—</span>
                 </td>
-                <td class="cell-wrap">{{ item.ghi_chu_ky_thuat || '—' }}</td>
+                <td class="cell-wrap">
+                  <template v-if="groupGhiChu(group).length">
+                    <div v-for="(note, i) in groupGhiChu(group)" :key="i" class="note-line">
+                      {{ note }}
+                    </div>
+                  </template>
+                  <span v-else class="muted">—</span>
+                </td>
                 <td class="text-right">
                   <div class="row-actions">
-                    <button type="button" class="btn-action btn-edit" @click="openEditModal(item)">Sửa</button>
-                    <button type="button" class="btn-action btn-delete" @click="confirmDelete(item)">Xóa</button>
+                    <button type="button" class="btn-action btn-edit" @click="openEditModal(group)">Sửa</button>
+                    <button type="button" class="btn-action btn-delete" @click="confirmDelete(group)">Xóa</button>
                   </div>
                 </td>
               </tr>
@@ -425,7 +505,7 @@ async function handleDelete() {
     <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
       <div class="modal modal--wide" @click.stop>
         <div class="modal-header">
-          <h3>{{ editingId != null ? 'Sửa phác đồ' : 'Thêm phác đồ' }}</h3>
+          <h3>{{ editingBenhId != null ? 'Sửa phương huyệt' : 'Thêm phương huyệt' }}</h3>
           <button type="button" class="modal-close" aria-label="Đóng" @click="closeModal">✕</button>
         </div>
         <form class="modal-body" @submit.prevent="handleSubmit">
@@ -433,10 +513,10 @@ async function handleDelete() {
           <div class="form-grid">
             <div class="field field--full">
               <div class="field-head">
-                <span class="field-label">Bệnh đông y <abbr title="bắt buộc">*</abbr></span>
+                <span class="field-label">Bệnh YHCT - Đông Y <abbr title="bắt buộc">*</abbr></span>
                 <span class="field-count">{{ form.id_benh != null ? 'Đã chọn' : 'Chưa chọn' }}</span>
               </div>
-              <div v-if="benhOptions.length === 0" class="muted">Chưa có dữ liệu bệnh đông y</div>
+              <div v-if="benhOptions.length === 0" class="muted">Chưa có dữ liệu Bệnh YHCT - Đông Y</div>
               <template v-else>
                 <div class="picker-search">
                   <input
@@ -463,22 +543,6 @@ async function handleDelete() {
                   </span>
                 </div>
               </template>
-            </div>
-
-            <div class="field field--full">
-              <span class="field-label">Vai trò huyệt</span>
-              <div class="chip-picker">
-                <button
-                  v-for="opt in VAI_TRO_OPTIONS"
-                  :key="opt"
-                  type="button"
-                  class="chip-toggle"
-                  :class="{ active: form.vai_tro_huyet === opt }"
-                  @click="form.vai_tro_huyet = form.vai_tro_huyet === opt ? '' : opt"
-                >
-                  {{ opt }}
-                </button>
-              </div>
             </div>
 
             <div class="field field--full">
@@ -510,8 +574,11 @@ async function handleDelete() {
             <div class="field field--full">
               <div class="field-head">
                 <span class="field-label">Huyệt vị <abbr title="bắt buộc">*</abbr></span>
-                <span class="field-count">{{ form.id_huyet != null ? 'Đã chọn' : 'Chưa chọn' }}</span>
+                <span class="field-count">{{ form.id_huyet_list.length }} đã chọn</span>
               </div>
+              <small v-if="editingBenhId != null" class="field-hint">
+                Khi lưu: huyệt bị bỏ chọn sẽ bị xóa khỏi bệnh, huyệt mới sẽ được thêm vào.
+              </small>
               <div v-if="huyetViOptions.length === 0" class="muted">Chưa có dữ liệu huyệt vị</div>
               <template v-else>
                 <div class="picker-search">
@@ -528,8 +595,8 @@ async function handleDelete() {
                     :key="h.idHuyet"
                     type="button"
                     class="chip-toggle"
-                    :class="{ active: form.id_huyet === h.idHuyet }"
-                    @click="form.id_huyet = h.idHuyet"
+                    :class="{ active: form.id_huyet_list.includes(h.idHuyet) }"
+                    @click="toggleHuyet(h.idHuyet)"
                   >
                     {{ huyetViLabel(h) }}
                     <span v-if="h.kinhMach" class="chip-sub">— {{ kinhMachLabel(h.kinhMach) }}</span>
@@ -560,9 +627,9 @@ async function handleDelete() {
         </div>
         <div class="modal-body">
           <p>
-            Xóa phác đồ
-            <strong>#{{ deletingItem?.idPhacDo }} — {{ benhLabel(deletingItem?.benh ?? null, deletingItem?.idBenh) }} ↔ {{ huyetViLabel(deletingItem?.huyetVi ?? null) }}</strong>?
-            Thao tác không hoàn tác.
+            Xóa toàn bộ phương huyệt của bệnh
+            <strong>{{ benhLabel(deletingGroup?.benh ?? null, deletingGroup?.idBenh) }}</strong>
+            ({{ deletingGroup?.items.length ?? 0 }} huyệt)? Thao tác không hoàn tác.
           </p>
         </div>
         <div class="modal-footer">
@@ -653,6 +720,16 @@ async function handleDelete() {
 .data-table td { font-size: var(--font-size-md); color: var(--gray-800); }
 .cell-id { color: var(--gray-500); font-weight: 600; font-size: var(--font-size-sm); }
 .cell-wrap { white-space: normal; word-break: break-word; line-height: 1.4; max-width: 400px; }
+.chip-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.chip-row .chip { flex: 0 0 auto; }
+.note-line { padding: 2px 0; }
+.note-line + .note-line { border-top: 1px dashed var(--gray-200); margin-top: 4px; padding-top: 6px; }
 
 .benh-cell, .huyet-cell { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
 .text-muted { font-size: 11px; color: var(--gray-500); }

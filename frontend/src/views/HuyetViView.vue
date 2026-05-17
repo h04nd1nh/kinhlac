@@ -433,7 +433,7 @@ async function handleDelete() {
         <div class="modal-body">
           <p>
             Xóa huyệt <strong>{{ deletingItem?.ten_huyet || `#${deletingItem?.idHuyet}` }}</strong>?
-            Các phác đồ điều trị tham chiếu sẽ bị xóa kéo theo.
+            Các phương huyệt tham chiếu sẽ bị xóa kéo theo.
           </p>
         </div>
         <div class="modal-footer">

@@ -2,10 +2,31 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { api } from '@/services/api'
 
+interface TrieuChungLite {
+  id: number
+  ten_trieu_chung: string
+}
+
+interface BaiThuocLite {
+  id: number
+  ten_bai_thuoc: string
+}
+
+interface BaiThuocPhapTriLink {
+  idBaiThuoc: number
+  idPhapTri: number
+  thuTu?: number
+  baiThuoc?: BaiThuocLite | null
+}
+
 interface PhapTriLite {
   id: number
   nguyen_tac: string | null
   chung_trang: string | null
+  trieu_chung_mo_ta?: string | null
+  trieu_chung_list?: TrieuChungLite[]
+  bai_thuoc?: BaiThuocLite | null
+  bai_thuoc_links?: BaiThuocPhapTriLink[]
 }
 
 interface BenhDongYExcelRow {
@@ -19,9 +40,42 @@ interface BenhDongYExcelRow {
   sqlCaseBoolean: string
   idPhapTri: number | null
   phapTri: PhapTriLite | null
+  trieuChungList?: TrieuChungLite[] | null
+  baiThuocList?: BaiThuocLite[] | null
 }
 
-type FormState = Omit<BenhDongYExcelRow, 'id' | 'phapTri'>
+interface KinhMachLite {
+  idKinhMach: number
+  ten_kinh_mach: string | null
+  ten_viet_tat: string | null
+}
+
+interface HuyetViLite {
+  idHuyet: number
+  ten_huyet: string | null
+  ma_huyet: string | null
+  kinhMach?: KinhMachLite | null
+}
+
+interface PhacDoLite {
+  idPhacDo: number
+  idBenh: number
+  idHuyet: number
+  huyetVi: HuyetViLite | null
+}
+
+interface FormState {
+  code: string
+  name: string
+  outputCell: string
+  excelFormula: string
+  logicExpression: string
+  sqlCaseText: string
+  sqlCaseBoolean: string
+  idPhapTri: number | null
+  id_trieu_chung_list: number[]
+  id_bai_thuoc_list: number[]
+}
 
 const isLoading = ref(true)
 const isSubmitting = ref(false)
@@ -29,8 +83,13 @@ const error = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const dataList = ref<BenhDongYExcelRow[]>([])
 const phapTriOptions = ref<PhapTriLite[]>([])
+const phacDoList = ref<PhacDoLite[]>([])
+const trieuChungOptions = ref<TrieuChungLite[]>([])
+const baiThuocOptions = ref<BaiThuocLite[]>([])
 const searchQuery = ref('')
 const phapTriSearch = ref('')
+const trieuChungSearch = ref('')
+const baiThuocSearch = ref('')
 
 const showModal = ref(false)
 const showDeleteConfirm = ref(false)
@@ -46,7 +105,13 @@ const emptyForm = (): FormState => ({
   sqlCaseText: '',
   sqlCaseBoolean: '',
   idPhapTri: null,
+  id_trieu_chung_list: [],
+  id_bai_thuoc_list: [],
 })
+
+function toggleId(list: number[], id: number): number[] {
+  return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
+}
 
 const form = ref<FormState>(emptyForm())
 
@@ -54,7 +119,13 @@ const currentPage = ref(1)
 const itemsPerPage = ref(10)
 
 onMounted(async () => {
-  await Promise.all([fetchData(), fetchPhapTri()])
+  await Promise.all([
+    fetchData(),
+    fetchPhapTri(),
+    fetchPhacDo(),
+    fetchTrieuChung(),
+    fetchBaiThuoc(),
+  ])
 })
 
 watch(searchQuery, () => {
@@ -84,8 +155,75 @@ async function fetchPhapTri() {
   }
 }
 
+async function fetchPhacDo() {
+  try {
+    const res: any = await api.get('/phac-do-dieu-tri')
+    phacDoList.value = Array.isArray(res) ? res : res?.data ?? []
+  } catch (err) {
+    console.error('Không tải được danh sách phương huyệt', err)
+  }
+}
+
+async function fetchTrieuChung() {
+  try {
+    const res: any = await api.get('/trieu-chung')
+    trieuChungOptions.value = Array.isArray(res) ? res : res?.data ?? []
+  } catch (err) {
+    console.error('Không tải được danh sách triệu chứng', err)
+  }
+}
+
+async function fetchBaiThuoc() {
+  try {
+    const res: any = await api.get('/bai-thuoc')
+    baiThuocOptions.value = Array.isArray(res) ? res : res?.data ?? []
+  } catch (err) {
+    console.error('Không tải được danh sách bài thuốc', err)
+  }
+}
+
+const filteredTrieuChungOptions = computed(() => {
+  const q = trieuChungSearch.value.trim().toLowerCase()
+  if (!q) return trieuChungOptions.value
+  return trieuChungOptions.value.filter((t) =>
+    (t.ten_trieu_chung || '').toLowerCase().includes(q),
+  )
+})
+
+const filteredBaiThuocOptions = computed(() => {
+  const q = baiThuocSearch.value.trim().toLowerCase()
+  if (!q) return baiThuocOptions.value
+  return baiThuocOptions.value.filter((b) =>
+    (b.ten_bai_thuoc || '').toLowerCase().includes(q),
+  )
+})
+
+const phacDoByBenh = computed<Map<number, PhacDoLite[]>>(() => {
+  const map = new Map<number, PhacDoLite[]>()
+  for (const p of phacDoList.value) {
+    const list = map.get(p.idBenh) ?? []
+    list.push(p)
+    map.set(p.idBenh, list)
+  }
+  return map
+})
+
+function huyetLabel(h: HuyetViLite | null | undefined): string {
+  if (!h) return ''
+  const parts = [h.ten_huyet, h.ma_huyet ? `(${h.ma_huyet})` : null].filter(Boolean)
+  return parts.length ? parts.join(' ') : `#${h.idHuyet}`
+}
+
 function phapTriLabel(p: PhapTriLite): string {
   return (p.nguyen_tac || p.chung_trang || `#${p.id}`).trim()
+}
+
+function trieuChungLabelsForBenh(item: BenhDongYExcelRow): string[] {
+  return (item.trieuChungList ?? []).map((t) => t.ten_trieu_chung).filter(Boolean)
+}
+
+function baiThuocLabelsForBenh(item: BenhDongYExcelRow): string[] {
+  return (item.baiThuocList ?? []).map((b) => b.ten_bai_thuoc).filter(Boolean)
 }
 
 const filteredPhapTriOptions = computed(() => {
@@ -104,6 +242,8 @@ const filteredList = computed(() => {
       row.outputCell,
       row.phapTri?.chung_trang,
       row.phapTri?.nguyen_tac,
+      trieuChungLabelsForBenh(row).join(' '),
+      baiThuocLabelsForBenh(row).join(' '),
     ]
       .filter(Boolean)
       .join(' ')
@@ -207,11 +347,17 @@ function excelCellHint(ref: string): string {
   return EXCEL_CELL_HINTS[ref] ?? ''
 }
 
+function resetPickerSearches() {
+  phapTriSearch.value = ''
+  trieuChungSearch.value = ''
+  baiThuocSearch.value = ''
+}
+
 function openCreateModal() {
   editingId.value = null
   form.value = emptyForm()
   formError.value = null
-  phapTriSearch.value = ''
+  resetPickerSearches()
   showModal.value = true
 }
 
@@ -226,9 +372,11 @@ function openEditModal(row: BenhDongYExcelRow) {
     sqlCaseText: row.sqlCaseText,
     sqlCaseBoolean: row.sqlCaseBoolean,
     idPhapTri: row.idPhapTri ?? null,
+    id_trieu_chung_list: (row.trieuChungList ?? []).map((t) => t.id),
+    id_bai_thuoc_list: (row.baiThuocList ?? []).map((b) => b.id),
   }
   formError.value = null
-  phapTriSearch.value = ''
+  resetPickerSearches()
   showModal.value = true
 }
 
@@ -265,6 +413,8 @@ async function handleSubmit() {
     sqlCaseText: f.sqlCaseText,
     sqlCaseBoolean: f.sqlCaseBoolean,
     id_phap_tri: f.idPhapTri,
+    id_trieu_chung_list: f.id_trieu_chung_list,
+    id_bai_thuoc_list: f.id_bai_thuoc_list,
   }
   isSubmitting.value = true
   try {
@@ -319,7 +469,6 @@ async function handleDelete() {
           Danh mục bệnh chẩn theo kinh lạc, liên kết với thể bệnh / pháp trị tương ứng
         </p>
       </div>
-      <button type="button" class="btn-primary" @click="openCreateModal">+ Thêm bệnh</button>
     </div>
 
     <div v-if="isLoading" class="loading-state">
@@ -631,6 +780,9 @@ async function handleDelete() {
               <col class="col-name" />
               <col class="col-the" />
               <col class="col-phap" />
+              <col class="col-trieu" />
+              <col class="col-bai" />
+              <col class="col-huyet" />
               <col class="col-actions" />
             </colgroup>
             <thead>
@@ -639,12 +791,15 @@ async function handleDelete() {
                 <th>Tên bệnh</th>
                 <th>Thể bệnh</th>
                 <th>Pháp trị</th>
+                <th>Triệu chứng</th>
+                <th>Bài thuốc</th>
+                <th>Phương huyệt</th>
                 <th class="text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="pagedList.length === 0">
-                <td colspan="5" class="text-center py-8 text-gray-500">
+                <td colspan="8" class="text-center py-8 text-gray-500">
                   {{ searchQuery.trim() ? 'Không khớp bản ghi nào' : 'Chưa có dữ liệu' }}
                 </td>
               </tr>
@@ -657,6 +812,42 @@ async function handleDelete() {
                 </td>
                 <td>
                   <span v-if="item.phapTri" class="chip chip-phap">{{ phapTriLabel(item.phapTri) }}</span>
+                  <span v-else class="muted">—</span>
+                </td>
+                <td>
+                  <div v-if="trieuChungLabelsForBenh(item).length" class="chip-row">
+                    <span
+                      v-for="(t, i) in trieuChungLabelsForBenh(item)"
+                      :key="i"
+                      class="chip chip-trieu"
+                    >
+                      {{ t }}
+                    </span>
+                  </div>
+                  <span v-else class="muted">—</span>
+                </td>
+                <td>
+                  <div v-if="baiThuocLabelsForBenh(item).length" class="chip-row">
+                    <span
+                      v-for="(b, i) in baiThuocLabelsForBenh(item)"
+                      :key="i"
+                      class="chip chip-bai"
+                    >
+                      {{ b }}
+                    </span>
+                  </div>
+                  <span v-else class="muted">—</span>
+                </td>
+                <td>
+                  <div v-if="(phacDoByBenh.get(item.id) ?? []).length" class="chip-row">
+                    <span
+                      v-for="p in (phacDoByBenh.get(item.id) ?? [])"
+                      :key="p.idPhacDo"
+                      class="chip chip-huyet"
+                    >
+                      {{ huyetLabel(p.huyetVi) }}
+                    </span>
+                  </div>
                   <span v-else class="muted">—</span>
                 </td>
                 <td class="text-right">
@@ -707,22 +898,54 @@ async function handleDelete() {
               <span>Ô output (Excel) <abbr title="bắt buộc">*</abbr></span>
               <input v-model="form.outputCell" class="input" maxlength="20" placeholder="vd. K12" />
             </label>
-            <label class="field field--full">
-              <span>Công thức Excel <abbr title="bắt buộc">*</abbr></span>
-              <textarea v-model="form.excelFormula" class="textarea" rows="3" spellcheck="false"></textarea>
-            </label>
-            <label class="field field--full">
-              <span>Logic (AND các mệnh đề) <abbr title="bắt buộc">*</abbr></span>
-              <textarea v-model="form.logicExpression" class="textarea mono" rows="4" spellcheck="false"></textarea>
-            </label>
-            <label class="field field--full">
-              <span>SQL CASE (text) <abbr title="bắt buộc">*</abbr></span>
-              <textarea v-model="form.sqlCaseText" class="textarea mono" rows="4" spellcheck="false"></textarea>
-            </label>
-            <label class="field field--full">
-              <span>SQL CASE (boolean) <abbr title="bắt buộc">*</abbr></span>
-              <textarea v-model="form.sqlCaseBoolean" class="textarea mono" rows="4" spellcheck="false"></textarea>
-            </label>
+            <details class="field field--full readonly-panel">
+              <summary class="readonly-summary">
+                <span>Chi tiết kỹ thuật (chỉ xem)</span>
+                <span class="readonly-hint">Công thức Excel · Logic · SQL CASE — không sửa được</span>
+              </summary>
+              <div class="readonly-body">
+                <label class="field field--full">
+                  <span>Công thức Excel</span>
+                  <textarea
+                    v-model="form.excelFormula"
+                    class="textarea readonly-input"
+                    rows="3"
+                    spellcheck="false"
+                    readonly
+                  ></textarea>
+                </label>
+                <label class="field field--full">
+                  <span>Logic (AND các mệnh đề)</span>
+                  <textarea
+                    v-model="form.logicExpression"
+                    class="textarea mono readonly-input"
+                    rows="4"
+                    spellcheck="false"
+                    readonly
+                  ></textarea>
+                </label>
+                <label class="field field--full">
+                  <span>SQL CASE (text)</span>
+                  <textarea
+                    v-model="form.sqlCaseText"
+                    class="textarea mono readonly-input"
+                    rows="4"
+                    spellcheck="false"
+                    readonly
+                  ></textarea>
+                </label>
+                <label class="field field--full">
+                  <span>SQL CASE (boolean)</span>
+                  <textarea
+                    v-model="form.sqlCaseBoolean"
+                    class="textarea mono readonly-input"
+                    rows="4"
+                    spellcheck="false"
+                    readonly
+                  ></textarea>
+                </label>
+              </div>
+            </details>
 
             <div class="field field--full">
               <div class="field-head">
@@ -754,6 +977,58 @@ async function handleDelete() {
                     {{ phapTriLabel(p) }}
                   </button>
                   <span v-if="filteredPhapTriOptions.length === 0" class="muted">Không khớp "{{ phapTriSearch }}"</span>
+                </div>
+              </template>
+            </div>
+
+            <div class="field field--full">
+              <div class="field-head">
+                <span>Triệu chứng</span>
+                <span class="field-count">{{ form.id_trieu_chung_list.length }} đã chọn</span>
+              </div>
+              <div v-if="trieuChungOptions.length === 0" class="muted">Chưa có dữ liệu triệu chứng</div>
+              <template v-else>
+                <div class="picker-search">
+                  <input v-model="trieuChungSearch" type="search" class="input input--sm" placeholder="Tìm triệu chứng..." />
+                </div>
+                <div class="chip-picker chip-picker--scroll">
+                  <button
+                    v-for="t in filteredTrieuChungOptions"
+                    :key="t.id"
+                    type="button"
+                    class="chip-toggle"
+                    :class="{ active: form.id_trieu_chung_list.includes(t.id) }"
+                    @click="form.id_trieu_chung_list = toggleId(form.id_trieu_chung_list, t.id)"
+                  >
+                    {{ t.ten_trieu_chung }}
+                  </button>
+                  <span v-if="filteredTrieuChungOptions.length === 0" class="muted">Không khớp "{{ trieuChungSearch }}"</span>
+                </div>
+              </template>
+            </div>
+
+            <div class="field field--full">
+              <div class="field-head">
+                <span>Bài thuốc</span>
+                <span class="field-count">{{ form.id_bai_thuoc_list.length }} đã chọn</span>
+              </div>
+              <div v-if="baiThuocOptions.length === 0" class="muted">Chưa có dữ liệu bài thuốc</div>
+              <template v-else>
+                <div class="picker-search">
+                  <input v-model="baiThuocSearch" type="search" class="input input--sm" placeholder="Tìm bài thuốc..." />
+                </div>
+                <div class="chip-picker chip-picker--scroll">
+                  <button
+                    v-for="b in filteredBaiThuocOptions"
+                    :key="b.id"
+                    type="button"
+                    class="chip-toggle"
+                    :class="{ active: form.id_bai_thuoc_list.includes(b.id) }"
+                    @click="form.id_bai_thuoc_list = toggleId(form.id_bai_thuoc_list, b.id)"
+                  >
+                    {{ b.ten_bai_thuoc }}
+                  </button>
+                  <span v-if="filteredBaiThuocOptions.length === 0" class="muted">Không khớp "{{ baiThuocSearch }}"</span>
                 </div>
               </template>
             </div>
@@ -971,9 +1246,12 @@ async function handleDelete() {
   table-layout: fixed;
 }
 .data-table--balanced .col-id { width: 64px; }
-.data-table--balanced .col-name { width: auto; }
-.data-table--balanced .col-the { width: 24%; }
-.data-table--balanced .col-phap { width: 28%; }
+.data-table--balanced .col-name { width: 14%; }
+.data-table--balanced .col-the { width: 12%; }
+.data-table--balanced .col-phap { width: 14%; }
+.data-table--balanced .col-trieu { width: 18%; }
+.data-table--balanced .col-bai { width: 14%; }
+.data-table--balanced .col-huyet { width: 18%; }
 .data-table--balanced .col-actions { width: 120px; }
 .data-table--balanced .cell-id {
   color: var(--gray-500);
@@ -990,6 +1268,11 @@ async function handleDelete() {
   white-space: normal;
   word-break: break-word;
   text-align: left;
+}
+.data-table--balanced .chip-row .chip {
+  white-space: nowrap;
+  word-break: normal;
+  max-width: none;
 }
 .cell-tag {
   display: inline-block;
@@ -1508,6 +1791,56 @@ async function handleDelete() {
   line-height: 1.5;
 }
 
+.readonly-panel {
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius-md);
+  background: var(--gray-50);
+  padding: 0;
+}
+.readonly-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+.readonly-summary::-webkit-details-marker { display: none; }
+.readonly-summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: var(--space-2);
+  transition: transform 0.2s ease;
+  color: var(--gray-500);
+}
+.readonly-panel[open] .readonly-summary::before { transform: rotate(90deg); }
+.readonly-hint {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--gray-500);
+}
+.readonly-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px dashed var(--gray-200);
+}
+.readonly-input {
+  background: var(--white);
+  color: var(--gray-600);
+  cursor: not-allowed;
+}
+.readonly-input:focus {
+  outline: none;
+  border-color: var(--gray-300);
+  box-shadow: none;
+}
+
 .chip {
   display: inline-block;
   padding: 2px 8px;
@@ -1526,6 +1859,31 @@ async function handleDelete() {
   background: #ecfdf5;
   color: #047857;
   border-color: #a7f3d0;
+}
+.chip-huyet {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+.chip-trieu {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+.chip-bai {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.chip-row .chip {
+  flex: 0 0 auto;
 }
 .muted {
   color: var(--gray-400);

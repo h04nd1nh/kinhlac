@@ -10,11 +10,11 @@ type SubTab = 'dong-y' | 'hien-dai' | 'kinh-mach' | 'huyet-vi' | 'phac-do'
 const activeSub = ref<SubTab>('dong-y')
 
 const tabs: { key: SubTab; label: string }[] = [
-  { key: 'dong-y', label: 'Bệnh đông y' },
-  { key: 'hien-dai', label: 'Bệnh đông y hiện đại' },
+  { key: 'dong-y', label: 'Bệnh YHCT - Đông Y' },
+  { key: 'hien-dai', label: 'Bệnh Y Học Hiện Đại' },
   { key: 'kinh-mach', label: 'Kinh mạch' },
   { key: 'huyet-vi', label: 'Huyệt vị' },
-  { key: 'phac-do', label: 'Phác đồ điều trị' },
+  { key: 'phac-do', label: 'Phương huyệt' },
 ]
 </script>
 
