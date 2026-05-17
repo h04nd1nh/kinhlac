@@ -1,12 +1,10 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { BaiThuocChiTiet } from './bai-thuoc-chi-tiet.model';
-import { ViThuocNhomNho } from './vi-thuoc-nhom-nho.model';
 import { ViThuocCongDung } from './vi-thuoc-cong-dung.model';
 import { ViThuocChuTri } from './vi-thuoc-chu-tri.model';
 import { ViThuocKiengKy } from './vi-thuoc-kieng-ky.model';
 import { ViThuocTenGoiKhac } from './vi-thuoc-ten-goi-khac.model';
 
-/** Bảng vị thuốc — nghiệp vụ + id; nhóm dược lý gán qua bảng vi_thuoc_nhom_nho. */
 @Entity('vi_thuoc')
 export class ViThuoc {
   @PrimaryGeneratedColumn()
@@ -29,9 +27,6 @@ export class ViThuoc {
 
   @OneToMany(() => BaiThuocChiTiet, (detail) => detail.viThuoc)
   baiThuocDetails: BaiThuocChiTiet[];
-
-  @OneToMany(() => ViThuocNhomNho, (link) => link.viThuoc)
-  nhomLinks: ViThuocNhomNho[];
 
   @OneToMany(() => ViThuocCongDung, (link) => link.viThuoc)
   congDungLinks: ViThuocCongDung[];

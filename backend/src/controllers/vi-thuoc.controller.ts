@@ -10,7 +10,6 @@ import { CreateViThuocDto, UpdateViThuocDto } from '../models/dongy-thuoc.dto';
 import { catalogKey, formatCatalogLabel } from '../utils/catalog-label.util';
 
 const VI_THUOC_RELATIONS = {
-  nhomLinks: { nhomNho: { nhomLon: true } },
   congDungLinks: { congDung: true },
   chuTriLinks: { chuTri: true },
   kiengKyLinks: { kiengKy: true },

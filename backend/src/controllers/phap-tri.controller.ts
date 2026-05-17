@@ -5,7 +5,6 @@ import { PhapTri } from '../models/phap-tri.model';
 import { CreatePhapTriDto, UpdatePhapTriDto } from '../models/phap-tri.dto';
 import { BaiThuoc } from '../models/bai-thuoc.model';
 import { BaiThuocPhapTri } from '../models/bai-thuoc-phap-tri.model';
-import { NhomDuocLyNho } from '../models/nhom-duoc-ly-nho.model';
 import { KinhMach } from '../models/kinh-mach.model';
 import { MeridianSyndrome } from '../models/meridian-syndrome.model';
 import { TrieuChung } from '../models/trieu-chung.model';
@@ -16,9 +15,6 @@ export class PhapTriService {
     'bai_thuoc',
     'bai_thuoc_links',
     'bai_thuoc_links.baiThuoc',
-    'nhom_duoc_ly_nho',
-    'nhom_duoc_ly_nho.nhomLon',
-    'nhom_duoc_ly_nho_list',
     'benh_dong_y_list',
     'kinh_mach_list',
     'trieu_chung_list',
@@ -29,8 +25,6 @@ export class PhapTriService {
     private readonly repo: Repository<PhapTri>,
     @InjectRepository(BaiThuoc)
     private readonly baiThuocRepo: Repository<BaiThuoc>,
-    @InjectRepository(NhomDuocLyNho)
-    private readonly nhomNhoRepo: Repository<NhomDuocLyNho>,
     @InjectRepository(KinhMach)
     private readonly kinhRepo: Repository<KinhMach>,
     @InjectRepository(MeridianSyndrome)
@@ -75,11 +69,6 @@ export class PhapTriService {
     return this.kinhRepo.findBy({ idKinhMach: In(ids) });
   }
 
-  private async resolveNhomNho(ids?: number[] | null): Promise<NhomDuocLyNho[]> {
-    if (!ids?.length) return [];
-    return this.nhomNhoRepo.findBy({ id: In(ids) });
-  }
-
   /** PG 23505 = unique_violation (vd. id_benh_dong_y UNIQUE) */
   private static isPostgresUniqueViolation(err: unknown): boolean {
     return err instanceof QueryFailedError && (err as QueryFailedError & { driverError?: { code?: string } }).driverError?.code === '23505';
@@ -98,26 +87,6 @@ export class PhapTriService {
   ): Promise<void> {
     const touch = (key: keyof CreatePhapTriDto) =>
       mode === 'create' || PhapTriService.has(dto, key as string);
-
-    if (touch('id_nhom_duoc_ly_nho_list')) {
-      const ids = [...new Set((dto.id_nhom_duoc_ly_nho_list ?? []).filter((x): x is number => Number.isFinite(x)))];
-      const list = await this.resolveNhomNho(ids);
-      entity.nhom_duoc_ly_nho_list = list;
-      entity.nhom_duoc_ly_nho = list.length > 0 ? list[0] : null;
-    } else if (touch('id_nhom_duoc_ly_nho')) {
-      const v = dto.id_nhom_duoc_ly_nho;
-      if (v == null) {
-        entity.nhom_duoc_ly_nho = null;
-        entity.nhom_duoc_ly_nho_list = [];
-      } else {
-        const n = await this.nhomNhoRepo.findOneBy({ id: v });
-        entity.nhom_duoc_ly_nho = n ?? null;
-        entity.nhom_duoc_ly_nho_list = n ? [n] : [];
-      }
-    } else if (mode === 'create') {
-      entity.nhom_duoc_ly_nho = null;
-      entity.nhom_duoc_ly_nho_list = [];
-    }
 
     const hasMany = PhapTriService.has(dto, 'id_benh_dong_y_list');
     const hasSingle = PhapTriService.has(dto, 'id_benh_dong_y');
@@ -264,7 +233,6 @@ export class PhapTriService {
       trieu_chung_mo_ta: null,
       kinh_mach_list: [],
       trieu_chung_list: [],
-      nhom_duoc_ly_nho_list: [],
     });
     await this.applyRefs(entity, dto, 'create');
     try {
