@@ -116,26 +116,47 @@ import { JwtStrategy } from './middlewares/auth/jwt.strategy';
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        url: configService.get<string>('DATABASE_URL') || configService.get<string>('POSTGRES_URL'), 
-        host: configService.get<string>('DB_HOST') || configService.get<string>('POSTGRES_HOST'),
-        port: configService.get<number>('DB_PORT') || configService.get<number>('POSTGRES_PORT') || 5432,
-        username: configService.get<string>('DB_USER') || configService.get<string>('POSTGRES_USER'),
-        password: configService.get<string>('DB_PASSWORD') || configService.get<string>('POSTGRES_PASSWORD'),
-        database: configService.get<string>('DB_NAME') || configService.get<string>('POSTGRES_DATABASE'),
-        ssl: configService.get<string>('DB_SSL') === 'false' ? false : { rejectUnauthorized: false },
-        extra: {
-          max: 1,
-          connectionTimeoutMillis: 15000,
-          idleTimeoutMillis: 1000,
-          keepAlive: false,
-        },
-        poolSize: 1,
-        retryAttempts: 2, // Slight increase to handle one-off flips
-        autoLoadEntities: true,
-        synchronize: configService.get<string>('DB_SYNCHRONIZE') === 'true',
-      }),
+      useFactory: (configService: ConfigService) => {
+        // Vercel serverless cần pool nhỏ + idle timeout ngắn để tránh giữ socket.
+        // Dev/PM2/Docker chạy lâu dài -> pool rộng hơn, idle dài hơn, keepAlive.
+        const isServerless =
+          !!configService.get<string>('VERCEL') ||
+          !!configService.get<string>('AWS_LAMBDA_FUNCTION_NAME');
+        const poolMax = parseInt(
+          configService.get<string>('DB_POOL_MAX') ||
+            (isServerless ? '1' : '10'),
+          10,
+        );
+        const idleTimeout = parseInt(
+          configService.get<string>('DB_IDLE_TIMEOUT_MS') ||
+            (isServerless ? '1000' : '30000'),
+          10,
+        );
+        const connectionTimeout = parseInt(
+          configService.get<string>('DB_CONNECTION_TIMEOUT_MS') || '15000',
+          10,
+        );
+        return {
+          type: 'postgres',
+          url: configService.get<string>('DATABASE_URL') || configService.get<string>('POSTGRES_URL'),
+          host: configService.get<string>('DB_HOST') || configService.get<string>('POSTGRES_HOST'),
+          port: configService.get<number>('DB_PORT') || configService.get<number>('POSTGRES_PORT') || 5432,
+          username: configService.get<string>('DB_USER') || configService.get<string>('POSTGRES_USER'),
+          password: configService.get<string>('DB_PASSWORD') || configService.get<string>('POSTGRES_PASSWORD'),
+          database: configService.get<string>('DB_NAME') || configService.get<string>('POSTGRES_DATABASE'),
+          ssl: configService.get<string>('DB_SSL') === 'false' ? false : { rejectUnauthorized: false },
+          extra: {
+            max: poolMax,
+            connectionTimeoutMillis: connectionTimeout,
+            idleTimeoutMillis: idleTimeout,
+            keepAlive: !isServerless,
+          },
+          poolSize: poolMax,
+          retryAttempts: 2,
+          autoLoadEntities: true,
+          synchronize: configService.get<string>('DB_SYNCHRONIZE') === 'true',
+        };
+      },
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([Admin, MeridianSyndrome, LegacyMeridianSyndrome, Patient, Examination, ChungBenh, BenhTayY, TrieuChung, KinhMach, HuyetVi, PhacDoDieuTri, PhacDoChuan, PhacDoChuanHuyet, ViThuoc, BaiThuoc, BaiThuocChiTiet, BaiThuocPhapTri, TheBenh, TheBenhPhuongHuyet, ClinicScheduleConfig, ClinicDayOverride, AppointmentSlot, ThietChan, MachChan, ViThuocCongDung, ViThuocChuTri, ViThuocKiengKy, ViThuocTenGoiKhac, CongDung, ChuTri, KiengKy, PhapTri, BenhDongYExcel, BenhDongYHienDai, NhomLonDuocLy, NhomNhoDuocLy, NhomNhoViThuoc, NhomNhoChuTri]),
