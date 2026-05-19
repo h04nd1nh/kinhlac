@@ -18,7 +18,8 @@
       "Bash(cp /tmp/thuoc-yhct-analysis.js /tmp/index.html /c/tmp/kinhlac-ref/)",
       "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies.openai || 'not installed'\\)\")",
       "Bash(gh api *)",
-      "WebFetch(domain:api.github.com)"
+      "WebFetch(domain:api.github.com)",
+      "Bash(docker compose *)"
     ]
   }
 }

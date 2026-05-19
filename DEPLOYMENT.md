@@ -1,88 +1,225 @@
-# Hướng Dẫn Triển Khai Hệ Thống Lên Server Linux (Docker)
+# Hướng dẫn triển khai trên VPS Ubuntu (Docker Compose + Aiven Postgres)
 
-Tài liệu này hướng dẫn bạn cách khởi chạy toàn bộ hệ thống (Frontend, Backend, và Database) lên máy chủ (Server) Linux hoặc máy ảo VPS một cách nhanh chóng thông qua `Docker` và `Docker Compose`.
+Stack chạy trên VPS:
 
-## 1. Yêu Cầu Hệ Thống (Prerequisites)
+| Service    | Image                     | Cổng       | Ghi chú                                  |
+|------------|---------------------------|------------|------------------------------------------|
+| `frontend` | `kinhlac/frontend:latest` | `80` (host)| nginx serve SPA + reverse-proxy `/api/`  |
+| `backend`  | `kinhlac/backend:latest`  | nội bộ 3001| NestJS, không expose ra ngoài            |
 
-Trước khi bắt đầu, server của bạn phải được cài đặt sẵn 2 thành phần:
-- **Docker**: Nền tảng chạy container.
-- **Docker Compose**: Công cụ quản lý nhiều container.
+Database **không** chạy trong docker — backend kết nối thẳng tới **Aiven Postgres** qua SSL.
 
-*(Bạn có thể dễ dàng cài đặt 2 ứng dụng này bằng cách Google "How to install Docker on Ubuntu/Centos", chỉ mất khoảng 2 phút)*
-
-## 2. Chuẩn Bị Mã Nguồn
-
-1. Đưa toàn bộ mã nguồn thư mục `medicine` hiện tại lên server của bạn (thông qua Git Clone, FTP, hoặc SCP).
-2. Di chuyển vào thư mục gốc của dự án (nơi chứa file `docker-compose.yml`):
-   ```bash
-   cd /path/to/medicine
-   ```
-
-## 3. Cấu Hình Biến Môi Trường (Quan trọng)
-
-Mặc định, ứng dụng đang sử dụng các thông số Database giả định. Để bảo mật, bạn nên mở file `docker-compose.yml` và thay đổi các cấu hình sau ở cả 2 phần `backend` và `postgres`:
-
-```yaml
-# Trong file docker-compose.yml
-environment:
-  - POSTGRES_USER=your_db_user_here
-  - POSTGRES_PASSWORD=your_secure_password_here
-  - POSTGRES_DB=medicine
-```
-*(Hãy chắc chắn rằng thông tin ở phần `backend` khớp hoàn toàn với thông tin khởi tạo ở phần `postgres`)*
-
-> [!NOTE] 
-> Đối với Backend, ngoài cấu hình DB, bạn cũng có thể tự map thêm các biến môi trường khác (VD: `JWT_SECRET`) vào mục `environment` của service `backend` nếu trong mã nguồn có yêu cầu.
-
-## 4. Lệnh Chạy (Deploy)
-
-Sau khi đã hoàn tất chuẩn bị, bạn chỉ cần gõ đúng 1 lệnh sau tại thư mục gốc của dự án:
-
-```bash
-docker-compose up -d --build
-```
-
-**Ý nghĩa của lệnh:**
-- `up`: Khởi động toàn bộ các service được định nghĩa trong file YML.
-- `-d` (Detached): Chạy ngầm trong background, bạn có thể tắt terminal mà server vẫn chạy.
-- `--build`: Ép Docker phải Build lại các file `Dockerfile` của frontend và backend để lấy source code mới nhất.
-
-### 🚀 Kết Quả:
-- **Frontend** của bạn giờ đã có thể truy cập qua: `http://<IP-của-Server>` (Port 80)
-- **Backend (API)** sẽ lắng nghe ở: `http://<IP-của-Server>:3000`
-- **Database (Postgres)** kết nối nội bộ hoặc từ bên ngoài qua port `5432`. Dữ liệu sẽ được tự động lưu trữ vĩnh viễn vào volume `postgres_data` nên không sợ bị mất dữ liệu khi restart.
+Frontend gọi API qua `/api/*` (cùng origin) ⇒ **không cần mở port backend ra ngoài và không gặp lỗi CORS**.
 
 ---
 
-## 5. Các Lệnh Quản Trị Hữu Ích Khác
+## 1. Cài Docker trên Ubuntu 22.04 / 24.04
 
-Dưới đây là một số lệnh thường dùng trong quá trình vận hành hệ thống:
-
-**1. Xem trạng thái các ứng dụng đang chạy:**
 ```bash
-docker-compose ps
+sudo apt update && sudo apt install -y ca-certificates curl gnupg
+
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Cho user hiện tại chạy docker không cần sudo (logout/login lại sau lệnh này)
+sudo usermod -aG docker $USER
 ```
 
-**2. Xem log (lỗi/hoạt động) của Backend:**
+Kiểm tra: `docker --version` và `docker compose version`.
+
+---
+
+## 2. Chuẩn bị Aiven Postgres
+
+1. Aiven Console → tạo service Postgres (chọn region gần VPS).
+2. Vào tab **Overview**, ghi lại các giá trị:
+   - Host (`kinhlac-xxx.aivencloud.com`)
+   - Port (vd `23456`)
+   - User (`avnadmin`)
+   - Password
+   - Database name (mặc định `defaultdb`, có thể tạo `kinhlac` riêng)
+3. Tab **Allowed IP addresses** → thêm IP public của VPS.
+
+---
+
+## 3. Lấy mã nguồn
+
 ```bash
-docker-compose logs -f backend
+sudo mkdir -p /opt/kinhlac && sudo chown $USER:$USER /opt/kinhlac
+cd /opt/kinhlac
+git clone <repo-url> .
 ```
 
-**3. Tạm dừng hệ thống:**
+---
+
+## 4. Cấu hình biến môi trường
+
+Có **hai** file `.env`. Cả hai đều **KHÔNG** được commit.
+
+### 4.1. `.env` ở thư mục gốc (cho docker-compose)
+
 ```bash
-docker-compose stop
+cp .env.example .env
+nano .env
 ```
 
-**4. Dừng hoàn toàn và xóa các container (Không làm mất dữ liệu DB):**
+| Biến          | Ý nghĩa                                                                       |
+|---------------|-------------------------------------------------------------------------------|
+| `HTTP_PORT`   | Cổng public của frontend (mặc định 80, đổi 8080 nếu đặt Caddy/Nginx trước)    |
+| `VITE_API_URL`| Để mặc định `/api` trừ khi tách domain frontend / backend                     |
+
+> Đổi `VITE_API_URL` ⇒ phải `docker compose build --no-cache frontend` (Vite bake URL vào bundle lúc build).
+
+### 4.2. `backend/.env` (cho Nest runtime)
+
 ```bash
-docker-compose down
+cp backend/.env.example backend/.env
+nano backend/.env
 ```
 
-**5. Cập nhật mã nguồn mới (Khi bạn có code mới update):**
+Điền theo giá trị Aiven & secret thật:
+
+| Biến                       | Ghi chú                                                                                                                                  |
+|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `APP_PORT`                 | Giữ `3001` (compose & nginx đã trỏ vào port này).                                                                                        |
+| `FRONTEND_URL`             | Origin frontend, vd `http://kinhlac.example.com` (dùng cho CORS / link).                                                                 |
+| `DB_HOST`                  | Host Aiven (`kinhlac-xxx.aivencloud.com`).                                                                                               |
+| `DB_PORT`                  | Port Aiven (vd `23456`).                                                                                                                 |
+| `DB_USER`                  | `avnadmin` (hoặc user bạn tạo).                                                                                                          |
+| `DB_PASSWORD`              | Password Aiven.                                                                                                                          |
+| `DB_NAME`                  | Tên DB (`defaultdb` hoặc DB bạn tạo).                                                                                                    |
+| `CA_CERTIFICATE`           | Dán nội dung file `ca.pem` từ Aiven (đổi xuống dòng thật thành `\n`). Hiện code chưa đọc, để placeholder cũng được — Nest dùng `rejectUnauthorized: false`. |
+| `FIREBASE_SERVICE_ACCOUNT` | Nội dung file service-account JSON từ Firebase (1 dòng, đã `JSON.stringify`). Để trống nếu chưa dùng FCM / Firebase.                     |
+| `JWT_SECRET`               | **BẮT BUỘC** đổi. Sinh bằng `openssl rand -hex 48`. Nếu bỏ trống, Nest rơi về `'fallback_secret_key'` — KHÔNG an toàn.                   |
+| `YESCALE_API_KEY`          | Key gateway AI. Để trống nếu chưa dùng AI suggest.                                                                                       |
+
+> **Lưu ý SSL với Aiven**: Aiven bắt buộc SSL. Mặc định `app.module.ts` đã set `ssl: { rejectUnauthorized: false }` khi `DB_SSL` không phải `false`, đủ để bắt tay. **Đừng** set `DB_SSL=false` trong `backend/.env` khi đang trỏ ra Aiven.
+>
+> **Tuỳ chọn nâng cao**: nếu muốn dùng connection string một dòng thay cho 5 biến `DB_*`, code cũng hỗ trợ `DATABASE_URL` (vd `postgres://avnadmin:xxx@host:23456/defaultdb?sslmode=require`). Khi đó các biến `DB_HOST/PORT/USER/PASSWORD/NAME` sẽ bị bỏ qua.
+
+---
+
+## 5. Chạy schema migrations vào Aiven
+
+`backend/sql/` chứa các migration viết tay. Chạy lần đầu trên Aiven từ VPS:
+
 ```bash
-# 1. Kéo code mới về
+sudo apt install -y postgresql-client
+
+# Build connection string từ giá trị bạn vừa điền vào backend/.env
+export PGPASSWORD='<DB_PASSWORD>'
+PSQL="psql -h <DB_HOST> -p <DB_PORT> -U <DB_USER> -d <DB_NAME> --set=sslmode=require"
+
+# Áp dụng từng file SQL theo thứ tự — xem backend/sql/README.md
+$PSQL -f backend/sql/<file>.sql
+```
+
+Seed admin mặc định (`admin` / `password123`):
+
+```bash
+docker compose exec backend npx ts-node src/seed-admin.ts
+```
+
+---
+
+## 6. Build & chạy
+
+```bash
+docker compose up -d --build
+```
+
+Kiểm tra:
+
+```bash
+docker compose ps
+docker compose logs -f backend
+docker compose logs -f frontend
+```
+
+Truy cập:
+
+- Frontend SPA: `http://<IP-VPS>` (hoặc domain trỏ về VPS)
+- API qua proxy:  `http://<IP-VPS>/api/...`
+
+---
+
+## 7. Firewall (UFW)
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp     # khi đã có HTTPS (mục 8)
+sudo ufw enable
+```
+
+Không mở `3001` ra ngoài — backend đã ở trong docker network nội bộ.
+
+---
+
+## 8. HTTPS bằng Caddy (khuyến nghị)
+
+1. Đổi `HTTP_PORT=8080` trong `.env`, `docker compose up -d`.
+2. Cài Caddy:
+   ```bash
+   sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+   curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+   curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+   sudo apt update && sudo apt install -y caddy
+   ```
+3. `/etc/caddy/Caddyfile`:
+   ```caddy
+   kinhlac.example.com {
+       encode zstd gzip
+       reverse_proxy 127.0.0.1:8080
+   }
+   ```
+4. `sudo systemctl reload caddy` — Caddy tự lấy chứng chỉ Let's Encrypt.
+5. Cập nhật `FRONTEND_URL=https://kinhlac.example.com` trong `backend/.env`, `docker compose restart backend`.
+
+---
+
+## 9. Vận hành thường ngày
+
+```bash
+# Update code
 git pull
+docker compose up -d --build
 
-# 2. Build lại và chạy (Hệ thống sẽ tự thay thế không gián đoạn quá lâu)
-docker-compose up -d --build
+# Log
+docker compose logs -f backend
+docker compose logs -f frontend
+
+# Restart 1 service
+docker compose restart backend
+
+# Dừng / xóa container (không ảnh hưởng dữ liệu vì DB ở Aiven)
+docker compose down
+
+# Backup DB từ Aiven
+PGPASSWORD='<DB_PASSWORD>' pg_dump \
+  -h <DB_HOST> -p <DB_PORT> -U <DB_USER> -d <DB_NAME> \
+  | gzip > backup-$(date +%F).sql.gz
 ```
+
+---
+
+## 10. Troubleshooting
+
+| Triệu chứng                                       | Nguyên nhân thường gặp                                                                            |
+|---------------------------------------------------|----------------------------------------------------------------------------------------------------|
+| Backend báo `ECONNREFUSED` / `timeout` tới Aiven  | IP của VPS chưa thêm vào **Allowed IP addresses** trong Aiven console.                            |
+| Backend báo `no pg_hba.conf entry … SSL off`      | Đã set `DB_SSL=false` trong `backend/.env`. Bỏ dòng đó để dùng SSL mặc định.                      |
+| Frontend trả 502 khi gọi `/api/*`                 | Backend chưa healthy hoặc chưa connect được Aiven. Xem `docker compose logs backend`.             |
+| Đổi `VITE_API_URL` mà bundle vẫn gọi URL cũ       | Vite bake biến lúc build. `docker compose build --no-cache frontend && docker compose up -d`.     |
+| F5 trang lại văng về `/login`                     | Nginx thiếu SPA fallback — đã xử lý sẵn trong `frontend/nginx.conf` (`try_files … /index.html`).  |
+| Log backend cảnh báo `fallback_secret_key`        | Chưa đặt `JWT_SECRET` trong `backend/.env`.                                                       |
+| Firebase log `service account not found`          | Chưa điền `FIREBASE_SERVICE_ACCOUNT` (chuỗi JSON 1 dòng) trong `backend/.env`.                    |

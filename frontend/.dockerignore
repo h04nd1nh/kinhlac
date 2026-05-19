@@ -1,6 +1,5 @@
 node_modules
 dist
-coverage
 .git
 .gitignore
 .env
@@ -12,8 +11,5 @@ npm-debug.log*
 Thumbs.db
 .vscode
 .idea
-test
-tmp
-*.spec.ts
-*.test.ts
+coverage
 README.md
