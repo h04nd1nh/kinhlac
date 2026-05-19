@@ -15,7 +15,11 @@ COPY package*.json ./
 RUN npm ci --no-audit --no-fund
 
 COPY . .
-RUN npm run build
+# Chỉ chạy vite build, KHÔNG chạy vue-tsc song song.
+# Lý do: `npm run build` = `run-p type-check build-only` -> chạy vue-tsc + vite cùng lúc,
+# trên VPS RAM thấp (<= 2GB) sẽ bị OOM kill (exit 137).
+# Type-check là việc của dev/CI, không phải của bước deploy.
+RUN npm run build-only
 
 ############################
 # 2. Phục vụ static bằng nginx
