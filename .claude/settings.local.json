@@ -27,7 +27,9 @@
       "Bash(mkdir -p /tmp/pgcheck)",
       "Bash(npm init *)",
       "PowerShell(npx nest build 2>&1)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(where psql *)",
+      "Bash(psql --version)"
     ]
   }
 }
