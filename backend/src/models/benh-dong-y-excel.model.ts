@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, ManyToMany, JoinTable } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToMany, JoinTable } from 'typeorm';
 import { PhapTri } from './phap-tri.model';
 import { TrieuChung } from './trieu-chung.model';
 import { BaiThuoc } from './bai-thuoc.model';
@@ -29,12 +29,13 @@ export class BenhDongYExcel {
   @Column({ type: 'text', name: 'sql_case_boolean' })
   sqlCaseBoolean: string;
 
-  @Column({ type: 'int', name: 'id_phap_tri', nullable: true })
-  idPhapTri: number | null;
-
-  @ManyToOne(() => PhapTri, { onDelete: 'SET NULL', nullable: true })
-  @JoinColumn({ name: 'id_phap_tri' })
-  phapTri: PhapTri | null;
+  @ManyToMany(() => PhapTri)
+  @JoinTable({
+    name: 'benh_dong_y_excel_phap_tri',
+    joinColumn: { name: 'id_benh_dong_y_excel', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'id_phap_tri', referencedColumnName: 'id' },
+  })
+  phapTriList: PhapTri[];
 
   @ManyToMany(() => TrieuChung)
   @JoinTable({

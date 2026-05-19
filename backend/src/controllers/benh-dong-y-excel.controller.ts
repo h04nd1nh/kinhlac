@@ -14,6 +14,7 @@ import {
 } from '../models/benh-dong-y-excel.dto';
 import { TrieuChung } from '../models/trieu-chung.model';
 import { BaiThuoc } from '../models/bai-thuoc.model';
+import { PhapTri } from '../models/phap-tri.model';
 
 type RuleClause = {
   left: string;
@@ -24,7 +25,7 @@ type RuleClause = {
 @Injectable()
 export class BenhDongYExcelService {
   private static readonly RELATIONS = {
-    phapTri: true,
+    phapTriList: true,
     trieuChungList: true,
     baiThuocList: true,
   } as const;
@@ -36,6 +37,8 @@ export class BenhDongYExcelService {
     private readonly trieuChungRepo: Repository<TrieuChung>,
     @InjectRepository(BaiThuoc)
     private readonly baiThuocRepo: Repository<BaiThuoc>,
+    @InjectRepository(PhapTri)
+    private readonly phapTriRepo: Repository<PhapTri>,
   ) {}
 
   private static isUniqueViolation(err: unknown): boolean {
@@ -69,6 +72,11 @@ export class BenhDongYExcelService {
     return this.baiThuocRepo.findBy({ id: In(ids) });
   }
 
+  private async resolvePhapTri(ids: number[]): Promise<PhapTri[]> {
+    if (!ids.length) return [];
+    return this.phapTriRepo.findBy({ id: In(ids) });
+  }
+
   async findAll(): Promise<BenhDongYExcel[]> {
     return this.repo.find({ order: { id: 'ASC' }, relations: BenhDongYExcelService.RELATIONS });
   }
@@ -79,13 +87,6 @@ export class BenhDongYExcelService {
       throw new NotFoundException(`Không tìm thấy quy tắc id=${id}`);
     }
     return row;
-  }
-
-  private normalizePhapTriId(raw: unknown): number | null | undefined {
-    if (raw === undefined) return undefined;
-    if (raw === null || raw === '') return null;
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : null;
   }
 
   async create(dto: CreateBenhDongYExcelDto): Promise<BenhDongYExcel> {
@@ -105,7 +106,7 @@ export class BenhDongYExcelService {
       }
     }
 
-    const idPhapTri = this.normalizePhapTriId(dto.id_phap_tri);
+    const phapTriIds = BenhDongYExcelService.uniqueIds(dto.id_phap_tri_list);
     const trieuChungIds = BenhDongYExcelService.uniqueIds(dto.id_trieu_chung_list);
     const baiThuocIds = BenhDongYExcelService.uniqueIds(dto.id_bai_thuoc_list);
     const entity = this.repo.create({
@@ -116,7 +117,7 @@ export class BenhDongYExcelService {
       logicExpression: dto.logicExpression,
       sqlCaseText: dto.sqlCaseText,
       sqlCaseBoolean: dto.sqlCaseBoolean,
-      idPhapTri: idPhapTri === undefined ? null : idPhapTri,
+      phapTriList: await this.resolvePhapTri(phapTriIds),
       trieuChungList: await this.resolveTrieuChung(trieuChungIds),
       baiThuocList: await this.resolveBaiThuoc(baiThuocIds),
     });
@@ -146,9 +147,10 @@ export class BenhDongYExcelService {
     if (dto.logicExpression !== undefined) entity.logicExpression = dto.logicExpression;
     if (dto.sqlCaseText !== undefined) entity.sqlCaseText = dto.sqlCaseText;
     if (dto.sqlCaseBoolean !== undefined) entity.sqlCaseBoolean = dto.sqlCaseBoolean;
-    const idPhapTri = this.normalizePhapTriId(dto.id_phap_tri);
-    if (idPhapTri !== undefined) {
-      entity.idPhapTri = idPhapTri;
+    if (BenhDongYExcelService.hasKey(dto, 'id_phap_tri_list')) {
+      entity.phapTriList = await this.resolvePhapTri(
+        BenhDongYExcelService.uniqueIds(dto.id_phap_tri_list),
+      );
     }
     if (BenhDongYExcelService.hasKey(dto, 'id_trieu_chung_list')) {
       entity.trieuChungList = await this.resolveTrieuChung(

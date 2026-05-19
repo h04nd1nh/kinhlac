@@ -22,8 +22,7 @@ export class BenhDongYRouter {
     code: string;
     name: string;
     outputCell: string;
-    idPhapTri: number | null;
-    phapTri: { id: number; chung_trang: string | null; nguyen_tac: string | null } | null;
+    phapTriList?: { id: number; chung_trang: string | null; nguyen_tac: string | null }[];
     trieuChungList?: { id: number; ten_trieu_chung: string }[];
     baiThuocList?: { id: number; ten_bai_thuoc: string }[];
   }) {
@@ -32,14 +31,11 @@ export class BenhDongYRouter {
       code: r.code,
       name: r.name,
       outputCell: r.outputCell,
-      idPhapTri: r.idPhapTri,
-      phapTri: r.phapTri
-        ? {
-            id: r.phapTri.id,
-            chung_trang: r.phapTri.chung_trang,
-            nguyen_tac: r.phapTri.nguyen_tac,
-          }
-        : null,
+      phap_tri_list: (r.phapTriList ?? []).map((p) => ({
+        id: p.id,
+        chung_trang: p.chung_trang,
+        nguyen_tac: p.nguyen_tac,
+      })),
       trieu_chung_list: (r.trieuChungList ?? []).map((t) => ({ id: t.id, ten_trieu_chung: t.ten_trieu_chung })),
       bai_thuoc_list: (r.baiThuocList ?? []).map((b) => ({ id: b.id, ten_bai_thuoc: b.ten_bai_thuoc })),
     };

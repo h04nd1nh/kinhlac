@@ -19,7 +19,15 @@
       "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies.openai || 'not installed'\\)\")",
       "Bash(gh api *)",
       "WebFetch(domain:api.github.com)",
-      "Bash(docker compose *)"
+      "Bash(docker compose *)",
+      "Bash(node -e ' *)",
+      "Bash(ls node_modules/pg)",
+      "Bash(ls node_modules/typeorm)",
+      "Bash(command -v psql)",
+      "Bash(mkdir -p /tmp/pgcheck)",
+      "Bash(npm init *)",
+      "PowerShell(npx nest build 2>&1)",
+      "Bash(npm run *)"
     ]
   }
 }

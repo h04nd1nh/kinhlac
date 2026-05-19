@@ -38,8 +38,7 @@ interface BenhDongYExcelRow {
   logicExpression: string
   sqlCaseText: string
   sqlCaseBoolean: string
-  idPhapTri: number | null
-  phapTri: PhapTriLite | null
+  phapTriList?: PhapTriLite[] | null
   trieuChungList?: TrieuChungLite[] | null
   baiThuocList?: BaiThuocLite[] | null
 }
@@ -72,7 +71,7 @@ interface FormState {
   logicExpression: string
   sqlCaseText: string
   sqlCaseBoolean: string
-  idPhapTri: number | null
+  id_phap_tri_list: number[]
   id_trieu_chung_list: number[]
   id_bai_thuoc_list: number[]
 }
@@ -104,7 +103,7 @@ const emptyForm = (): FormState => ({
   logicExpression: '',
   sqlCaseText: '',
   sqlCaseBoolean: '',
-  idPhapTri: null,
+  id_phap_tri_list: [],
   id_trieu_chung_list: [],
   id_bai_thuoc_list: [],
 })
@@ -226,6 +225,16 @@ function baiThuocLabelsForBenh(item: BenhDongYExcelRow): string[] {
   return (item.baiThuocList ?? []).map((b) => b.ten_bai_thuoc).filter(Boolean)
 }
 
+function theBenhLabelsForBenh(item: BenhDongYExcelRow): string[] {
+  return (item.phapTriList ?? [])
+    .map((p) => (p.chung_trang || '').trim())
+    .filter(Boolean)
+}
+
+function phapTriLabelsForBenh(item: BenhDongYExcelRow): string[] {
+  return (item.phapTriList ?? []).map((p) => phapTriLabel(p)).filter(Boolean)
+}
+
 const filteredPhapTriOptions = computed(() => {
   const q = phapTriSearch.value.trim().toLowerCase()
   if (!q) return phapTriOptions.value
@@ -240,8 +249,8 @@ const filteredList = computed(() => {
       row.code,
       row.name,
       row.outputCell,
-      row.phapTri?.chung_trang,
-      row.phapTri?.nguyen_tac,
+      theBenhLabelsForBenh(row).join(' '),
+      phapTriLabelsForBenh(row).join(' '),
       trieuChungLabelsForBenh(row).join(' '),
       baiThuocLabelsForBenh(row).join(' '),
     ]
@@ -371,7 +380,7 @@ function openEditModal(row: BenhDongYExcelRow) {
     logicExpression: row.logicExpression,
     sqlCaseText: row.sqlCaseText,
     sqlCaseBoolean: row.sqlCaseBoolean,
-    idPhapTri: row.idPhapTri ?? null,
+    id_phap_tri_list: (row.phapTriList ?? []).map((p) => p.id),
     id_trieu_chung_list: (row.trieuChungList ?? []).map((t) => t.id),
     id_bai_thuoc_list: (row.baiThuocList ?? []).map((b) => b.id),
   }
@@ -412,7 +421,7 @@ async function handleSubmit() {
     logicExpression: f.logicExpression,
     sqlCaseText: f.sqlCaseText,
     sqlCaseBoolean: f.sqlCaseBoolean,
-    id_phap_tri: f.idPhapTri,
+    id_phap_tri_list: f.id_phap_tri_list,
     id_trieu_chung_list: f.id_trieu_chung_list,
     id_bai_thuoc_list: f.id_bai_thuoc_list,
   }
@@ -807,11 +816,27 @@ async function handleDelete() {
                 <td class="cell-id">#{{ item.id }}</td>
                 <td class="cell-name font-bold text-brown-900">{{ item.name }}</td>
                 <td>
-                  <span v-if="item.phapTri?.chung_trang" class="chip chip-the">{{ item.phapTri.chung_trang }}</span>
+                  <div v-if="theBenhLabelsForBenh(item).length" class="chip-row">
+                    <span
+                      v-for="(t, i) in theBenhLabelsForBenh(item)"
+                      :key="i"
+                      class="chip chip-the"
+                    >
+                      {{ t }}
+                    </span>
+                  </div>
                   <span v-else class="muted">—</span>
                 </td>
                 <td>
-                  <span v-if="item.phapTri" class="chip chip-phap">{{ phapTriLabel(item.phapTri) }}</span>
+                  <div v-if="phapTriLabelsForBenh(item).length" class="chip-row">
+                    <span
+                      v-for="(p, i) in phapTriLabelsForBenh(item)"
+                      :key="i"
+                      class="chip chip-phap"
+                    >
+                      {{ p }}
+                    </span>
+                  </div>
                   <span v-else class="muted">—</span>
                 </td>
                 <td>
@@ -949,8 +974,8 @@ async function handleDelete() {
 
             <div class="field field--full">
               <div class="field-head">
-                <span>Pháp trị (1 bệnh ↔ 1 pháp trị)</span>
-                <span class="field-count">{{ form.idPhapTri != null ? 'Đã chọn' : 'Chưa chọn' }}</span>
+                <span>Pháp trị (có thể chọn nhiều)</span>
+                <span class="field-count">{{ form.id_phap_tri_list.length }} đã chọn</span>
               </div>
               <div v-if="phapTriOptions.length === 0" class="muted">Chưa có pháp trị</div>
               <template v-else>
@@ -959,20 +984,12 @@ async function handleDelete() {
                 </div>
                 <div class="chip-picker chip-picker--scroll">
                   <button
-                    type="button"
-                    class="chip-toggle"
-                    :class="{ active: form.idPhapTri == null }"
-                    @click="form.idPhapTri = null"
-                  >
-                    — Không chọn —
-                  </button>
-                  <button
                     v-for="p in filteredPhapTriOptions"
                     :key="p.id"
                     type="button"
                     class="chip-toggle"
-                    :class="{ active: form.idPhapTri === p.id }"
-                    @click="form.idPhapTri = p.id"
+                    :class="{ active: form.id_phap_tri_list.includes(p.id) }"
+                    @click="form.id_phap_tri_list = toggleId(form.id_phap_tri_list, p.id)"
                   >
                     {{ phapTriLabel(p) }}
                   </button>
