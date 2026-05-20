@@ -37,6 +37,82 @@ const excelSyndromesList = computed(() => {
   return examination.value?.excelSyndromes || []
 })
 
+interface BaiThuocLite {
+  id: number
+  ten_bai_thuoc: string
+}
+interface BenhDetail {
+  id: number
+  bai_thuoc_list?: BaiThuocLite[]
+}
+interface PhacDoApiRow {
+  idPhacDo: number
+  idBenh: number
+  idHuyet: number
+  phuong_phap_tac_dong: string | null
+  ghi_chu_ky_thuat: string | null
+  huyetVi: {
+    idHuyet: number
+    ten_huyet: string | null
+    ma_huyet: string | null
+    kinhMach?: { ten_kinh_mach: string | null; ten_viet_tat: string | null } | null
+  } | null
+}
+
+const benhDetailsMap = ref<Map<number, BenhDetail>>(new Map())
+const phacDoAllList = ref<PhacDoApiRow[]>([])
+
+const matchedBenhIds = computed<number[]>(() => {
+  const all = Array.from(
+    new Set((excelSyndromesList.value as Array<{ id: number }>).map((s) => s.id)),
+  )
+  const focus = excelFocusRuleId.value
+  if (focus != null && all.includes(focus)) return [focus]
+  return all
+})
+
+const matchedPhuongHuyetList = computed(() => {
+  const ids = new Set(matchedBenhIds.value)
+  if (!ids.size) return [] as PhacDoApiRow[]
+  const seenHuyet = new Set<number>()
+  const out: PhacDoApiRow[] = []
+  for (const row of phacDoAllList.value) {
+    if (!ids.has(row.idBenh)) continue
+    if (seenHuyet.has(row.idHuyet)) continue
+    seenHuyet.add(row.idHuyet)
+    out.push(row)
+  }
+  return out
+})
+
+const matchedBaiThuocList = computed(() => {
+  const seen = new Set<number>()
+  const out: BaiThuocLite[] = []
+  for (const id of matchedBenhIds.value) {
+    const detail = benhDetailsMap.value.get(id)
+    if (!detail?.bai_thuoc_list) continue
+    for (const b of detail.bai_thuoc_list) {
+      if (seen.has(b.id)) continue
+      seen.add(b.id)
+      out.push(b)
+    }
+  }
+  return out
+})
+
+function phuongHuyetDisplayLabel(row: PhacDoApiRow): string {
+  const h = row.huyetVi
+  if (!h) return `#${row.idHuyet}`
+  const parts = [h.ten_huyet, h.ma_huyet ? `(${h.ma_huyet})` : null].filter(Boolean)
+  return parts.length ? parts.join(' ') : `#${h.idHuyet}`
+}
+
+function phuongHuyetKinhMach(row: PhacDoApiRow): string {
+  const k = row.huyetVi?.kinhMach
+  if (!k) return ''
+  return k.ten_kinh_mach || k.ten_viet_tat || ''
+}
+
 const modernSyndromesList = computed(() => {
   return examination.value?.modernSyndromes || []
 })
@@ -341,12 +417,21 @@ onMounted(async () => {
 async function loadData() {
   isLoading.value = true
   try {
-    const [patientRes, examRes] = await Promise.all([
+    const [patientRes, examRes, benhListRes, phacDoRes] = await Promise.all([
       api.get<Patient>(`/patients/${patientId.value}`),
-      api.get<any>(`/examinations/${examId.value}`)
+      api.get<any>(`/examinations/${examId.value}`),
+      api.get<any>('/benh-dong-y'),
+      api.get<any>('/phac-do-dieu-tri'),
     ])
     patient.value = patientRes
     examination.value = examRes
+
+    const benhArr: BenhDetail[] = Array.isArray(benhListRes) ? benhListRes : benhListRes?.data ?? []
+    const map = new Map<number, BenhDetail>()
+    for (const b of benhArr) map.set(b.id, b)
+    benhDetailsMap.value = map
+
+    phacDoAllList.value = Array.isArray(phacDoRes) ? phacDoRes : phacDoRes?.data ?? []
   } catch (err: any) {
     error.value = err.message
   } finally {
@@ -722,6 +807,78 @@ function footerDiffClassMerged() {
               </div>
             </div>
           </section>
+
+          <section class="result-section mt-6">
+            <h2 class="section-title">
+              <span class="section-num">IV</span> PHƯƠNG HUYỆT
+              <span v-if="matchedPhuongHuyetList.length" class="section-count">
+                ({{ matchedPhuongHuyetList.length }} huyệt)
+              </span>
+            </h2>
+            <div class="result-card p-4">
+              <p v-if="!matchedBenhIds.length" class="suggested-empty">
+                Chưa có bệnh YHCT nào khớp ở phần III.
+              </p>
+              <p v-else-if="!matchedPhuongHuyetList.length" class="suggested-empty">
+                Các bệnh YHCT khớp chưa được cấu hình phương huyệt.
+              </p>
+              <div v-else class="suggested-table">
+                <div class="suggested-table__head">
+                  <span class="st-col st-col--name">Huyệt</span>
+                  <span class="st-col st-col--method">Phương pháp</span>
+                  <span class="st-col st-col--note">Ghi chú</span>
+                </div>
+                <div
+                  v-for="row in matchedPhuongHuyetList"
+                  :key="row.idPhacDo"
+                  class="suggested-table__row"
+                >
+                  <div class="st-col st-col--name">
+                    <span class="huyet-chip">{{ phuongHuyetDisplayLabel(row) }}</span>
+                    <small v-if="phuongHuyetKinhMach(row)" class="huyet-meta">
+                      {{ phuongHuyetKinhMach(row) }}
+                    </small>
+                  </div>
+                  <div class="st-col st-col--method">
+                    <span v-if="row.phuong_phap_tac_dong" class="method-chip">
+                      {{ row.phuong_phap_tac_dong }}
+                    </span>
+                    <span v-else class="muted">—</span>
+                  </div>
+                  <div class="st-col st-col--note">
+                    <span v-if="row.ghi_chu_ky_thuat">{{ row.ghi_chu_ky_thuat }}</span>
+                    <span v-else class="muted">—</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="result-section mt-6">
+            <h2 class="section-title">
+              <span class="section-num">V</span> BÀI THUỐC
+              <span v-if="matchedBaiThuocList.length" class="section-count">
+                ({{ matchedBaiThuocList.length }} bài)
+              </span>
+            </h2>
+            <div class="result-card p-4">
+              <p v-if="!matchedBenhIds.length" class="suggested-empty">
+                Chưa có bệnh YHCT nào khớp ở phần III.
+              </p>
+              <p v-else-if="!matchedBaiThuocList.length" class="suggested-empty">
+                Các bệnh YHCT khớp chưa được gắn bài thuốc nào.
+              </p>
+              <div v-else class="bai-thuoc-grid">
+                <div
+                  v-for="bt in matchedBaiThuocList"
+                  :key="bt.id"
+                  class="bai-thuoc-pill"
+                >
+                  {{ bt.ten_bai_thuoc }}
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
 
         <!-- Right Column: 35% -->
@@ -961,6 +1118,92 @@ function footerDiffClassMerged() {
   color: var(--white);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
+}
+.section-count {
+  margin-left: var(--space-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: none;
+}
+
+/* Section IV (Phương huyệt) & V (Bài thuốc) */
+.suggested-empty {
+  margin: 0;
+  padding: var(--space-3) 0;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--gray-500);
+  font-style: italic;
+}
+.suggested-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--white);
+}
+.suggested-table__head,
+.suggested-table__row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.3fr) minmax(100px, 1fr) minmax(140px, 1.7fr);
+  gap: var(--space-2);
+  padding: 6px var(--space-3);
+  align-items: center;
+}
+.suggested-table__head {
+  background: #fdfbf9;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+}
+.suggested-table__row + .suggested-table__row { border-top: 1px solid var(--gray-100); }
+.suggested-table__row:hover { background: #fdfbf9; }
+.st-col { font-size: var(--font-size-sm); color: var(--gray-800); min-width: 0; word-break: break-word; }
+.st-col--name { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.huyet-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.huyet-meta { font-size: 11px; color: var(--gray-500); }
+.method-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #fce7f3;
+  color: #9d174d;
+  border: 1px solid #f9a8d4;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.muted { color: var(--gray-400); font-style: italic; }
+
+.bai-thuoc-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bai-thuoc-pill {
+  padding: 4px 10px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .result-card {
