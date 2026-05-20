@@ -376,65 +376,75 @@ async function handleDelete() {
           <h3>Danh sách Pháp Trị</h3>
           <span class="badge badge-success">{{ filteredList.length }} bản ghi</span>
         </div>
-        <div class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th width="60">ID</th>
-                <th width="160">Tạng phủ</th>
-                <th width="200">Thể bệnh</th>
-                <th width="220">Pháp trị</th>
-                <th width="220">Triệu chứng</th>
-                <th width="200">Bài thuốc tiêu biểu</th>
-                <th width="140">Lục kinh</th>
-                <th width="120">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="pagedList.length === 0">
-                <td colspan="8" class="text-center py-8 text-gray-500">Chưa có dữ liệu</td>
-              </tr>
-              <tr v-for="item in pagedList" :key="item.id">
-                <td class="font-bold">#{{ item.id }}</td>
-                <td>
-                  <div v-if="item.kinh_mach_list?.length" class="chip-row">
-                    <span v-for="k in item.kinh_mach_list" :key="k.idKinhMach" class="chip chip-tang">
-                      {{ kinhMachLabel(k) }}
-                    </span>
-                  </div>
-                  <span v-else class="muted">—</span>
-                </td>
-                <td class="text-brown-900">{{ item.chung_trang || '—' }}</td>
-                <td>{{ item.nguyen_tac || '—' }}</td>
-                <td>
-                  <div v-if="trieuChungCellLabels(item).length" class="chip-row">
-                    <span v-for="(t, i) in trieuChungCellLabels(item)" :key="i" class="chip chip-trieu">
-                      {{ t }}
-                    </span>
-                  </div>
-                  <span v-else class="muted">—</span>
-                </td>
-                <td>
-                  <div v-if="baiThuocCellLabels(item).length" class="chip-row">
-                    <span v-for="(b, i) in baiThuocCellLabels(item)" :key="i" class="chip chip-bai">
-                      {{ b }}
-                    </span>
-                  </div>
-                  <span v-else class="muted">—</span>
-                </td>
-                <td>
-                  <span v-if="item.luc_kinh" class="chip chip-luckinh">{{ item.luc_kinh }}</span>
-                  <span v-else class="muted">—</span>
-                </td>
-                <td>
-                  <div class="row-actions">
-                    <button type="button" class="btn-action btn-edit" @click="openEditModal(item)">Sửa</button>
-                    <button type="button" class="btn-action btn-delete" @click="confirmDelete(item)">Xóa</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div v-if="pagedList.length === 0" class="empty-state">Chưa có dữ liệu</div>
+
+        <div v-else class="disease-grid">
+          <article v-for="item in pagedList" :key="item.id" class="disease-card">
+            <header class="disease-card__head">
+              <div class="disease-card__title">
+                <span class="disease-card__id">#{{ item.id }}</span>
+                <h4 class="disease-card__name">{{ item.chung_trang || 'Pháp trị #' + item.id }}</h4>
+              </div>
+              <div class="row-actions">
+                <button type="button" class="btn-action btn-edit" @click="openEditModal(item)">Sửa</button>
+                <button type="button" class="btn-action btn-delete" @click="confirmDelete(item)">Xóa</button>
+              </div>
+            </header>
+
+            <div class="disease-card__body">
+              <section v-if="item.nguyen_tac" class="disease-section">
+                <span class="disease-section__label">Pháp trị</span>
+                <p class="disease-section__text">{{ item.nguyen_tac }}</p>
+              </section>
+
+              <section v-if="item.kinh_mach_list?.length" class="disease-section">
+                <span class="disease-section__label">Tạng phủ</span>
+                <div class="chip-row chip-row--wrap">
+                  <span v-for="k in item.kinh_mach_list" :key="k.idKinhMach" class="chip chip-tang">
+                    {{ kinhMachLabel(k) }}
+                  </span>
+                </div>
+              </section>
+
+              <section v-if="item.luc_kinh" class="disease-section">
+                <span class="disease-section__label">Lục kinh</span>
+                <div class="chip-row chip-row--wrap">
+                  <span class="chip chip-luckinh">{{ item.luc_kinh }}</span>
+                </div>
+              </section>
+
+              <section v-if="trieuChungCellLabels(item).length" class="disease-section">
+                <span class="disease-section__label">Triệu chứng</span>
+                <div class="chip-row chip-row--wrap">
+                  <span v-for="(t, i) in trieuChungCellLabels(item)" :key="i" class="chip chip-trieu">
+                    {{ t }}
+                  </span>
+                </div>
+              </section>
+
+              <section v-if="baiThuocCellLabels(item).length" class="disease-section">
+                <span class="disease-section__label">Bài thuốc tiêu biểu</span>
+                <div class="chip-row chip-row--wrap">
+                  <span v-for="(b, i) in baiThuocCellLabels(item)" :key="i" class="chip chip-bai">
+                    {{ b }}
+                  </span>
+                </div>
+              </section>
+
+              <p
+                v-if="
+                  !item.nguyen_tac &&
+                  !item.kinh_mach_list?.length &&
+                  !item.luc_kinh &&
+                  !trieuChungCellLabels(item).length &&
+                  !baiThuocCellLabels(item).length
+                "
+                class="disease-empty muted"
+              >
+                Chưa gắn dữ liệu liên quan.
+              </p>
+            </div>
+          </article>
         </div>
 
         <div v-if="filteredList.length > itemsPerPage" class="pagination">
@@ -733,14 +743,117 @@ async function handleDelete() {
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); }
 .card-header h3 { font-size: var(--font-size-lg); font-weight: 700; color: var(--brown-900); margin: 0; }
 
-.table-responsive { width: 100%; overflow-x: auto; }
-.data-table { width: 100%; border-collapse: collapse; }
-.data-table th, .data-table td { padding: var(--space-3) var(--space-4); text-align: left; border-bottom: 1px solid var(--gray-100); vertical-align: top; }
-.data-table th { background: #fdfbf9; font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
-.data-table tbody tr:hover { background: var(--gray-50); }
-.data-table td { font-size: var(--font-size-md); color: var(--gray-800); }
+.empty-state {
+  padding: var(--space-12) var(--space-5);
+  text-align: center;
+  color: var(--gray-500);
+  font-size: var(--font-size-md);
+  background: linear-gradient(180deg, #fff 0%, #fdfbf9 100%);
+}
+
+.disease-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: #fdfbf9;
+}
+
+.disease-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--brown-100);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(74, 47, 23, 0.04);
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast),
+    border-color var(--transition-fast);
+}
+.disease-card:hover {
+  box-shadow: 0 6px 18px rgba(74, 47, 23, 0.08);
+  border-color: var(--brown-200);
+  transform: translateY(-1px);
+}
+
+.disease-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(135deg, var(--brown-50) 0%, #fff 100%);
+  border-bottom: 1px solid var(--brown-100);
+}
+.disease-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+.disease-card__id {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brown-700);
+  background: var(--white);
+  border: 1px solid var(--brown-200);
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.disease-card__name {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--brown-900);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.disease-card__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+.disease-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.disease-section__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+}
+.disease-section__text {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--gray-800);
+  line-height: 1.5;
+  word-break: break-word;
+}
+.disease-empty {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  text-align: center;
+  padding: var(--space-3) 0;
+}
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip-row--wrap {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip-row--wrap .chip {
+  white-space: normal;
+  word-break: break-word;
+  max-width: 100%;
+}
 .chip {
   display: inline-block;
   padding: 2px 8px;

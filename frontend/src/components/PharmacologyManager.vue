@@ -704,55 +704,53 @@ async function onImportFileChange(ev: Event) {
           <p>Chưa có nhóm nhỏ. Nhấn «+ Nhóm nhỏ» để tạo.</p>
         </div>
 
-        <div v-else class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th width="220">Nhóm nhỏ</th>
-                <th width="120">Liều lượng</th>
-                <th>Vị thuốc</th>
-                <th>Chủ trị</th>
-                <th width="100"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="nn in selectedNhomLon.nhomNhoList" :key="nn.id">
-                <td>
-                  <div class="cell-strong">{{ nn.ten_nhom }}</div>
-                  <div v-if="nn.mo_ta" class="cell-sub">{{ nn.mo_ta }}</div>
-                </td>
-                <td>
-                  <span v-if="nn.lieu_luong" class="lieu-chip">{{ nn.lieu_luong }}</span>
-                  <span v-else class="muted">—</span>
-                </td>
-                <td>
-                  <div class="chip-list">
-                    <span v-if="!nn.viThuocLinks?.length" class="muted">—</span>
-                    <span v-for="l in nn.viThuocLinks" :key="l.idViThuoc" class="chip chip-vi">
-                      {{ l.viThuoc?.ten_vi_thuoc || viThuocName(l.idViThuoc) }}
-                    </span>
-                  </div>
-                </td>
-                <td>
-                  <div class="chip-list">
-                    <span v-if="!nn.chuTriLinks?.length" class="muted">—</span>
-                    <span v-for="l in nn.chuTriLinks" :key="l.idChuTri" class="chip chip-ct">
-                      {{ l.chuTri?.ten_chu_tri || chuTriName(l.idChuTri) }}
-                    </span>
-                  </div>
-                </td>
-                <td class="row-actions">
-                  <button class="icon-btn" title="Sửa" @click="openEditNhomNho(nn)">✎</button>
-                  <button
-                    class="icon-btn danger"
-                    title="Xóa"
-                    :disabled="isSubmitting"
-                    @click="deleteNhomNho(nn)"
-                  >×</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div v-else class="disease-grid">
+          <article v-for="nn in selectedNhomLon.nhomNhoList" :key="nn.id" class="disease-card">
+            <header class="disease-card__head">
+              <div class="disease-card__title">
+                <h4 class="disease-card__name">{{ nn.ten_nhom }}</h4>
+                <span v-if="nn.lieu_luong" class="lieu-chip">{{ nn.lieu_luong }}</span>
+              </div>
+              <div class="row-actions">
+                <button class="icon-btn" title="Sửa" @click="openEditNhomNho(nn)">✎</button>
+                <button
+                  class="icon-btn danger"
+                  title="Xóa"
+                  :disabled="isSubmitting"
+                  @click="deleteNhomNho(nn)"
+                >×</button>
+              </div>
+            </header>
+
+            <div class="disease-card__body">
+              <p v-if="nn.mo_ta" class="disease-card__desc">{{ nn.mo_ta }}</p>
+
+              <section v-if="nn.viThuocLinks?.length" class="disease-section">
+                <span class="disease-section__label">Vị thuốc ({{ nn.viThuocLinks.length }})</span>
+                <div class="chip-list">
+                  <span v-for="l in nn.viThuocLinks" :key="l.idViThuoc" class="chip chip-vi">
+                    {{ l.viThuoc?.ten_vi_thuoc || viThuocName(l.idViThuoc) }}
+                  </span>
+                </div>
+              </section>
+
+              <section v-if="nn.chuTriLinks?.length" class="disease-section">
+                <span class="disease-section__label">Chủ trị ({{ nn.chuTriLinks.length }})</span>
+                <div class="chip-list">
+                  <span v-for="l in nn.chuTriLinks" :key="l.idChuTri" class="chip chip-ct">
+                    {{ l.chuTri?.ten_chu_tri || chuTriName(l.idChuTri) }}
+                  </span>
+                </div>
+              </section>
+
+              <p
+                v-if="!nn.viThuocLinks?.length && !nn.chuTriLinks?.length"
+                class="disease-empty muted"
+              >
+                Chưa gắn vị thuốc / chủ trị.
+              </p>
+            </div>
+          </article>
         </div>
       </section>
     </div>
@@ -983,14 +981,69 @@ async function onImportFileChange(ev: Event) {
 .nhom-lon-item .row-actions { position: absolute; right: 10px; top: 10px; opacity: 0; transition: opacity .15s; }
 .nhom-lon-item:hover .row-actions, .nhom-lon-item.active .row-actions { opacity: 1; }
 
-/* Table */
-.table-responsive { width: 100%; overflow-x: auto; }
-.data-table { width: 100%; border-collapse: collapse; }
-.data-table th, .data-table td { padding: var(--space-3) var(--space-4); text-align: left; border-bottom: 1px solid var(--gray-100); vertical-align: top; }
-.data-table th { background: #fdfbf9; font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-500); text-transform: uppercase; letter-spacing: .5px; }
-.data-table tbody tr:hover { background: var(--gray-50); }
-.cell-strong { font-weight: 700; color: var(--brown-900); }
-.cell-sub { font-size: var(--font-size-xs); color: var(--gray-500); margin-top: 2px; }
+/* Card grid */
+.disease-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+.disease-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--brown-100);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(74, 47, 23, 0.04);
+  transition: box-shadow .15s, transform .15s, border-color .15s;
+}
+.disease-card:hover {
+  box-shadow: 0 6px 18px rgba(74, 47, 23, 0.08);
+  border-color: var(--brown-200);
+  transform: translateY(-1px);
+}
+.disease-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(135deg, var(--brown-50) 0%, #fff 100%);
+  border-bottom: 1px solid var(--brown-100);
+}
+.disease-card__title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex: 1; flex-wrap: wrap; }
+.disease-card__name {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--brown-900);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.disease-card__desc {
+  margin: 0 0 4px;
+  font-size: var(--font-size-sm);
+  color: var(--gray-600);
+  line-height: 1.5;
+}
+.disease-card__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+.disease-section { display: flex; flex-direction: column; gap: 6px; }
+.disease-section__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+}
+.disease-empty { margin: 0; font-size: var(--font-size-sm); text-align: center; padding: var(--space-3) 0; }
+
 .muted { color: var(--gray-400); font-size: var(--font-size-sm); }
 
 /* Chips */

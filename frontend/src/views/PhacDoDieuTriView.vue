@@ -34,11 +34,15 @@ interface PhacDoRow {
   huyetVi: HuyetViLite | null
 }
 
-interface FormState {
-  id_benh: number | null
-  id_huyet_list: number[]
+interface FormRow {
+  idHuyet: number
   phuong_phap_tac_dong: string
   ghi_chu_ky_thuat: string
+}
+
+interface FormState {
+  id_benh: number | null
+  rows: FormRow[]
 }
 
 interface BenhGroup {
@@ -50,9 +54,11 @@ interface BenhGroup {
 const PHUONG_PHAP_OPTIONS = [
   'Châm',
   'Cứu',
-  'Châm + cứu',
-  'Bấm huyệt',
-  'Điện châm',
+  'Châm + Cứu',
+  'Bấm Huyệt',
+  'Điện Châm',
+  'Bổ',
+  'Tả',
 ] as const
 
 const isLoading = ref(true)
@@ -63,7 +69,6 @@ const dataList = ref<PhacDoRow[]>([])
 const huyetViOptions = ref<HuyetViLite[]>([])
 const benhOptions = ref<BenhLite[]>([])
 const searchQuery = ref('')
-const huyetViSearch = ref('')
 const benhSearch = ref('')
 
 const showModal = ref(false)
@@ -74,21 +79,62 @@ const deletingGroup = ref<BenhGroup | null>(null)
 
 const emptyForm = (): FormState => ({
   id_benh: null,
-  id_huyet_list: [],
-  phuong_phap_tac_dong: '',
-  ghi_chu_ky_thuat: '',
+  rows: [],
 })
 
-function toggleHuyet(id: number) {
-  const idx = form.value.id_huyet_list.indexOf(id)
-  if (idx >= 0) {
-    form.value.id_huyet_list.splice(idx, 1)
-  } else {
-    form.value.id_huyet_list.push(id)
+const form = ref<FormState>(emptyForm())
+const huyetAddSearch = ref('')
+
+function addHuyetRowById(idHuyet: number) {
+  if (form.value.rows.some((r) => r.idHuyet === idHuyet)) return
+  form.value.rows.push({
+    idHuyet,
+    phuong_phap_tac_dong: '',
+    ghi_chu_ky_thuat: '',
+  })
+}
+
+function removeHuyetRow(i: number) {
+  form.value.rows.splice(i, 1)
+}
+
+function onHuyetAddChange() {
+  const q = huyetAddSearch.value.trim().toLowerCase()
+  if (!q) return
+  const match = huyetViOptions.value.find((h) => {
+    const name = (h.ten_huyet ?? '').trim().toLowerCase()
+    const code = (h.ma_huyet ?? '').trim().toLowerCase()
+    return name === q || code === q || huyetViLabel(h).toLowerCase() === q
+  })
+  if (match) {
+    addHuyetRowById(match.idHuyet)
+    huyetAddSearch.value = ''
   }
 }
 
-const form = ref<FormState>(emptyForm())
+function huyetRowLabel(idHuyet: number): string {
+  const h = huyetViOptions.value.find((x) => x.idHuyet === idHuyet)
+  return huyetViLabel(h)
+}
+
+function huyetRowKinhMach(idHuyet: number): string {
+  const h = huyetViOptions.value.find((x) => x.idHuyet === idHuyet)
+  return h?.kinhMach ? kinhMachLabel(h.kinhMach) : ''
+}
+
+const NOTE_TRUNCATE_LEN = 60
+const expandedNotes = ref<Set<number>>(new Set())
+
+function isLongNote(s: string | null | undefined): boolean {
+  return !!s && s.length > NOTE_TRUNCATE_LEN
+}
+
+function toggleNoteExpanded(id: number) {
+  const next = new Set(expandedNotes.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedNotes.value = next
+}
 
 const currentPage = ref(1)
 const itemsPerPage = ref(10)
@@ -168,23 +214,6 @@ const filteredBenhOptions = computed(() => {
   })
 })
 
-const filteredHuyetViOptions = computed(() => {
-  const q = huyetViSearch.value.trim().toLowerCase()
-  if (!q) return huyetViOptions.value
-  return huyetViOptions.value.filter((h) => {
-    const hay = [
-      h.ten_huyet,
-      h.ma_huyet,
-      h.kinhMach?.ten_kinh_mach,
-      h.kinhMach?.ten_viet_tat,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return hay.includes(q)
-  })
-})
-
 const groupedList = computed<BenhGroup[]>(() => {
   const map = new Map<number, BenhGroup>()
   for (const row of dataList.value) {
@@ -198,26 +227,6 @@ const groupedList = computed<BenhGroup[]>(() => {
   }
   return Array.from(map.values()).sort((a, b) => a.idBenh - b.idBenh)
 })
-
-function uniqueStrings(list: (string | null | undefined)[]): string[] {
-  const seen = new Set<string>()
-  const out: string[] = []
-  for (const s of list) {
-    const v = (s ?? '').trim()
-    if (!v || seen.has(v)) continue
-    seen.add(v)
-    out.push(v)
-  }
-  return out
-}
-
-function groupPhuongPhap(g: BenhGroup): string[] {
-  return uniqueStrings(g.items.map((i) => i.phuong_phap_tac_dong))
-}
-
-function groupGhiChu(g: BenhGroup): string[] {
-  return uniqueStrings(g.items.map((i) => i.ghi_chu_ky_thuat))
-}
 
 const filteredList = computed<BenhGroup[]>(() => {
   const q = searchQuery.value.trim().toLowerCase()
@@ -264,7 +273,7 @@ function openCreateModal() {
   editingItems.value = []
   form.value = emptyForm()
   formError.value = null
-  huyetViSearch.value = ''
+  huyetAddSearch.value = ''
   benhSearch.value = ''
   showModal.value = true
 }
@@ -272,15 +281,16 @@ function openCreateModal() {
 function openEditModal(group: BenhGroup) {
   editingBenhId.value = group.idBenh
   editingItems.value = group.items.slice()
-  const first = group.items[0]
   form.value = {
     id_benh: group.idBenh,
-    id_huyet_list: group.items.map((r) => r.idHuyet).filter((id) => id != null),
-    phuong_phap_tac_dong: first?.phuong_phap_tac_dong ?? '',
-    ghi_chu_ky_thuat: first?.ghi_chu_ky_thuat ?? '',
+    rows: group.items.map((r) => ({
+      idHuyet: r.idHuyet,
+      phuong_phap_tac_dong: r.phuong_phap_tac_dong ?? '',
+      ghi_chu_ky_thuat: r.ghi_chu_ky_thuat ?? '',
+    })),
   }
   formError.value = null
-  huyetViSearch.value = ''
+  huyetAddSearch.value = ''
   benhSearch.value = ''
   showModal.value = true
 }
@@ -299,40 +309,44 @@ async function handleSubmit() {
     formError.value = 'Vui lòng chọn bệnh'
     return
   }
-  if (f.id_huyet_list.length === 0) {
-    formError.value = 'Vui lòng chọn ít nhất một huyệt vị'
+  if (f.rows.length === 0) {
+    formError.value = 'Vui lòng thêm ít nhất một huyệt vị'
     return
   }
-  const basePayload = {
-    id_benh: Number(f.id_benh),
-    phuong_phap_tac_dong: f.phuong_phap_tac_dong.trim() || null,
-    ghi_chu_ky_thuat: f.ghi_chu_ky_thuat.trim() || null,
-  }
+  const idBenh = Number(f.id_benh)
   isSubmitting.value = true
   try {
     if (editingBenhId.value != null) {
       const existingByHuyet = new Map<number, PhacDoRow>()
       for (const r of editingItems.value) existingByHuyet.set(r.idHuyet, r)
-      const desiredSet = new Set(f.id_huyet_list)
+      const desiredSet = new Set(f.rows.map((r) => r.idHuyet))
       for (const r of editingItems.value) {
         if (!desiredSet.has(r.idHuyet)) {
           await api.delete(`/phac-do-dieu-tri/${r.idPhacDo}`)
         }
       }
-      for (const idHuyet of f.id_huyet_list) {
-        const existing = existingByHuyet.get(idHuyet)
+      for (const row of f.rows) {
+        const payload = {
+          id_benh: idBenh,
+          id_huyet: row.idHuyet,
+          phuong_phap_tac_dong: row.phuong_phap_tac_dong.trim() || null,
+          ghi_chu_ky_thuat: row.ghi_chu_ky_thuat.trim() || null,
+        }
+        const existing = existingByHuyet.get(row.idHuyet)
         if (existing) {
-          await api.put(`/phac-do-dieu-tri/${existing.idPhacDo}`, {
-            ...basePayload,
-            id_huyet: idHuyet,
-          })
+          await api.put(`/phac-do-dieu-tri/${existing.idPhacDo}`, payload)
         } else {
-          await api.post('/phac-do-dieu-tri', { ...basePayload, id_huyet: idHuyet })
+          await api.post('/phac-do-dieu-tri', payload)
         }
       }
     } else {
-      for (const idHuyet of f.id_huyet_list) {
-        await api.post('/phac-do-dieu-tri', { ...basePayload, id_huyet: idHuyet })
+      for (const row of f.rows) {
+        await api.post('/phac-do-dieu-tri', {
+          id_benh: idBenh,
+          id_huyet: row.idHuyet,
+          phuong_phap_tac_dong: row.phuong_phap_tac_dong.trim() || null,
+          ghi_chu_ky_thuat: row.ghi_chu_ky_thuat.trim() || null,
+        })
       }
     }
     await fetchData()
@@ -415,74 +429,73 @@ async function handleDelete() {
           <h3>Danh sách Phương Huyệt</h3>
           <span class="badge badge-success">{{ filteredList.length }} bệnh · {{ dataList.length }} liên kết</span>
         </div>
-        <div class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th width="64">ID bệnh</th>
-                <th width="220">Bệnh</th>
-                <th>Huyệt vị</th>
-                <th width="160">Phương pháp</th>
-                <th width="220">Ghi chú kỹ thuật</th>
-                <th width="120" class="text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="pagedList.length === 0">
-                <td colspan="6" class="text-center py-8 text-gray-500">
-                  {{ searchQuery.trim() ? 'Không khớp bản ghi nào' : 'Chưa có dữ liệu' }}
-                </td>
-              </tr>
-              <tr v-for="group in pagedList" :key="group.idBenh">
-                <td class="font-bold cell-id">#{{ group.idBenh }}</td>
-                <td>
-                  <div class="benh-cell">
-                    <span class="chip chip-benh">{{ benhLabel(group.benh, group.idBenh) }}</span>
-                    <small v-if="group.benh?.code" class="text-muted">{{ group.benh.code }}</small>
+        <div v-if="pagedList.length === 0" class="empty-state">
+          {{ searchQuery.trim() ? 'Không khớp bản ghi nào' : 'Chưa có dữ liệu' }}
+        </div>
+
+        <div v-else class="disease-grid">
+          <article v-for="group in pagedList" :key="group.idBenh" class="disease-card">
+            <header class="disease-card__head">
+              <div class="disease-card__title">
+                <span class="disease-card__id">#{{ group.idBenh }}</span>
+                <h4 class="disease-card__name">{{ benhLabel(group.benh, group.idBenh) }}</h4>
+                <span v-if="group.benh?.code" class="disease-card__code">{{ group.benh.code }}</span>
+              </div>
+              <div class="row-actions">
+                <button type="button" class="btn-action btn-edit" @click="openEditModal(group)">Sửa</button>
+                <button type="button" class="btn-action btn-delete" @click="confirmDelete(group)">Xóa</button>
+              </div>
+            </header>
+
+            <div class="disease-card__body">
+              <section v-if="group.items.length" class="disease-section">
+                <span class="disease-section__label">Huyệt vị ({{ group.items.length }})</span>
+                <div class="huyet-table">
+                  <div class="huyet-table__head">
+                    <span class="ht-col ht-col--name">Huyệt</span>
+                    <span class="ht-col ht-col--method">Phương pháp</span>
+                    <span class="ht-col ht-col--note">Ghi chú</span>
                   </div>
-                </td>
-                <td>
-                  <div v-if="group.items.length" class="chip-row">
-                    <span
-                      v-for="row in group.items"
-                      :key="row.idPhacDo"
-                      class="chip chip-huyet"
-                      :title="row.huyetVi?.kinhMach ? kinhMachLabel(row.huyetVi.kinhMach) : ''"
-                    >
-                      {{ huyetViLabel(row.huyetVi) }}
-                    </span>
-                  </div>
-                  <span v-else class="muted">—</span>
-                </td>
-                <td>
-                  <div v-if="groupPhuongPhap(group).length" class="chip-row">
-                    <span
-                      v-for="(pp, i) in groupPhuongPhap(group)"
-                      :key="i"
-                      class="chip chip-method"
-                    >
-                      {{ pp }}
-                    </span>
-                  </div>
-                  <span v-else class="muted">—</span>
-                </td>
-                <td class="cell-wrap">
-                  <template v-if="groupGhiChu(group).length">
-                    <div v-for="(note, i) in groupGhiChu(group)" :key="i" class="note-line">
-                      {{ note }}
+                  <div
+                    v-for="row in group.items"
+                    :key="row.idPhacDo"
+                    class="huyet-table__row"
+                  >
+                    <div class="ht-col ht-col--name">
+                      <span class="chip chip-huyet">{{ huyetViLabel(row.huyetVi) }}</span>
+                      <small
+                        v-if="row.huyetVi?.kinhMach"
+                        class="ht-kinh"
+                      >{{ kinhMachLabel(row.huyetVi.kinhMach) }}</small>
                     </div>
-                  </template>
-                  <span v-else class="muted">—</span>
-                </td>
-                <td class="text-right">
-                  <div class="row-actions">
-                    <button type="button" class="btn-action btn-edit" @click="openEditModal(group)">Sửa</button>
-                    <button type="button" class="btn-action btn-delete" @click="confirmDelete(group)">Xóa</button>
+                    <div class="ht-col ht-col--method">
+                      <span v-if="row.phuong_phap_tac_dong" class="chip chip-method">
+                        {{ row.phuong_phap_tac_dong }}
+                      </span>
+                      <span v-else class="muted">—</span>
+                    </div>
+                    <div class="ht-col ht-col--note">
+                      <template v-if="row.ghi_chu_ky_thuat">
+                        <span
+                          class="note-text"
+                          :class="{ 'note-text--expanded': expandedNotes.has(row.idPhacDo) }"
+                        >{{ row.ghi_chu_ky_thuat }}</span>
+                        <button
+                          v-if="isLongNote(row.ghi_chu_ky_thuat)"
+                          type="button"
+                          class="note-toggle"
+                          @click="toggleNoteExpanded(row.idPhacDo)"
+                        >{{ expandedNotes.has(row.idPhacDo) ? 'thu gọn' : 'xem thêm' }}</button>
+                      </template>
+                      <span v-else class="muted">—</span>
+                    </div>
                   </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                </div>
+              </section>
+
+              <p v-else class="disease-empty muted">Chưa có huyệt vị nào.</p>
+            </div>
+          </article>
         </div>
 
         <div v-if="filteredList.length > itemsPerPage" class="pagination">
@@ -546,65 +559,69 @@ async function handleDelete() {
             </div>
 
             <div class="field field--full">
-              <span class="field-label">Phương pháp tác động</span>
-              <div class="chip-picker">
-                <button
-                  v-for="opt in PHUONG_PHAP_OPTIONS"
-                  :key="opt"
-                  type="button"
-                  class="chip-toggle"
-                  :class="{ active: form.phuong_phap_tac_dong === opt }"
-                  @click="form.phuong_phap_tac_dong = form.phuong_phap_tac_dong === opt ? '' : opt"
-                >
-                  {{ opt }}
-                </button>
-              </div>
-            </div>
-
-            <label class="field field--full">
-              <span>Ghi chú kỹ thuật</span>
-              <textarea
-                v-model="form.ghi_chu_ky_thuat"
-                class="textarea"
-                rows="3"
-                placeholder="vd. Châm tả, sâu 0.5 thốn..."
-              ></textarea>
-            </label>
-
-            <div class="field field--full">
               <div class="field-head">
                 <span class="field-label">Huyệt vị <abbr title="bắt buộc">*</abbr></span>
-                <span class="field-count">{{ form.id_huyet_list.length }} đã chọn</span>
+                <span class="field-count">{{ form.rows.length }} huyệt</span>
               </div>
               <small v-if="editingBenhId != null" class="field-hint">
-                Khi lưu: huyệt bị bỏ chọn sẽ bị xóa khỏi bệnh, huyệt mới sẽ được thêm vào.
+                Khi lưu: huyệt bị xóa sẽ bị bỏ khỏi bệnh, huyệt mới sẽ được thêm.
               </small>
+
+              <div v-if="form.rows.length" class="huyet-rows">
+                <div class="huyet-rows__head">
+                  <span class="hr-col hr-col--name">Huyệt vị</span>
+                  <span class="hr-col hr-col--method">Phương pháp tác động</span>
+                  <span class="hr-col hr-col--note">Ghi chú kỹ thuật</span>
+                  <span class="hr-col hr-col--action"></span>
+                </div>
+                <div v-for="(row, i) in form.rows" :key="row.idHuyet" class="huyet-row">
+                  <div class="hr-col hr-col--name">
+                    <span class="huyet-name">{{ huyetRowLabel(row.idHuyet) }}</span>
+                    <small v-if="huyetRowKinhMach(row.idHuyet)" class="huyet-kinh">
+                      {{ huyetRowKinhMach(row.idHuyet) }}
+                    </small>
+                  </div>
+                  <div class="hr-col hr-col--method">
+                    <select v-model="row.phuong_phap_tac_dong" class="input input--sm">
+                      <option value="">— Chọn —</option>
+                      <option v-for="opt in PHUONG_PHAP_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+                    </select>
+                  </div>
+                  <div class="hr-col hr-col--note">
+                    <input
+                      v-model="row.ghi_chu_ky_thuat"
+                      class="input input--sm"
+                      placeholder="vd. sâu 0.5 thốn, tả pháp..."
+                    />
+                  </div>
+                  <div class="hr-col hr-col--action">
+                    <button
+                      type="button"
+                      class="btn-mini btn-mini-danger"
+                      aria-label="Xóa"
+                      @click="removeHuyetRow(i)"
+                    >✕</button>
+                  </div>
+                </div>
+              </div>
+
               <div v-if="huyetViOptions.length === 0" class="muted">Chưa có dữ liệu huyệt vị</div>
               <template v-else>
-                <div class="picker-search">
-                  <input
-                    v-model="huyetViSearch"
-                    type="search"
-                    class="input input--sm"
-                    placeholder="Tìm huyệt, mã, kinh mạch..."
-                  />
-                </div>
-                <div class="chip-picker chip-picker--scroll">
-                  <button
-                    v-for="h in filteredHuyetViOptions"
+                <input
+                  v-model="huyetAddSearch"
+                  type="search"
+                  class="input input--sm"
+                  list="huyet-vi-options"
+                  placeholder="+ Gõ tên huyệt hoặc mã huyệt để thêm dòng..."
+                  @change="onHuyetAddChange"
+                />
+                <datalist id="huyet-vi-options">
+                  <option
+                    v-for="h in huyetViOptions"
                     :key="h.idHuyet"
-                    type="button"
-                    class="chip-toggle"
-                    :class="{ active: form.id_huyet_list.includes(h.idHuyet) }"
-                    @click="toggleHuyet(h.idHuyet)"
-                  >
-                    {{ huyetViLabel(h) }}
-                    <span v-if="h.kinhMach" class="chip-sub">— {{ kinhMachLabel(h.kinhMach) }}</span>
-                  </button>
-                  <span v-if="filteredHuyetViOptions.length === 0" class="muted">
-                    Không khớp "{{ huyetViSearch }}"
-                  </span>
-                </div>
+                    :value="h.ten_huyet ?? ''"
+                  >{{ [h.ma_huyet, h.kinhMach ? kinhMachLabel(h.kinhMach) : null].filter(Boolean).join(' · ') }}</option>
+                </datalist>
               </template>
             </div>
           </div>
@@ -712,27 +729,215 @@ async function handleDelete() {
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); }
 .card-header h3 { font-size: var(--font-size-lg); font-weight: 700; color: var(--brown-900); margin: 0; }
 
-.table-responsive { width: 100%; overflow-x: auto; }
-.data-table { width: 100%; border-collapse: collapse; }
-.data-table th, .data-table td { padding: var(--space-3) var(--space-4); text-align: left; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
-.data-table th { background: #fdfbf9; font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
-.data-table tbody tr:hover { background: var(--gray-50); }
-.data-table td { font-size: var(--font-size-md); color: var(--gray-800); }
-.cell-id { color: var(--gray-500); font-weight: 600; font-size: var(--font-size-sm); }
-.cell-wrap { white-space: normal; word-break: break-word; line-height: 1.4; max-width: 400px; }
-.chip-row {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 4px;
-  overflow-x: auto;
-  white-space: nowrap;
+.empty-state {
+  padding: var(--space-12) var(--space-5);
+  text-align: center;
+  color: var(--gray-500);
+  font-size: var(--font-size-md);
+  background: linear-gradient(180deg, #fff 0%, #fdfbf9 100%);
 }
-.chip-row .chip { flex: 0 0 auto; }
-.note-line { padding: 2px 0; }
-.note-line + .note-line { border-top: 1px dashed var(--gray-200); margin-top: 4px; padding-top: 6px; }
 
-.benh-cell, .huyet-cell { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
-.text-muted { font-size: 11px; color: var(--gray-500); }
+.disease-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: #fdfbf9;
+}
+.disease-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--brown-100);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(74, 47, 23, 0.04);
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast),
+    border-color var(--transition-fast);
+}
+.disease-card:hover {
+  box-shadow: 0 6px 18px rgba(74, 47, 23, 0.08);
+  border-color: var(--brown-200);
+  transform: translateY(-1px);
+}
+.disease-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(135deg, var(--brown-50) 0%, #fff 100%);
+  border-bottom: 1px solid var(--brown-100);
+}
+.disease-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.disease-card__id {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brown-700);
+  background: var(--white);
+  border: 1px solid var(--brown-200);
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.disease-card__name {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--brown-900);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.disease-card__code {
+  font-size: 11px;
+  color: var(--gray-500);
+  font-family: ui-monospace, monospace;
+}
+.disease-card__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+.disease-section { display: flex; flex-direction: column; gap: 6px; }
+.disease-section__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+}
+.disease-section__notes {
+  font-size: var(--font-size-sm);
+  color: var(--gray-800);
+  line-height: 1.5;
+}
+.disease-empty { margin: 0; font-size: var(--font-size-sm); text-align: center; padding: var(--space-3) 0; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip-row--wrap { gap: 6px; }
+.chip-row--wrap .chip { white-space: normal; word-break: break-word; max-width: 100%; }
+
+/* Bảng huyệt vị trong card display */
+.huyet-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--white);
+}
+.huyet-table__head,
+.huyet-table__row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.4fr) minmax(100px, 1fr) minmax(120px, 1.6fr);
+  gap: var(--space-2);
+  padding: 6px var(--space-2);
+  align-items: center;
+}
+.huyet-table__head {
+  background: #fdfbf9;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+}
+.huyet-table__row + .huyet-table__row { border-top: 1px solid var(--gray-100); }
+.huyet-table__row:hover { background: #fdfbf9; }
+.ht-col { font-size: var(--font-size-sm); color: var(--gray-800); min-width: 0; word-break: break-word; }
+.ht-col--name { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.ht-kinh { font-size: 11px; color: var(--gray-500); }
+
+.note-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.note-text--expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.note-toggle {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--brown-700);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.note-toggle:hover { color: var(--brown-800); }
+
+/* Bảng nhập huyệt vị trong modal form */
+.huyet-rows {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--white);
+  margin-bottom: var(--space-2);
+}
+.huyet-rows__head,
+.huyet-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.3fr) minmax(140px, 1.1fr) minmax(140px, 1.6fr) 32px;
+  gap: var(--space-2);
+  padding: 6px var(--space-2);
+  align-items: center;
+}
+.huyet-rows__head {
+  background: #fdfbf9;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+}
+.huyet-row + .huyet-row { border-top: 1px solid var(--gray-100); }
+.hr-col { min-width: 0; }
+.hr-col--name { display: flex; flex-direction: column; gap: 2px; }
+.hr-col--method select { width: 100%; cursor: pointer; }
+.hr-col--note input { width: 100%; }
+.hr-col--action { display: flex; justify-content: center; }
+.huyet-name { font-weight: 600; color: var(--brown-900); font-size: var(--font-size-sm); }
+.huyet-kinh { font-size: 11px; color: var(--gray-500); }
+
+.btn-mini {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  color: var(--gray-600);
+  cursor: pointer;
+  padding: 0;
+}
+.btn-mini:hover { border-color: var(--brown-400); color: var(--brown-700); }
+.btn-mini-danger:hover { border-color: #fca5a5; color: var(--danger); background: #fef2f2; }
 
 .chip {
   display: inline-block;

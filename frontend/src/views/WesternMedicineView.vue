@@ -1,13 +1,38 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { api } from '@/services/api'
 
-// Interfaces
 interface ChungBenh {
   id: number
-  ma_chung_benh: string
   ten_chung_benh: string
-  mo_ta: string | null
+  benhTayYList?: { id: number }[]
+}
+
+interface PhapTriLite {
+  id: number
+  chung_trang: string | null
+  nguyen_tac: string | null
+}
+
+interface BaiThuocLite {
+  id: number
+  ten_bai_thuoc: string
+  nguon_goc?: string | null
+}
+
+interface TrieuChungLite {
+  id: number
+  ten_trieu_chung: string
+}
+
+interface ThietChanLite {
+  id: number
+  ten_thiet_chan: string
+}
+
+interface MachChanLite {
+  id: number
+  ten_mach_chan: string
 }
 
 interface BenhTayY {
@@ -15,115 +40,343 @@ interface BenhTayY {
   ten_benh: string
   idChungBenh: number
   chungBenh: ChungBenh | null
-  baiThuocList?: any[]
+  baiThuocList?: BaiThuocLite[]
+  phapTriList?: PhapTriLite[]
+  trieuChungList?: TrieuChungLite[]
+  thietChanList?: ThietChanLite[]
+  machChanList?: MachChanLite[]
 }
 
-const activeTab = ref<'chung-benh' | 'benh-tay-y'>('chung-benh')
+type TabKey = 'chung-benh' | 'benh-tay-y'
+
+const activeTab = ref<TabKey>('chung-benh')
 const isLoading = ref(true)
 const error = ref<string | null>(null)
+const isSubmitting = ref(false)
 
-// Data
 const chungBenhList = ref<ChungBenh[]>([])
 const benhTayYList = ref<BenhTayY[]>([])
+const baiThuocOptions = ref<BaiThuocLite[]>([])
+const trieuChungOptions = ref<TrieuChungLite[]>([])
+const thietChanOptions = ref<ThietChanLite[]>([])
+const machChanOptions = ref<MachChanLite[]>([])
+const phapTriOptions = ref<PhapTriLite[]>([])
 
-// Pagination state
-const currentPage = ref(1)
-const itemsPerPage = ref(10)
+const cbSearch = ref('')
+const btySearch = ref('')
 
-onMounted(async () => {
-  await fetchData()
+const cbPage = ref(1)
+const btyPage = ref(1)
+const pageSize = 12
+
+// Modal state
+const showCbModal = ref(false)
+const editingCb = ref<ChungBenh | null>(null)
+const cbForm = ref({ ten_chung_benh: '' })
+const cbFormError = ref<string | null>(null)
+
+const showBtyModal = ref(false)
+const editingBty = ref<BenhTayY | null>(null)
+const btyFormError = ref<string | null>(null)
+const btyForm = ref({
+  ten_benh: '',
+  id_chung_benh: null as number | null,
+  bai_thuoc_ids: [] as number[],
+  trieu_chung_ids: [] as number[],
+  thiet_chan_ids: [] as number[],
+  mach_chan_ids: [] as number[],
+  phap_tri_ids: [] as number[],
+})
+const baiThuocSearch = ref('')
+const trieuChungSearch = ref('')
+const phapTriSearch = ref('')
+const thietChanSearch = ref('')
+const machChanSearch = ref('')
+
+const showDeleteConfirm = ref(false)
+const deletingTarget = ref<{ kind: 'cb' | 'bty'; id: number; label: string } | null>(null)
+
+onMounted(fetchAll)
+
+watch(cbSearch, () => (cbPage.value = 1))
+watch(btySearch, () => (btyPage.value = 1))
+watch(activeTab, () => {
+  cbSearch.value = ''
+  btySearch.value = ''
 })
 
-async function fetchData() {
+async function fetchAll() {
   isLoading.value = true
   error.value = null
   try {
-    const [cbRes, btyRes] = await Promise.all([
+    const [cb, bty, bt, tc, ttc, mc, pt] = await Promise.all([
       api.get<any>('/chung-benh'),
-      api.get<any>('/benh-tay-y')
+      api.get<any>('/benh-tay-y'),
+      api.get<any>('/bai-thuoc'),
+      api.get<any>('/trieu-chung'),
+      api.get<any>('/thiet-chan'),
+      api.get<any>('/mach-chan'),
+      api.get<any>('/phap-tri'),
     ])
-    
-    chungBenhList.value = Array.isArray(cbRes) ? cbRes : (cbRes.data || [])
-    benhTayYList.value = Array.isArray(btyRes) ? btyRes : (btyRes.data || [])
-    
+    chungBenhList.value = unwrap<ChungBenh>(cb)
+    benhTayYList.value = unwrap<BenhTayY>(bty)
+    baiThuocOptions.value = unwrap<BaiThuocLite>(bt)
+    trieuChungOptions.value = unwrap<TrieuChungLite>(tc)
+    thietChanOptions.value = unwrap<ThietChanLite>(ttc)
+    machChanOptions.value = unwrap<MachChanLite>(mc)
+    phapTriOptions.value = unwrap<PhapTriLite>(pt)
   } catch (err: any) {
     console.error(err)
-    error.value = 'Lỗi khi tải dữ liệu: ' + err.message
+    error.value = 'Lỗi khi tải dữ liệu: ' + (err.message || String(err))
   } finally {
     isLoading.value = false
   }
 }
 
+function unwrap<T>(res: any): T[] {
+  if (Array.isArray(res)) return res as T[]
+  if (Array.isArray(res?.data)) return res.data as T[]
+  return []
+}
+
+function toggleId(list: number[], id: number): number[] {
+  return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
+}
+
+function phapTriLabel(p: PhapTriLite): string {
+  return (p.nguyen_tac || p.chung_trang || `#${p.id}`).trim()
+}
+
 const chungBenhMap = computed(() => {
-  return chungBenhList.value.reduce((acc, cb) => {
-    acc[cb.id] = cb
-    return acc
-  }, {} as Record<number, ChungBenh>)
+  const m = new Map<number, ChungBenh>()
+  for (const cb of chungBenhList.value) m.set(cb.id, cb)
+  return m
 })
 
-// Paged list for display
-const pagedList = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value
-  const end = start + itemsPerPage.value
-  return benhTayYList.value.slice(start, end)
+const benhTayYCountByChungBenh = computed(() => {
+  const m = new Map<number, number>()
+  for (const b of benhTayYList.value) m.set(b.idChungBenh, (m.get(b.idChungBenh) ?? 0) + 1)
+  return m
 })
 
-const totalPages = computed(() => Math.ceil(benhTayYList.value.length / itemsPerPage.value))
-
-const pageNumbers = computed(() => {
-  const pages: number[] = []
-  const tp = totalPages.value
-  const cp = currentPage.value
-  const start = Math.max(1, cp - 2)
-  const end = Math.min(tp, cp + 2)
-  for (let i = start; i <= end; i++) pages.push(i)
-  return pages
+const filteredCbList = computed(() => {
+  const q = cbSearch.value.trim().toLowerCase()
+  if (!q) return chungBenhList.value
+  return chungBenhList.value.filter((cb) => cb.ten_chung_benh.toLowerCase().includes(q))
 })
 
-function setPage(p: number) {
-  if (p >= 1 && p <= totalPages.value) {
-    currentPage.value = p
-    const table = document.querySelector('.data-card')
-    if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' })
+const pagedCbList = computed(() => {
+  const start = (cbPage.value - 1) * pageSize
+  return filteredCbList.value.slice(start, start + pageSize)
+})
+
+const cbTotalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredCbList.value.length / pageSize)),
+)
+
+const filteredBtyList = computed(() => {
+  const q = btySearch.value.trim().toLowerCase()
+  if (!q) return benhTayYList.value
+  return benhTayYList.value.filter((b) => {
+    const hay = [
+      b.ten_benh,
+      b.chungBenh?.ten_chung_benh ?? chungBenhMap.value.get(b.idChungBenh)?.ten_chung_benh,
+      (b.baiThuocList ?? []).map((x) => x.ten_bai_thuoc).join(' '),
+      (b.phapTriList ?? []).map(phapTriLabel).join(' '),
+      (b.trieuChungList ?? []).map((x) => x.ten_trieu_chung).join(' '),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return hay.includes(q)
+  })
+})
+
+const pagedBtyList = computed(() => {
+  const start = (btyPage.value - 1) * pageSize
+  return filteredBtyList.value.slice(start, start + pageSize)
+})
+
+const btyTotalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredBtyList.value.length / pageSize)),
+)
+
+function pageNumbers(current: number, total: number): number[] {
+  const start = Math.max(1, current - 2)
+  const end = Math.min(total, current + 2)
+  const arr: number[] = []
+  for (let i = start; i <= end; i++) arr.push(i)
+  return arr
+}
+
+const filteredBaiThuocOptions = computed(() => {
+  const q = baiThuocSearch.value.trim().toLowerCase()
+  if (!q) return baiThuocOptions.value
+  return baiThuocOptions.value.filter((b) => b.ten_bai_thuoc.toLowerCase().includes(q))
+})
+const filteredTrieuChungOptions = computed(() => {
+  const q = trieuChungSearch.value.trim().toLowerCase()
+  if (!q) return trieuChungOptions.value
+  return trieuChungOptions.value.filter((t) => t.ten_trieu_chung.toLowerCase().includes(q))
+})
+const filteredPhapTriOptions = computed(() => {
+  const q = phapTriSearch.value.trim().toLowerCase()
+  if (!q) return phapTriOptions.value
+  return phapTriOptions.value.filter((p) => phapTriLabel(p).toLowerCase().includes(q))
+})
+const filteredThietChanOptions = computed(() => {
+  const q = thietChanSearch.value.trim().toLowerCase()
+  if (!q) return thietChanOptions.value
+  return thietChanOptions.value.filter((t) => t.ten_thiet_chan.toLowerCase().includes(q))
+})
+const filteredMachChanOptions = computed(() => {
+  const q = machChanSearch.value.trim().toLowerCase()
+  if (!q) return machChanOptions.value
+  return machChanOptions.value.filter((m) => m.ten_mach_chan.toLowerCase().includes(q))
+})
+
+function openCreateCb() {
+  editingCb.value = null
+  cbForm.value = { ten_chung_benh: '' }
+  cbFormError.value = null
+  showCbModal.value = true
+}
+
+function openEditCb(cb: ChungBenh) {
+  editingCb.value = cb
+  cbForm.value = { ten_chung_benh: cb.ten_chung_benh }
+  cbFormError.value = null
+  showCbModal.value = true
+}
+
+async function submitCb() {
+  if (isSubmitting.value) return
+  const name = cbForm.value.ten_chung_benh.trim()
+  if (!name) {
+    cbFormError.value = 'Tên chủng bệnh không được trống'
+    return
+  }
+  isSubmitting.value = true
+  try {
+    if (editingCb.value) {
+      await api.put(`/chung-benh/${editingCb.value.id}`, { ten_chung_benh: name })
+    } else {
+      await api.post('/chung-benh', { ten_chung_benh: name })
+    }
+    await fetchAll()
+    showCbModal.value = false
+  } catch (err: any) {
+    cbFormError.value = err.message || 'Không lưu được dữ liệu'
+  } finally {
+    isSubmitting.value = false
   }
 }
 
-function getPhapTriNames(bt: any) {
-  if (!bt || !bt.phapTriLinks) return '—'
-  return bt.phapTriLinks.map((link: any) => link.phapTri?.ten_phap_tri).filter(Boolean).join(', ') || '—'
+function openCreateBty() {
+  editingBty.value = null
+  btyForm.value = {
+    ten_benh: '',
+    id_chung_benh: null,
+    bai_thuoc_ids: [],
+    trieu_chung_ids: [],
+    thiet_chan_ids: [],
+    mach_chan_ids: [],
+    phap_tri_ids: [],
+  }
+  btyFormError.value = null
+  resetPickerSearches()
+  showBtyModal.value = true
 }
 
-function getThietChanNames(bty: any) {
-  if (!bty.thietChanList) return '—'
-  return bty.thietChanList.map((tc: any) => tc.ten_thiet_chan).join(', ') || '—'
+function openEditBty(bty: BenhTayY) {
+  editingBty.value = bty
+  btyForm.value = {
+    ten_benh: bty.ten_benh,
+    id_chung_benh: bty.idChungBenh ?? null,
+    bai_thuoc_ids: (bty.baiThuocList ?? []).map((b) => b.id),
+    trieu_chung_ids: (bty.trieuChungList ?? []).map((t) => t.id),
+    thiet_chan_ids: (bty.thietChanList ?? []).map((t) => t.id),
+    mach_chan_ids: (bty.machChanList ?? []).map((m) => m.id),
+    phap_tri_ids: (bty.phapTriList ?? []).map((p) => p.id),
+  }
+  btyFormError.value = null
+  resetPickerSearches()
+  showBtyModal.value = true
 }
 
-function getMachChanNames(bty: any) {
-  if (!bty.machChanList) return '—'
-  return bty.machChanList.map((mc: any) => mc.ten_mach_chan).join(', ') || '—'
+function resetPickerSearches() {
+  baiThuocSearch.value = ''
+  trieuChungSearch.value = ''
+  phapTriSearch.value = ''
+  thietChanSearch.value = ''
+  machChanSearch.value = ''
 }
 
-function editChungBenh(cb: ChungBenh) {
-  console.log('Edit Chung Benh:', cb)
-  // TODO: Implement form modal or logic
-}
-
-function deleteChungBenh(cb: ChungBenh) {
-  if (confirm(`Bạn có chắc chắn muốn xóa chủng bệnh: "${cb.ten_chung_benh}" không?`)) {
-    // TODO: Implement API logic
-    console.log('Delete Chung Benh:', cb)
+async function submitBty() {
+  if (isSubmitting.value) return
+  const name = btyForm.value.ten_benh.trim()
+  if (!name) {
+    btyFormError.value = 'Tên bệnh không được trống'
+    return
+  }
+  if (btyForm.value.id_chung_benh == null) {
+    btyFormError.value = 'Vui lòng chọn chủng bệnh'
+    return
+  }
+  const payload = {
+    ten_benh: name,
+    id_chung_benh: btyForm.value.id_chung_benh,
+    bai_thuoc_ids: btyForm.value.bai_thuoc_ids,
+    trieu_chung_ids: btyForm.value.trieu_chung_ids,
+    thiet_chan_ids: btyForm.value.thiet_chan_ids,
+    mach_chan_ids: btyForm.value.mach_chan_ids,
+    phap_tri_ids: btyForm.value.phap_tri_ids,
+  }
+  isSubmitting.value = true
+  try {
+    if (editingBty.value) {
+      await api.put(`/benh-tay-y/${editingBty.value.id}`, payload)
+    } else {
+      await api.post('/benh-tay-y', payload)
+    }
+    await fetchAll()
+    showBtyModal.value = false
+  } catch (err: any) {
+    btyFormError.value = err.message || 'Không lưu được dữ liệu'
+  } finally {
+    isSubmitting.value = false
   }
 }
 
-function editDisease(bty: BenhTayY) {
-  console.log('Edit Benh Tay Y:', bty)
-  // TODO: Implement form modal or logic
+function confirmDeleteCb(cb: ChungBenh) {
+  deletingTarget.value = { kind: 'cb', id: cb.id, label: cb.ten_chung_benh }
+  showDeleteConfirm.value = true
 }
 
-function deleteDisease(bty: BenhTayY) {
-  if (confirm(`Bạn có chắc chắn muốn xóa bệnh tây y: "${bty.ten_benh}" không?`)) {
-    // TODO: Implement API logic
-    console.log('Delete Benh Tay Y:', bty)
+function confirmDeleteBty(bty: BenhTayY) {
+  deletingTarget.value = { kind: 'bty', id: bty.id, label: bty.ten_benh }
+  showDeleteConfirm.value = true
+}
+
+async function doDelete() {
+  if (!deletingTarget.value || isSubmitting.value) return
+  const t = deletingTarget.value
+  isSubmitting.value = true
+  try {
+    if (t.kind === 'cb') {
+      await api.delete(`/chung-benh/${t.id}`)
+    } else {
+      await api.delete(`/benh-tay-y/${t.id}`)
+    }
+    showDeleteConfirm.value = false
+    deletingTarget.value = null
+    await fetchAll()
+  } catch (err: any) {
+    error.value = err.message || 'Không xóa được bản ghi'
+    showDeleteConfirm.value = false
+    deletingTarget.value = null
+  } finally {
+    isSubmitting.value = false
   }
 }
 </script>
@@ -133,15 +386,13 @@ function deleteDisease(bty: BenhTayY) {
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">Quản Lý Bệnh Tây Y</h1>
-        <p class="page-subtitle">Quản lý hệ thống phân loại chủng bệnh và bệnh lý tây y</p>
+        <p class="page-subtitle">Phân loại chủng bệnh và bệnh lý tây y</p>
       </div>
       <div class="view-toggle">
         <button class="toggle-btn" :class="{ active: activeTab === 'chung-benh' }" @click="activeTab = 'chung-benh'">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7" /></svg>
           Chủng Bệnh
         </button>
         <button class="toggle-btn" :class="{ active: activeTab === 'benh-tay-y' }" @click="activeTab = 'benh-tay-y'">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
           Bệnh Tây Y
         </button>
       </div>
@@ -154,119 +405,408 @@ function deleteDisease(bty: BenhTayY) {
 
     <div v-else-if="error" class="error-state">
       <p>{{ error }}</p>
-      <button class="btn-secondary mt-4" @click="fetchData">Thử lại</button>
+      <button class="btn-secondary mt-4" @click="fetchAll">Thử lại</button>
     </div>
 
     <div v-else class="content-body">
       <!-- TAB CHỦNG BỆNH -->
       <div v-if="activeTab === 'chung-benh'" class="tab-content">
+        <div class="toolbar">
+          <label class="search-wrap">
+            <span class="search-label">Tìm kiếm</span>
+            <input
+              v-model="cbSearch"
+              type="search"
+              class="search-input"
+              placeholder="Tìm theo tên chủng bệnh..."
+              autocomplete="off"
+            />
+          </label>
+          <span class="toolbar-count">{{ filteredCbList.length }} / {{ chungBenhList.length }} chủng bệnh</span>
+          <button class="btn-primary" @click="openCreateCb">+ Thêm chủng bệnh</button>
+        </div>
+
         <div class="data-card">
           <div class="card-header">
             <h3>Danh sách Chủng Bệnh</h3>
-            <span class="badge badge-info">{{ chungBenhList.length }} chủng bệnh</span>
+            <span class="badge badge-info">{{ chungBenhList.length }} bản ghi</span>
           </div>
-          <div class="table-responsive">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th width="80">ID</th>
-                  <th width="200">Mã Chủng Bệnh</th>
-                  <th>Tên Chủng Bệnh</th>
-                  <th>Mô tả</th>
-                  <th width="140" class="text-right">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="chungBenhList.length === 0">
-                  <td colspan="5" class="text-center py-8 text-gray-500">Chưa có dữ liệu chủng bệnh</td>
-                </tr>
-                <tr v-for="cb in chungBenhList" :key="cb.id">
-                  <td>#{{ cb.id }}</td>
-                  <td class="font-medium text-brown-700">{{ cb.ma_chung_benh }}</td>
-                  <td class="font-bold">{{ cb.ten_chung_benh }}</td>
-                  <td class="text-gray-600">{{ cb.mo_ta || 'Không có mô tả' }}</td>
-                  <td class="text-right">
-                    <div class="action-buttons">
-                      <button class="btn-action btn-edit" @click="editChungBenh(cb)">Sửa</button>
-                      <button class="btn-action btn-delete" @click="deleteChungBenh(cb)">Xóa</button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+
+          <div v-if="pagedCbList.length === 0" class="empty-state">
+            {{ cbSearch.trim() ? 'Không khớp bản ghi nào' : 'Chưa có dữ liệu' }}
+          </div>
+
+          <div v-else class="disease-grid disease-grid--sm">
+            <article v-for="cb in pagedCbList" :key="cb.id" class="disease-card">
+              <header class="disease-card__head">
+                <div class="disease-card__title">
+                  <span class="disease-card__id">#{{ cb.id }}</span>
+                  <h4 class="disease-card__name">{{ cb.ten_chung_benh }}</h4>
+                </div>
+                <div class="row-actions">
+                  <button class="btn-action btn-edit" @click="openEditCb(cb)">Sửa</button>
+                  <button class="btn-action btn-delete" @click="confirmDeleteCb(cb)">Xóa</button>
+                </div>
+              </header>
+              <div class="disease-card__body">
+                <section class="disease-section">
+                  <span class="disease-section__label">Số bệnh tây y</span>
+                  <span class="cell-tag">{{ benhTayYCountByChungBenh.get(cb.id) ?? 0 }} bệnh</span>
+                </section>
+              </div>
+            </article>
+          </div>
+
+          <div v-if="cbTotalPages > 1" class="pagination">
+            <button class="page-btn" :disabled="cbPage <= 1" @click="cbPage--">‹</button>
+            <button
+              v-for="pn in pageNumbers(cbPage, cbTotalPages)"
+              :key="pn"
+              class="page-btn"
+              :class="{ active: pn === cbPage }"
+              @click="cbPage = pn"
+            >
+              {{ pn }}
+            </button>
+            <button class="page-btn" :disabled="cbPage >= cbTotalPages" @click="cbPage++">›</button>
+            <span class="page-info">Trang {{ cbPage }} / {{ cbTotalPages }}</span>
           </div>
         </div>
       </div>
 
       <!-- TAB BỆNH TÂY Y -->
       <div v-else class="tab-content">
+        <div class="toolbar">
+          <label class="search-wrap">
+            <span class="search-label">Tìm kiếm</span>
+            <input
+              v-model="btySearch"
+              type="search"
+              class="search-input"
+              placeholder="Tìm theo tên bệnh, chủng bệnh, bài thuốc, pháp trị, triệu chứng..."
+              autocomplete="off"
+            />
+          </label>
+          <span class="toolbar-count">{{ filteredBtyList.length }} / {{ benhTayYList.length }} bệnh</span>
+          <button class="btn-primary" @click="openCreateBty">+ Thêm bệnh tây y</button>
+        </div>
+
         <div class="data-card">
           <div class="card-header">
             <h3>Danh sách Bệnh Tây Y</h3>
-            <span class="badge badge-success">{{ benhTayYList.length }} bệnh</span>
-          </div>
-          <div class="table-responsive">
-            <table class="data-table data-table--full">
-              <thead>
-                <tr>
-                  <th width="150">Tên Bệnh</th>
-                  <th width="140">Chủng Bệnh</th>
-                  <th width="150">Bài Thuốc</th>
-                  <th width="150">Pháp Trị</th>
-                  <th width="150">Thể Bệnh</th>
-                  <th width="200">Triệu Chứng</th>
-                  <th width="120">Thiệt Chẩn</th>
-                  <th width="120">Mạch Chẩn</th>
-                  <th class="text-right">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="pagedList.length === 0">
-                  <td colspan="9" class="text-center py-8 text-gray-500">Chưa có dữ liệu bệnh tây y</td>
-                </tr>
-                <tr v-for="(row, idx) in pagedList" :key="idx">
-                  <td class="font-bold text-brown-900" style="vertical-align: top;">{{ row.ten_benh }}</td>
-                  <td style="vertical-align: top;">
-                    <span class="chung-benh-badge" v-if="row.chungBenh || chungBenhMap[row.idChungBenh]">
-                      {{ row.chungBenh?.ten_chung_benh || chungBenhMap[row.idChungBenh]?.ten_chung_benh }}
-                    </span>
-                    <span class="text-gray-400 italic" v-else>Chưa phân loại</span>
-                  </td>
-                  <td class="font-medium text-brown-700" style="vertical-align: top;">
-                    <div v-for="bt in row.baiThuocList" :key="bt.id" class="mb-1">{{ bt.ten_bai_thuoc }}</div>
-                    <span v-if="!row.baiThuocList || row.baiThuocList.length === 0">—</span>
-                  </td>
-                  <td class="text-gray-600 small-text" style="vertical-align: top;">
-                     <div v-for="bt in row.baiThuocList" :key="bt.id" class="mb-1">{{ getPhapTriNames(bt) }}</div>
-                     <span v-if="!row.baiThuocList || row.baiThuocList.length === 0">—</span>
-                  </td>
-                  <td class="text-gray-600 small-text" style="vertical-align: top;">
-                     <div v-for="bt in row.baiThuocList" :key="bt.id" class="mb-1">{{ bt.the_benh || '—' }}</div>
-                     <span v-if="!row.baiThuocList || row.baiThuocList.length === 0">—</span>
-                  </td>
-                  <td class="text-gray-600 small-text trieu-chung-cell" style="vertical-align: top;">
-                     <div v-for="bt in row.baiThuocList" :key="bt.id" class="mb-1 line-clamp">{{ bt.trieu_chung || '—' }}</div>
-                     <span v-if="!row.baiThuocList || row.baiThuocList.length === 0">—</span>
-                  </td>
-                  <td class="text-gray-600 small-text" style="vertical-align: top;">{{ getThietChanNames(row) }}</td>
-                  <td class="text-gray-600 small-text" style="vertical-align: top;">{{ getMachChanNames(row) }}</td>
-                  <td class="text-right" style="vertical-align: top;">
-                    <div class="action-buttons">
-                      <button class="btn-action btn-edit" @click="editDisease(row)">Sửa</button>
-                      <button class="btn-action btn-delete" @click="deleteDisease(row)">Xóa</button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <span class="badge badge-success">{{ benhTayYList.length }} bản ghi</span>
           </div>
 
-          <!-- Pagination -->
-          <div v-if="totalPages > 1" class="pagination">
-            <button class="page-btn" :disabled="currentPage <= 1" @click="setPage(currentPage - 1)">‹</button>
-            <button v-for="pn in pageNumbers" :key="pn" class="page-btn" :class="{ active: pn === currentPage }" @click="setPage(pn)">{{ pn }}</button>
-            <button class="page-btn" :disabled="currentPage >= totalPages" @click="setPage(currentPage + 1)">›</button>
-            <span class="page-info">Trang {{ currentPage }} / {{ totalPages }}</span>
+          <div v-if="pagedBtyList.length === 0" class="empty-state">
+            {{ btySearch.trim() ? 'Không khớp bản ghi nào' : 'Chưa có dữ liệu' }}
+          </div>
+
+          <div v-else class="disease-grid">
+            <article v-for="bty in pagedBtyList" :key="bty.id" class="disease-card">
+              <header class="disease-card__head">
+                <div class="disease-card__title">
+                  <span class="disease-card__id">#{{ bty.id }}</span>
+                  <h4 class="disease-card__name">{{ bty.ten_benh }}</h4>
+                  <span
+                    v-if="bty.chungBenh || chungBenhMap.get(bty.idChungBenh)"
+                    class="chip chip-chungbenh"
+                  >
+                    {{ bty.chungBenh?.ten_chung_benh || chungBenhMap.get(bty.idChungBenh)?.ten_chung_benh }}
+                  </span>
+                </div>
+                <div class="row-actions">
+                  <button class="btn-action btn-edit" @click="openEditBty(bty)">Sửa</button>
+                  <button class="btn-action btn-delete" @click="confirmDeleteBty(bty)">Xóa</button>
+                </div>
+              </header>
+
+              <div class="disease-card__body">
+                <section v-if="bty.baiThuocList?.length" class="disease-section">
+                  <span class="disease-section__label">Bài thuốc ({{ bty.baiThuocList.length }})</span>
+                  <div class="chip-row chip-row--wrap">
+                    <span v-for="b in bty.baiThuocList" :key="b.id" class="chip chip-bai">
+                      {{ b.ten_bai_thuoc }}
+                    </span>
+                  </div>
+                </section>
+
+                <section v-if="bty.phapTriList?.length" class="disease-section">
+                  <span class="disease-section__label">Pháp trị ({{ bty.phapTriList.length }})</span>
+                  <div class="chip-row chip-row--wrap">
+                    <span v-for="p in bty.phapTriList" :key="p.id" class="chip chip-phap">
+                      {{ phapTriLabel(p) }}
+                    </span>
+                  </div>
+                </section>
+
+                <section v-if="bty.trieuChungList?.length" class="disease-section">
+                  <span class="disease-section__label">Triệu chứng ({{ bty.trieuChungList.length }})</span>
+                  <div class="chip-row chip-row--wrap">
+                    <span v-for="t in bty.trieuChungList" :key="t.id" class="chip chip-trieu">
+                      {{ t.ten_trieu_chung }}
+                    </span>
+                  </div>
+                </section>
+
+                <section v-if="bty.thietChanList?.length" class="disease-section">
+                  <span class="disease-section__label">Thiệt chẩn</span>
+                  <div class="chip-row chip-row--wrap">
+                    <span v-for="t in bty.thietChanList" :key="t.id" class="chip chip-thiet">
+                      {{ t.ten_thiet_chan }}
+                    </span>
+                  </div>
+                </section>
+
+                <section v-if="bty.machChanList?.length" class="disease-section">
+                  <span class="disease-section__label">Mạch chẩn</span>
+                  <div class="chip-row chip-row--wrap">
+                    <span v-for="m in bty.machChanList" :key="m.id" class="chip chip-mach">
+                      {{ m.ten_mach_chan }}
+                    </span>
+                  </div>
+                </section>
+
+                <p
+                  v-if="
+                    !bty.baiThuocList?.length &&
+                    !bty.phapTriList?.length &&
+                    !bty.trieuChungList?.length &&
+                    !bty.thietChanList?.length &&
+                    !bty.machChanList?.length
+                  "
+                  class="disease-empty muted"
+                >
+                  Chưa gắn dữ liệu liên quan.
+                </p>
+              </div>
+            </article>
+          </div>
+
+          <div v-if="btyTotalPages > 1" class="pagination">
+            <button class="page-btn" :disabled="btyPage <= 1" @click="btyPage--">‹</button>
+            <button
+              v-for="pn in pageNumbers(btyPage, btyTotalPages)"
+              :key="pn"
+              class="page-btn"
+              :class="{ active: pn === btyPage }"
+              @click="btyPage = pn"
+            >
+              {{ pn }}
+            </button>
+            <button class="page-btn" :disabled="btyPage >= btyTotalPages" @click="btyPage++">›</button>
+            <span class="page-info">Trang {{ btyPage }} / {{ btyTotalPages }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Chủng Bệnh -->
+    <div v-if="showCbModal" class="modal-overlay" @click.self="showCbModal = false">
+      <div class="modal modal--sm" @click.stop>
+        <div class="modal-header">
+          <h3>{{ editingCb ? 'Sửa chủng bệnh' : 'Thêm chủng bệnh' }}</h3>
+          <button class="modal-close" @click="showCbModal = false">✕</button>
+        </div>
+        <form class="modal-body" @submit.prevent="submitCb">
+          <p v-if="cbFormError" class="form-error">{{ cbFormError }}</p>
+          <label class="field field--full">
+            <span>Tên chủng bệnh <abbr title="bắt buộc">*</abbr></span>
+            <input v-model="cbForm.ten_chung_benh" class="input" maxlength="255" autofocus />
+          </label>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" :disabled="isSubmitting" @click="showCbModal = false">Hủy</button>
+            <button type="submit" class="btn-primary" :disabled="isSubmitting">
+              {{ isSubmitting ? 'Đang lưu…' : 'Lưu' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal Bệnh Tây Y -->
+    <div v-if="showBtyModal" class="modal-overlay" @click.self="showBtyModal = false">
+      <div class="modal modal--wide" @click.stop>
+        <div class="modal-header">
+          <h3>{{ editingBty ? 'Sửa bệnh tây y' : 'Thêm bệnh tây y' }}</h3>
+          <button class="modal-close" @click="showBtyModal = false">✕</button>
+        </div>
+        <form class="modal-body" @submit.prevent="submitBty">
+          <p v-if="btyFormError" class="form-error">{{ btyFormError }}</p>
+          <div class="form-grid">
+            <label class="field field--full">
+              <span>Tên bệnh <abbr title="bắt buộc">*</abbr></span>
+              <input v-model="btyForm.ten_benh" class="input" maxlength="255" />
+            </label>
+
+            <div class="field field--full">
+              <div class="field-head">
+                <span>Chủng bệnh <abbr title="bắt buộc">*</abbr></span>
+                <span class="field-count">{{ btyForm.id_chung_benh != null ? 'Đã chọn' : 'Chưa chọn' }}</span>
+              </div>
+              <div v-if="chungBenhList.length === 0" class="muted">Chưa có chủng bệnh</div>
+              <div v-else class="chip-picker chip-picker--scroll">
+                <button
+                  v-for="cb in chungBenhList"
+                  :key="cb.id"
+                  type="button"
+                  class="chip-toggle"
+                  :class="{ active: btyForm.id_chung_benh === cb.id }"
+                  @click="btyForm.id_chung_benh = cb.id"
+                >
+                  {{ cb.ten_chung_benh }}
+                </button>
+              </div>
+            </div>
+
+            <div class="field field--full">
+              <div class="field-head">
+                <span>Bài thuốc</span>
+                <span class="field-count">{{ btyForm.bai_thuoc_ids.length }} đã chọn</span>
+              </div>
+              <div class="picker-search">
+                <input v-model="baiThuocSearch" type="search" class="input input--sm" placeholder="Tìm bài thuốc..." />
+              </div>
+              <div class="chip-picker chip-picker--scroll">
+                <button
+                  v-for="b in filteredBaiThuocOptions"
+                  :key="b.id"
+                  type="button"
+                  class="chip-toggle"
+                  :class="{ active: btyForm.bai_thuoc_ids.includes(b.id) }"
+                  @click="btyForm.bai_thuoc_ids = toggleId(btyForm.bai_thuoc_ids, b.id)"
+                >
+                  {{ b.ten_bai_thuoc }}
+                </button>
+                <span v-if="filteredBaiThuocOptions.length === 0" class="muted">Không khớp</span>
+              </div>
+            </div>
+
+            <div class="field field--full">
+              <div class="field-head">
+                <span>Pháp trị</span>
+                <span class="field-count">{{ btyForm.phap_tri_ids.length }} đã chọn</span>
+              </div>
+              <div class="picker-search">
+                <input v-model="phapTriSearch" type="search" class="input input--sm" placeholder="Tìm pháp trị..." />
+              </div>
+              <div class="chip-picker chip-picker--scroll">
+                <button
+                  v-for="p in filteredPhapTriOptions"
+                  :key="p.id"
+                  type="button"
+                  class="chip-toggle"
+                  :class="{ active: btyForm.phap_tri_ids.includes(p.id) }"
+                  @click="btyForm.phap_tri_ids = toggleId(btyForm.phap_tri_ids, p.id)"
+                >
+                  {{ phapTriLabel(p) }}
+                </button>
+                <span v-if="filteredPhapTriOptions.length === 0" class="muted">Không khớp</span>
+              </div>
+            </div>
+
+            <div class="field field--full">
+              <div class="field-head">
+                <span>Triệu chứng</span>
+                <span class="field-count">{{ btyForm.trieu_chung_ids.length }} đã chọn</span>
+              </div>
+              <div class="picker-search">
+                <input v-model="trieuChungSearch" type="search" class="input input--sm" placeholder="Tìm triệu chứng..." />
+              </div>
+              <div class="chip-picker chip-picker--scroll">
+                <button
+                  v-for="t in filteredTrieuChungOptions"
+                  :key="t.id"
+                  type="button"
+                  class="chip-toggle"
+                  :class="{ active: btyForm.trieu_chung_ids.includes(t.id) }"
+                  @click="btyForm.trieu_chung_ids = toggleId(btyForm.trieu_chung_ids, t.id)"
+                >
+                  {{ t.ten_trieu_chung }}
+                </button>
+                <span v-if="filteredTrieuChungOptions.length === 0" class="muted">Không khớp</span>
+              </div>
+            </div>
+
+            <div class="field field--full">
+              <div class="field-head">
+                <span>Thiệt chẩn</span>
+                <span class="field-count">{{ btyForm.thiet_chan_ids.length }} đã chọn</span>
+              </div>
+              <div class="picker-search">
+                <input v-model="thietChanSearch" type="search" class="input input--sm" placeholder="Tìm thiệt chẩn..." />
+              </div>
+              <div class="chip-picker chip-picker--scroll">
+                <button
+                  v-for="t in filteredThietChanOptions"
+                  :key="t.id"
+                  type="button"
+                  class="chip-toggle"
+                  :class="{ active: btyForm.thiet_chan_ids.includes(t.id) }"
+                  @click="btyForm.thiet_chan_ids = toggleId(btyForm.thiet_chan_ids, t.id)"
+                >
+                  {{ t.ten_thiet_chan }}
+                </button>
+                <span v-if="filteredThietChanOptions.length === 0" class="muted">Không khớp</span>
+              </div>
+            </div>
+
+            <div class="field field--full">
+              <div class="field-head">
+                <span>Mạch chẩn</span>
+                <span class="field-count">{{ btyForm.mach_chan_ids.length }} đã chọn</span>
+              </div>
+              <div class="picker-search">
+                <input v-model="machChanSearch" type="search" class="input input--sm" placeholder="Tìm mạch chẩn..." />
+              </div>
+              <div class="chip-picker chip-picker--scroll">
+                <button
+                  v-for="m in filteredMachChanOptions"
+                  :key="m.id"
+                  type="button"
+                  class="chip-toggle"
+                  :class="{ active: btyForm.mach_chan_ids.includes(m.id) }"
+                  @click="btyForm.mach_chan_ids = toggleId(btyForm.mach_chan_ids, m.id)"
+                >
+                  {{ m.ten_mach_chan }}
+                </button>
+                <span v-if="filteredMachChanOptions.length === 0" class="muted">Không khớp</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" :disabled="isSubmitting" @click="showBtyModal = false">Hủy</button>
+            <button type="submit" class="btn-primary" :disabled="isSubmitting">
+              {{ isSubmitting ? 'Đang lưu…' : 'Lưu' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal xóa -->
+    <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = false">
+      <div class="modal modal--sm" @click.stop>
+        <div class="modal-header">
+          <h3>Xác nhận xóa</h3>
+          <button class="modal-close" @click="showDeleteConfirm = false">✕</button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Bạn có chắc muốn xóa
+            <strong>{{ deletingTarget?.kind === 'cb' ? 'chủng bệnh' : 'bệnh tây y' }}</strong>
+            "<strong>{{ deletingTarget?.label }}</strong>"?
+          </p>
+          <p class="muted" style="font-size: 13px;">
+            <template v-if="deletingTarget?.kind === 'cb'">
+              Lưu ý: xóa chủng bệnh sẽ xóa cascade tất cả bệnh tây y thuộc chủng đó.
+            </template>
+            <template v-else>Thao tác này không thể hoàn tác.</template>
+          </p>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" :disabled="isSubmitting" @click="showDeleteConfirm = false">Hủy</button>
+            <button type="button" class="btn-danger" :disabled="isSubmitting" @click="doDelete">
+              {{ isSubmitting ? 'Đang xóa…' : 'Xóa' }}
+            </button>
           </div>
         </div>
       </div>
@@ -277,81 +817,164 @@ function deleteDisease(bty: BenhTayY) {
 <style scoped>
 .western-medicine-page { width: 100%; animation: fadeIn 0.4s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* Header */
-.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: var(--space-6); padding-bottom: var(--space-4); border-bottom: 2px solid var(--brown-100); }
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-4); margin-bottom: var(--space-6); padding-bottom: var(--space-4); border-bottom: 2px solid var(--brown-100); }
 .page-title { font-size: var(--font-size-2xl); font-weight: 800; color: var(--brown-800); margin-bottom: var(--space-1); }
 .page-subtitle { color: var(--gray-500); font-size: var(--font-size-md); }
 
-/* Toggle */
 .view-toggle { display: flex; background: var(--white); padding: 4px; border-radius: var(--radius-lg); border: 1px solid var(--brown-200); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-.toggle-btn { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-600); transition: all var(--transition-base); }
+.toggle-btn { padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-600); transition: all var(--transition-base); cursor: pointer; background: transparent; border: 0; }
 .toggle-btn:hover { color: var(--brown-600); }
 .toggle-btn.active { background: var(--brown-600); color: var(--white); box-shadow: 0 2px 4px rgba(161, 98, 7, 0.2); }
 
-/* Content */
-.data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: var(--space-6); }
+.loading-state { display: flex; flex-direction: column; align-items: center; padding: var(--space-12) 0; color: var(--brown-600); gap: var(--space-3); }
+.spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--brown-500); border-radius: 50%; animation: spin .7s linear infinite; }
+.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: #fef2f2; border-radius: var(--radius-lg); }
+
+.toolbar { display: flex; align-items: flex-end; gap: var(--space-3); margin-bottom: var(--space-4); flex-wrap: wrap; }
+.search-wrap { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 4px; }
+.search-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray-500); }
+.search-input { padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); background: var(--white); font-size: var(--font-size-sm); width: 100%; }
+.search-input:focus { outline: none; border-color: var(--brown-400); box-shadow: 0 0 0 3px rgba(161,98,7,0.12); }
+.toolbar-count { font-size: var(--font-size-sm); color: var(--gray-500); font-weight: 600; align-self: center; }
+
+.data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); }
 .card-header h3 { font-size: var(--font-size-lg); font-weight: 700; color: var(--brown-900); margin: 0; }
 
-/* Table */
-.table-responsive { width: 100%; overflow-x: auto; }
-.data-table { width: 100%; border-collapse: collapse; }
-.data-table th, .data-table td { padding: var(--space-3) var(--space-5); text-align: left; border-bottom: 1px solid var(--gray-100); }
-.data-table th { background: #fdfbf9; font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
-.data-table tbody tr { transition: background 0.2s; }
-.data-table tbody tr:hover { background: var(--gray-50); }
-.data-table td { font-size: 13px; color: var(--gray-800); vertical-align: middle; }
+.empty-state {
+  padding: var(--space-12) var(--space-5);
+  text-align: center;
+  color: var(--gray-500);
+  font-size: var(--font-size-md);
+  background: linear-gradient(180deg, #fff 0%, #fdfbf9 100%);
+}
 
-/* Table Expansions */
-.data-table--full { min-width: 1200px; }
-.small-text { font-size: 12px !important; line-height: 1.4; }
-.trieu-chung-cell { max-width: 250px; white-space: normal; }
-.line-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.mb-1 { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dashed var(--gray-200); min-height: 24px; }
-.mb-1:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+.disease-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: #fdfbf9;
+}
+.disease-grid--sm { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 
-/* Utils */
-.text-right { text-align: right !important; }
-.text-center { text-align: center !important; }
-.py-8 { padding-top: 2rem !important; padding-bottom: 2rem !important; }
-.font-bold { font-weight: 700 !important; }
-.font-medium { font-weight: 600 !important; }
-.text-brown-700 { color: var(--brown-700) !important; }
-.text-brown-900 { color: var(--brown-900) !important; }
-.text-gray-600 { color: var(--gray-600) !important; }
-.text-gray-500 { color: var(--gray-500) !important; }
-.text-gray-400 { color: var(--gray-400) !important; }
-.italic { font-style: italic !important; }
+.disease-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--brown-100);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(74, 47, 23, 0.04);
+  transition: box-shadow .15s, transform .15s, border-color .15s;
+}
+.disease-card:hover { box-shadow: 0 6px 18px rgba(74, 47, 23, 0.08); border-color: var(--brown-200); transform: translateY(-1px); }
+.disease-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: linear-gradient(135deg, var(--brown-50) 0%, #fff 100%); border-bottom: 1px solid var(--brown-100); }
+.disease-card__title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex: 1; flex-wrap: wrap; }
+.disease-card__id {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brown-700);
+  background: var(--white);
+  border: 1px solid var(--brown-200);
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.disease-card__name { margin: 0; font-size: var(--font-size-md); font-weight: 700; color: var(--brown-900); line-height: 1.35; word-break: break-word; }
+.disease-card__body { flex: 1 1 auto; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3) var(--space-4) var(--space-4); }
+.disease-section { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.disease-section__label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray-500); }
+.disease-empty { margin: 0; font-size: var(--font-size-sm); text-align: center; padding: var(--space-3) 0; }
+.cell-tag { display: inline-block; padding: 2px 8px; background: var(--brown-50); border-radius: var(--radius-sm); font-family: ui-monospace, monospace; font-size: var(--font-size-sm); }
 
-/* Badges */
-.badge { display: inline-block; padding: 4px 10px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-.badge-info { background: #e0f2fe; color: #0369a1; }
-.badge-success { background: #d1fae5; color: #059669; }
+.chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.4; border: 1px solid transparent; }
+.chip-chungbenh { background: var(--brown-100); color: var(--brown-800); border-color: var(--brown-200); }
+.chip-bai { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.chip-phap { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
+.chip-trieu { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+.chip-thiet { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.chip-mach { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip-row--wrap { gap: 6px; }
+.chip-row--wrap .chip { white-space: normal; word-break: break-word; max-width: 100%; }
 
-.chung-benh-badge { display: inline-block; padding: 4px 10px; background: var(--brown-100); color: var(--brown-700); border-radius: var(--radius-md); font-size: var(--font-size-sm); font-weight: 600; }
+.row-actions { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.btn-action {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.btn-edit { background: var(--brown-50); color: var(--brown-800); border-color: var(--brown-200); }
+.btn-edit:hover { background: var(--brown-100); }
+.btn-delete { background: #fef2f2; color: var(--danger); border-color: #fecaca; }
+.btn-delete:hover { background: #fee2e2; }
 
-/* Pagination */
-.pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-4); background: var(--gray-50); border-top: 1px solid var(--gray-100); }
+.pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-4); background: var(--gray-50); border-top: 1px solid var(--gray-100); flex-wrap: wrap; }
 .page-btn { min-width: 32px; height: 32px; padding: 0 8px; display: flex; align-items: center; justify-content: center; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-600); cursor: pointer; transition: all var(--transition-fast); }
 .page-btn:hover:not(:disabled) { border-color: var(--brown-400); color: var(--brown-700); background: var(--brown-50); }
 .page-btn.active { background: var(--brown-600); border-color: var(--brown-600); color: var(--white); }
 .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .page-info { margin-left: var(--space-4); font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 600; }
 
-/* Actions */
-.action-buttons { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
-.btn-action { padding: 6px 12px; background: var(--brown-600); color: var(--white); border: none; border-radius: var(--radius-md); font-size: 11px; font-weight: 700; cursor: pointer; transition: all var(--transition-fast); text-transform: uppercase; letter-spacing: 0.5px; }
-.btn-action:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.badge-info { background: #e0f2fe; color: #0369a1; }
+.badge-success { background: #d1fae5; color: #059669; }
 
-.btn-edit { background: #3b82f6; }
-.btn-edit:hover { background: #2563eb; }
+.btn-primary { background: var(--brown-600); color: var(--white); padding: 8px 16px; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); border: 0; cursor: pointer; transition: background .15s; }
+.btn-primary:hover:not(:disabled) { background: var(--brown-700); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-secondary { background: var(--gray-100); color: var(--gray-700); padding: 8px 16px; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); border: 0; cursor: pointer; transition: background .15s; }
+.btn-secondary:hover:not(:disabled) { background: var(--gray-200); }
+.btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-danger { background: var(--danger); color: var(--white); padding: 8px 16px; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); border: 0; cursor: pointer; }
+.btn-danger:hover:not(:disabled) { background: #b91c1c; }
+.btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.btn-delete { background: #ef4444; }
-.btn-delete:hover { background: #dc2626; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: var(--space-4); z-index: 60; }
+.modal { background: var(--white); border-radius: var(--radius-xl); width: 100%; max-width: 480px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 24px 48px rgba(0,0,0,0.2); }
+.modal--sm { max-width: 420px; }
+.modal--wide { max-width: 760px; }
+.modal-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--gray-100); }
+.modal-header h3 { margin: 0; font-size: var(--font-size-lg); color: var(--brown-900); }
+.modal-close { background: transparent; border: 0; font-size: 20px; cursor: pointer; color: var(--gray-500); padding: 4px 8px; border-radius: var(--radius-sm); }
+.modal-close:hover { background: var(--gray-100); }
+.modal-body { padding: var(--space-5); overflow-y: auto; }
+.modal-footer { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--gray-100); }
 
-.loading-state { display: flex; flex-direction: column; align-items: center; padding: var(--space-12) 0; color: var(--brown-600); }
-.spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--brown-500); border-radius: 50%; animation: spin .7s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: #fef2f2; border-radius: var(--radius-lg); }
+.form-error { color: var(--danger); background: #fef2f2; border: 1px solid #fecaca; padding: 8px 12px; border-radius: var(--radius-md); font-size: var(--font-size-sm); margin-bottom: var(--space-3); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field--full { grid-column: 1 / -1; }
+.field > span:first-child { font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-700); }
+.field abbr { color: var(--danger); text-decoration: none; margin-left: 2px; }
+.input, .textarea { padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: var(--font-size-sm); background: var(--white); }
+.input:focus, .textarea:focus { outline: none; border-color: var(--brown-400); box-shadow: 0 0 0 3px rgba(161,98,7,0.12); }
+.input--sm { padding: 6px 10px; font-size: 13px; }
+
+.field-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+.field-count { font-size: 11px; font-weight: 600; color: var(--brown-600); background: var(--brown-50); padding: 1px 8px; border-radius: 999px; }
+.picker-search { margin-bottom: 6px; }
+.chip-picker { display: flex; flex-wrap: wrap; gap: 6px; padding: var(--space-2); border: 1px solid var(--gray-200); border-radius: var(--radius-md); background: var(--gray-50); }
+.chip-picker--scroll { max-height: 200px; overflow-y: auto; }
+.chip-toggle { padding: 4px 10px; font-size: 13px; font-weight: 600; border-radius: 999px; border: 1px solid var(--gray-300); background: var(--white); color: var(--gray-700); cursor: pointer; transition: all var(--transition-fast); }
+.chip-toggle:hover { border-color: var(--brown-400); color: var(--brown-700); }
+.chip-toggle.active { background: var(--brown-600); color: var(--white); border-color: var(--brown-600); }
+
+.muted { color: var(--gray-400); font-style: italic; }
+.mt-4 { margin-top: 1rem !important; }
+
+@media (max-width: 640px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .field--full { grid-column: 1; }
+  .page-header { flex-direction: column; align-items: flex-start; }
+}
 </style>

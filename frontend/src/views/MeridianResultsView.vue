@@ -805,11 +805,11 @@ function footerDiffClassMerged() {
 
           <section class="result-section mt-6">
             <h2 class="section-title">
-              <span class="section-num">III</span> MÔ HÌNH BỆNH LÝ
+              <span class="section-num">III</span> MÔ HÌNH BỆNH LÝ - SUY LUẬN
             </h2>
             <div class="result-card p-5">
               <div class="info-group">
-                <h4 class="info-label mb-3">Mô hình bệnh từ Excel</h4>
+                <h4 class="info-label mb-3">Mô hình bệnh YHCT - Đông Y</h4>
                 <div v-if="excelSyndromesList.length" class="comparison-list">
                   <div
                     v-for="(item, idx) in excelSyndromesList"

@@ -417,44 +417,35 @@ async function handleDelete() {
           <h3>Bệnh Đông y Hiện đại</h3>
           <span class="badge badge-info">{{ dataList.length }} bản ghi</span>
         </div>
-        <div class="table-responsive">
-          <table class="data-table data-table--balanced">
-            <colgroup>
-              <col class="col-id" />
-              <col class="col-code" />
-              <col class="col-name" />
-              <col class="col-output" />
-              <col class="col-actions" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Mã</th>
-                <th>Tên bệnh</th>
-                <th>Ô output</th>
-                <th class="text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="pagedList.length === 0">
-                <td colspan="5" class="text-center py-8 text-gray-500">
-                  {{ searchQuery.trim() ? 'Không khớp bản ghi nào' : 'Chưa có dữ liệu' }}
-                </td>
-              </tr>
-              <tr v-for="item in pagedList" :key="item.id">
-                <td class="cell-id">#{{ item.id }}</td>
-                <td><span class="cell-tag">{{ item.code }}</span></td>
-                <td class="cell-name font-bold text-brown-900">{{ item.name }}</td>
-                <td><span class="cell-tag">{{ item.outputCell }}</span></td>
-                <td class="text-right">
-                  <div class="action-buttons">
-                    <button type="button" class="btn-action btn-edit" @click="openEditModal(item)">Sửa</button>
-                    <button type="button" class="btn-action btn-delete" @click="confirmDelete(item)">Xóa</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div v-if="pagedList.length === 0" class="empty-state">
+          {{ searchQuery.trim() ? 'Không khớp bản ghi nào' : 'Chưa có dữ liệu' }}
+        </div>
+
+        <div v-else class="disease-grid">
+          <article v-for="item in pagedList" :key="item.id" class="disease-card">
+            <header class="disease-card__head">
+              <div class="disease-card__title">
+                <span class="disease-card__id">#{{ item.id }}</span>
+                <h4 class="disease-card__name">{{ item.name }}</h4>
+              </div>
+              <div class="action-buttons">
+                <button type="button" class="btn-action btn-edit" @click="openEditModal(item)">Sửa</button>
+                <button type="button" class="btn-action btn-delete" @click="confirmDelete(item)">Xóa</button>
+              </div>
+            </header>
+
+            <div class="disease-card__body">
+              <section class="disease-section">
+                <span class="disease-section__label">Mã</span>
+                <span class="cell-tag">{{ item.code }}</span>
+              </section>
+
+              <section class="disease-section">
+                <span class="disease-section__label">Ô output (Excel)</span>
+                <span class="cell-tag">{{ item.outputCell }}</span>
+              </section>
+            </div>
+          </article>
         </div>
         <div v-if="filteredList.length > itemsPerPage" class="pagination">
           <button class="page-btn" :disabled="currentPage <= 1" @click="currentPage--">‹</button>
@@ -567,20 +558,82 @@ async function handleDelete() {
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); }
 .card-header h3 { font-size: var(--font-size-lg); font-weight: 700; color: var(--brown-900); margin: 0; }
 
-.table-responsive { width: 100%; overflow-x: auto; }
-.data-table { width: 100%; border-collapse: collapse; }
-.data-table th, .data-table td { padding: var(--space-3) var(--space-5); text-align: left; border-bottom: 1px solid var(--gray-100); }
-.data-table th { background: #fdfbf9; font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
-.data-table tbody tr:hover { background: var(--gray-50); }
-.data-table td { vertical-align: middle; font-size: var(--font-size-md); color: var(--gray-800); }
-.data-table--balanced { table-layout: fixed; }
-.data-table--balanced .col-id { width: 64px; }
-.data-table--balanced .col-code { width: 14%; }
-.data-table--balanced .col-name { width: auto; }
-.data-table--balanced .col-output { width: 110px; }
-.data-table--balanced .col-actions { width: 120px; }
-.data-table--balanced .cell-id { color: var(--gray-500); font-weight: 600; font-size: var(--font-size-sm); }
-.data-table--balanced .cell-name { white-space: normal; word-break: break-word; line-height: 1.4; }
+.empty-state {
+  padding: var(--space-12) var(--space-5);
+  text-align: center;
+  color: var(--gray-500);
+  font-size: var(--font-size-md);
+  background: linear-gradient(180deg, #fff 0%, #fdfbf9 100%);
+}
+
+.disease-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: #fdfbf9;
+}
+.disease-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--brown-100);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(74, 47, 23, 0.04);
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast),
+    border-color var(--transition-fast);
+}
+.disease-card:hover {
+  box-shadow: 0 6px 18px rgba(74, 47, 23, 0.08);
+  border-color: var(--brown-200);
+  transform: translateY(-1px);
+}
+.disease-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(135deg, var(--brown-50) 0%, #fff 100%);
+  border-bottom: 1px solid var(--brown-100);
+}
+.disease-card__title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex: 1; }
+.disease-card__id {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brown-700);
+  background: var(--white);
+  border: 1px solid var(--brown-200);
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.disease-card__name {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--brown-900);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.disease-card__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+.disease-section { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.disease-section__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+}
+
 .cell-tag { display: inline-block; padding: 2px 8px; background: var(--brown-50); border-radius: var(--radius-sm); font-family: ui-monospace, monospace; font-size: var(--font-size-sm); }
 
 .excel-map-panel { margin-bottom: var(--space-5); border: 1px solid var(--brown-200); border-radius: var(--radius-xl); background: linear-gradient(165deg, #fffdfb 0%, var(--white) 40%); box-shadow: var(--shadow-sm); overflow: hidden; }
