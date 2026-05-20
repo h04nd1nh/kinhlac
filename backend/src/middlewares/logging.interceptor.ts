@@ -32,9 +32,10 @@ const MAX_RES_LEN = 1500;
 
 function redact(value: unknown, depth = 0): unknown {
   if (value === null || value === undefined) return value;
-  if (depth > 5) return '[deep]';
+  if (depth > 12) return '[deep]';
   if (Array.isArray(value)) {
-    return value.slice(0, 50).map((v) => redact(v, depth + 1));
+    // Mảng không tính 1 cấp depth (chỉ object mới tính).
+    return value.slice(0, 50).map((v) => redact(v, depth));
   }
   if (typeof value === 'object') {
     const out: Record<string, unknown> = {};

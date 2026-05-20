@@ -142,18 +142,24 @@ export class NhomNhoDuocLyService {
     if (!uniq.length) return;
     const found = await manager.find(ViThuoc, { where: { id: In(uniq) }, select: ['id'] });
     const allowed = new Set(found.map((v) => v.id));
+    const rows: NhomNhoViThuoc[] = [];
     let order = 0;
     for (const idViThuoc of uniq) {
       if (!allowed.has(idViThuoc)) continue;
-      await manager.save(
-        manager.create(NhomNhoViThuoc, {
-          idNhomNho,
-          idViThuoc,
-          thu_tu: order,
-        }),
+      rows.push(
+        manager.create(NhomNhoViThuoc, { idNhomNho, idViThuoc, thu_tu: order }),
       );
       order += 1;
     }
+    if (!rows.length) return;
+    // Bulk insert (1 round-trip) thay vì N save() — quan trọng với group lớn.
+    await manager
+      .createQueryBuilder()
+      .insert()
+      .into(NhomNhoViThuoc)
+      .values(rows)
+      .orIgnore()
+      .execute();
   }
 
   private async applyChuTriLinks(
@@ -166,17 +172,22 @@ export class NhomNhoDuocLyService {
     if (!uniq.length) return;
     const found = await manager.find(ChuTri, { where: { id: In(uniq) }, select: ['id'] });
     const allowed = new Set(found.map((c) => c.id));
+    const rows: NhomNhoChuTri[] = [];
     let order = 0;
     for (const idChuTri of uniq) {
       if (!allowed.has(idChuTri)) continue;
-      await manager.save(
-        manager.create(NhomNhoChuTri, {
-          idNhomNho,
-          idChuTri,
-          thu_tu: order,
-        }),
+      rows.push(
+        manager.create(NhomNhoChuTri, { idNhomNho, idChuTri, thu_tu: order }),
       );
       order += 1;
     }
+    if (!rows.length) return;
+    await manager
+      .createQueryBuilder()
+      .insert()
+      .into(NhomNhoChuTri)
+      .values(rows)
+      .orIgnore()
+      .execute();
   }
 }
