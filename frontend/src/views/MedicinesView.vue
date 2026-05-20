@@ -250,6 +250,35 @@ function thanhPhanItems(bt: BaiThuoc): { ten: string; lieu: string }[] {
     .filter((x) => x.ten.length > 0)
 }
 
+const THANH_PHAN_PREVIEW_LIMIT = 6
+const CACH_DUNG_TRUNCATE_LEN = 120
+const expandedThanhPhan = ref<Set<number>>(new Set())
+const expandedCachDung = ref<Set<number>>(new Set())
+
+function toggleThanhPhanExpand(id: number) {
+  const next = new Set(expandedThanhPhan.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedThanhPhan.value = next
+}
+
+function toggleCachDungExpand(id: number) {
+  const next = new Set(expandedCachDung.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedCachDung.value = next
+}
+
+function visibleThanhPhanItems(bt: BaiThuoc): { ten: string; lieu: string }[] {
+  const all = thanhPhanItems(bt)
+  if (expandedThanhPhan.value.has(bt.id)) return all
+  return all.slice(0, THANH_PHAN_PREVIEW_LIMIT)
+}
+
+function isLongCachDung(s: string | null | undefined): boolean {
+  return !!s && s.length > CACH_DUNG_TRUNCATE_LEN
+}
+
 onMounted(async () => {
   await fetchData()
 })
@@ -1815,65 +1844,104 @@ async function suggestViThuocAi() {
               <button type="button" class="btn-primary" @click="openCreateBaiThuoc">+ Thêm bài thuốc</button>
             </div>
           </div>
-          <div class="table-responsive">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th width="200">Tên Bài Thuốc</th>
-                  <th width="140">Nguồn Gốc</th>
-                  <th width="180">Thể Bệnh</th>
-                  <th width="200">Pháp Trị</th>
-                  <th width="200">Triệu Chứng</th>
-                  <th width="180">Cách Dùng</th>
-                  <th>Thành Phần</th>
-                  <th width="200">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="pagedBaiThuoc.length === 0">
-                  <td colspan="8" class="text-center py-8 text-gray-500">Chưa có dữ liệu bài thuốc</td>
-                </tr>
-                <tr v-for="bt in pagedBaiThuoc" :key="bt.id">
-                  <td class="font-bold text-brown-900">{{ bt.ten_bai_thuoc }}</td>
-                  <td class="text-gray-600">{{ bt.nguon_goc || '—' }}</td>
-                  <td>
-                    <div v-if="theBenhLabels(bt).length" class="chip-row">
-                      <span v-for="(t, i) in theBenhLabels(bt)" :key="i" class="chip chip-the">{{ t }}</span>
-                    </div>
-                    <span v-else class="muted">—</span>
-                  </td>
-                  <td>
-                    <div v-if="phapTriLabels(bt).length" class="chip-row">
-                      <span v-for="(p, i) in phapTriLabels(bt)" :key="i" class="chip chip-phap">{{ p }}</span>
-                    </div>
-                    <span v-else class="muted">—</span>
-                  </td>
-                  <td>
-                    <div v-if="trieuChungLabels(bt).length" class="chip-row">
-                      <span v-for="(t, i) in trieuChungLabels(bt)" :key="i" class="chip chip-trieu">{{ t }}</span>
-                    </div>
-                    <span v-else class="muted">—</span>
-                  </td>
-                  <td class="text-gray-600">{{ bt.cach_dung || '—' }}</td>
-                  <td>
-                    <ul v-if="thanhPhanItems(bt).length" class="thanh-phan-list">
-                      <li v-for="(it, i) in thanhPhanItems(bt)" :key="i">
-                        <span class="vt-name">{{ it.ten }}</span>
-                        <span v-if="it.lieu" class="vt-lieu">{{ it.lieu }}</span>
-                      </li>
-                    </ul>
-                    <span v-else class="muted">—</span>
-                  </td>
-                  <td>
-                    <div class="row-actions">
-                      <button type="button" class="btn-action btn-analyze" @click="openAnalysis(bt)">Phân tích</button>
-                      <button type="button" class="btn-action btn-edit" @click="openEditBaiThuoc(bt)">Sửa</button>
-                      <button type="button" class="btn-action btn-delete" @click="confirmDeleteBaiThuoc(bt)">Xóa</button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-if="pagedBaiThuoc.length === 0" class="empty-state">
+            Chưa có dữ liệu bài thuốc
+          </div>
+
+          <div v-else class="bt-grid">
+            <article v-for="bt in pagedBaiThuoc" :key="bt.id" class="bt-card">
+              <header class="bt-card__head">
+                <div class="bt-card__title">
+                  <span class="bt-card__id">#{{ bt.id }}</span>
+                  <div class="bt-card__name-wrap">
+                    <h4 class="bt-card__name">{{ bt.ten_bai_thuoc }}</h4>
+                    <small v-if="bt.nguon_goc" class="bt-card__source">{{ bt.nguon_goc }}</small>
+                  </div>
+                </div>
+                <div class="row-actions">
+                  <button type="button" class="btn-action btn-analyze" @click="openAnalysis(bt)">Phân tích</button>
+                  <button type="button" class="btn-action btn-edit" @click="openEditBaiThuoc(bt)">Sửa</button>
+                  <button type="button" class="btn-action btn-delete" @click="confirmDeleteBaiThuoc(bt)">Xóa</button>
+                </div>
+              </header>
+
+              <div class="bt-card__body">
+                <section v-if="theBenhLabels(bt).length" class="bt-section">
+                  <span class="bt-section__label">Thể bệnh</span>
+                  <div class="chip-row chip-row--wrap">
+                    <span v-for="(t, i) in theBenhLabels(bt)" :key="i" class="chip chip-the">{{ t }}</span>
+                  </div>
+                </section>
+
+                <section v-if="phapTriLabels(bt).length" class="bt-section">
+                  <span class="bt-section__label">Pháp trị</span>
+                  <div class="chip-row chip-row--wrap">
+                    <span v-for="(p, i) in phapTriLabels(bt)" :key="i" class="chip chip-phap">{{ p }}</span>
+                  </div>
+                </section>
+
+                <section v-if="trieuChungLabels(bt).length" class="bt-section">
+                  <span class="bt-section__label">Triệu chứng</span>
+                  <div class="chip-row chip-row--wrap">
+                    <span v-for="(t, i) in trieuChungLabels(bt)" :key="i" class="chip chip-trieu">{{ t }}</span>
+                  </div>
+                </section>
+
+                <section v-if="bt.cach_dung" class="bt-section">
+                  <span class="bt-section__label">Cách dùng</span>
+                  <p
+                    class="bt-section__text"
+                    :class="{
+                      'bt-text-clamp':
+                        isLongCachDung(bt.cach_dung) && !expandedCachDung.has(bt.id),
+                    }"
+                  >
+                    {{ bt.cach_dung }}
+                  </p>
+                  <button
+                    v-if="isLongCachDung(bt.cach_dung)"
+                    type="button"
+                    class="bt-more-toggle"
+                    @click="toggleCachDungExpand(bt.id)"
+                  >{{ expandedCachDung.has(bt.id) ? 'Thu gọn' : 'Xem thêm' }}</button>
+                </section>
+
+                <section v-if="thanhPhanItems(bt).length" class="bt-section bt-section--thanh-phan">
+                  <span class="bt-section__label">Thành phần ({{ thanhPhanItems(bt).length }})</span>
+                  <ul class="thanh-phan-list">
+                    <li v-for="(it, i) in visibleThanhPhanItems(bt)" :key="i">
+                      <span class="vt-name">{{ it.ten }}</span>
+                      <span v-if="it.lieu" class="vt-lieu">{{ it.lieu }}</span>
+                    </li>
+                  </ul>
+                  <button
+                    v-if="thanhPhanItems(bt).length > THANH_PHAN_PREVIEW_LIMIT"
+                    type="button"
+                    class="bt-more-toggle"
+                    @click="toggleThanhPhanExpand(bt.id)"
+                  >
+                    {{
+                      expandedThanhPhan.has(bt.id)
+                        ? 'Thu gọn'
+                        : `Xem thêm ${thanhPhanItems(bt).length - THANH_PHAN_PREVIEW_LIMIT} vị nữa`
+                    }}
+                  </button>
+                </section>
+
+                <p
+                  v-if="
+                    !theBenhLabels(bt).length &&
+                    !phapTriLabels(bt).length &&
+                    !trieuChungLabels(bt).length &&
+                    !bt.cach_dung &&
+                    !thanhPhanItems(bt).length
+                  "
+                  class="bt-empty muted"
+                >
+                  Chưa gắn dữ liệu liên quan.
+                </p>
+              </div>
+            </article>
           </div>
           <div v-if="totalBTPage > 1" class="pagination">
             <button class="page-btn" :disabled="baiThuocPage <= 1" @click="baiThuocPage--">‹</button>
@@ -1906,45 +1974,46 @@ async function suggestViThuocAi() {
             </div>
             <button type="button" class="btn-primary" @click="openCreateViThuoc">+ Thêm vị thuốc</button>
           </div>
-          <div class="table-responsive">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th width="80">ID</th>
-                  <th width="250">Tên Vị Thuốc</th>
-                  <th width="140">Tính</th>
-                  <th width="140">Vị</th>
-                  <th width="160">Liều Dùng</th>
-                  <th>Quy Kinh</th>
-                  <th width="120">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="pagedViThuoc.length === 0">
-                  <td colspan="7" class="text-center py-8 text-gray-500">Chưa có dữ liệu vị thuốc</td>
-                </tr>
-                <tr v-for="vt in pagedViThuoc" :key="vt.id">
-                  <td>#{{ vt.id }}</td>
-                  <td class="font-bold text-brown-900">{{ vt.ten_vi_thuoc }}</td>
-                  <td class="text-gray-600">{{ vt.tinh || '—' }}</td>
-                  <td class="text-gray-600">{{ vt.vi || '—' }}</td>
-                  <td class="text-gray-600">
-                    <template v-if="vt.lieu_dung">
-                      {{ vt.lieu_dung }}
-                      <span class="vt-lieu-preview">≈ {{ gramPreviewText(vt.lieu_dung) }}</span>
-                    </template>
-                    <template v-else>—</template>
-                  </td>
-                  <td class="text-gray-600">{{ vt.quy_kinh || '—' }}</td>
-                  <td>
-                    <div class="row-actions">
-                      <button type="button" class="btn-action btn-edit" @click="openEditViThuoc(vt)">Sửa</button>
-                      <button type="button" class="btn-action btn-delete" @click="confirmDeleteViThuoc(vt)">Xóa</button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-if="pagedViThuoc.length === 0" class="empty-state">
+            Chưa có dữ liệu vị thuốc
+          </div>
+
+          <div v-else class="vt-grid">
+            <article v-for="vt in pagedViThuoc" :key="vt.id" class="vt-card">
+              <header class="vt-card__head">
+                <div class="vt-card__title">
+                  <span class="vt-card__id">#{{ vt.id }}</span>
+                  <h4 class="vt-card__name">{{ vt.ten_vi_thuoc }}</h4>
+                </div>
+                <div class="row-actions">
+                  <button type="button" class="btn-action btn-edit" @click="openEditViThuoc(vt)">Sửa</button>
+                  <button type="button" class="btn-action btn-delete" @click="confirmDeleteViThuoc(vt)">Xóa</button>
+                </div>
+              </header>
+              <div class="vt-card__body">
+                <div class="vt-meta-row">
+                  <div class="vt-meta">
+                    <span class="vt-meta__label">Tính</span>
+                    <span class="vt-meta__val">{{ vt.tinh || '—' }}</span>
+                  </div>
+                  <div class="vt-meta">
+                    <span class="vt-meta__label">Vị</span>
+                    <span class="vt-meta__val">{{ vt.vi || '—' }}</span>
+                  </div>
+                </div>
+                <div v-if="vt.lieu_dung" class="vt-meta">
+                  <span class="vt-meta__label">Liều dùng</span>
+                  <span class="vt-meta__val">
+                    {{ vt.lieu_dung }}
+                    <span class="vt-lieu-preview">≈ {{ gramPreviewText(vt.lieu_dung) }}</span>
+                  </span>
+                </div>
+                <div v-if="vt.quy_kinh" class="vt-meta">
+                  <span class="vt-meta__label">Quy kinh</span>
+                  <span class="vt-meta__val">{{ vt.quy_kinh }}</span>
+                </div>
+              </div>
+            </article>
           </div>
           <div v-if="totalVTPage > 1" class="pagination">
             <button class="page-btn" :disabled="viThuocPage <= 1" @click="viThuocPage--">‹</button>
@@ -2611,6 +2680,226 @@ async function suggestViThuocAi() {
 .thanh-phan-list li { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
 .vt-name { color: var(--brown-900); font-weight: 600; }
 .vt-lieu { color: var(--gray-600); font-size: 12px; }
+
+/* Bài thuốc card grid */
+.empty-state {
+  padding: var(--space-12) var(--space-5);
+  text-align: center;
+  color: var(--gray-500);
+  font-size: var(--font-size-md);
+  background: linear-gradient(180deg, #fff 0%, #fdfbf9 100%);
+}
+.bt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: #fdfbf9;
+}
+.bt-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--brown-100);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(74, 47, 23, 0.04);
+  transition: box-shadow .15s, transform .15s, border-color .15s;
+}
+.bt-card:hover {
+  box-shadow: 0 6px 18px rgba(74, 47, 23, 0.08);
+  border-color: var(--brown-200);
+  transform: translateY(-1px);
+}
+.bt-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(135deg, var(--brown-50) 0%, #fff 100%);
+  border-bottom: 1px solid var(--brown-100);
+}
+.bt-card__title {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+.bt-card__id {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brown-700);
+  background: var(--white);
+  border: 1px solid var(--brown-200);
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  margin-top: 1px;
+}
+.bt-card__name-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bt-card__name {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--brown-900);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.bt-card__source {
+  font-size: 11px;
+  color: var(--gray-500);
+  font-style: italic;
+}
+.bt-card__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+.bt-section { display: flex; flex-direction: column; gap: 6px; }
+.bt-section__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+}
+.bt-section__text {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--gray-800);
+  line-height: 1.5;
+  word-break: break-word;
+}
+.bt-section--thanh-phan .thanh-phan-list {
+  padding: 6px 10px;
+  background: #fdfbf9;
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-md);
+  gap: 4px;
+}
+.bt-section--thanh-phan .thanh-phan-list li {
+  padding: 2px 0;
+}
+.bt-section--thanh-phan .thanh-phan-list li + li {
+  border-top: 1px dashed var(--gray-200);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+.bt-section--thanh-phan .vt-lieu {
+  font-family: ui-monospace, monospace;
+  margin-left: auto;
+}
+/* Vị thuốc card grid */
+.vt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  background: #fdfbf9;
+}
+.vt-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--brown-100);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(74, 47, 23, 0.04);
+  transition: box-shadow .15s, transform .15s, border-color .15s;
+}
+.vt-card:hover {
+  box-shadow: 0 6px 18px rgba(74, 47, 23, 0.08);
+  border-color: var(--brown-200);
+  transform: translateY(-1px);
+}
+.vt-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  background: linear-gradient(135deg, var(--brown-50) 0%, #fff 100%);
+  border-bottom: 1px solid var(--brown-100);
+}
+.vt-card__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.vt-card__id {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brown-700);
+  background: var(--white);
+  border: 1px solid var(--brown-200);
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.vt-card__name {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--brown-900);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.vt-card__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--space-3);
+}
+.vt-meta-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.vt-meta { display: flex; flex-direction: column; gap: 2px; }
+.vt-meta__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+}
+.vt-meta__val {
+  font-size: var(--font-size-sm);
+  color: var(--gray-800);
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.bt-text-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bt-more-toggle {
+  align-self: flex-start;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--brown-700);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.bt-more-toggle:hover { color: var(--brown-800); }
+.bt-empty { margin: 0; font-size: var(--font-size-sm); text-align: center; padding: var(--space-3) 0; }
+.chip-row--wrap { gap: 6px; }
+.chip-row--wrap .chip { white-space: normal; word-break: break-word; max-width: 100%; }
 
 .loading-state { display: flex; flex-direction: column; align-items: center; padding: var(--space-12) 0; color: var(--brown-600); }
 .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--brown-500); border-radius: 50%; animation: spin .7s linear infinite; }
