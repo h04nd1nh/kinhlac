@@ -295,6 +295,146 @@ function removeChuTri(id: number) {
   nhomNhoForm.value.chu_tri_ids = nhomNhoForm.value.chu_tri_ids.filter((x) => x !== id)
 }
 
+// ── AI phân loại vị thuốc ──────────────────────────────────────
+/** Chỉ nhóm nhỏ tên đúng "Cần Tra Cứu Thêm" (case-insensitive) mới được dùng AI. */
+function isCanTraCuuThem(nn: NhomNho): boolean {
+  return (nn.ten_nhom ?? '').trim().toLowerCase() === 'cần tra cứu thêm'
+}
+
+
+interface AiClassifyRow {
+  id_vi_thuoc: number
+  ten_vi_thuoc: string
+  /** Nhóm nhỏ AI đề xuất (id). null = AI không chắc → giữ lại nguồn. */
+  target_id: number | null
+  ly_do: string
+}
+
+const aiClassifyModalOpen = ref(false)
+const aiClassifyLoading = ref(false)
+const aiClassifyApplying = ref(false)
+const aiClassifyError = ref<string | null>(null)
+const aiClassifySource = ref<NhomNho | null>(null)
+const aiClassifyRows = ref<AiClassifyRow[]>([])
+
+const allNhomNho = computed<NhomNho[]>(() =>
+  nhomLonList.value.flatMap((nl) => nl.nhomNhoList ?? []),
+)
+
+const aiClassifyCandidates = computed<NhomNho[]>(() => {
+  const sourceId = aiClassifySource.value?.id
+  return allNhomNho.value.filter((nn) => nn.id !== sourceId)
+})
+
+function nhomNhoFullLabel(nn: NhomNho): string {
+  const parent = nhomLonList.value.find((nl) => nl.id === nn.idNhomLon)
+  const parentName = parent?.ten_nhom ?? ''
+  return parentName ? `${parentName} › ${nn.ten_nhom}` : nn.ten_nhom
+}
+
+const aiClassifyAssignedCount = computed(() =>
+  aiClassifyRows.value.filter((r) => r.target_id != null).length,
+)
+
+async function openAiClassify(nn: NhomNho) {
+  const vts = (nn.viThuocLinks ?? []).filter((l) => Number.isFinite(l.idViThuoc))
+  if (!vts.length) {
+    alert('Nhóm nhỏ này chưa có vị thuốc để phân loại.')
+    return
+  }
+  const candidates = allNhomNho.value.filter((x) => x.id !== nn.id)
+  if (!candidates.length) {
+    alert('Chưa có nhóm nhỏ nào khác làm ứng viên — hãy tạo thêm nhóm nhỏ trước.')
+    return
+  }
+  aiClassifySource.value = nn
+  aiClassifyRows.value = []
+  aiClassifyError.value = null
+  aiClassifyLoading.value = true
+  aiClassifyModalOpen.value = true
+  try {
+    const payload = {
+      vi_thuoc: vts.map((l) => ({
+        id: l.idViThuoc,
+        ten_vi_thuoc: l.viThuoc?.ten_vi_thuoc?.trim() || viThuocName(l.idViThuoc),
+      })),
+      nhom_nho_candidates: candidates.map((c) => ({
+        id: c.id,
+        ten_nhom: c.ten_nhom,
+        mo_ta: c.mo_ta ?? null,
+        lieu_luong: c.lieu_luong ?? null,
+      })),
+    }
+    const res: any = await api.post('/ai-suggest/classify-vi-thuoc', payload)
+    const data: Array<{
+      id: number
+      ten_vi_thuoc: string
+      id_nhom_nho: number | null
+      ly_do?: string
+    }> = res?.data ?? []
+    aiClassifyRows.value = data.map((d) => ({
+      id_vi_thuoc: d.id,
+      ten_vi_thuoc: d.ten_vi_thuoc,
+      target_id: d.id_nhom_nho,
+      ly_do: d.ly_do ?? '',
+    }))
+  } catch (err: any) {
+    aiClassifyError.value = 'AI lỗi: ' + (err.message || String(err))
+  } finally {
+    aiClassifyLoading.value = false
+  }
+}
+
+function closeAiClassify() {
+  aiClassifyModalOpen.value = false
+  aiClassifySource.value = null
+  aiClassifyRows.value = []
+  aiClassifyError.value = null
+}
+
+async function applyAiClassify() {
+  const source = aiClassifySource.value
+  if (!source || aiClassifyApplying.value) return
+  const toMove = aiClassifyRows.value.filter(
+    (r) => r.target_id != null && r.target_id !== source.id,
+  )
+  if (!toMove.length) {
+    alert('Chưa chọn nhóm nhỏ đích cho vị thuốc nào.')
+    return
+  }
+  aiClassifyApplying.value = true
+  aiClassifyError.value = null
+  try {
+    const movesByTarget = new Map<number, number[]>()
+    const movedSet = new Set<number>()
+    for (const r of toMove) {
+      const id = r.target_id as number
+      const list = movesByTarget.get(id) ?? []
+      list.push(r.id_vi_thuoc)
+      movesByTarget.set(id, list)
+      movedSet.add(r.id_vi_thuoc)
+    }
+
+    const sourceCurrentIds = (source.viThuocLinks ?? []).map((l) => l.idViThuoc)
+    const newSourceIds = sourceCurrentIds.filter((id) => !movedSet.has(id))
+    await api.put(`/nhom-nho-duoc-ly/${source.id}`, { vi_thuoc_ids: newSourceIds })
+
+    for (const [targetId, addIds] of movesByTarget) {
+      const target = allNhomNho.value.find((x) => x.id === targetId)
+      const existing = (target?.viThuocLinks ?? []).map((l) => l.idViThuoc)
+      const merged = Array.from(new Set([...existing, ...addIds]))
+      await api.put(`/nhom-nho-duoc-ly/${targetId}`, { vi_thuoc_ids: merged })
+    }
+
+    closeAiClassify()
+    await fetchAll()
+  } catch (err: any) {
+    aiClassifyError.value = 'Áp dụng thất bại: ' + (err.message || String(err))
+  } finally {
+    aiClassifyApplying.value = false
+  }
+}
+
 // ── Excel Import / Export ──────────────────────────────────────
 const EXCEL_COLS = [
   'Nhóm lớn',
@@ -712,6 +852,13 @@ async function onImportFileChange(ev: Event) {
                 <span v-if="nn.lieu_luong" class="lieu-chip">{{ nn.lieu_luong }}</span>
               </div>
               <div class="row-actions">
+                <button
+                  v-if="isCanTraCuuThem(nn) && (nn.viThuocLinks?.length ?? 0) > 0"
+                  class="icon-btn ai"
+                  title="AI phân loại vị thuốc vào nhóm nhỏ khác"
+                  :disabled="isSubmitting"
+                  @click="openAiClassify(nn)"
+                >🤖</button>
                 <button class="icon-btn" title="Sửa" @click="openEditNhomNho(nn)">✎</button>
                 <button
                   class="icon-btn danger"
@@ -932,6 +1079,82 @@ async function onImportFileChange(ev: Event) {
         </footer>
       </div>
     </div>
+
+    <!-- Modal: AI phân loại vị thuốc -->
+    <div v-if="aiClassifyModalOpen" class="modal-backdrop" @click.self="closeAiClassify">
+      <div class="modal modal--wide" @click.stop>
+        <header class="modal-header">
+          <div>
+            <h3>🤖 AI phân loại vị thuốc</h3>
+            <p v-if="aiClassifySource" class="modal-subtitle">
+              Nguồn: <strong>{{ aiClassifySource.ten_nhom }}</strong> ·
+              {{ aiClassifySource.viThuocLinks?.length ?? 0 }} vị thuốc
+            </p>
+          </div>
+          <button class="icon-btn" :disabled="aiClassifyApplying" @click="closeAiClassify">×</button>
+        </header>
+
+        <div class="modal-body">
+          <div v-if="aiClassifyLoading" class="ai-loading">
+            <div class="spinner"></div>
+            <p>AI đang phân loại {{ aiClassifySource?.viThuocLinks?.length ?? 0 }} vị thuốc…</p>
+          </div>
+
+          <div v-else>
+            <p v-if="aiClassifyError" class="ai-error">{{ aiClassifyError }}</p>
+
+            <div class="ai-summary">
+              <span class="ai-summary-count">
+                {{ aiClassifyAssignedCount }} / {{ aiClassifyRows.length }} vị thuốc sẽ được di chuyển
+              </span>
+              <span class="ai-summary-hint">
+                Bỏ chọn (— Giữ lại —) để vị thuốc không bị di chuyển.
+              </span>
+            </div>
+
+            <div v-if="aiClassifyRows.length" class="ai-table">
+              <div class="ai-table__head">
+                <span class="aic aic--name">Vị thuốc</span>
+                <span class="aic aic--target">Nhóm nhỏ đích</span>
+                <span class="aic aic--reason">Lý do (AI)</span>
+              </div>
+              <div v-for="row in aiClassifyRows" :key="row.id_vi_thuoc" class="ai-table__row">
+                <div class="aic aic--name">
+                  <span class="chip chip-vi">{{ row.ten_vi_thuoc }}</span>
+                </div>
+                <div class="aic aic--target">
+                  <select v-model="row.target_id" class="ai-select">
+                    <option :value="null">— Giữ lại —</option>
+                    <option v-for="c in aiClassifyCandidates" :key="c.id" :value="c.id">
+                      {{ nhomNhoFullLabel(c) }}
+                    </option>
+                  </select>
+                </div>
+                <div class="aic aic--reason">
+                  <span v-if="row.ly_do" class="ai-reason">{{ row.ly_do }}</span>
+                  <span v-else class="muted">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <footer class="modal-footer">
+          <button
+            class="btn-secondary"
+            :disabled="aiClassifyApplying"
+            @click="closeAiClassify"
+          >Hủy</button>
+          <button
+            class="btn-primary"
+            :disabled="aiClassifyApplying || aiClassifyLoading || aiClassifyAssignedCount === 0"
+            @click="applyAiClassify"
+          >
+            {{ aiClassifyApplying ? 'Đang áp dụng…' : `Áp dụng (${aiClassifyAssignedCount})` }}
+          </button>
+        </footer>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1073,9 +1296,15 @@ async function onImportFileChange(ev: Event) {
 .btn-primary.sm { padding: 6px 12px; font-size: var(--font-size-xs); }
 .btn-secondary { background: var(--gray-100); color: var(--gray-700); padding: 10px 18px; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); }
 .btn-secondary:hover { background: var(--gray-200); }
-.icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); color: var(--gray-600); font-size: 15px; }
+.icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); color: var(--gray-600); font-size: 15px; cursor: pointer; background: transparent; border: 0; transition: background .12s, color .12s; }
 .icon-btn:hover { background: var(--gray-100); color: var(--brown-700); }
 .icon-btn.danger:hover { background: #fef2f2; color: var(--danger); }
+.icon-btn.ai {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: var(--white);
+}
+.icon-btn.ai:hover { filter: brightness(1.1); background: linear-gradient(135deg, #7c3aed, #4f46e5); color: var(--white); }
+.icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .row-actions { display: flex; gap: 4px; }
 
 .badge { display: inline-block; padding: 3px 10px; background: var(--brown-100); color: var(--brown-700); border-radius: var(--radius-full); font-size: 11px; font-weight: 700; }
@@ -1102,4 +1331,89 @@ async function onImportFileChange(ev: Event) {
 .field input:focus, .field textarea:focus { outline: none; border-color: var(--brown-400); }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* AI classify modal */
+.modal--wide { max-width: 880px; }
+.modal-subtitle { margin: 4px 0 0; font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 400; }
+.ai-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8) 0;
+  color: var(--brown-600);
+}
+.ai-error {
+  margin: 0 0 var(--space-3);
+  padding: 8px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  font-size: var(--font-size-sm);
+}
+.ai-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  border: 1px solid #ddd6fe;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+.ai-summary-count { font-size: var(--font-size-sm); font-weight: 700; color: #6d28d9; }
+.ai-summary-hint { font-size: 11px; color: var(--gray-600); }
+
+.ai-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--white);
+}
+.ai-table__head,
+.ai-table__row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.1fr) minmax(200px, 1.4fr) minmax(160px, 1.8fr);
+  gap: var(--space-2);
+  padding: 8px var(--space-3);
+  align-items: center;
+}
+.ai-table__head {
+  background: #fdfbf9;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+}
+.ai-table__row + .ai-table__row { border-top: 1px solid var(--gray-100); }
+.ai-table__row:hover { background: #fdfbf9; }
+.aic { min-width: 0; word-break: break-word; font-size: var(--font-size-sm); }
+.ai-select {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  cursor: pointer;
+}
+.ai-select:focus { outline: none; border-color: var(--brown-400); }
+.ai-reason { font-size: 12px; color: var(--gray-700); line-height: 1.45; }
+
+.btn-primary:disabled, .btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+@media (max-width: 720px) {
+  .ai-table__head,
+  .ai-table__row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
 </style>

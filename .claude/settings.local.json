@@ -29,7 +29,9 @@
       "PowerShell(npx nest build 2>&1)",
       "Bash(npm run *)",
       "Bash(where psql *)",
-      "Bash(psql --version)"
+      "Bash(psql --version)",
+      "Bash(cd /d/project/kinhlac && grep -n \"template>\" frontend/src/components/PharmacologyManager.vue)",
+      "Read(//d/d/project/kinhlac/frontend/src/components/**)"
     ]
   }
 }
