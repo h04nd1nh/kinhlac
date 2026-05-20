@@ -41,9 +41,33 @@ interface BaiThuocLite {
   id: number
   ten_bai_thuoc: string
 }
+interface ViThuocLite {
+  id: number
+  ten_vi_thuoc: string | null
+}
+interface BaiThuocChiTietLite {
+  id: number
+  id_vi_thuoc: number | null
+  lieu_luong: string | null
+  vai_tro: string | null
+  ghi_chu: string | null
+  viThuoc?: ViThuocLite | null
+}
+interface BaiThuocFull {
+  id: number
+  ten_bai_thuoc: string
+  nguon_goc?: string | null
+  cach_dung?: string | null
+  chiTietViThuoc?: BaiThuocChiTietLite[]
+}
+interface TrieuChungLite {
+  id: number
+  ten_trieu_chung: string
+}
 interface BenhDetail {
   id: number
   bai_thuoc_list?: BaiThuocLite[]
+  trieu_chung_list?: TrieuChungLite[]
 }
 interface PhacDoApiRow {
   idPhacDo: number
@@ -61,6 +85,23 @@ interface PhacDoApiRow {
 
 const benhDetailsMap = ref<Map<number, BenhDetail>>(new Map())
 const phacDoAllList = ref<PhacDoApiRow[]>([])
+const baiThuocFullMap = ref<Map<number, BaiThuocFull>>(new Map())
+const expandedBaiThuoc = ref<Set<number>>(new Set())
+
+function toggleBaiThuoc(id: number) {
+  const next = new Set(expandedBaiThuoc.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedBaiThuoc.value = next
+}
+
+function baiThuocChiTietOf(id: number): BaiThuocChiTietLite[] {
+  return baiThuocFullMap.value.get(id)?.chiTietViThuoc ?? []
+}
+
+function viThuocLabel(ct: BaiThuocChiTietLite): string {
+  return ct.viThuoc?.ten_vi_thuoc?.trim() || (ct.id_vi_thuoc != null ? `#${ct.id_vi_thuoc}` : '—')
+}
 
 const matchedBenhIds = computed<number[]>(() => {
   const all = Array.from(
@@ -100,6 +141,21 @@ const matchedBaiThuocList = computed(() => {
   return out
 })
 
+const matchedTrieuChungList = computed(() => {
+  const seen = new Set<number>()
+  const out: TrieuChungLite[] = []
+  for (const id of matchedBenhIds.value) {
+    const detail = benhDetailsMap.value.get(id)
+    if (!detail?.trieu_chung_list) continue
+    for (const t of detail.trieu_chung_list) {
+      if (seen.has(t.id)) continue
+      seen.add(t.id)
+      out.push(t)
+    }
+  }
+  return out
+})
+
 function phuongHuyetDisplayLabel(row: PhacDoApiRow): string {
   const h = row.huyetVi
   if (!h) return `#${row.idHuyet}`
@@ -113,18 +169,54 @@ function phuongHuyetKinhMach(row: PhacDoApiRow): string {
   return k.ten_kinh_mach || k.ten_viet_tat || ''
 }
 
-const PHUONG_HUYET_NOTE_TRUNCATE_LEN = 60
 const expandedPhuongHuyetNotes = ref<Set<number>>(new Set())
-
-function isLongPhuongHuyetNote(s: string | null | undefined): boolean {
-  return !!s && s.length > PHUONG_HUYET_NOTE_TRUNCATE_LEN
-}
 
 function togglePhuongHuyetNote(id: number) {
   const next = new Set(expandedPhuongHuyetNotes.value)
   if (next.has(id)) next.delete(id)
   else next.add(id)
   expandedPhuongHuyetNotes.value = next
+}
+
+const PHUONG_PHAP_ORDER = [
+  'Châm',
+  'Cứu',
+  'Châm + Cứu',
+  'Bấm Huyệt',
+  'Điện Châm',
+  'Bổ',
+  'Tả',
+] as const
+
+const phuongHuyetGroups = computed(() => {
+  const grouped = new Map<string, PhacDoApiRow[]>()
+  for (const row of matchedPhuongHuyetList.value) {
+    const key = (row.phuong_phap_tac_dong || '').trim() || 'Khác'
+    const arr = grouped.get(key) ?? []
+    arr.push(row)
+    grouped.set(key, arr)
+  }
+  const out: Array<{ method: string; items: PhacDoApiRow[] }> = []
+  for (const m of PHUONG_PHAP_ORDER) {
+    const items = grouped.get(m)
+    if (items) {
+      out.push({ method: m, items })
+      grouped.delete(m)
+    }
+  }
+  for (const [m, items] of grouped) out.push({ method: m, items })
+  return out
+})
+
+function methodChipClass(method: string): string {
+  const slug = method
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/đ/g, 'd')
+    .replace(/\s+\+\s+/g, '-')
+    .replace(/\s+/g, '-')
+  return `ph-group--${slug}`
 }
 
 const modernSyndromesList = computed(() => {
@@ -431,11 +523,12 @@ onMounted(async () => {
 async function loadData() {
   isLoading.value = true
   try {
-    const [patientRes, examRes, benhListRes, phacDoRes] = await Promise.all([
+    const [patientRes, examRes, benhListRes, phacDoRes, baiThuocRes] = await Promise.all([
       api.get<Patient>(`/patients/${patientId.value}`),
       api.get<any>(`/examinations/${examId.value}`),
       api.get<any>('/benh-dong-y'),
       api.get<any>('/phac-do-dieu-tri'),
+      api.get<any>('/bai-thuoc'),
     ])
     patient.value = patientRes
     examination.value = examRes
@@ -446,6 +539,11 @@ async function loadData() {
     benhDetailsMap.value = map
 
     phacDoAllList.value = Array.isArray(phacDoRes) ? phacDoRes : phacDoRes?.data ?? []
+
+    const btArr: BaiThuocFull[] = Array.isArray(baiThuocRes) ? baiThuocRes : baiThuocRes?.data ?? []
+    const btMap = new Map<number, BaiThuocFull>()
+    for (const b of btArr) btMap.set(b.id, b)
+    baiThuocFullMap.value = btMap
   } catch (err: any) {
     error.value = err.message
   } finally {
@@ -836,44 +934,56 @@ function footerDiffClassMerged() {
               <p v-else-if="!matchedPhuongHuyetList.length" class="suggested-empty">
                 Các bệnh YHCT khớp chưa được cấu hình phương huyệt.
               </p>
-              <div v-else class="suggested-table">
-                <div class="suggested-table__head">
-                  <span class="st-col st-col--name">Huyệt</span>
-                  <span class="st-col st-col--method">Phương pháp</span>
-                  <span class="st-col st-col--note">Ghi chú</span>
-                </div>
+              <div v-else class="ph-groups">
                 <div
-                  v-for="row in matchedPhuongHuyetList"
-                  :key="row.idPhacDo"
-                  class="suggested-table__row"
+                  v-for="g in phuongHuyetGroups"
+                  :key="g.method"
+                  class="ph-group"
+                  :class="methodChipClass(g.method)"
                 >
-                  <div class="st-col st-col--name">
-                    <span class="huyet-chip">{{ phuongHuyetDisplayLabel(row) }}</span>
-                    <small v-if="phuongHuyetKinhMach(row)" class="huyet-meta">
-                      {{ phuongHuyetKinhMach(row) }}
-                    </small>
+                  <div class="ph-group__head">
+                    <span class="ph-group__method">{{ g.method }}</span>
+                    <span class="ph-group__count">{{ g.items.length }} huyệt</span>
                   </div>
-                  <div class="st-col st-col--method">
-                    <span v-if="row.phuong_phap_tac_dong" class="method-chip">
-                      {{ row.phuong_phap_tac_dong }}
-                    </span>
-                    <span v-else class="muted">—</span>
+                  <div class="ph-group__chips">
+                    <button
+                      v-for="row in g.items"
+                      :key="row.idPhacDo"
+                      type="button"
+                      class="ph-chip ph-chip--has-note"
+                      :class="{
+                        'ph-chip--active': expandedPhuongHuyetNotes.has(row.idPhacDo),
+                      }"
+                      :title="row.ghi_chu_ky_thuat || phuongHuyetKinhMach(row) || ''"
+                      @click="togglePhuongHuyetNote(row.idPhacDo)"
+                    >
+                      <span class="ph-chip__name">{{ phuongHuyetDisplayLabel(row) }}</span>
+                      <span v-if="row.ghi_chu_ky_thuat" class="ph-chip__dot" aria-hidden="true"></span>
+                    </button>
                   </div>
-                  <div class="st-col st-col--note">
-                    <template v-if="row.ghi_chu_ky_thuat">
-                      <span
-                        class="ph-note-text"
-                        :class="{ 'ph-note-text--expanded': expandedPhuongHuyetNotes.has(row.idPhacDo) }"
-                      >{{ row.ghi_chu_ky_thuat }}</span>
-                      <button
-                        v-if="isLongPhuongHuyetNote(row.ghi_chu_ky_thuat)"
-                        type="button"
-                        class="ph-note-toggle"
-                        @click="togglePhuongHuyetNote(row.idPhacDo)"
-                      >{{ expandedPhuongHuyetNotes.has(row.idPhacDo) ? 'thu gọn' : 'xem thêm' }}</button>
-                    </template>
-                    <span v-else class="muted">—</span>
-                  </div>
+                  <template
+                    v-for="row in g.items.filter((r) => expandedPhuongHuyetNotes.has(r.idPhacDo))"
+                    :key="'note-' + row.idPhacDo"
+                  >
+                    <div class="ph-group__note ph-group__note--ph">
+                      <div class="ph-note-head">
+                        <strong>{{ phuongHuyetDisplayLabel(row) }}</strong>
+                        <span v-if="phuongHuyetKinhMach(row)" class="ph-note-meta">
+                          {{ phuongHuyetKinhMach(row) }}
+                        </span>
+                        <button
+                          type="button"
+                          class="ph-note-close"
+                          aria-label="Đóng"
+                          @click="togglePhuongHuyetNote(row.idPhacDo)"
+                        >✕</button>
+                      </div>
+                      <p v-if="row.ghi_chu_ky_thuat" class="ph-note-body">
+                        <span class="ph-note-label">Ghi chú:</span> {{ row.ghi_chu_ky_thuat }}
+                      </p>
+                      <p v-else class="ph-note-empty">Chưa có ghi chú kỹ thuật.</p>
+                    </div>
+                  </template>
                 </div>
               </div>
             </div>
@@ -881,7 +991,7 @@ function footerDiffClassMerged() {
 
           <section class="result-section mt-6">
             <h2 class="section-title">
-              <span class="section-num">V</span> BÀI THUỐC
+              <span class="section-num">V</span> PHƯƠNG DƯỢC
               <span v-if="matchedBaiThuocList.length" class="section-count">
                 ({{ matchedBaiThuocList.length }} bài)
               </span>
@@ -893,13 +1003,102 @@ function footerDiffClassMerged() {
               <p v-else-if="!matchedBaiThuocList.length" class="suggested-empty">
                 Các bệnh YHCT khớp chưa được gắn bài thuốc nào.
               </p>
-              <div v-else class="bai-thuoc-grid">
-                <div
-                  v-for="bt in matchedBaiThuocList"
-                  :key="bt.id"
-                  class="bai-thuoc-pill"
-                >
-                  {{ bt.ten_bai_thuoc }}
+              <div v-else class="ph-groups">
+                <div class="ph-group ph-group--bai-thuoc">
+                  <div class="ph-group__head">
+                    <span class="ph-group__method">Bài thuốc</span>
+                    <span class="ph-group__count">{{ matchedBaiThuocList.length }} bài</span>
+                  </div>
+                  <div class="ph-group__chips">
+                    <button
+                      v-for="bt in matchedBaiThuocList"
+                      :key="bt.id"
+                      type="button"
+                      class="ph-chip ph-chip--has-note"
+                      :class="{ 'ph-chip--active': expandedBaiThuoc.has(bt.id) }"
+                      :title="`${baiThuocChiTietOf(bt.id).length} vị thuốc`"
+                      @click="toggleBaiThuoc(bt.id)"
+                    >
+                      <span class="ph-chip__name">{{ bt.ten_bai_thuoc }}</span>
+                      <span class="ph-chip__dot" aria-hidden="true"></span>
+                    </button>
+                  </div>
+                  <template
+                    v-for="bt in matchedBaiThuocList.filter((b) => expandedBaiThuoc.has(b.id))"
+                    :key="'btnote-' + bt.id"
+                  >
+                    <div class="ph-group__note ph-group__note--bt">
+                      <div class="bt-note-head">
+                        <strong>{{ bt.ten_bai_thuoc }}</strong>
+                        <span class="bt-note-count">{{ baiThuocChiTietOf(bt.id).length }} vị</span>
+                        <button
+                          type="button"
+                          class="ph-note-close"
+                          aria-label="Đóng"
+                          @click="toggleBaiThuoc(bt.id)"
+                        >✕</button>
+                      </div>
+                      <p v-if="!baiThuocChiTietOf(bt.id).length" class="bt-note-empty">
+                        Bài thuốc này chưa có thành phần vị thuốc.
+                      </p>
+                      <div v-else class="bt-detail-table">
+                        <div class="bt-detail-table__head">
+                          <span class="btd-col btd-col--name">Vị thuốc</span>
+                          <span class="btd-col btd-col--lieu">Liều</span>
+                          <span class="btd-col btd-col--role">Vai trò</span>
+                        </div>
+                        <div
+                          v-for="ct in baiThuocChiTietOf(bt.id)"
+                          :key="ct.id"
+                          class="bt-detail-table__row"
+                        >
+                          <div class="btd-col btd-col--name">{{ viThuocLabel(ct) }}</div>
+                          <div class="btd-col btd-col--lieu">
+                            <span v-if="ct.lieu_luong">{{ ct.lieu_luong }}</span>
+                            <span v-else class="muted">—</span>
+                          </div>
+                          <div class="btd-col btd-col--role">
+                            <span v-if="ct.vai_tro">{{ ct.vai_tro }}</span>
+                            <span v-else class="muted">—</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="result-section mt-6">
+            <h2 class="section-title">
+              <span class="section-num">VI</span> TRIỆU CHỨNG
+              <span v-if="matchedTrieuChungList.length" class="section-count">
+                ({{ matchedTrieuChungList.length }} triệu chứng)
+              </span>
+            </h2>
+            <div class="result-card p-4">
+              <p v-if="!matchedBenhIds.length" class="suggested-empty">
+                Chưa có bệnh YHCT nào khớp ở phần III.
+              </p>
+              <p v-else-if="!matchedTrieuChungList.length" class="suggested-empty">
+                Các bệnh YHCT khớp chưa được gắn triệu chứng nào.
+              </p>
+              <div v-else class="ph-groups">
+                <div class="ph-group ph-group--trieu-chung">
+                  <div class="ph-group__head">
+                    <span class="ph-group__method">Triệu chứng</span>
+                    <span class="ph-group__count">{{ matchedTrieuChungList.length }} triệu chứng</span>
+                  </div>
+                  <div class="ph-group__chips">
+                    <span
+                      v-for="t in matchedTrieuChungList"
+                      :key="t.id"
+                      class="ph-chip"
+                    >
+                      <span class="ph-chip__name">{{ t.ten_trieu_chung }}</span>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -987,7 +1186,7 @@ function footerDiffClassMerged() {
 
           <section class="result-section mt-6">
             <h2 class="section-title">
-              <span class="section-num">III</span> MÔ HÌNH BỆNH LÝ - SUY LUẬN
+              <span class="section-num">III</span> MÔ HÌNH BỆNH LÝ
             </h2>
             <div class="result-card p-5">
               <div class="info-group">
@@ -1049,8 +1248,7 @@ function footerDiffClassMerged() {
                   @click="showMoHinhBenhLy = !showMoHinhBenhLy"
                 >
                   <span class="mhbl-toggle-caret">▸</span>
-                  <span class="mhbl-toggle-label">Mô Hình Bệnh Lý</span>
-                  <span class="mhbl-toggle-hint">(App gốc &amp; Hiện tại)</span>
+                  <span class="mhbl-toggle-label">Mô Hình Bệnh Lý - Suy Luận</span>
                   <span class="mhbl-toggle-action">{{ showMoHinhBenhLy ? 'Ẩn' : 'Hiện' }}</span>
                 </button>
                 <div v-if="showMoHinhBenhLy" class="mhbl-content">
@@ -1161,23 +1359,245 @@ function footerDiffClassMerged() {
   color: var(--gray-500);
   font-style: italic;
 }
-.suggested-table {
+.muted { color: var(--gray-400); font-style: italic; }
+
+/* Phương huyệt — group theo phương pháp */
+.ph-groups { display: flex; flex-direction: column; gap: var(--space-3); }
+.ph-group {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  overflow: hidden;
+}
+.ph-group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 6px var(--space-3);
+  background: #fdfbf9;
+  border-bottom: 1px solid var(--gray-100);
+}
+.ph-group__method {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--brown-800);
+  text-transform: uppercase;
+}
+.ph-group__count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-500);
+}
+.ph-group__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px var(--space-3);
+}
+.ph-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  cursor: default;
+  transition: background .12s, border-color .12s, transform .12s;
+}
+.ph-chip--has-note { cursor: pointer; }
+.ph-chip--has-note:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+.ph-chip--active {
+  background: #1d4ed8;
+  color: var(--white);
+  border-color: #1d4ed8;
+}
+.ph-chip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.6;
+}
+.ph-group__note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px var(--space-3);
+  background: #fffbeb;
+  border-top: 1px dashed var(--gray-200);
+  font-size: var(--font-size-sm);
+  color: var(--gray-800);
+  line-height: 1.5;
+}
+.ph-note-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ph-note-head strong {
+  color: var(--brown-800);
+  font-weight: 700;
+  flex: 1;
+  word-break: break-word;
+}
+.ph-note-meta {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brown-700);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--brown-200);
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+.ph-note-body { margin: 0; word-break: break-word; }
+.ph-note-label { font-weight: 700; color: var(--brown-700); margin-right: 4px; }
+.ph-note-empty {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--gray-500);
+  font-style: italic;
+  text-align: center;
+}
+.ph-note-close {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  border: 0;
+  background: transparent;
+  color: var(--gray-500);
+  cursor: pointer;
+}
+.ph-note-close:hover { background: var(--gray-100); color: var(--brown-700); }
+
+/* Color variants per method */
+.ph-group--cuu .ph-chip {
+  background: #ffedd5; color: #9a3412; border-color: #fdba74;
+}
+.ph-group--cuu .ph-chip--has-note:hover {
+  background: #fed7aa; border-color: #fb923c;
+}
+.ph-group--cuu .ph-chip--active {
+  background: #9a3412; color: var(--white); border-color: #9a3412;
+}
+.ph-group--cham-cuu .ph-chip {
+  background: #fef3c7; color: #92400e; border-color: #fcd34d;
+}
+.ph-group--cham-cuu .ph-chip--active {
+  background: #92400e; color: var(--white); border-color: #92400e;
+}
+.ph-group--bam-huyet .ph-chip {
+  background: #ecfdf5; color: #047857; border-color: #a7f3d0;
+}
+.ph-group--bam-huyet .ph-chip--active {
+  background: #047857; color: var(--white); border-color: #047857;
+}
+.ph-group--dien-cham .ph-chip {
+  background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe;
+}
+.ph-group--dien-cham .ph-chip--active {
+  background: #6d28d9; color: var(--white); border-color: #6d28d9;
+}
+.ph-group--bo .ph-chip {
+  background: #fce7f3; color: #9d174d; border-color: #f9a8d4;
+}
+.ph-group--bo .ph-chip--active {
+  background: #9d174d; color: var(--white); border-color: #9d174d;
+}
+.ph-group--ta .ph-chip {
+  background: #fee2e2; color: #b91c1c; border-color: #fca5a5;
+}
+.ph-group--ta .ph-chip--active {
+  background: #b91c1c; color: var(--white); border-color: #b91c1c;
+}
+
+/* Triệu chứng — chip group màu tím (không click) */
+.ph-group--trieu-chung .ph-chip {
+  background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe;
+  cursor: default;
+}
+.ph-group--trieu-chung .ph-chip:hover {
+  background: #f5f3ff; border-color: #ddd6fe;
+}
+
+/* Phương Dược — chip group giống Section IV, màu vàng */
+.ph-group--bai-thuoc .ph-chip {
+  background: #fef3c7; color: #92400e; border-color: #fcd34d;
+}
+.ph-group--bai-thuoc .ph-chip--has-note:hover {
+  background: #fde68a; border-color: #f59e0b;
+}
+.ph-group--bai-thuoc .ph-chip--active {
+  background: #92400e; color: var(--white); border-color: #92400e;
+}
+.ph-group__note--bt {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  background: #fffbeb;
+}
+.bt-note-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.bt-note-head strong {
+  color: var(--brown-800);
+  font-weight: 700;
+  flex: 1;
+  word-break: break-word;
+}
+.bt-note-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brown-700);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--brown-200);
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+.bt-note-empty {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--gray-500);
+  font-style: italic;
+  text-align: center;
+  padding: var(--space-2) 0;
+}
+
+.bt-detail-table {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--white);
 }
-.suggested-table__head,
-.suggested-table__row {
+.bt-detail-table__head,
+.bt-detail-table__row {
   display: grid;
-  grid-template-columns: minmax(120px, 1.3fr) minmax(100px, 1fr) minmax(140px, 1.7fr);
+  grid-template-columns: minmax(120px, 1.6fr) minmax(70px, 0.8fr) minmax(90px, 1fr);
   gap: var(--space-2);
-  padding: 6px var(--space-3);
+  padding: 5px var(--space-2);
   align-items: center;
 }
-.suggested-table__head {
+.bt-detail-table__head {
   background: #fdfbf9;
   border-bottom: 1px solid var(--gray-100);
   font-size: 10px;
@@ -1186,77 +1606,11 @@ function footerDiffClassMerged() {
   letter-spacing: 0.06em;
   color: var(--gray-500);
 }
-.suggested-table__row + .suggested-table__row { border-top: 1px solid var(--gray-100); }
-.suggested-table__row:hover { background: #fdfbf9; }
-.st-col { font-size: var(--font-size-sm); color: var(--gray-800); min-width: 0; word-break: break-word; }
-.st-col--name { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
-.huyet-chip {
-  display: inline-block;
-  padding: 2px 8px;
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-.huyet-meta { font-size: 11px; color: var(--gray-500); }
-.method-chip {
-  display: inline-block;
-  padding: 2px 8px;
-  background: #fce7f3;
-  color: #9d174d;
-  border: 1px solid #f9a8d4;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-.muted { color: var(--gray-400); font-style: italic; }
-
-.ph-note-text {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  line-height: 1.45;
-  word-break: break-word;
-}
-.ph-note-text--expanded {
-  display: block;
-  -webkit-line-clamp: unset;
-  overflow: visible;
-}
-.ph-note-toggle {
-  display: inline-block;
-  margin-top: 2px;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  color: var(--brown-700);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: underline;
-}
-.ph-note-toggle:hover { color: var(--brown-800); }
-
-.bai-thuoc-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.bai-thuoc-pill {
-  padding: 4px 10px;
-  background: #fef3c7;
-  color: #92400e;
-  border: 1px solid #fcd34d;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
-}
+.bt-detail-table__row + .bt-detail-table__row { border-top: 1px solid var(--gray-100); }
+.bt-detail-table__row:hover { background: #fdfbf9; }
+.btd-col { font-size: var(--font-size-sm); color: var(--gray-800); min-width: 0; word-break: break-word; }
+.btd-col--name { font-weight: 600; color: var(--brown-900); }
+.btd-col--lieu { font-family: ui-monospace, monospace; }
 
 .result-card {
   background: var(--white);

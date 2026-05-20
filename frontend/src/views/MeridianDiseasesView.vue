@@ -491,7 +491,7 @@ async function handleDelete() {
     </div>
 
     <div v-else class="content-body">
-      <details class="excel-map-panel" open>
+      <details class="excel-map-panel">
         <summary class="excel-map-summary">
           <span class="excel-map-summary-title">Bản đồ ô chỉ số (mẫu — theo map Excel)</span>
           <span class="excel-map-summary-hint">Lưới A–H · hàng 7–15 · 18–28</span>
