@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import express, { Request, Response } from 'express';
 import { AppModule } from '../src/app.module';
+import { LoggingInterceptor } from '../src/middlewares/logging.interceptor';
 
 const vercelRegex = /^https?:\/\/([a-z0-9-]+\.)?vercel\.app$/i;
 let cachedApp: any;
@@ -10,6 +11,7 @@ async function bootstrap() {
   if (!cachedApp) {
     const app = await NestFactory.create(AppModule);
     app.enableCors(); // Already handled by vercel.json, but keep for safety
+    app.useGlobalInterceptors(new LoggingInterceptor());
     await app.init();
     cachedApp = app.getHttpAdapter().getInstance();
   }

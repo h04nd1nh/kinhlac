@@ -308,6 +308,8 @@ interface AiClassifyRow {
   /** Nhóm nhỏ AI đề xuất (id). null = AI không chắc → giữ lại nguồn. */
   target_id: number | null
   ly_do: string
+  /** Tick để áp dụng hàng này. Mặc định bật nếu AI có đề xuất hợp lệ. */
+  selected: boolean
 }
 
 const aiClassifyModalOpen = ref(false)
@@ -333,8 +335,26 @@ function nhomNhoFullLabel(nn: NhomNho): string {
 }
 
 const aiClassifyAssignedCount = computed(() =>
+  aiClassifyRows.value.filter((r) => r.target_id != null && r.selected).length,
+)
+
+const aiClassifySelectableCount = computed(() =>
   aiClassifyRows.value.filter((r) => r.target_id != null).length,
 )
+
+const aiClassifyAllSelected = computed(() => {
+  const sel = aiClassifyRows.value.filter((r) => r.target_id != null)
+  return sel.length > 0 && sel.every((r) => r.selected)
+})
+
+function toggleSelectAllAi() {
+  const next = !aiClassifyAllSelected.value
+  for (const r of aiClassifyRows.value) {
+    if (r.target_id != null) r.selected = next
+  }
+}
+
+const aiClassifyApplyingRowId = ref<number | null>(null)
 
 async function openAiClassify(nn: NhomNho) {
   const vts = (nn.viThuocLinks ?? []).filter((l) => Number.isFinite(l.idViThuoc))
@@ -377,6 +397,7 @@ async function openAiClassify(nn: NhomNho) {
       ten_vi_thuoc: d.ten_vi_thuoc,
       target_id: d.id_nhom_nho,
       ly_do: d.ly_do ?? '',
+      selected: d.id_nhom_nho != null,
     }))
   } catch (err: any) {
     aiClassifyError.value = 'AI lỗi: ' + (err.message || String(err))
@@ -392,14 +413,49 @@ function closeAiClassify() {
   aiClassifyError.value = null
 }
 
+async function applyAiClassifyOne(row: AiClassifyRow) {
+  const source = aiClassifySource.value
+  if (!source || aiClassifyApplying.value) return
+  if (row.target_id == null || row.target_id === source.id) {
+    alert('Vị thuốc này chưa có nhóm nhỏ đích hợp lệ.')
+    return
+  }
+  if (aiClassifyApplyingRowId.value != null) return
+  aiClassifyApplyingRowId.value = row.id_vi_thuoc
+  aiClassifyError.value = null
+  try {
+    const sourceCurrentIds = (source.viThuocLinks ?? []).map((l) => l.idViThuoc)
+    const newSourceIds = sourceCurrentIds.filter((id) => id !== row.id_vi_thuoc)
+    await api.put(`/nhom-nho-duoc-ly/${source.id}`, { vi_thuoc_ids: newSourceIds })
+
+    const target = allNhomNho.value.find((x) => x.id === row.target_id)
+    const existing = (target?.viThuocLinks ?? []).map((l) => l.idViThuoc)
+    const merged = Array.from(new Set([...existing, row.id_vi_thuoc]))
+    await api.put(`/nhom-nho-duoc-ly/${row.target_id}`, { vi_thuoc_ids: merged })
+
+    aiClassifyRows.value = aiClassifyRows.value.filter((r) => r.id_vi_thuoc !== row.id_vi_thuoc)
+    await fetchAll()
+    // Sau fetchAll, source object trong aiClassifySource có thể stale — sync lại
+    const refreshed = allNhomNho.value.find((n) => n.id === source.id)
+    if (refreshed) aiClassifySource.value = refreshed
+    if (!aiClassifyRows.value.length) {
+      closeAiClassify()
+    }
+  } catch (err: any) {
+    aiClassifyError.value = 'Áp dụng thất bại: ' + (err.message || String(err))
+  } finally {
+    aiClassifyApplyingRowId.value = null
+  }
+}
+
 async function applyAiClassify() {
   const source = aiClassifySource.value
   if (!source || aiClassifyApplying.value) return
   const toMove = aiClassifyRows.value.filter(
-    (r) => r.target_id != null && r.target_id !== source.id,
+    (r) => r.selected && r.target_id != null && r.target_id !== source.id,
   )
   if (!toMove.length) {
-    alert('Chưa chọn nhóm nhỏ đích cho vị thuốc nào.')
+    alert('Chưa chọn vị thuốc nào để áp dụng.')
     return
   }
   aiClassifyApplying.value = true
@@ -426,8 +482,14 @@ async function applyAiClassify() {
       await api.put(`/nhom-nho-duoc-ly/${targetId}`, { vi_thuoc_ids: merged })
     }
 
-    closeAiClassify()
+    // Loại các row đã áp dụng khỏi list suggestion
+    aiClassifyRows.value = aiClassifyRows.value.filter((r) => !movedSet.has(r.id_vi_thuoc))
     await fetchAll()
+    const refreshed = allNhomNho.value.find((n) => n.id === source.id)
+    if (refreshed) aiClassifySource.value = refreshed
+    if (!aiClassifyRows.value.length) {
+      closeAiClassify()
+    }
   } catch (err: any) {
     aiClassifyError.value = 'Áp dụng thất bại: ' + (err.message || String(err))
   } finally {
@@ -1105,25 +1167,46 @@ async function onImportFileChange(ev: Event) {
 
             <div class="ai-summary">
               <span class="ai-summary-count">
-                {{ aiClassifyAssignedCount }} / {{ aiClassifyRows.length }} vị thuốc sẽ được di chuyển
+                Đã chọn {{ aiClassifyAssignedCount }} / {{ aiClassifySelectableCount }} (tổng {{ aiClassifyRows.length }})
               </span>
-              <span class="ai-summary-hint">
-                Bỏ chọn (— Giữ lại —) để vị thuốc không bị di chuyển.
-              </span>
+              <button
+                v-if="aiClassifySelectableCount > 0"
+                type="button"
+                class="ai-select-all"
+                :disabled="aiClassifyApplying || aiClassifyApplyingRowId != null"
+                @click="toggleSelectAllAi"
+              >
+                {{ aiClassifyAllSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả' }}
+              </button>
             </div>
 
             <div v-if="aiClassifyRows.length" class="ai-table">
               <div class="ai-table__head">
+                <span class="aic aic--check"></span>
                 <span class="aic aic--name">Vị thuốc</span>
                 <span class="aic aic--target">Nhóm nhỏ đích</span>
                 <span class="aic aic--reason">Lý do (AI)</span>
+                <span class="aic aic--apply"></span>
               </div>
               <div v-for="row in aiClassifyRows" :key="row.id_vi_thuoc" class="ai-table__row">
+                <div class="aic aic--check">
+                  <input
+                    type="checkbox"
+                    v-model="row.selected"
+                    :disabled="row.target_id == null || aiClassifyApplying || aiClassifyApplyingRowId != null"
+                    :aria-label="`Chọn ${row.ten_vi_thuoc}`"
+                  />
+                </div>
                 <div class="aic aic--name">
                   <span class="chip chip-vi">{{ row.ten_vi_thuoc }}</span>
                 </div>
                 <div class="aic aic--target">
-                  <select v-model="row.target_id" class="ai-select">
+                  <select
+                    v-model="row.target_id"
+                    class="ai-select"
+                    :disabled="aiClassifyApplying || aiClassifyApplyingRowId != null"
+                    @change="row.selected = row.target_id != null"
+                  >
                     <option :value="null">— Giữ lại —</option>
                     <option v-for="c in aiClassifyCandidates" :key="c.id" :value="c.id">
                       {{ nhomNhoFullLabel(c) }}
@@ -1133,6 +1216,21 @@ async function onImportFileChange(ev: Event) {
                 <div class="aic aic--reason">
                   <span v-if="row.ly_do" class="ai-reason">{{ row.ly_do }}</span>
                   <span v-else class="muted">—</span>
+                </div>
+                <div class="aic aic--apply">
+                  <button
+                    type="button"
+                    class="btn-mini-apply"
+                    :disabled="
+                      row.target_id == null ||
+                      aiClassifyApplying ||
+                      aiClassifyApplyingRowId != null
+                    "
+                    :title="row.target_id == null ? 'Chọn nhóm nhỏ đích trước' : 'Áp dụng riêng vị thuốc này'"
+                    @click="applyAiClassifyOne(row)"
+                  >
+                    {{ aiClassifyApplyingRowId === row.id_vi_thuoc ? '…' : 'Áp dụng' }}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1147,10 +1245,15 @@ async function onImportFileChange(ev: Event) {
           >Hủy</button>
           <button
             class="btn-primary"
-            :disabled="aiClassifyApplying || aiClassifyLoading || aiClassifyAssignedCount === 0"
+            :disabled="
+              aiClassifyApplying ||
+              aiClassifyLoading ||
+              aiClassifyApplyingRowId != null ||
+              aiClassifyAssignedCount === 0
+            "
             @click="applyAiClassify"
           >
-            {{ aiClassifyApplying ? 'Đang áp dụng…' : `Áp dụng (${aiClassifyAssignedCount})` }}
+            {{ aiClassifyApplying ? 'Đang áp dụng…' : `Áp dụng đã chọn (${aiClassifyAssignedCount})` }}
           </button>
         </footer>
       </div>
@@ -1378,11 +1481,44 @@ async function onImportFileChange(ev: Event) {
 .ai-table__head,
 .ai-table__row {
   display: grid;
-  grid-template-columns: minmax(140px, 1.1fr) minmax(200px, 1.4fr) minmax(160px, 1.8fr);
+  grid-template-columns: 24px minmax(140px, 1.1fr) minmax(200px, 1.4fr) minmax(160px, 1.8fr) 90px;
   gap: var(--space-2);
   padding: 8px var(--space-3);
   align-items: center;
 }
+.aic--check { display: flex; justify-content: center; }
+.aic--check input { cursor: pointer; width: 16px; height: 16px; }
+.aic--check input:disabled { cursor: not-allowed; opacity: 0.4; }
+.aic--apply { display: flex; justify-content: flex-end; }
+.btn-mini-apply {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid #c4b5fd;
+  background: #ede9fe;
+  color: #6d28d9;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s;
+}
+.btn-mini-apply:hover:not(:disabled) {
+  background: #ddd6fe;
+  border-color: #a78bfa;
+}
+.btn-mini-apply:disabled { opacity: 0.5; cursor: not-allowed; }
+.ai-select-all {
+  background: var(--white);
+  border: 1px solid var(--brown-200);
+  color: var(--brown-700);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ai-select-all:hover:not(:disabled) { background: var(--brown-50); border-color: var(--brown-300); }
+.ai-select-all:disabled { opacity: 0.5; cursor: not-allowed; }
 .ai-table__head {
   background: #fdfbf9;
   border-bottom: 1px solid var(--gray-100);
@@ -1412,8 +1548,17 @@ async function onImportFileChange(ev: Event) {
 @media (max-width: 720px) {
   .ai-table__head,
   .ai-table__row {
-    grid-template-columns: 1fr;
-    gap: 4px;
+    grid-template-columns: 24px 1fr 80px;
+    grid-template-areas:
+      'check name apply'
+      '. target target'
+      '. reason reason';
+    gap: 6px;
   }
+  .aic--check { grid-area: check; }
+  .aic--name { grid-area: name; }
+  .aic--target { grid-area: target; }
+  .aic--reason { grid-area: reason; }
+  .aic--apply { grid-area: apply; }
 }
 </style>

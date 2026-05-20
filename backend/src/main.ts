@@ -1,8 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { LoggingInterceptor } from './middlewares/logging.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.useGlobalInterceptors(new LoggingInterceptor());
 
   // CORS: cho phép nhiều domain frontend (prod + local).
   // FRONTEND_URL có thể là list phân tách bởi dấu phẩy.

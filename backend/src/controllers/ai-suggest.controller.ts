@@ -153,9 +153,6 @@ export class AiSuggestService {
       throw new BadRequestException('Danh sách nhóm nhỏ ứng viên rỗng');
     }
 
-    const client = this.getClient();
-    const model = this.config.get<string>('YESCALE_MODEL') || YESCALE_DEFAULT_MODEL;
-
     const candidateBlock = candidates
       .map((c) => {
         const parts = [`id=${c.id}`, `ten="${c.ten_nhom.trim()}"`];
@@ -167,6 +164,83 @@ export class AiSuggestService {
       })
       .join('\n');
 
+    const allowedNhomNhoIds = new Set(candidates.map((c) => c.id));
+
+    // Chia chunk để (1) prompt nhỏ → AI dễ trả đúng format, (2) 1 chunk lỗi
+    // không kéo theo toàn bộ batch.
+    const CHUNK_SIZE = 5;
+    const chunks: { id: number; ten_vi_thuoc: string }[][] = [];
+    for (let i = 0; i < viThuocs.length; i += CHUNK_SIZE) {
+      chunks.push(viThuocs.slice(i, i + CHUNK_SIZE));
+    }
+
+    const out: ViThuocClassification[] = [];
+    const seen = new Set<number>();
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `[AI classifyViThuoc] START total=${viThuocs.length} candidates=${candidates.length} chunkSize=${CHUNK_SIZE} chunks=${chunks.length}`,
+    );
+
+    for (let idx = 0; idx < chunks.length; idx++) {
+      const chunk = chunks[idx];
+      let chunkResults: ViThuocClassification[] = [];
+      try {
+        chunkResults = await this.classifyChunk(
+          chunk,
+          candidateBlock,
+          allowedNhomNhoIds,
+          idx + 1,
+          chunks.length,
+        );
+      } catch (err: any) {
+        // eslint-disable-next-line no-console
+        console.error(
+          `[AI classifyViThuoc] chunk ${idx + 1}/${chunks.length} lỗi, các vị thuốc trong chunk sẽ trả null:`,
+          chunk.map((v) => v.ten_vi_thuoc).join(', '),
+          '— reason:',
+          err?.message || err,
+        );
+        chunkResults = chunk.map((v) => ({
+          id: v.id,
+          ten_vi_thuoc: v.ten_vi_thuoc,
+          id_nhom_nho: null,
+          ly_do: 'AI lỗi — chưa phân loại được',
+        }));
+      }
+
+      for (const r of chunkResults) {
+        if (seen.has(r.id)) continue;
+        seen.add(r.id);
+        out.push(r);
+      }
+    }
+
+    const classifiedCount = out.filter((r) => r.id_nhom_nho != null).length;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[AI classifyViThuoc] DONE total=${out.length} classified=${classifiedCount} unclassified=${out.length - classifiedCount}`,
+    );
+
+    // Fallback: vị thuốc nào không có trong output (AI bỏ sót và không bị mark lỗi)
+    for (const v of viThuocs) {
+      if (seen.has(v.id)) continue;
+      out.push({ id: v.id, ten_vi_thuoc: v.ten_vi_thuoc, id_nhom_nho: null });
+    }
+    return out;
+  }
+
+  private async classifyChunk(
+    viThuocs: { id: number; ten_vi_thuoc: string }[],
+    candidateBlock: string,
+    allowedNhomNhoIds: Set<number>,
+    chunkIndex = 1,
+    totalChunks = 1,
+  ): Promise<ViThuocClassification[]> {
+    const tag = `[AI chunk ${chunkIndex}/${totalChunks}]`;
+    const client = this.getClient();
+    const model = this.config.get<string>('YESCALE_MODEL') || YESCALE_DEFAULT_MODEL;
+
     const viThuocBlock = viThuocs
       .map((v) => `{id=${v.id}, ten="${v.ten_vi_thuoc.trim()}"}`)
       .join('\n');
@@ -175,11 +249,15 @@ export class AiSuggestService {
 
 QUY TẮC:
 - Chỉ chọn id_nhom_nho từ danh sách ứng viên đã cho.
-- Nếu không có nhóm nào thật sự phù hợp, trả về id_nhom_nho: null.
+- Nếu không có nhóm nào thật sự phù hợp, đặt id_nhom_nho: null.
 - Mỗi vị thuốc chỉ thuộc 1 nhóm.
-- Trả về CHÍNH XÁC JSON mảng, không kèm văn bản, không markdown, không \`\`\`.
-- Mỗi phần tử có format: {"id": <id vị thuốc>, "ten_vi_thuoc": "<tên>", "id_nhom_nho": <id nhóm nhỏ hoặc null>, "ly_do": "<lý do ngắn 1 câu>"}
-- ly_do: tiếng Việt, ngắn gọn (dưới 25 từ), nêu công năng/tính vị/tác dụng chính lý giải lý do chọn nhóm.`;
+- Trả về DUY NHẤT một JSON object có khóa "results", giá trị là mảng các phần tử phân loại.
+- KHÔNG kèm văn bản giải thích, KHÔNG markdown, KHÔNG \`\`\`.
+- Mỗi phần tử có format: {"id": <id vị thuốc>, "id_nhom_nho": <id nhóm nhỏ hoặc null>, "ly_do": "<lý do ngắn 1 câu>"}
+- ly_do: tiếng Việt, ngắn gọn (dưới 25 từ), nêu công năng/tính vị/tác dụng chính.
+
+VÍ DỤ ĐẦU RA HỢP LỆ:
+{"results":[{"id":12,"id_nhom_nho":3,"ly_do":"Tính ôn, vị tân, công năng giải biểu tán hàn."},{"id":15,"id_nhom_nho":null,"ly_do":"Không có nhóm ứng viên nào phù hợp."}]}`;
 
     const userPrompt = `Danh sách NHÓM NHỎ ứng viên:
 ${candidateBlock}
@@ -187,38 +265,53 @@ ${candidateBlock}
 Danh sách VỊ THUỐC cần phân loại:
 ${viThuocBlock}
 
-Phân loại tất cả vị thuốc trên vào các nhóm nhỏ ứng viên (theo id) và trả JSON.`;
+Phân loại tất cả vị thuốc trên vào các nhóm nhỏ ứng viên (theo id). Trả JSON đúng định dạng đã quy định.`;
 
-    let response;
-    try {
-      response = await client.chat.completions.create({
-        model,
-        temperature: 0.2,
-        max_tokens: Math.min(4096, 256 + viThuocs.length * 80),
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-      });
-    } catch (err: any) {
-      const status = typeof err?.status === 'number' ? err.status : 503;
-      const detail = err?.error?.message || err?.message || String(err);
-      throw new HttpException(`yescale lỗi: ${detail}`, status);
-    }
+    const maxTokens = Math.min(4096, 512 + viThuocs.length * 200);
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `${tag} REQUEST model=${model} maxTokens=${maxTokens} items=${viThuocs.length}:`,
+      viThuocs.map((v) => `${v.id}:${v.ten_vi_thuoc}`).join(' | '),
+    );
+
+    const startedAt = Date.now();
+    const response = await client.chat.completions.create({
+      model,
+      temperature: 0.2,
+      max_tokens: maxTokens,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    });
+    const elapsedMs = Date.now() - startedAt;
 
     const content = response.choices?.[0]?.message?.content?.trim() ?? '';
+    const usage = response.usage;
+    const finishReason = response.choices?.[0]?.finish_reason;
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `${tag} RESPONSE elapsed=${elapsedMs}ms finish=${finishReason} tokens=${usage?.total_tokens ?? '?'} (prompt=${usage?.prompt_tokens ?? '?'}, completion=${usage?.completion_tokens ?? '?'}) contentLen=${content.length}`,
+    );
+    // eslint-disable-next-line no-console
+    console.log(`${tag} RAW:`, content);
+
     if (!content) {
-      throw new ServiceUnavailableException('yescale trả về nội dung rỗng');
+      throw new Error('yescale trả về nội dung rỗng');
     }
 
-    const parsed = parseJsonArrayLoose(content);
+    const parsed = parseClassifyResults(content);
     if (!parsed) {
-      throw new ServiceUnavailableException(
-        `Không parse được JSON từ AI: ${content.slice(0, 200)}`,
-      );
+      // eslint-disable-next-line no-console
+      console.error(`${tag} không parse được JSON:`, content.slice(0, 1000));
+      throw new Error(`Không parse được JSON từ AI. Trích đoạn: ${content.slice(0, 200)}`);
     }
+    // eslint-disable-next-line no-console
+    console.log(`${tag} PARSED ${parsed.length} entries`);
 
-    const allowedNhomNhoIds = new Set(candidates.map((c) => c.id));
     const byId = new Map<number, { id: number; ten_vi_thuoc: string }>();
     for (const v of viThuocs) byId.set(v.id, v);
 
@@ -240,7 +333,8 @@ Phân loại tất cả vị thuốc trên vào các nhóm nhỏ ứng viên (th
           : typeof nnRaw === 'number'
             ? nnRaw
             : Number(nnRaw);
-      const idNhomNho = nnNum != null && Number.isFinite(nnNum) && allowedNhomNhoIds.has(nnNum) ? nnNum : null;
+      const idNhomNho =
+        nnNum != null && Number.isFinite(nnNum) && allowedNhomNhoIds.has(nnNum) ? nnNum : null;
       const lyDo = typeof raw.ly_do === 'string' ? raw.ly_do.trim() : '';
       out.push({
         id: v.id,
@@ -250,7 +344,7 @@ Phân loại tất cả vị thuốc trên vào các nhóm nhỏ ứng viên (th
       });
     }
 
-    // Fallback: vị thuốc nào AI bỏ sót → id_nhom_nho: null
+    // Trong chunk: vị thuốc AI bỏ sót → null (không throw, chỉ là null lành tính)
     for (const v of viThuocs) {
       if (seen.has(v.id)) continue;
       out.push({ id: v.id, ten_vi_thuoc: v.ten_vi_thuoc, id_nhom_nho: null });
@@ -330,32 +424,108 @@ function pickString(obj: Record<string, unknown>, key: string): string {
   return String(v).trim();
 }
 
-function parseJsonArrayLoose(raw: string): unknown[] | null {
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-  } catch {
-    // fall through
-  }
+/**
+ * Parse AI output thành mảng kết quả phân loại.
+ * Chấp nhận nhiều hình thức:
+ * - {"results": [...]} (định dạng yêu cầu)
+ * - {"data": [...]} / {"classifications": [...]} / {"items": [...]} (fallback)
+ * - Mảng JSON thuần ở root: [...]
+ * - Có markdown fence ```json ... ```
+ * - Có text rác trước/sau JSON
+ */
+function parseClassifyResults(raw: string): unknown[] | null {
+  const candidates: unknown[] = [];
+
+  const tryAdd = (val: unknown) => {
+    if (val !== null && val !== undefined) candidates.push(val);
+  };
+
+  // 1) Parse trực tiếp
+  try { tryAdd(JSON.parse(raw)); } catch { /* noop */ }
+
+  // 2) Bóc markdown fence
   const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fence?.[1]) {
-    try {
-      const parsed = JSON.parse(fence[1]);
-      if (Array.isArray(parsed)) return parsed;
-    } catch {
-      // fall through
+    try { tryAdd(JSON.parse(fence[1])); } catch { /* noop */ }
+  }
+
+  // 3) Cắt theo dấu { ... } đầu/cuối
+  const fObj = raw.indexOf('{');
+  const lObj = raw.lastIndexOf('}');
+  if (fObj >= 0 && lObj > fObj) {
+    try { tryAdd(JSON.parse(raw.slice(fObj, lObj + 1))); } catch { /* noop */ }
+  }
+
+  // 4) Cắt theo dấu [ ... ] đầu/cuối
+  const fArr = raw.indexOf('[');
+  const lArr = raw.lastIndexOf(']');
+  if (fArr >= 0 && lArr > fArr) {
+    try { tryAdd(JSON.parse(raw.slice(fArr, lArr + 1))); } catch { /* noop */ }
+  }
+
+  const ARRAY_KEYS = ['results', 'data', 'classifications', 'items', 'list', 'phan_loai'];
+
+  for (const cand of candidates) {
+    if (Array.isArray(cand)) return cand;
+    if (cand && typeof cand === 'object') {
+      const obj = cand as Record<string, unknown>;
+      for (const key of ARRAY_KEYS) {
+        const v = obj[key];
+        if (Array.isArray(v)) return v;
+      }
+      // Object dạng map id → suggestion → biến về mảng entries
+      const entries = Object.entries(obj).filter(([, v]) => v && typeof v === 'object');
+      if (entries.length) {
+        const arr = entries
+          .map(([k, v]) => {
+            const o = v as Record<string, unknown>;
+            return { ...o, id: o.id ?? Number(k) };
+          })
+          .filter((x) => Number.isFinite(Number(x.id)));
+        if (arr.length) return arr;
+      }
     }
   }
-  const first = raw.indexOf('[');
-  const last = raw.lastIndexOf(']');
-  if (first >= 0 && last > first) {
-    try {
-      const parsed = JSON.parse(raw.slice(first, last + 1));
-      if (Array.isArray(parsed)) return parsed;
-    } catch {
-      // fall through
+
+  // Salvage: nếu JSON bị truncate giữa chừng, trích từng object {...} hoàn chỉnh.
+  const salvaged: unknown[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (escape) { escape = false; continue; }
+      if (ch === '\\') { escape = true; continue; }
+      if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        try {
+          const obj = JSON.parse(raw.slice(start, i + 1));
+          if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+            const o = obj as Record<string, unknown>;
+            // Chỉ giữ object trông giống classification entry (có id)
+            if ('id' in o || 'id_vi_thuoc' in o) {
+              salvaged.push(obj);
+            }
+          }
+        } catch {
+          // skip malformed object
+        }
+        start = -1;
+      }
     }
   }
+  if (salvaged.length) return salvaged;
+
   return null;
 }
 
