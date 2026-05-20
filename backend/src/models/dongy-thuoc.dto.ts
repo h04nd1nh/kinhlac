@@ -12,6 +12,8 @@ export class CreateViThuocDto {
   ten_goi_khac_list?: string[];
   /** IDs các kinh mạch quy nạp. Cột text `quy_kinh` sẽ được sync tự động từ danh sách này. */
   kinh_mach_ids?: number[];
+  /** IDs các nhóm nhỏ dược lý mà vị thuốc thuộc về. */
+  nhom_nho_ids?: number[];
 }
 export class UpdateViThuocDto extends CreateViThuocDto {}
 

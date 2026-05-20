@@ -8,6 +8,7 @@ import { ViThuocKiengKy } from '../models/vi-thuoc-kieng-ky.model';
 import { ViThuocTenGoiKhac } from '../models/vi-thuoc-ten-goi-khac.model';
 import { ViThuocKinhMach } from '../models/vi-thuoc-kinh-mach.model';
 import { KinhMach } from '../models/kinh-mach.model';
+import { NhomNhoViThuoc } from '../models/nhom-nho-vi-thuoc.model';
 import { CreateViThuocDto, UpdateViThuocDto } from '../models/dongy-thuoc.dto';
 import { catalogKey, formatCatalogLabel } from '../utils/catalog-label.util';
 
@@ -158,6 +159,30 @@ export class ViThuocService {
           .filter((s): s is string => !!s)
           .join(', ');
         await mgr.update(ViThuoc, viId, { quy_kinh: text || null } as any);
+      }
+    }
+
+    const patchNn = dto.nhom_nho_ids;
+    if (patchNn !== undefined || isCreate) {
+      await mgr.delete(NhomNhoViThuoc, { idViThuoc: viId });
+      const seenNn = new Set<number>();
+      for (const raw of patchNn ?? []) {
+        const idNn = Number(raw);
+        if (Number.isFinite(idNn) && idNn > 0) seenNn.add(idNn);
+      }
+      if (seenNn.size) {
+        const rows = Array.from(seenNn).map((idNhomNho) => ({
+          idNhomNho,
+          idViThuoc: viId,
+          thu_tu: 0,
+        }));
+        await mgr
+          .createQueryBuilder()
+          .insert()
+          .into(NhomNhoViThuoc)
+          .values(rows)
+          .orIgnore()
+          .execute();
       }
     }
   }

@@ -110,6 +110,7 @@ interface ViThuocForm {
   quy_kinh: string
   lieu_dung: string
   kinh_mach_ids: number[]
+  nhom_nho_ids: number[]
 }
 
 const activeTab = ref<'bai-thuoc' | 'vi-thuoc' | 'duoc-ly'>('bai-thuoc')
@@ -140,6 +141,81 @@ const viThuocPage = ref(1)
 const baiThuocSearch = ref('')
 const viThuocSearch = ref('')
 
+// Filter theo nhóm dược lý cho tab vị thuốc
+const viFilterNhomLonId = ref<number | null>(null)
+const viFilterNhomNhoId = ref<number | null>(null)
+
+interface NhomLonOption {
+  id: number
+  ten_nhom: string
+}
+interface NhomNhoOption {
+  id: number
+  ten_nhom: string
+  idNhomLon: number
+}
+
+const allNhomLonOptions = computed<NhomLonOption[]>(() => {
+  const seen = new Map<number, NhomLonOption>()
+  for (const nn of nhomNhoList.value) {
+    const parent = nn.nhomLon
+    if (!parent) continue
+    if (!seen.has(parent.id)) {
+      seen.set(parent.id, { id: parent.id, ten_nhom: parent.ten_nhom })
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) =>
+    a.ten_nhom.localeCompare(b.ten_nhom, 'vi'),
+  )
+})
+
+const allNhomNhoOptions = computed<NhomNhoOption[]>(() => {
+  const out: NhomNhoOption[] = []
+  for (const nn of nhomNhoList.value) {
+    if (!nn.nhomLon) continue
+    if (viFilterNhomLonId.value != null && nn.nhomLon.id !== viFilterNhomLonId.value) continue
+    out.push({ id: nn.id, ten_nhom: nn.ten_nhom, idNhomLon: nn.nhomLon.id })
+  }
+  return out.sort((a, b) => a.ten_nhom.localeCompare(b.ten_nhom, 'vi'))
+})
+
+/** Set id vị thuốc thuộc nhóm nhỏ đã chọn (nếu chọn). */
+const viThuocIdsInSelectedNhomNho = computed<Set<number> | null>(() => {
+  if (viFilterNhomNhoId.value != null) {
+    const nn = nhomNhoList.value.find((x) => x.id === viFilterNhomNhoId.value)
+    return new Set((nn?.viThuocLinks ?? []).map((l) => l.idViThuoc))
+  }
+  if (viFilterNhomLonId.value != null) {
+    const ids = new Set<number>()
+    for (const nn of nhomNhoList.value) {
+      if (nn.nhomLon?.id !== viFilterNhomLonId.value) continue
+      for (const l of nn.viThuocLinks ?? []) ids.add(l.idViThuoc)
+    }
+    return ids
+  }
+  return null
+})
+
+function clearViThuocFilters() {
+  viFilterNhomLonId.value = null
+  viFilterNhomNhoId.value = null
+}
+
+watch(viFilterNhomLonId, () => {
+  // Khi đổi nhóm lớn, reset nhóm nhỏ nếu không còn thuộc nhóm lớn mới
+  if (viFilterNhomNhoId.value != null) {
+    const nn = nhomNhoList.value.find((x) => x.id === viFilterNhomNhoId.value)
+    if (!nn || (viFilterNhomLonId.value != null && nn.nhomLon?.id !== viFilterNhomLonId.value)) {
+      viFilterNhomNhoId.value = null
+    }
+  }
+  viThuocPage.value = 1
+})
+
+watch(viFilterNhomNhoId, () => {
+  viThuocPage.value = 1
+})
+
 const filteredBaiThuoc = computed(() => {
   const q = baiThuocSearch.value.trim().toLowerCase()
   if (!q) return baiThuocList.value
@@ -165,8 +241,10 @@ const filteredBaiThuoc = computed(() => {
 
 const filteredViThuoc = computed(() => {
   const q = viThuocSearch.value.trim().toLowerCase()
-  if (!q) return viThuocList.value
+  const allowedIds = viThuocIdsInSelectedNhomNho.value
   return viThuocList.value.filter((vt) => {
+    if (allowedIds && !allowedIds.has(vt.id)) return false
+    if (!q) return true
     const hay = [vt.ten_vi_thuoc, vt.tinh, vt.vi, vt.quy_kinh]
       .filter(Boolean)
       .join(' ')
@@ -1581,10 +1659,40 @@ const emptyViThuocForm = (): ViThuocForm => ({
   quy_kinh: '',
   lieu_dung: '',
   kinh_mach_ids: [],
+  nhom_nho_ids: [],
 })
 
 const vtAiUnmatched = ref<string[]>([])
 const vtKinhMachFilter = ref('')
+/** Lý do AI giải thích cho gợi ý nhóm nhỏ dược lý. */
+const vtAiNhomLyDo = ref('')
+/** ID nhóm nhỏ do AI vừa gợi ý (highlight chip "AI"). null = chưa gợi ý lần nào. */
+const vtAiSuggestedNhomNhoId = ref<number | null>(null)
+
+function nhomNhoIdsForViThuoc(viThuocId: number): number[] {
+  const ids: number[] = []
+  for (const nn of nhomNhoList.value) {
+    if ((nn.viThuocLinks ?? []).some((l) => l.idViThuoc === viThuocId)) {
+      ids.push(nn.id)
+    }
+  }
+  return ids
+}
+
+function nhomNhoFullLabel(id: number): string {
+  const nn = nhomNhoList.value.find((x) => x.id === id)
+  if (!nn) return `#${id}`
+  const parent = nn.nhomLon?.ten_nhom ?? ''
+  return parent ? `${parent} › ${nn.ten_nhom}` : nn.ten_nhom
+}
+
+function removeVtNhomNho(id: number) {
+  vtForm.value.nhom_nho_ids = vtForm.value.nhom_nho_ids.filter((x) => x !== id)
+  if (vtAiSuggestedNhomNhoId.value === id) {
+    vtAiSuggestedNhomNhoId.value = null
+    vtAiNhomLyDo.value = ''
+  }
+}
 
 function kinhMachName(id: number): string {
   const km = kinhMachList.value.find((x) => x.idKinhMach === id)
@@ -1625,6 +1733,8 @@ function openCreateViThuoc() {
   vtForm.value = emptyViThuocForm()
   vtFormError.value = null
   vtAiUnmatched.value = []
+  vtAiNhomLyDo.value = ''
+  vtAiSuggestedNhomNhoId.value = null
   vtKinhMachFilter.value = ''
   vtShowModal.value = true
 }
@@ -1641,9 +1751,12 @@ function openEditViThuoc(vt: ViThuoc) {
     quy_kinh: vt.quy_kinh ?? '',
     lieu_dung: vt.lieu_dung ?? '',
     kinh_mach_ids: kmIds,
+    nhom_nho_ids: nhomNhoIdsForViThuoc(vt.id),
   }
   vtFormError.value = null
   vtAiUnmatched.value = []
+  vtAiNhomLyDo.value = ''
+  vtAiSuggestedNhomNhoId.value = null
   vtKinhMachFilter.value = ''
   vtShowModal.value = true
 }
@@ -1665,12 +1778,13 @@ async function submitViThuoc() {
   vtSubmitting.value = true
   try {
     if (isEdit) {
-      // Edit: chỉ gửi tinh / vi / quy kinh (qua kinh_mach_ids) / liều dùng — không đổi tên
+      // Edit: chỉ gửi tinh / vi / quy kinh (qua kinh_mach_ids) / liều dùng / nhóm dược lý — không đổi tên
       const payload: Record<string, unknown> = {
         tinh: f.tinh.trim() || undefined,
         vi: f.vi.trim() || undefined,
         lieu_dung: f.lieu_dung.trim() || undefined,
         kinh_mach_ids: f.kinh_mach_ids,
+        nhom_nho_ids: f.nhom_nho_ids,
       }
       await api.put(`/vi-thuoc/${vtEditingId.value}`, payload)
     } else {
@@ -1680,6 +1794,7 @@ async function submitViThuoc() {
         vi: f.vi.trim() || undefined,
         lieu_dung: f.lieu_dung.trim() || undefined,
         kinh_mach_ids: f.kinh_mach_ids,
+        nhom_nho_ids: f.nhom_nho_ids,
       }
       await api.post('/vi-thuoc', payload)
     }
@@ -1727,18 +1842,51 @@ async function suggestViThuocAi() {
   vtAiLoading.value = true
   vtFormError.value = null
   vtAiUnmatched.value = []
+  vtAiNhomLyDo.value = ''
+  vtAiSuggestedNhomNhoId.value = null
   try {
-    const res = await api.post<{
-      success: boolean
-      data: {
-        tinh: string
-        vi: string
-        quy_kinh: string
-        kinh_mach_ids: number[]
-        kinh_mach_unmatched: string[]
-      }
-    }>('/ai-suggest/vi-thuoc', { ten_vi_thuoc: ten })
-    const d = res?.data
+    const candidates = nhomNhoList.value
+      .filter((nn) => nn.nhomLon)
+      .map((nn) => ({
+        id: nn.id,
+        ten_nhom: nn.ten_nhom,
+        mo_ta: null,
+        lieu_luong: null,
+      }))
+    const fakeId = vtEditingId.value ?? 1
+    const [generalRes, classifyRes] = await Promise.all([
+      api.post<{
+        success: boolean
+        data: {
+          tinh: string
+          vi: string
+          quy_kinh: string
+          kinh_mach_ids: number[]
+          kinh_mach_unmatched: string[]
+        }
+      }>('/ai-suggest/vi-thuoc', { ten_vi_thuoc: ten }),
+      candidates.length
+        ? api
+            .post<{
+              success: boolean
+              data: Array<{
+                id: number
+                ten_vi_thuoc: string
+                id_nhom_nho: number | null
+                ly_do?: string
+              }>
+            }>('/ai-suggest/classify-vi-thuoc', {
+              vi_thuoc: [{ id: fakeId, ten_vi_thuoc: ten }],
+              nhom_nho_candidates: candidates,
+            })
+            .catch((err) => {
+              console.warn('Classify nhóm AI lỗi:', err?.message ?? err)
+              return null
+            })
+        : Promise.resolve(null),
+    ])
+
+    const d = generalRes?.data
     if (!d) throw new Error('AI không trả về dữ liệu')
     if (d.tinh) vtForm.value.tinh = d.tinh
     if (d.vi) vtForm.value.vi = d.vi
@@ -1749,6 +1897,16 @@ async function suggestViThuocAi() {
       vtForm.value.kinh_mach_ids = Array.from(merged)
     }
     vtAiUnmatched.value = Array.isArray(d.kinh_mach_unmatched) ? d.kinh_mach_unmatched : []
+
+    const classified = classifyRes?.data?.[0]
+    if (classified && classified.id_nhom_nho != null) {
+      const id = classified.id_nhom_nho
+      if (!vtForm.value.nhom_nho_ids.includes(id)) {
+        vtForm.value.nhom_nho_ids = [...vtForm.value.nhom_nho_ids, id]
+      }
+      vtAiSuggestedNhomNhoId.value = id
+      vtAiNhomLyDo.value = classified.ly_do ?? ''
+    }
   } catch (err: any) {
     vtFormError.value = 'Gợi ý AI thất bại: ' + (err?.message ?? err)
   } finally {
@@ -1964,6 +2122,33 @@ async function suggestViThuocAi() {
             />
             <button v-if="viThuocSearch" type="button" class="search-clear" @click="viThuocSearch = ''" aria-label="Xóa tìm kiếm">✕</button>
           </div>
+          <select
+            v-model="viFilterNhomLonId"
+            class="filter-select"
+            aria-label="Lọc theo nhóm lớn dược lý"
+          >
+            <option :value="null">Tất cả nhóm lớn</option>
+            <option v-for="nl in allNhomLonOptions" :key="nl.id" :value="nl.id">
+              {{ nl.ten_nhom }}
+            </option>
+          </select>
+          <select
+            v-model="viFilterNhomNhoId"
+            class="filter-select"
+            aria-label="Lọc theo nhóm nhỏ dược lý"
+            :disabled="allNhomNhoOptions.length === 0"
+          >
+            <option :value="null">Tất cả nhóm nhỏ</option>
+            <option v-for="nn in allNhomNhoOptions" :key="nn.id" :value="nn.id">
+              {{ nn.ten_nhom }}
+            </option>
+          </select>
+          <button
+            v-if="viFilterNhomLonId != null || viFilterNhomNhoId != null"
+            type="button"
+            class="filter-clear"
+            @click="clearViThuocFilters"
+          >Bỏ lọc</button>
           <span class="toolbar-count">{{ filteredViThuoc.length }} / {{ viThuocList.length }} vị thuốc</span>
         </div>
         <div class="data-card">
@@ -2338,7 +2523,33 @@ async function suggestViThuocAi() {
               <span v-if="vtAiLoading">⏳ Đang gợi ý…</span>
               <span v-else>✨ Gợi ý AI</span>
             </button>
-            <span class="vt-ai-hint">AI sẽ điền Tính / Vị / Quy kinh dựa trên tên vị thuốc.</span>
+            <span class="vt-ai-hint">AI điền Tính / Vị / Quy kinh + gợi ý Nhóm dược lý.</span>
+          </div>
+
+          <div v-if="vtForm.nhom_nho_ids.length || vtAiSuggestedNhomNhoId != null" class="vt-nhom-card">
+            <div class="vt-nhom-head">
+              <span class="vt-nhom-label">Nhóm dược lý ({{ vtForm.nhom_nho_ids.length }})</span>
+            </div>
+            <div class="vt-nhom-chips">
+              <span
+                v-for="id in vtForm.nhom_nho_ids"
+                :key="id"
+                class="vt-nhom-chip"
+                :class="{ 'vt-nhom-chip--ai': id === vtAiSuggestedNhomNhoId }"
+              >
+                <span v-if="id === vtAiSuggestedNhomNhoId" class="vt-ai-badge-mini">🤖</span>
+                {{ nhomNhoFullLabel(id) }}
+                <button
+                  type="button"
+                  class="vt-nhom-x"
+                  title="Bỏ nhóm này"
+                  @click="removeVtNhomNho(id)"
+                >×</button>
+              </span>
+            </div>
+            <p v-if="vtAiNhomLyDo && vtAiSuggestedNhomNhoId != null" class="vt-ai-nhom-reason">
+              <strong>AI:</strong> {{ vtAiNhomLyDo }}
+            </p>
           </div>
 
           <div class="form-grid">
@@ -2634,6 +2845,36 @@ async function suggestViThuocAi() {
 .search-wrap { position: relative; flex: 1; min-width: 240px; max-width: 520px; }
 .search-input { width: 100%; padding: var(--space-2) 32px var(--space-2) var(--space-3); border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: var(--font-size-md); background: var(--white); }
 .search-input:focus { outline: none; border-color: var(--brown-500); box-shadow: 0 0 0 3px rgba(146, 64, 14, 0.1); }
+.filter-select {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--gray-800);
+  cursor: pointer;
+  min-width: 160px;
+  max-width: 240px;
+}
+.filter-select:focus {
+  outline: none;
+  border-color: var(--brown-500);
+  box-shadow: 0 0 0 3px rgba(146, 64, 14, 0.1);
+}
+.filter-select:disabled { opacity: 0.55; cursor: not-allowed; background: var(--gray-50); }
+.filter-clear {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  border: 1px solid var(--brown-200);
+  border-radius: var(--radius-md);
+  background: var(--brown-50);
+  color: var(--brown-700);
+  cursor: pointer;
+  transition: all .12s;
+}
+.filter-clear:hover { background: var(--brown-100); border-color: var(--brown-300); }
 .search-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; background: var(--gray-100); border: none; border-radius: 50%; color: var(--gray-600); cursor: pointer; font-size: 12px; }
 .search-clear:hover { background: var(--gray-200); color: var(--gray-800); }
 .toolbar-count { font-size: var(--font-size-sm); color: var(--gray-500); font-weight: 600; }
@@ -2918,6 +3159,82 @@ async function suggestViThuocAi() {
 .btn-ai:hover:not(:disabled) { filter: brightness(1.08); }
 .btn-ai:disabled { opacity: 0.6; cursor: not-allowed; }
 .vt-ai-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-2) var(--space-3); background: #f5f3ff; border: 1px dashed #c4b5fd; border-radius: var(--radius-md); margin-bottom: var(--space-3); }
+
+.vt-nhom-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px var(--space-3);
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+}
+.vt-nhom-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.vt-nhom-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+}
+.vt-nhom-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vt-nhom-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 10px;
+  border-radius: 999px;
+  background: var(--brown-50);
+  color: var(--brown-800);
+  border: 1px solid var(--brown-200);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+.vt-nhom-chip--ai {
+  background: linear-gradient(135deg, #ede9fe, #f5f3ff);
+  color: #6d28d9;
+  border-color: #c4b5fd;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
+}
+.vt-ai-badge-mini {
+  font-size: 11px;
+  line-height: 1;
+}
+.vt-nhom-x {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  border: 0;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  color: inherit;
+}
+.vt-nhom-x:hover { background: rgba(0, 0, 0, 0.18); }
+.vt-ai-nhom-reason {
+  margin: 0;
+  font-size: 12px;
+  color: #6d28d9;
+  background: #faf5ff;
+  border-left: 3px solid #a78bfa;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  line-height: 1.45;
+}
+.vt-ai-nhom-reason strong { color: #5b21b6; }
 .vt-ai-hint { font-size: var(--font-size-xs); color: var(--gray-600); }
 .vt-km-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; background: var(--gray-50); border-radius: var(--radius-md); min-height: 36px; margin-bottom: 6px; }
 .vt-km-empty { color: var(--gray-400); font-size: var(--font-size-xs); padding: 4px 6px; }
