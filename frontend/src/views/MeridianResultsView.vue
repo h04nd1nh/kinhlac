@@ -113,6 +113,20 @@ function phuongHuyetKinhMach(row: PhacDoApiRow): string {
   return k.ten_kinh_mach || k.ten_viet_tat || ''
 }
 
+const PHUONG_HUYET_NOTE_TRUNCATE_LEN = 60
+const expandedPhuongHuyetNotes = ref<Set<number>>(new Set())
+
+function isLongPhuongHuyetNote(s: string | null | undefined): boolean {
+  return !!s && s.length > PHUONG_HUYET_NOTE_TRUNCATE_LEN
+}
+
+function togglePhuongHuyetNote(id: number) {
+  const next = new Set(expandedPhuongHuyetNotes.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedPhuongHuyetNotes.value = next
+}
+
 const modernSyndromesList = computed(() => {
   return examination.value?.modernSyndromes || []
 })
@@ -846,7 +860,18 @@ function footerDiffClassMerged() {
                     <span v-else class="muted">—</span>
                   </div>
                   <div class="st-col st-col--note">
-                    <span v-if="row.ghi_chu_ky_thuat">{{ row.ghi_chu_ky_thuat }}</span>
+                    <template v-if="row.ghi_chu_ky_thuat">
+                      <span
+                        class="ph-note-text"
+                        :class="{ 'ph-note-text--expanded': expandedPhuongHuyetNotes.has(row.idPhacDo) }"
+                      >{{ row.ghi_chu_ky_thuat }}</span>
+                      <button
+                        v-if="isLongPhuongHuyetNote(row.ghi_chu_ky_thuat)"
+                        type="button"
+                        class="ph-note-toggle"
+                        @click="togglePhuongHuyetNote(row.idPhacDo)"
+                      >{{ expandedPhuongHuyetNotes.has(row.idPhacDo) ? 'thu gọn' : 'xem thêm' }}</button>
+                    </template>
                     <span v-else class="muted">—</span>
                   </div>
                 </div>
@@ -1189,6 +1214,33 @@ function footerDiffClassMerged() {
   line-height: 1.4;
 }
 .muted { color: var(--gray-400); font-style: italic; }
+
+.ph-note-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.ph-note-text--expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.ph-note-toggle {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--brown-700);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.ph-note-toggle:hover { color: var(--brown-800); }
 
 .bai-thuoc-grid {
   display: flex;
