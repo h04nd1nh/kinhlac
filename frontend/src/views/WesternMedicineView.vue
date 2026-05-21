@@ -590,25 +590,11 @@ async function doDelete() {
 
                 <section v-if="phapTriCombined(bty).length" class="disease-section">
                   <span class="disease-section__label">Pháp trị ({{ phapTriCombined(bty).length }})</span>
-                  <table class="pt-tbl">
-                    <thead>
-                      <tr>
-                        <th>Pháp trị</th>
-                        <th>Thể bệnh</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="p in phapTriCombined(bty)" :key="p.id">
-                        <td>
-                          <span class="chip chip-phap">{{ phapTriLabel(p) }}</span>
-                        </td>
-                        <td>
-                          <span v-if="p.chung_trang" class="chip chip-the">{{ p.chung_trang }}</span>
-                          <span v-else class="muted">—</span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <div class="chip-row chip-row--wrap">
+                    <span v-for="p in phapTriCombined(bty)" :key="p.id" class="chip chip-phap">
+                      {{ phapTriLabel(p) }}
+                    </span>
+                  </div>
                 </section>
 
                 <section v-if="bty.trieuChungList?.length" class="disease-section">
