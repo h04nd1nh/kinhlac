@@ -953,6 +953,7 @@ interface AnalysisVtRow {
 
 interface AnalysisResult {
   empty: boolean
+  idBaiThuoc: number
   ten: string
   W: number
   quyKinhNorm: Record<string, number>
@@ -1199,6 +1200,7 @@ function analyzeBaiThuoc(bt: BaiThuoc): AnalysisResult {
   if (empty) {
     return {
       empty: true,
+      idBaiThuoc: bt.id,
       ten: bt.ten_bai_thuoc,
       W: 0,
       quyKinhNorm: {},
@@ -1297,6 +1299,7 @@ function analyzeBaiThuoc(bt: BaiThuoc): AnalysisResult {
 
   return {
     empty: false,
+    idBaiThuoc: bt.id,
     ten: bt.ten_bai_thuoc,
     W,
     quyKinhNorm,
@@ -2796,6 +2799,17 @@ async function suggestViThuocAi() {
                     >{{ t }}</span>
                   </div>
                   <div v-else class="ana-muted">Chưa có kiêng kỵ từ các vị thuốc trong bài.</div>
+
+                  <div class="ana-sub-title">Bệnh tây y</div>
+                  <div v-if="benhTayYLabelsForBaiThuoc(anaResult.idBaiThuoc).length" class="ana-chip-row">
+                    <span
+                      v-for="bty in benhTayYLabelsForBaiThuoc(anaResult.idBaiThuoc)"
+                      :key="'bty-' + bty.id"
+                      class="ana-chip ana-chip-tayy"
+                      :title="bty.chungBenh?.ten_chung_benh ? `Chủng bệnh: ${bty.chungBenh.ten_chung_benh}` : ''"
+                    >{{ bty.ten_benh }}</span>
+                  </div>
+                  <div v-else class="ana-muted">Bài thuốc chưa được gán bệnh tây y.</div>
                 </div>
               </div>
 
@@ -3627,5 +3641,6 @@ async function suggestViThuocAi() {
 .ana-chip-cong { border-color: #D4C5A0; background: #F5F0E8; color: #5B3A1A; }
 .ana-chip-kk { border-color: #E8A598; background: #FDF5F3; color: #7A2E23; }
 .ana-chip-tacdung { border-color: #C49A6C; background: #FAEBD8; color: #5B3A1A; }
+.ana-chip-tayy { border-color: #f5d0fe; background: #fdf4ff; color: #86198f; }
 .ana-sub-hint { font-weight: 400; color: var(--gray-400); font-size: 10px; }
 </style>
