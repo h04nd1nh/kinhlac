@@ -895,7 +895,7 @@ async function handleDelete() {
   gap: 6px;
   padding: 4px 8px;
   background: #fdf4ff;
-  border: 1px dashed #f5d0fe;
+  border: 1px solid #f5d0fe;
   border-radius: var(--radius-md);
   max-width: 100%;
 }
