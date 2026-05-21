@@ -91,6 +91,24 @@ function benhTayYForPhapTri(ptId: number): BenhTayYLite[] {
   return benhTayYByPhapTri.value.get(ptId) ?? []
 }
 
+interface BenhTayYGroup {
+  key: string
+  chungBenhName: string
+  items: BenhTayYLite[]
+}
+
+function benhTayYGroupsForPhapTri(ptId: number): BenhTayYGroup[] {
+  const groups = new Map<string, BenhTayYGroup>()
+  for (const bty of benhTayYForPhapTri(ptId)) {
+    const name = bty.chungBenh?.ten_chung_benh?.trim() || 'Khác'
+    const key = bty.chungBenh?.id != null ? `cb-${bty.chungBenh.id}` : `name-${name.toLowerCase()}`
+    const g = groups.get(key) ?? { key, chungBenhName: name, items: [] }
+    g.items.push(bty)
+    groups.set(key, g)
+  }
+  return Array.from(groups.values()).sort((a, b) => a.chungBenhName.localeCompare(b.chungBenhName, 'vi'))
+}
+
 const kinhMachSearch = ref('')
 const trieuChungSearch = ref('')
 const baiThuocSearch = ref('')
@@ -434,15 +452,23 @@ async function handleDelete() {
               <div class="disease-card__title">
                 <span class="disease-card__id">#{{ item.id }}</span>
                 <h4 class="disease-card__name">{{ item.chung_trang || 'Pháp trị #' + item.id }}</h4>
-                <div v-if="benhTayYForPhapTri(item.id).length" class="chip-row chip-row--wrap chip-row--inline">
-                  <span
-                    v-for="bty in benhTayYForPhapTri(item.id)"
-                    :key="bty.id"
-                    class="chip chip-tayy"
-                    :title="bty.chungBenh?.ten_chung_benh ? `Chủng bệnh: ${bty.chungBenh.ten_chung_benh}` : ''"
+                <div v-if="benhTayYGroupsForPhapTri(item.id).length" class="bty-inline">
+                  <div
+                    v-for="g in benhTayYGroupsForPhapTri(item.id)"
+                    :key="g.key"
+                    class="bty-group"
                   >
-                    {{ bty.ten_benh }}
-                  </span>
+                    <span class="bty-group__label">{{ g.chungBenhName }}</span>
+                    <div class="chip-row chip-row--wrap chip-row--inline">
+                      <span
+                        v-for="bty in g.items"
+                        :key="bty.id"
+                        class="chip chip-tayy"
+                      >
+                        {{ bty.ten_benh }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="row-actions">
@@ -855,6 +881,33 @@ async function handleDelete() {
 }
 .chip-row--inline { gap: 4px; }
 .chip-row--inline .chip { white-space: normal; word-break: break-word; }
+.bty-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1 1 100%;
+  min-width: 0;
+  margin-top: 2px;
+}
+.bty-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #fdf4ff;
+  border: 1px dashed #f5d0fe;
+  border-radius: var(--radius-md);
+  max-width: 100%;
+}
+.bty-group__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #86198f;
+  white-space: nowrap;
+}
+.bty-group .chip-row { flex: 1 1 auto; min-width: 0; }
 .disease-card__id {
   flex: 0 0 auto;
   font-size: 11px;
