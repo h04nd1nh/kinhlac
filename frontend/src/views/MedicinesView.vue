@@ -2114,9 +2114,7 @@ async function suggestViThuocAi() {
                 </section>
 
                 <section v-if="benhTayYLabelsForBaiThuoc(bt.id).length" class="bt-section">
-                  <span class="bt-section__label">
-                    Bệnh tây y ({{ benhTayYLabelsForBaiThuoc(bt.id).length }})
-                  </span>
+                  <span class="bt-section__label">Bệnh tây y</span>
                   <div class="chip-row chip-row--wrap">
                     <span
                       v-for="bty in benhTayYLabelsForBaiThuoc(bt.id)"
