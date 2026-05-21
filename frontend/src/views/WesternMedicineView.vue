@@ -902,12 +902,12 @@ async function doDelete() {
 
 .disease-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
   background: #fdfbf9;
 }
-.disease-grid--sm { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.disease-grid--sm { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
 
 .disease-card {
   display: flex;
@@ -1052,9 +1052,20 @@ async function doDelete() {
 .muted { color: var(--gray-400); font-style: italic; }
 .mt-4 { margin-top: 1rem !important; }
 
+@media (max-width: 900px) {
+  .page-header { flex-direction: column; align-items: stretch; gap: var(--space-3); }
+  .view-toggle { align-self: flex-start; }
+  .toolbar { gap: var(--space-2); }
+  .search-wrap { min-width: 0; flex: 1 1 100%; }
+  .disease-card__head { flex-wrap: wrap; }
+  .row-actions { flex: 1 1 100%; justify-content: flex-end; }
+}
 @media (max-width: 640px) {
   .form-grid { grid-template-columns: 1fr; }
   .field--full { grid-column: 1; }
-  .page-header { flex-direction: column; align-items: flex-start; }
+  .disease-grid, .disease-grid--sm { padding: var(--space-3); }
+  .card-header { padding: var(--space-3) var(--space-4); }
+  .modal { max-height: 95vh; }
+  .modal-body { padding: var(--space-4); }
 }
 </style>
