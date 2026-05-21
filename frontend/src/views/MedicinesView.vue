@@ -132,6 +132,31 @@ interface NhomNhoLite {
 }
 const nhomNhoList = ref<NhomNhoLite[]>([])
 
+interface BenhTayYLite {
+  id: number
+  ten_benh: string
+  chungBenh?: { id: number; ten_chung_benh: string } | null
+  baiThuocList?: Array<{ id: number }> | null
+}
+const benhTayYList = ref<BenhTayYLite[]>([])
+
+/** Reverse map: bai_thuoc.id → danh sách BenhTayY có gắn bài thuốc đó. */
+const benhTayYByBaiThuoc = computed<Map<number, BenhTayYLite[]>>(() => {
+  const m = new Map<number, BenhTayYLite[]>()
+  for (const bty of benhTayYList.value) {
+    for (const bt of bty.baiThuocList ?? []) {
+      const list = m.get(bt.id) ?? []
+      list.push(bty)
+      m.set(bt.id, list)
+    }
+  }
+  return m
+})
+
+function benhTayYLabelsForBaiThuoc(btId: number): BenhTayYLite[] {
+  return benhTayYByBaiThuoc.value.get(btId) ?? []
+}
+
 // Pagination
 const itemsPerPage = ref(10)
 const baiThuocPage = ref(1)
@@ -365,13 +390,14 @@ async function fetchData() {
   isLoading.value = true
   error.value = null
   try {
-    const [btRes, vtRes, ptRes, tcRes, nnRes, kmRes] = await Promise.all([
+    const [btRes, vtRes, ptRes, tcRes, nnRes, kmRes, btyRes] = await Promise.all([
       api.get<any>('/bai-thuoc'),
       api.get<any>('/vi-thuoc'),
       api.get<any>('/phap-tri'),
       api.get<any>('/trieu-chung'),
       api.get<any>('/nhom-nho-duoc-ly'),
       api.get<any>('/kinh-mach'),
+      api.get<any>('/benh-tay-y'),
     ])
     baiThuocList.value = Array.isArray(btRes) ? btRes : (btRes.data || [])
     viThuocList.value = Array.isArray(vtRes) ? vtRes : (vtRes.data || [])
@@ -379,6 +405,7 @@ async function fetchData() {
     trieuChungOptions.value = Array.isArray(tcRes) ? tcRes : (tcRes.data || [])
     nhomNhoList.value = Array.isArray(nnRes) ? nnRes : (nnRes.data || [])
     kinhMachList.value = Array.isArray(kmRes) ? kmRes : (kmRes.data || [])
+    benhTayYList.value = Array.isArray(btyRes) ? btyRes : (btyRes.data || [])
   } catch (err: any) {
     console.error(err)
     error.value = 'Lỗi khi tải dữ liệu: ' + err.message
@@ -2086,13 +2113,30 @@ async function suggestViThuocAi() {
                   </button>
                 </section>
 
+                <section v-if="benhTayYLabelsForBaiThuoc(bt.id).length" class="bt-section">
+                  <span class="bt-section__label">
+                    Bệnh tây y ({{ benhTayYLabelsForBaiThuoc(bt.id).length }})
+                  </span>
+                  <div class="chip-row chip-row--wrap">
+                    <span
+                      v-for="bty in benhTayYLabelsForBaiThuoc(bt.id)"
+                      :key="bty.id"
+                      class="chip chip-tayy"
+                      :title="bty.chungBenh?.ten_chung_benh ? `Chủng bệnh: ${bty.chungBenh.ten_chung_benh}` : ''"
+                    >
+                      {{ bty.ten_benh }}
+                    </span>
+                  </div>
+                </section>
+
                 <p
                   v-if="
                     !theBenhLabels(bt).length &&
                     !phapTriLabels(bt).length &&
                     !trieuChungLabels(bt).length &&
                     !bt.cach_dung &&
-                    !thanhPhanItems(bt).length
+                    !thanhPhanItems(bt).length &&
+                    !benhTayYLabelsForBaiThuoc(bt.id).length
                   "
                   class="bt-empty muted"
                 >
@@ -2915,6 +2959,7 @@ async function suggestViThuocAi() {
 .chip-phap { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
 .chip-the { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
 .chip-trieu { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.chip-tayy { background: #fdf4ff; color: #86198f; border-color: #f5d0fe; }
 .muted { color: var(--gray-400); font-style: italic; }
 
 .thanh-phan-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
