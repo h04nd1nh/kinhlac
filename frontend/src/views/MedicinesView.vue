@@ -2761,12 +2761,24 @@ async function suggestViThuocAi() {
 
                 <div class="ana-card">
                   <div class="ana-section-title">5) Tổng hợp</div>
-                  <div v-if="anaResult.chungTrangBaiThuoc" class="ana-chip-row">
+                  <div
+                    v-if="
+                      anaResult.chungTrangBaiThuoc ||
+                      benhTayYLabelsForBaiThuoc(anaResult.idBaiThuoc).length
+                    "
+                    class="ana-chip-row"
+                  >
                     <span
                       v-for="(p, i) in anaResult.chungTrangBaiThuoc.split(/[,;]+/).map(s => s.trim()).filter(Boolean)"
                       :key="'pt-' + i"
                       class="ana-chip ana-chip-phap"
                     >{{ p }}</span>
+                    <span
+                      v-for="bty in benhTayYLabelsForBaiThuoc(anaResult.idBaiThuoc)"
+                      :key="'bty-' + bty.id"
+                      class="ana-chip ana-chip-tayy"
+                      :title="bty.chungBenh?.ten_chung_benh ? `Chủng bệnh: ${bty.chungBenh.ten_chung_benh}` : ''"
+                    >{{ bty.ten_benh }}</span>
                   </div>
                   <div v-else class="ana-muted">Chưa gán chứng trạng.</div>
 
@@ -2799,17 +2811,6 @@ async function suggestViThuocAi() {
                     >{{ t }}</span>
                   </div>
                   <div v-else class="ana-muted">Chưa có kiêng kỵ từ các vị thuốc trong bài.</div>
-
-                  <div class="ana-sub-title">Bệnh tây y</div>
-                  <div v-if="benhTayYLabelsForBaiThuoc(anaResult.idBaiThuoc).length" class="ana-chip-row">
-                    <span
-                      v-for="bty in benhTayYLabelsForBaiThuoc(anaResult.idBaiThuoc)"
-                      :key="'bty-' + bty.id"
-                      class="ana-chip ana-chip-tayy"
-                      :title="bty.chungBenh?.ten_chung_benh ? `Chủng bệnh: ${bty.chungBenh.ten_chung_benh}` : ''"
-                    >{{ bty.ten_benh }}</span>
-                  </div>
-                  <div v-else class="ana-muted">Bài thuốc chưa được gán bệnh tây y.</div>
                 </div>
               </div>
 
@@ -2871,6 +2872,7 @@ async function suggestViThuocAi() {
                 </div>
               </div>
             </div>
+
           </template>
           <div v-else class="ana-empty">Bài thuốc chưa có vị thuốc nào để phân tích.</div>
         </div>
