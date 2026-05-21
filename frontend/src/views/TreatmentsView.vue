@@ -18,6 +18,17 @@ interface BaiThuocLite {
   ten_bai_thuoc: string
 }
 
+interface BenhTayYLite {
+  id: number
+  ten_benh: string
+  chungBenh?: { id: number; ten_chung_benh: string } | null
+  phapTriList?: Array<{ id: number }> | null
+  baiThuocList?: Array<{
+    id: number
+    phapTriLinks?: Array<{ idPhapTri: number }> | null
+  }> | null
+}
+
 interface BaiThuocPhapTriLink {
   idBaiThuoc: number
   idPhapTri: number
@@ -56,6 +67,29 @@ const searchQuery = ref('')
 const kinhMachOptions = ref<KinhMachLite[]>([])
 const trieuChungOptions = ref<TrieuChungLite[]>([])
 const baiThuocOptions = ref<BaiThuocLite[]>([])
+const benhTayYList = ref<BenhTayYLite[]>([])
+
+const benhTayYByPhapTri = computed<Map<number, BenhTayYLite[]>>(() => {
+  const m = new Map<number, BenhTayYLite[]>()
+  const add = (ptId: number, bty: BenhTayYLite) => {
+    if (!Number.isFinite(ptId)) return
+    const list = m.get(ptId) ?? []
+    if (list.some((b) => b.id === bty.id)) return
+    list.push(bty)
+    m.set(ptId, list)
+  }
+  for (const bty of benhTayYList.value) {
+    for (const pt of bty.phapTriList ?? []) add(pt.id, bty)
+    for (const bt of bty.baiThuocList ?? []) {
+      for (const link of bt.phapTriLinks ?? []) add(link.idPhapTri, bty)
+    }
+  }
+  return m
+})
+
+function benhTayYForPhapTri(ptId: number): BenhTayYLite[] {
+  return benhTayYByPhapTri.value.get(ptId) ?? []
+}
 
 const kinhMachSearch = ref('')
 const trieuChungSearch = ref('')
@@ -94,7 +128,13 @@ const currentPage = ref(1)
 const itemsPerPage = ref(10)
 
 onMounted(async () => {
-  await Promise.all([fetchData(), fetchKinhMach(), fetchTrieuChung(), fetchBaiThuoc()])
+  await Promise.all([
+    fetchData(),
+    fetchKinhMach(),
+    fetchTrieuChung(),
+    fetchBaiThuoc(),
+    fetchBenhTayY(),
+  ])
 })
 
 watch(searchQuery, () => {
@@ -142,6 +182,15 @@ async function fetchBaiThuoc() {
   }
 }
 
+async function fetchBenhTayY() {
+  try {
+    const res: any = await api.get('/benh-tay-y')
+    benhTayYList.value = Array.isArray(res) ? res : res?.data ?? []
+  } catch (err) {
+    console.error('Không tải được danh sách bệnh tây y', err)
+  }
+}
+
 const filteredList = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return dataList.value
@@ -153,6 +202,7 @@ const filteredList = computed(() => {
       row.luc_kinh,
       (row.kinh_mach_list ?? []).map((k) => k.ten_kinh_mach || k.ten_viet_tat || '').join(' '),
       (row.bai_thuoc_links ?? []).map((l) => l.baiThuoc?.ten_bai_thuoc || '').join(' '),
+      benhTayYForPhapTri(row.id).map((b) => b.ten_benh).join(' '),
     ]
       .filter(Boolean)
       .join(' ')
@@ -365,7 +415,7 @@ async function handleDelete() {
             v-model="searchQuery"
             type="search"
             class="search-input"
-            placeholder="Tìm theo Tạng phủ, Thể bệnh, Pháp trị, Triệu chứng, Bài thuốc, Lục kinh..."
+            placeholder="Tìm theo Tạng phủ, Thể bệnh, Pháp trị, Triệu chứng, Bài thuốc, Bệnh tây y, Lục kinh..."
           />
         </div>
         <div class="toolbar-count">{{ filteredList.length }} / {{ dataList.length }} pháp trị</div>
@@ -384,6 +434,16 @@ async function handleDelete() {
               <div class="disease-card__title">
                 <span class="disease-card__id">#{{ item.id }}</span>
                 <h4 class="disease-card__name">{{ item.chung_trang || 'Pháp trị #' + item.id }}</h4>
+                <div v-if="benhTayYForPhapTri(item.id).length" class="chip-row chip-row--wrap chip-row--inline">
+                  <span
+                    v-for="bty in benhTayYForPhapTri(item.id)"
+                    :key="bty.id"
+                    class="chip chip-tayy"
+                    :title="bty.chungBenh?.ten_chung_benh ? `Chủng bệnh: ${bty.chungBenh.ten_chung_benh}` : ''"
+                  >
+                    {{ bty.ten_benh }}
+                  </span>
+                </div>
               </div>
               <div class="row-actions">
                 <button type="button" class="btn-action btn-edit" @click="openEditModal(item)">Sửa</button>
@@ -791,7 +851,10 @@ async function handleDelete() {
   gap: var(--space-2);
   min-width: 0;
   flex: 1;
+  flex-wrap: wrap;
 }
+.chip-row--inline { gap: 4px; }
+.chip-row--inline .chip { white-space: normal; word-break: break-word; }
 .disease-card__id {
   flex: 0 0 auto;
   font-size: 11px;
@@ -867,6 +930,7 @@ async function handleDelete() {
 .chip-trieu { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 .chip-bai { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
 .chip-luckinh { background: #fce7f3; color: #9d174d; border-color: #f9a8d4; }
+.chip-tayy { background: #fdf4ff; color: #86198f; border-color: #f5d0fe; }
 .muted { color: var(--gray-400); font-style: italic; }
 
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }

@@ -2059,7 +2059,7 @@ async function suggestViThuocAi() {
                   class="bt-section-row"
                 >
                   <section v-if="theBenhLabels(bt).length" class="bt-section bt-section--col">
-                    <span class="bt-section__label">Thể bệnh</span>
+                    <span class="bt-section__label">Bệnh Đông Y</span>
                     <div class="chip-row chip-row--wrap">
                       <span v-for="(t, i) in theBenhLabels(bt)" :key="i" class="chip chip-the">{{ t }}</span>
                     </div>
