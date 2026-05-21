@@ -157,6 +157,24 @@ function benhTayYLabelsForBaiThuoc(btId: number): BenhTayYLite[] {
   return benhTayYByBaiThuoc.value.get(btId) ?? []
 }
 
+interface BenhTayYGroup {
+  key: string
+  chungBenhName: string
+  items: BenhTayYLite[]
+}
+
+function benhTayYGroupsForBaiThuoc(btId: number): BenhTayYGroup[] {
+  const groups = new Map<string, BenhTayYGroup>()
+  for (const bty of benhTayYLabelsForBaiThuoc(btId)) {
+    const name = bty.chungBenh?.ten_chung_benh?.trim() || 'Khác'
+    const key = bty.chungBenh?.id != null ? `cb-${bty.chungBenh.id}` : `name-${name.toLowerCase()}`
+    const g = groups.get(key) ?? { key, chungBenhName: name, items: [] }
+    g.items.push(bty)
+    groups.set(key, g)
+  }
+  return Array.from(groups.values()).sort((a, b) => a.chungBenhName.localeCompare(b.chungBenhName, 'vi'))
+}
+
 // Pagination
 const itemsPerPage = ref(10)
 const baiThuocPage = ref(1)
@@ -2067,15 +2085,23 @@ async function suggestViThuocAi() {
 
                   <section v-if="benhTayYLabelsForBaiThuoc(bt.id).length" class="bt-section bt-section--col">
                     <span class="bt-section__label">Bệnh tây y</span>
-                    <div class="chip-row chip-row--wrap">
-                      <span
-                        v-for="bty in benhTayYLabelsForBaiThuoc(bt.id)"
-                        :key="bty.id"
-                        class="chip chip-tayy"
-                        :title="bty.chungBenh?.ten_chung_benh ? `Chủng bệnh: ${bty.chungBenh.ten_chung_benh}` : ''"
+                    <div class="bty-groups">
+                      <div
+                        v-for="g in benhTayYGroupsForBaiThuoc(bt.id)"
+                        :key="g.key"
+                        class="bty-group"
                       >
-                        {{ bty.ten_benh }}
-                      </span>
+                        <span class="bty-group__label">{{ g.chungBenhName }}</span>
+                        <div class="chip-row chip-row--wrap">
+                          <span
+                            v-for="bty in g.items"
+                            :key="bty.id"
+                            class="chip chip-tayy"
+                          >
+                            {{ bty.ten_benh }}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </section>
                 </div>
@@ -3076,6 +3102,31 @@ async function suggestViThuocAi() {
 @media (max-width: 640px) {
   .bt-section-row { grid-template-columns: 1fr; }
 }
+
+.bty-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bty-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #fdf4ff;
+  border: 1px solid #f5d0fe;
+  border-radius: var(--radius-md);
+  max-width: 100%;
+}
+.bty-group__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #86198f;
+  white-space: nowrap;
+}
+.bty-group .chip-row { flex: 1 1 auto; min-width: 0; }
 .bt-section__label {
   font-size: 11px;
   font-weight: 700;
