@@ -2054,12 +2054,31 @@ async function suggestViThuocAi() {
               </header>
 
               <div class="bt-card__body">
-                <section v-if="theBenhLabels(bt).length" class="bt-section">
-                  <span class="bt-section__label">Thể bệnh</span>
-                  <div class="chip-row chip-row--wrap">
-                    <span v-for="(t, i) in theBenhLabels(bt)" :key="i" class="chip chip-the">{{ t }}</span>
-                  </div>
-                </section>
+                <div
+                  v-if="theBenhLabels(bt).length || benhTayYLabelsForBaiThuoc(bt.id).length"
+                  class="bt-section-row"
+                >
+                  <section v-if="theBenhLabels(bt).length" class="bt-section bt-section--col">
+                    <span class="bt-section__label">Thể bệnh</span>
+                    <div class="chip-row chip-row--wrap">
+                      <span v-for="(t, i) in theBenhLabels(bt)" :key="i" class="chip chip-the">{{ t }}</span>
+                    </div>
+                  </section>
+
+                  <section v-if="benhTayYLabelsForBaiThuoc(bt.id).length" class="bt-section bt-section--col">
+                    <span class="bt-section__label">Bệnh tây y</span>
+                    <div class="chip-row chip-row--wrap">
+                      <span
+                        v-for="bty in benhTayYLabelsForBaiThuoc(bt.id)"
+                        :key="bty.id"
+                        class="chip chip-tayy"
+                        :title="bty.chungBenh?.ten_chung_benh ? `Chủng bệnh: ${bty.chungBenh.ten_chung_benh}` : ''"
+                      >
+                        {{ bty.ten_benh }}
+                      </span>
+                    </div>
+                  </section>
+                </div>
 
                 <section v-if="phapTriLabels(bt).length" class="bt-section">
                   <span class="bt-section__label">Pháp trị</span>
@@ -2114,20 +2133,6 @@ async function suggestViThuocAi() {
                         : `Xem thêm ${thanhPhanItems(bt).length - THANH_PHAN_PREVIEW_LIMIT} vị nữa`
                     }}
                   </button>
-                </section>
-
-                <section v-if="benhTayYLabelsForBaiThuoc(bt.id).length" class="bt-section">
-                  <span class="bt-section__label">Bệnh tây y</span>
-                  <div class="chip-row chip-row--wrap">
-                    <span
-                      v-for="bty in benhTayYLabelsForBaiThuoc(bt.id)"
-                      :key="bty.id"
-                      class="chip chip-tayy"
-                      :title="bty.chungBenh?.ten_chung_benh ? `Chủng bệnh: ${bty.chungBenh.ten_chung_benh}` : ''"
-                    >
-                      {{ bty.ten_benh }}
-                    </span>
-                  </div>
                 </section>
 
                 <p
@@ -3061,6 +3066,16 @@ async function suggestViThuocAi() {
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
 .bt-section { display: flex; flex-direction: column; gap: 6px; }
+.bt-section-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  align-items: start;
+}
+.bt-section-row .bt-section--col { min-width: 0; }
+@media (max-width: 640px) {
+  .bt-section-row { grid-template-columns: 1fr; }
+}
 .bt-section__label {
   font-size: 11px;
   font-weight: 700;
