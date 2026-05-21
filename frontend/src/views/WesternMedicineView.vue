@@ -160,6 +160,41 @@ const chungBenhMap = computed(() => {
   return m
 })
 
+function theBenhFromBaiThuoc(bty: BenhTayY): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const b of bty.baiThuocList ?? []) {
+    if (!b.the_benh) continue
+    for (const raw of b.the_benh.split(/[,;]+/)) {
+      const t = raw.trim()
+      if (!t) continue
+      const key = t.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push(t)
+    }
+  }
+  return out
+}
+
+function phapTriCombined(bty: BenhTayY): PhapTriLite[] {
+  const seen = new Set<number>()
+  const out: PhapTriLite[] = []
+  for (const p of bty.phapTriList ?? []) {
+    if (seen.has(p.id)) continue
+    seen.add(p.id)
+    out.push(p)
+  }
+  for (const b of bty.baiThuocList ?? []) {
+    for (const l of b.phapTriLinks ?? []) {
+      if (!l.phapTri || seen.has(l.phapTri.id)) continue
+      seen.add(l.phapTri.id)
+      out.push(l.phapTri)
+    }
+  }
+  return out
+}
+
 const benhTayYCountByChungBenh = computed(() => {
   const m = new Map<number, number>()
   for (const b of benhTayYList.value) m.set(b.idChungBenh, (m.get(b.idChungBenh) ?? 0) + 1)
@@ -530,40 +565,28 @@ async function doDelete() {
               <div class="disease-card__body">
                 <section v-if="bty.baiThuocList?.length" class="disease-section">
                   <span class="disease-section__label">Bài thuốc ({{ bty.baiThuocList.length }})</span>
-                  <div class="bt-mini-list">
-                    <div v-for="b in bty.baiThuocList" :key="b.id" class="bt-mini">
-                      <div class="bt-mini__head">
-                        <span class="chip chip-bai">{{ b.ten_bai_thuoc }}</span>
-                        <small v-if="b.nguon_goc" class="bt-mini__source">{{ b.nguon_goc }}</small>
-                      </div>
-                      <div v-if="b.the_benh" class="bt-mini__row">
-                        <span class="bt-mini__label">Thể bệnh:</span>
-                        <div class="chip-row chip-row--wrap">
-                          <span
-                            v-for="(tb, i) in b.the_benh.split(/[,;]+/).map((s) => s.trim()).filter(Boolean)"
-                            :key="'tb-' + b.id + '-' + i"
-                            class="chip chip-the"
-                          >{{ tb }}</span>
-                        </div>
-                      </div>
-                      <div v-if="b.phapTriLinks?.length" class="bt-mini__row">
-                        <span class="bt-mini__label">Pháp trị:</span>
-                        <div class="chip-row chip-row--wrap">
-                          <span
-                            v-for="(l, i) in b.phapTriLinks"
-                            :key="'pt-' + b.id + '-' + i"
-                            class="chip chip-phap"
-                          >{{ l.phapTri ? phapTriLabel(l.phapTri) : `#${l.idPhapTri}` }}</span>
-                        </div>
-                      </div>
-                    </div>
+                  <div class="chip-row chip-row--wrap">
+                    <span v-for="b in bty.baiThuocList" :key="b.id" class="chip chip-bai">
+                      {{ b.ten_bai_thuoc }}
+                    </span>
                   </div>
                 </section>
 
-                <section v-if="bty.phapTriList?.length" class="disease-section">
-                  <span class="disease-section__label">Pháp trị ({{ bty.phapTriList.length }})</span>
+                <section v-if="theBenhFromBaiThuoc(bty).length" class="disease-section">
+                  <span class="disease-section__label">Thể bệnh ({{ theBenhFromBaiThuoc(bty).length }})</span>
                   <div class="chip-row chip-row--wrap">
-                    <span v-for="p in bty.phapTriList" :key="p.id" class="chip chip-phap">
+                    <span
+                      v-for="(tb, i) in theBenhFromBaiThuoc(bty)"
+                      :key="'tb-' + i"
+                      class="chip chip-the"
+                    >{{ tb }}</span>
+                  </div>
+                </section>
+
+                <section v-if="phapTriCombined(bty).length" class="disease-section">
+                  <span class="disease-section__label">Pháp trị ({{ phapTriCombined(bty).length }})</span>
+                  <div class="chip-row chip-row--wrap">
+                    <span v-for="p in phapTriCombined(bty)" :key="p.id" class="chip chip-phap">
                       {{ phapTriLabel(p) }}
                     </span>
                   </div>
@@ -927,47 +950,6 @@ async function doDelete() {
 .chip-phap { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
 .chip-the { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
 
-.bt-mini-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.bt-mini {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 6px 10px;
-  background: #fffdf7;
-  border: 1px solid #fde68a;
-  border-radius: var(--radius-md);
-}
-.bt-mini__head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-.bt-mini__source {
-  font-size: 11px;
-  color: var(--gray-500);
-  font-style: italic;
-}
-.bt-mini__row {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.bt-mini__label {
-  flex: 0 0 auto;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--gray-500);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding-top: 3px;
-  min-width: 60px;
-}
 .chip-trieu { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
 .chip-thiet { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
 .chip-mach { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
