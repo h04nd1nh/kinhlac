@@ -995,7 +995,7 @@ async function handleDelete() {
   position: fixed; inset: 0;
   background: rgba(15, 23, 42, 0.45);
   display: flex; align-items: center; justify-content: center;
-  z-index: 50; padding: var(--space-4);
+  z-index: 200; padding: var(--space-4);
 }
 .modal {
   background: var(--white);

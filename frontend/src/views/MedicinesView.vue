@@ -3318,7 +3318,7 @@ async function suggestViThuocAi() {
 .btn-mini-danger:hover { background: #fee2e2; }
 
 /* Modal */
-.modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); display: flex; align-items: center; justify-content: center; z-index: 50; padding: var(--space-4); }
+.modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); display: flex; align-items: center; justify-content: center; z-index: 200; padding: var(--space-4); }
 .modal { background: var(--white); border-radius: var(--radius-xl); width: 100%; max-width: 560px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15); }
 .modal--wide { max-width: 880px; }
 .modal--sm { max-width: 440px; }
