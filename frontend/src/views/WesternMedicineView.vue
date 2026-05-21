@@ -160,19 +160,24 @@ const chungBenhMap = computed(() => {
   return m
 })
 
-function theBenhFromBaiThuoc(bty: BenhTayY): string[] {
+function theBenhCombined(bty: BenhTayY): string[] {
   const seen = new Set<string>()
   const out: string[] = []
-  for (const b of bty.baiThuocList ?? []) {
-    if (!b.the_benh) continue
-    for (const raw of b.the_benh.split(/[,;]+/)) {
-      const t = raw.trim()
+  const pushAll = (raw: string | null | undefined) => {
+    if (!raw) return
+    for (const part of raw.split(/[,;]+/)) {
+      const t = part.trim()
       if (!t) continue
       const key = t.toLowerCase()
       if (seen.has(key)) continue
       seen.add(key)
       out.push(t)
     }
+  }
+  for (const p of bty.phapTriList ?? []) pushAll(p.chung_trang)
+  for (const b of bty.baiThuocList ?? []) {
+    pushAll(b.the_benh)
+    for (const l of b.phapTriLinks ?? []) pushAll(l.phapTri?.chung_trang)
   }
   return out
 }
@@ -572,11 +577,11 @@ async function doDelete() {
                   </div>
                 </section>
 
-                <section v-if="theBenhFromBaiThuoc(bty).length" class="disease-section">
-                  <span class="disease-section__label">Thể bệnh ({{ theBenhFromBaiThuoc(bty).length }})</span>
+                <section v-if="theBenhCombined(bty).length" class="disease-section">
+                  <span class="disease-section__label">Thể bệnh ({{ theBenhCombined(bty).length }})</span>
                   <div class="chip-row chip-row--wrap">
                     <span
-                      v-for="(tb, i) in theBenhFromBaiThuoc(bty)"
+                      v-for="(tb, i) in theBenhCombined(bty)"
                       :key="'tb-' + i"
                       class="chip chip-the"
                     >{{ tb }}</span>
@@ -585,11 +590,25 @@ async function doDelete() {
 
                 <section v-if="phapTriCombined(bty).length" class="disease-section">
                   <span class="disease-section__label">Pháp trị ({{ phapTriCombined(bty).length }})</span>
-                  <div class="chip-row chip-row--wrap">
-                    <span v-for="p in phapTriCombined(bty)" :key="p.id" class="chip chip-phap">
-                      {{ phapTriLabel(p) }}
-                    </span>
-                  </div>
+                  <table class="pt-tbl">
+                    <thead>
+                      <tr>
+                        <th>Pháp trị</th>
+                        <th>Thể bệnh</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="p in phapTriCombined(bty)" :key="p.id">
+                        <td>
+                          <span class="chip chip-phap">{{ phapTriLabel(p) }}</span>
+                        </td>
+                        <td>
+                          <span v-if="p.chung_trang" class="chip chip-the">{{ p.chung_trang }}</span>
+                          <span v-else class="muted">—</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </section>
 
                 <section v-if="bty.trieuChungList?.length" class="disease-section">
@@ -597,15 +616,6 @@ async function doDelete() {
                   <div class="chip-row chip-row--wrap">
                     <span v-for="t in bty.trieuChungList" :key="t.id" class="chip chip-trieu">
                       {{ t.ten_trieu_chung }}
-                    </span>
-                  </div>
-                </section>
-
-                <section v-if="bty.thietChanList?.length" class="disease-section">
-                  <span class="disease-section__label">Thiệt chẩn</span>
-                  <div class="chip-row chip-row--wrap">
-                    <span v-for="t in bty.thietChanList" :key="t.id" class="chip chip-thiet">
-                      {{ t.ten_thiet_chan }}
                     </span>
                   </div>
                 </section>
@@ -949,6 +959,35 @@ async function doDelete() {
 .chip-bai { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
 .chip-phap { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
 .chip-the { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+
+.pt-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.pt-tbl thead th {
+  background: #fdfbf9;
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+  text-align: left;
+  border-bottom: 1px solid var(--gray-100);
+}
+.pt-tbl tbody td {
+  padding: 6px 10px;
+  vertical-align: middle;
+  font-size: var(--font-size-sm);
+  border-top: 1px solid var(--gray-100);
+  word-break: break-word;
+}
+.pt-tbl tbody tr:first-child td { border-top: 0; }
+.pt-tbl tbody tr:hover { background: #fdfbf9; }
 
 .chip-trieu { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
 .chip-thiet { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
