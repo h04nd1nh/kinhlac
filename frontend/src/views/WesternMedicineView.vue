@@ -1,6 +1,22 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/services/api'
+
+const route = useRoute()
+const router = useRouter()
+const highlightBtyId = ref<number | null>(null)
+
+function phapTriHref(id: number): string {
+  return router.resolve({ name: 'treatments', query: { ptId: id } }).href
+}
+
+function baiThuocHref(id: number): string {
+  return router.resolve({
+    name: 'medicines',
+    query: { tab: 'bai-thuoc', btId: id },
+  }).href
+}
 
 interface ChungBenh {
   id: number
@@ -56,7 +72,7 @@ interface BenhTayY {
 
 type TabKey = 'chung-benh' | 'benh-tay-y'
 
-const activeTab = ref<TabKey>('chung-benh')
+const activeTab = ref<TabKey>('benh-tay-y')
 const isLoading = ref(true)
 const error = ref<string | null>(null)
 const isSubmitting = ref(false)
@@ -75,6 +91,9 @@ const btySearch = ref('')
 const cbPage = ref(1)
 const btyPage = ref(1)
 const pageSize = 12
+
+// Trong tab "Bệnh Tây Y", lọc thêm theo chủng bệnh (null = tất cả chủng)
+const selectedBtyChungBenhId = ref<number | null>(null)
 
 // Modal state
 const showCbModal = ref(false)
@@ -103,13 +122,41 @@ const machChanSearch = ref('')
 const showDeleteConfirm = ref(false)
 const deletingTarget = ref<{ kind: 'cb' | 'bty'; id: number; label: string } | null>(null)
 
-onMounted(fetchAll)
+onMounted(async () => {
+  const qTab = route.query.tab
+  if (qTab === 'benh-tay-y' || qTab === 'chung-benh') {
+    activeTab.value = qTab
+  }
+  await fetchAll()
+  const rawBtyId = route.query.btyId
+  const targetId = Array.isArray(rawBtyId) ? rawBtyId[0] : rawBtyId
+  const btyId = targetId != null ? Number(targetId) : NaN
+  if (Number.isFinite(btyId)) {
+    activeTab.value = 'benh-tay-y'
+    btySearch.value = ''
+    const idx = filteredBtyList.value.findIndex((b) => b.id === btyId)
+    if (idx >= 0) {
+      btyPage.value = Math.floor(idx / pageSize) + 1
+      highlightBtyId.value = btyId
+      await nextTick()
+      const el = document.querySelector(`[data-bty-id="${btyId}"]`) as HTMLElement | null
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+      setTimeout(() => {
+        if (highlightBtyId.value === btyId) highlightBtyId.value = null
+      }, 2500)
+    }
+  }
+})
 
 watch(cbSearch, () => (cbPage.value = 1))
 watch(btySearch, () => (btyPage.value = 1))
+watch(selectedBtyChungBenhId, () => (btyPage.value = 1))
 watch(activeTab, () => {
   cbSearch.value = ''
   btySearch.value = ''
+  selectedBtyChungBenhId.value = null
 })
 
 async function fetchAll() {
@@ -161,25 +208,31 @@ const chungBenhMap = computed(() => {
 })
 
 function theBenhCombined(bty: BenhTayY): string[] {
-  const seen = new Set<string>()
-  const out: string[] = []
-  const pushAll = (raw: string | null | undefined) => {
+  return theBenhCombinedItems(bty).map((x) => x.name)
+}
+
+function theBenhCombinedItems(bty: BenhTayY): Array<{ name: string; ptId: number | null }> {
+  const seen = new Map<string, { name: string; ptId: number | null }>()
+  const pushAll = (raw: string | null | undefined, ptId: number | null) => {
     if (!raw) return
     for (const part of raw.split(/[,;]+/)) {
       const t = part.trim()
       if (!t) continue
       const key = t.toLowerCase()
-      if (seen.has(key)) continue
-      seen.add(key)
-      out.push(t)
+      const existing = seen.get(key)
+      if (existing) {
+        if (existing.ptId == null && ptId != null) existing.ptId = ptId
+        continue
+      }
+      seen.set(key, { name: t, ptId })
     }
   }
-  for (const p of bty.phapTriList ?? []) pushAll(p.chung_trang)
+  for (const p of bty.phapTriList ?? []) pushAll(p.chung_trang, p.id)
   for (const b of bty.baiThuocList ?? []) {
-    pushAll(b.the_benh)
-    for (const l of b.phapTriLinks ?? []) pushAll(l.phapTri?.chung_trang)
+    pushAll(b.the_benh, null)
+    for (const l of b.phapTriLinks ?? []) pushAll(l.phapTri?.chung_trang, l.phapTri?.id ?? null)
   }
-  return out
+  return Array.from(seen.values())
 }
 
 function phapTriCombined(bty: BenhTayY): PhapTriLite[] {
@@ -206,6 +259,24 @@ const benhTayYCountByChungBenh = computed(() => {
   return m
 })
 
+interface BtyChungBenhFilterOption {
+  id: number
+  name: string
+  count: number
+}
+
+/** Chủng bệnh có ít nhất 1 bệnh Tây Y — dùng làm tab nhỏ lọc trong tab "Bệnh Tây Y". */
+const btyChungBenhFilterOptions = computed<BtyChungBenhFilterOption[]>(() => {
+  const counter = benhTayYCountByChungBenh.value
+  const out: BtyChungBenhFilterOption[] = []
+  for (const cb of chungBenhList.value) {
+    const c = counter.get(cb.id) ?? 0
+    if (c === 0) continue
+    out.push({ id: cb.id, name: cb.ten_chung_benh, count: c })
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+})
+
 const filteredCbList = computed(() => {
   const q = cbSearch.value.trim().toLowerCase()
   if (!q) return chungBenhList.value
@@ -223,8 +294,10 @@ const cbTotalPages = computed(() =>
 
 const filteredBtyList = computed(() => {
   const q = btySearch.value.trim().toLowerCase()
-  if (!q) return benhTayYList.value
+  const cbId = selectedBtyChungBenhId.value
   return benhTayYList.value.filter((b) => {
+    if (cbId != null && b.idChungBenh !== cbId) return false
+    if (!q) return true
     const hay = [
       b.ten_benh,
       b.chungBenh?.ten_chung_benh ?? chungBenhMap.value.get(b.idChungBenh)?.ten_chung_benh,
@@ -436,11 +509,11 @@ async function doDelete() {
         <p class="page-subtitle">Phân loại chủng bệnh và bệnh lý tây y</p>
       </div>
       <div class="view-toggle">
-        <button class="toggle-btn" :class="{ active: activeTab === 'chung-benh' }" @click="activeTab = 'chung-benh'">
-          Chủng Bệnh
-        </button>
         <button class="toggle-btn" :class="{ active: activeTab === 'benh-tay-y' }" @click="activeTab = 'benh-tay-y'">
           Bệnh Tây Y
+        </button>
+        <button class="toggle-btn" :class="{ active: activeTab === 'chung-benh' }" @click="activeTab = 'chung-benh'">
+          Chủng Bệnh
         </button>
       </div>
     </div>
@@ -538,6 +611,38 @@ async function doDelete() {
           <button class="btn-primary" @click="openCreateBty">+ Thêm bệnh tây y</button>
         </div>
 
+        <div
+          v-if="btyChungBenhFilterOptions.length"
+          class="sub-sub-tabs"
+          role="tablist"
+          aria-label="Lọc theo chủng bệnh"
+        >
+          <button
+            type="button"
+            role="tab"
+            class="sub-sub-tab"
+            :class="{ active: selectedBtyChungBenhId === null }"
+            :aria-selected="selectedBtyChungBenhId === null"
+            @click="selectedBtyChungBenhId = null"
+          >
+            Tất cả
+            <span class="sub-sub-tab__count">{{ benhTayYList.length }}</span>
+          </button>
+          <button
+            v-for="cb in btyChungBenhFilterOptions"
+            :key="cb.id"
+            type="button"
+            role="tab"
+            class="sub-sub-tab"
+            :class="{ active: selectedBtyChungBenhId === cb.id }"
+            :aria-selected="selectedBtyChungBenhId === cb.id"
+            @click="selectedBtyChungBenhId = cb.id"
+          >
+            {{ cb.name }}
+            <span class="sub-sub-tab__count">{{ cb.count }}</span>
+          </button>
+        </div>
+
         <div class="data-card">
           <div class="card-header">
             <h3>Danh sách Bệnh Tây Y</h3>
@@ -549,7 +654,13 @@ async function doDelete() {
           </div>
 
           <div v-else class="disease-grid">
-            <article v-for="bty in pagedBtyList" :key="bty.id" class="disease-card">
+            <article
+              v-for="bty in pagedBtyList"
+              :key="bty.id"
+              :data-bty-id="bty.id"
+              class="disease-card"
+              :class="{ 'disease-card--highlight': bty.id === highlightBtyId }"
+            >
               <header class="disease-card__head">
                 <div class="disease-card__title">
                   <span class="disease-card__id">#{{ bty.id }}</span>
@@ -571,29 +682,51 @@ async function doDelete() {
                 <section v-if="bty.baiThuocList?.length" class="disease-section">
                   <span class="disease-section__label">Bài thuốc ({{ bty.baiThuocList.length }})</span>
                   <div class="chip-row chip-row--wrap">
-                    <span v-for="b in bty.baiThuocList" :key="b.id" class="chip chip-bai">
+                    <a
+                      v-for="b in bty.baiThuocList"
+                      :key="b.id"
+                      :href="baiThuocHref(b.id)"
+                      target="_blank"
+                      rel="noopener"
+                      class="chip chip-bai chip-link-bai"
+                      :title="`Mở bài thuốc: ${b.ten_bai_thuoc}`"
+                    >
                       {{ b.ten_bai_thuoc }}
-                    </span>
+                    </a>
                   </div>
                 </section>
 
-                <section v-if="theBenhCombined(bty).length" class="disease-section">
-                  <span class="disease-section__label">Thể bệnh ({{ theBenhCombined(bty).length }})</span>
+                <section v-if="theBenhCombinedItems(bty).length" class="disease-section">
+                  <span class="disease-section__label">Thể bệnh ({{ theBenhCombinedItems(bty).length }})</span>
                   <div class="chip-row chip-row--wrap">
-                    <span
-                      v-for="(tb, i) in theBenhCombined(bty)"
-                      :key="'tb-' + i"
-                      class="chip chip-the"
-                    >{{ tb }}</span>
+                    <template v-for="(tb, i) in theBenhCombinedItems(bty)" :key="'tb-' + i">
+                      <a
+                        v-if="tb.ptId != null"
+                        :href="phapTriHref(tb.ptId)"
+                        target="_blank"
+                        rel="noopener"
+                        class="chip chip-the chip-link-the"
+                        :title="`Mở pháp trị: ${tb.name}`"
+                      >{{ tb.name }}</a>
+                      <span v-else class="chip chip-the">{{ tb.name }}</span>
+                    </template>
                   </div>
                 </section>
 
                 <section v-if="phapTriCombined(bty).length" class="disease-section">
                   <span class="disease-section__label">Pháp trị ({{ phapTriCombined(bty).length }})</span>
                   <div class="chip-row chip-row--wrap">
-                    <span v-for="p in phapTriCombined(bty)" :key="p.id" class="chip chip-phap">
+                    <a
+                      v-for="p in phapTriCombined(bty)"
+                      :key="p.id"
+                      :href="phapTriHref(p.id)"
+                      target="_blank"
+                      rel="noopener"
+                      class="chip chip-phap chip-link-phap"
+                      :title="`Mở pháp trị: ${phapTriLabel(p)}`"
+                    >
                       {{ phapTriLabel(p) }}
-                    </span>
+                    </a>
                   </div>
                 </section>
 
@@ -877,6 +1010,54 @@ async function doDelete() {
 .toggle-btn:hover { color: var(--brown-600); }
 .toggle-btn.active { background: var(--brown-600); color: var(--white); box-shadow: 0 2px 4px rgba(161, 98, 7, 0.2); }
 
+.sub-sub-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-4);
+}
+.sub-sub-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--brown-200);
+  background: var(--white);
+  color: var(--gray-700);
+  font-weight: 600;
+  font-size: 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+.sub-sub-tab:hover {
+  background: var(--brown-50);
+  border-color: var(--brown-300);
+  color: var(--brown-700);
+}
+.sub-sub-tab.active {
+  background: #fdf4ff;
+  color: #86198f;
+  border-color: #f5d0fe;
+}
+.sub-sub-tab__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.sub-sub-tab.active .sub-sub-tab__count {
+  background: #86198f;
+  color: var(--white);
+}
+
 .loading-state { display: flex; flex-direction: column; align-items: center; padding: var(--space-12) 0; color: var(--brown-600); gap: var(--space-3); }
 .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--brown-500); border-radius: 50%; animation: spin .7s linear infinite; }
 .error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: #fef2f2; border-radius: var(--radius-lg); }
@@ -920,6 +1101,16 @@ async function doDelete() {
   transition: box-shadow .15s, transform .15s, border-color .15s;
 }
 .disease-card:hover { box-shadow: 0 6px 18px rgba(74, 47, 23, 0.08); border-color: var(--brown-200); transform: translateY(-1px); }
+.disease-card--highlight {
+  border-color: #d97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.25), 0 6px 18px rgba(217, 119, 6, 0.18);
+  animation: bty-flash 2.5s ease-out;
+}
+@keyframes bty-flash {
+  0%   { background-color: #fff7ed; }
+  60%  { background-color: #fff7ed; }
+  100% { background-color: #fff; }
+}
 .disease-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: linear-gradient(135deg, var(--brown-50) 0%, #fff 100%); border-bottom: 1px solid var(--brown-100); }
 .disease-card__title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex: 1; flex-wrap: wrap; }
 .disease-card__id {
@@ -945,6 +1136,19 @@ async function doDelete() {
 .chip-bai { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
 .chip-phap { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
 .chip-the { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.chip-link-bai,
+.chip-link-the,
+.chip-link-phap {
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.05s;
+}
+.chip-link-bai:hover { background: #fde68a; border-color: #f59e0b; }
+.chip-link-phap:hover { background: #fed7aa; border-color: #f97316; }
+.chip-link-the:hover { background: #d1fae5; border-color: #34d399; }
+.chip-link-bai:active,
+.chip-link-the:active,
+.chip-link-phap:active { transform: translateY(1px); }
 
 .pt-tbl {
   width: 100%;

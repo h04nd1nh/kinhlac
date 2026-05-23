@@ -5,8 +5,9 @@ import ModernDiseasesView from './ModernDiseasesView.vue'
 import KinhMachView from './KinhMachView.vue'
 import HuyetViView from './HuyetViView.vue'
 import PhacDoDieuTriView from './PhacDoDieuTriView.vue'
+import TonThuongTacNhanView from './TonThuongTacNhanView.vue'
 
-type SubTab = 'dong-y' | 'hien-dai' | 'kinh-mach' | 'huyet-vi' | 'phac-do'
+type SubTab = 'dong-y' | 'hien-dai' | 'kinh-mach' | 'huyet-vi' | 'phac-do' | 'ton-thuong'
 const activeSub = ref<SubTab>('dong-y')
 
 const tabs: { key: SubTab; label: string }[] = [
@@ -15,6 +16,7 @@ const tabs: { key: SubTab; label: string }[] = [
   { key: 'kinh-mach', label: 'Kinh mạch' },
   { key: 'huyet-vi', label: 'Huyệt vị' },
   { key: 'phac-do', label: 'Phương huyệt' },
+  { key: 'ton-thuong', label: 'Tổn thương - Tác nhân' },
 ]
 </script>
 
@@ -38,7 +40,8 @@ const tabs: { key: SubTab; label: string }[] = [
       <ModernDiseasesView v-else-if="activeSub === 'hien-dai'" />
       <KinhMachView v-else-if="activeSub === 'kinh-mach'" />
       <HuyetViView v-else-if="activeSub === 'huyet-vi'" />
-      <PhacDoDieuTriView v-else />
+      <PhacDoDieuTriView v-else-if="activeSub === 'phac-do'" />
+      <TonThuongTacNhanView v-else />
     </KeepAlive>
   </div>
 </template>

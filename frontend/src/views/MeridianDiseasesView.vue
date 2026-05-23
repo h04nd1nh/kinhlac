@@ -1,6 +1,23 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from '@/services/api'
+
+const router = useRouter()
+
+function baiThuocHref(id: number): string {
+  return router.resolve({
+    name: 'medicines',
+    query: { tab: 'bai-thuoc', btId: id },
+  }).href
+}
+
+function phapTriHref(id: number): string {
+  return router.resolve({
+    name: 'treatments',
+    query: { ptId: id },
+  }).href
+}
 
 interface TrieuChungLite {
   id: number
@@ -222,17 +239,33 @@ function trieuChungLabelsForBenh(item: BenhDongYExcelRow): string[] {
 }
 
 function baiThuocLabelsForBenh(item: BenhDongYExcelRow): string[] {
-  return (item.baiThuocList ?? []).map((b) => b.ten_bai_thuoc).filter(Boolean)
+  return baiThuocItemsForBenh(item).map((b) => b.name)
+}
+
+function baiThuocItemsForBenh(item: BenhDongYExcelRow): Array<{ id: number | null; name: string }> {
+  return (item.baiThuocList ?? [])
+    .map((b) => ({ id: b.id ?? null, name: b.ten_bai_thuoc }))
+    .filter((b) => !!b.name)
 }
 
 function theBenhLabelsForBenh(item: BenhDongYExcelRow): string[] {
+  return theBenhItemsForBenh(item).map((x) => x.name)
+}
+
+function theBenhItemsForBenh(item: BenhDongYExcelRow): Array<{ id: number; name: string }> {
   return (item.phapTriList ?? [])
-    .map((p) => (p.chung_trang || '').trim())
-    .filter(Boolean)
+    .map((p) => ({ id: p.id, name: (p.chung_trang || '').trim() }))
+    .filter((x) => !!x.name)
 }
 
 function phapTriLabelsForBenh(item: BenhDongYExcelRow): string[] {
-  return (item.phapTriList ?? []).map((p) => phapTriLabel(p)).filter(Boolean)
+  return phapTriItemsForBenh(item).map((x) => x.name)
+}
+
+function phapTriItemsForBenh(item: BenhDongYExcelRow): Array<{ id: number; name: string }> {
+  return (item.phapTriList ?? [])
+    .map((p) => ({ id: p.id, name: phapTriLabel(p) }))
+    .filter((x) => !!x.name)
 }
 
 const filteredPhapTriOptions = computed(() => {
@@ -801,29 +834,37 @@ async function handleDelete() {
             </header>
 
             <div class="disease-card__body">
-              <section v-if="theBenhLabelsForBenh(item).length" class="disease-section">
+              <section v-if="theBenhItemsForBenh(item).length" class="disease-section">
                 <span class="disease-section__label">Thể bệnh</span>
                 <div class="chip-row chip-row--wrap">
-                  <span
-                    v-for="(t, i) in theBenhLabelsForBenh(item)"
+                  <a
+                    v-for="(t, i) in theBenhItemsForBenh(item)"
                     :key="i"
-                    class="chip chip-the"
+                    :href="phapTriHref(t.id)"
+                    target="_blank"
+                    rel="noopener"
+                    class="chip chip-the chip-link-the"
+                    :title="`Mở pháp trị: ${t.name}`"
                   >
-                    {{ t }}
-                  </span>
+                    {{ t.name }}
+                  </a>
                 </div>
               </section>
 
-              <section v-if="phapTriLabelsForBenh(item).length" class="disease-section">
+              <section v-if="phapTriItemsForBenh(item).length" class="disease-section">
                 <span class="disease-section__label">Pháp trị</span>
                 <div class="chip-row chip-row--wrap">
-                  <span
-                    v-for="(p, i) in phapTriLabelsForBenh(item)"
+                  <a
+                    v-for="(p, i) in phapTriItemsForBenh(item)"
                     :key="i"
-                    class="chip chip-phap"
+                    :href="phapTriHref(p.id)"
+                    target="_blank"
+                    rel="noopener"
+                    class="chip chip-phap chip-link-phap"
+                    :title="`Mở pháp trị: ${p.name}`"
                   >
-                    {{ p }}
-                  </span>
+                    {{ p.name }}
+                  </a>
                 </div>
               </section>
 
@@ -840,16 +881,22 @@ async function handleDelete() {
                 </div>
               </section>
 
-              <section v-if="baiThuocLabelsForBenh(item).length" class="disease-section">
+              <section v-if="baiThuocItemsForBenh(item).length" class="disease-section">
                 <span class="disease-section__label">Bài thuốc</span>
                 <div class="chip-row chip-row--wrap">
-                  <span
-                    v-for="(b, i) in baiThuocLabelsForBenh(item)"
-                    :key="i"
-                    class="chip chip-bai"
-                  >
-                    {{ b }}
-                  </span>
+                  <template v-for="(b, i) in baiThuocItemsForBenh(item)" :key="i">
+                    <a
+                      v-if="b.id != null"
+                      :href="baiThuocHref(b.id)"
+                      target="_blank"
+                      rel="noopener"
+                      class="chip chip-bai chip-link"
+                      :title="`Mở bài thuốc: ${b.name}`"
+                    >
+                      {{ b.name }}
+                    </a>
+                    <span v-else class="chip chip-bai">{{ b.name }}</span>
+                  </template>
                 </div>
               </section>
 
@@ -1894,6 +1941,19 @@ async function handleDelete() {
   color: #92400e;
   border-color: #fcd34d;
 }
+.chip-link,
+.chip-link-the,
+.chip-link-phap {
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.05s;
+}
+.chip-link:hover { background: #fde68a; border-color: #f59e0b; }
+.chip-link-phap:hover { background: #fde68a; border-color: #f59e0b; }
+.chip-link-the:hover { background: #d1fae5; border-color: #34d399; }
+.chip-link:active,
+.chip-link-the:active,
+.chip-link-phap:active { transform: translateY(1px); }
 .chip-row {
   display: flex;
   flex-wrap: nowrap;

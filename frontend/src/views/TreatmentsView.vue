@@ -1,6 +1,25 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/services/api'
+
+const router = useRouter()
+const route = useRoute()
+const highlightPtId = ref<number | null>(null)
+
+function benhTayYHref(id: number): string {
+  return router.resolve({
+    name: 'western-medicine',
+    query: { tab: 'benh-tay-y', btyId: id },
+  }).href
+}
+
+function baiThuocHref(id: number): string {
+  return router.resolve({
+    name: 'medicines',
+    query: { tab: 'bai-thuoc', btId: id },
+  }).href
+}
 
 interface KinhMachLite {
   idKinhMach: number
@@ -67,10 +86,17 @@ const searchQuery = ref('')
 type PhapTriCategory = 'all' | 'dong-y' | 'tay-y'
 const phapTriCategory = ref<PhapTriCategory>('all')
 
+interface TonThuongTacNhanLite {
+  id: number
+  ten: string
+  ghi_chu: string | null
+}
+
 const kinhMachOptions = ref<KinhMachLite[]>([])
 const trieuChungOptions = ref<TrieuChungLite[]>([])
 const baiThuocOptions = ref<BaiThuocLite[]>([])
 const benhTayYList = ref<BenhTayYLite[]>([])
+const tonThuongOptions = ref<TonThuongTacNhanLite[]>([])
 
 const benhTayYByPhapTri = computed<Map<number, BenhTayYLite[]>>(() => {
   const m = new Map<number, BenhTayYLite[]>()
@@ -116,18 +142,9 @@ const kinhMachSearch = ref('')
 const trieuChungSearch = ref('')
 const baiThuocSearch = ref('')
 
-const LUC_KINH_OPTIONS = [
-  'Thái Dương Kinh Chứng',
-  'Dương Minh Kinh Chứng',
-  'Thiếu Dương Kinh Chứng',
-  'Thái Âm Kinh Chứng',
-  'Quyết Âm Kinh Chứng',
-  'Thiếu Âm Kinh Chứng',
-  'Vệ Phận',
-  'Khí Phận',
-  'Dinh Phận',
-  'Huyết Phận',
-] as const
+const lucKinhOptionNames = computed<string[]>(() =>
+  tonThuongOptions.value.map((o) => o.ten).filter(Boolean),
+)
 
 const showModal = ref(false)
 const showDeleteConfirm = ref(false)
@@ -170,7 +187,29 @@ onMounted(async () => {
     fetchTrieuChung(),
     fetchBaiThuoc(),
     fetchBenhTayY(),
+    fetchTonThuong(),
   ])
+  const rawPtId = route.query.ptId
+  const targetId = Array.isArray(rawPtId) ? rawPtId[0] : rawPtId
+  const ptId = targetId != null ? Number(targetId) : NaN
+  if (Number.isFinite(ptId)) {
+    phapTriCategory.value = 'all'
+    searchQuery.value = ''
+    await nextTick()
+    const idx = filteredList.value.findIndex((r) => r.id === ptId)
+    if (idx >= 0) {
+      currentPage.value = Math.floor(idx / itemsPerPage.value) + 1
+      highlightPtId.value = ptId
+      await nextTick()
+      const el = document.querySelector(`[data-pt-id="${ptId}"]`) as HTMLElement | null
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+      setTimeout(() => {
+        if (highlightPtId.value === ptId) highlightPtId.value = null
+      }, 2500)
+    }
+  }
 })
 
 watch(searchQuery, () => {
@@ -228,6 +267,15 @@ async function fetchBenhTayY() {
     benhTayYList.value = Array.isArray(res) ? res : res?.data ?? []
   } catch (err) {
     console.error('Không tải được danh sách bệnh tây y', err)
+  }
+}
+
+async function fetchTonThuong() {
+  try {
+    const res: any = await api.get('/ton-thuong-tac-nhan')
+    tonThuongOptions.value = Array.isArray(res) ? res : res?.data ?? []
+  } catch (err) {
+    console.error('Không tải được danh sách Tổn thương - Tác nhân', err)
   }
 }
 
@@ -314,14 +362,20 @@ const filteredBaiThuocOptions = computed(() => {
 })
 
 function baiThuocCellLabels(row: PhapTriRow): string[] {
+  return baiThuocCellItems(row).map((b) => b.name)
+}
+
+function baiThuocCellItems(row: PhapTriRow): Array<{ id: number | null; name: string }> {
   const links = (row.bai_thuoc_links ?? [])
     .slice()
     .sort((a, b) => (a.thuTu ?? 0) - (b.thuTu ?? 0))
-  const names = links
-    .map((l) => l.baiThuoc?.ten_bai_thuoc)
-    .filter((n): n is string => !!n)
-  if (names.length > 0) return names
-  if (row.bai_thuoc?.ten_bai_thuoc) return [row.bai_thuoc.ten_bai_thuoc]
+  const items = links
+    .map((l) => ({ id: l.baiThuoc?.id ?? l.idBaiThuoc ?? null, name: l.baiThuoc?.ten_bai_thuoc || '' }))
+    .filter((x) => !!x.name)
+  if (items.length > 0) return items
+  if (row.bai_thuoc?.ten_bai_thuoc) {
+    return [{ id: row.bai_thuoc.id ?? null, name: row.bai_thuoc.ten_bai_thuoc }]
+  }
   return []
 }
 
@@ -520,7 +574,13 @@ async function handleDelete() {
         <div v-if="pagedList.length === 0" class="empty-state">Chưa có dữ liệu</div>
 
         <div v-else class="disease-grid">
-          <article v-for="item in pagedList" :key="item.id" class="disease-card">
+          <article
+            v-for="item in pagedList"
+            :key="item.id"
+            :data-pt-id="item.id"
+            class="disease-card"
+            :class="{ 'disease-card--highlight': item.id === highlightPtId }"
+          >
             <header class="disease-card__head">
               <div class="disease-card__title">
                 <span class="disease-card__id">#{{ item.id }}</span>
@@ -533,13 +593,17 @@ async function handleDelete() {
                   >
                     <span class="bty-group__label">{{ g.chungBenhName }}</span>
                     <div class="chip-row chip-row--wrap chip-row--inline">
-                      <span
+                      <a
                         v-for="bty in g.items"
                         :key="bty.id"
-                        class="chip chip-tayy"
+                        :href="benhTayYHref(bty.id)"
+                        target="_blank"
+                        rel="noopener"
+                        class="chip chip-tayy chip-link"
+                        :title="`Mở bệnh tây y: ${bty.ten_benh}`"
                       >
                         {{ bty.ten_benh }}
-                      </span>
+                      </a>
                     </div>
                   </div>
                 </div>
@@ -587,12 +651,22 @@ async function handleDelete() {
                 </div>
               </section>
 
-              <section v-if="baiThuocCellLabels(item).length" class="disease-section">
+              <section v-if="baiThuocCellItems(item).length" class="disease-section">
                 <span class="disease-section__label">Bài thuốc tiêu biểu</span>
                 <div class="chip-row chip-row--wrap">
-                  <span v-for="(b, i) in baiThuocCellLabels(item)" :key="i" class="chip chip-bai">
-                    {{ b }}
-                  </span>
+                  <template v-for="(b, i) in baiThuocCellItems(item)" :key="i">
+                    <a
+                      v-if="b.id != null"
+                      :href="baiThuocHref(b.id)"
+                      target="_blank"
+                      rel="noopener"
+                      class="chip chip-bai chip-link"
+                      :title="`Mở bài thuốc: ${b.name}`"
+                    >
+                      {{ b.name }}
+                    </a>
+                    <span v-else class="chip chip-bai">{{ b.name }}</span>
+                  </template>
                 </div>
               </section>
 
@@ -659,9 +733,12 @@ async function handleDelete() {
                 <span class="field-label">Tổn thương - Tác nhân</span>
                 <span class="field-count">{{ form.luc_kinh_list.length }} đã chọn</span>
               </div>
-              <div class="chip-picker">
+              <div v-if="lucKinhOptionNames.length === 0" class="muted">
+                Chưa có dữ liệu — thêm ở tab "Bệnh đo kinh lạc → Tổn thương - Tác nhân"
+              </div>
+              <div v-else class="chip-picker">
                 <button
-                  v-for="opt in LUC_KINH_OPTIONS"
+                  v-for="opt in lucKinhOptionNames"
                   :key="opt"
                   type="button"
                   class="chip-toggle"
@@ -986,6 +1063,16 @@ async function handleDelete() {
   border-color: var(--brown-200);
   transform: translateY(-1px);
 }
+.disease-card--highlight {
+  border-color: #d97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.25), 0 6px 18px rgba(217, 119, 6, 0.18);
+  animation: pt-flash 2.5s ease-out;
+}
+@keyframes pt-flash {
+  0%   { background-color: #fff7ed; }
+  60%  { background-color: #fff7ed; }
+  100% { background-color: #fff; }
+}
 
 .disease-card__head {
   display: flex;
@@ -1109,6 +1196,9 @@ async function handleDelete() {
 .chip-bai { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
 .chip-luckinh { background: #fce7f3; color: #9d174d; border-color: #f9a8d4; }
 .chip-tayy { background: #fdf4ff; color: #86198f; border-color: #f5d0fe; }
+.chip-link { text-decoration: none; cursor: pointer; transition: background-color 0.15s, border-color 0.15s, transform 0.05s; }
+.chip-link:hover { background: #fae8ff; border-color: #e9b8fb; }
+.chip-link:active { transform: translateY(1px); }
 .muted { color: var(--gray-400); font-style: italic; }
 
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }

@@ -1,5 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, nextTick, reactive } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+
+const router = useRouter()
+
+function phapTriHref(id: number): string {
+  return router.resolve({ name: 'treatments', query: { ptId: id } }).href
+}
+
+function benhTayYHref(id: number): string {
+  return router.resolve({
+    name: 'western-medicine',
+    query: { tab: 'benh-tay-y', btyId: id },
+  }).href
+}
 import * as XLSX from 'xlsx'
 import {
   Chart,
@@ -188,6 +202,9 @@ const viThuocSearch = ref('')
 type BaiThuocCategory = 'all' | 'dong-y' | 'tay-y'
 const baiThuocCategory = ref<BaiThuocCategory>('all')
 
+// Khi đang ở tab "Tây Y", có thể lọc thêm theo chủng bệnh (null = tất cả chủng)
+const selectedChungBenhId = ref<number | null>(null)
+
 // Filter theo nhóm dược lý cho tab vị thuốc
 const viFilterNhomLonId = ref<number | null>(null)
 const viFilterNhomNhoId = ref<number | null>(null)
@@ -266,11 +283,16 @@ watch(viFilterNhomNhoId, () => {
 const filteredBaiThuoc = computed(() => {
   const q = baiThuocSearch.value.trim().toLowerCase()
   const cat = baiThuocCategory.value
+  const cbId = selectedChungBenhId.value
   return baiThuocList.value.filter((bt) => {
     if (cat !== 'all') {
-      const hasTayY = benhTayYLabelsForBaiThuoc(bt.id).length > 0
+      const btys = benhTayYLabelsForBaiThuoc(bt.id)
+      const hasTayY = btys.length > 0
       if (cat === 'tay-y' && !hasTayY) return false
       if (cat === 'dong-y' && hasTayY) return false
+      if (cat === 'tay-y' && cbId != null) {
+        if (!btys.some((bty) => bty.chungBenh?.id === cbId)) return false
+      }
     }
     if (!q) return true
     const thanhPhan = (bt.chiTietViThuoc ?? [])
@@ -301,6 +323,30 @@ const baiThuocCategoryCounts = computed(() => {
   return { all: total, 'dong-y': total - tayY, 'tay-y': tayY }
 })
 
+interface ChungBenhTayYOption {
+  id: number
+  name: string
+  count: number
+}
+
+/** Danh sách chủng bệnh (lấy từ bệnh Tây Y) có ít nhất 1 bài thuốc gắn vào. */
+const chungBenhTayYOptions = computed<ChungBenhTayYOption[]>(() => {
+  const acc = new Map<number, { name: string; btIds: Set<number> }>()
+  for (const bty of benhTayYList.value) {
+    const cb = bty.chungBenh
+    if (!cb) continue
+    const entry = acc.get(cb.id) ?? { name: cb.ten_chung_benh, btIds: new Set<number>() }
+    for (const bt of bty.baiThuocList ?? []) entry.btIds.add(bt.id)
+    acc.set(cb.id, entry)
+  }
+  const out: ChungBenhTayYOption[] = []
+  for (const [id, v] of acc) {
+    if (v.btIds.size === 0) continue
+    out.push({ id, name: v.name, count: v.btIds.size })
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+})
+
 const filteredViThuoc = computed(() => {
   const q = viThuocSearch.value.trim().toLowerCase()
   const allowedIds = viThuocIdsInSelectedNhomNho.value
@@ -329,7 +375,11 @@ const totalBTPage = computed(() => Math.max(1, Math.ceil(filteredBaiThuoc.value.
 const totalVTPage = computed(() => Math.max(1, Math.ceil(filteredViThuoc.value.length / itemsPerPage.value)))
 
 watch(baiThuocSearch, () => { baiThuocPage.value = 1 })
-watch(baiThuocCategory, () => { baiThuocPage.value = 1 })
+watch(baiThuocCategory, (v) => {
+  baiThuocPage.value = 1
+  if (v !== 'tay-y') selectedChungBenhId.value = null
+})
+watch(selectedChungBenhId, () => { baiThuocPage.value = 1 })
 watch(viThuocSearch, () => { viThuocPage.value = 1 })
 
 function getPageNumbers(current: number, total: number) {
@@ -349,25 +399,36 @@ function theBenhOptionLabel(p: PhapTriLite): string {
 }
 
 function phapTriLabels(bt: BaiThuoc): string[] {
+  return phapTriItems(bt).map((x) => x.name)
+}
+
+function phapTriItems(bt: BaiThuoc): Array<{ id: number | null; name: string }> {
   const links = (bt.phapTriLinks ?? [])
     .slice()
     .sort((a, b) => (a.thuTu ?? 0) - (b.thuTu ?? 0))
   return links
-    .map((l) => (l.phapTri?.nguyen_tac || '').trim())
-    .filter((s) => s.length > 0)
+    .map((l) => ({
+      id: l.phapTri?.id ?? null,
+      name: (l.phapTri?.nguyen_tac || '').trim(),
+    }))
+    .filter((x) => x.name.length > 0)
 }
 
 function theBenhLabels(bt: BaiThuoc): string[] {
+  return theBenhItems(bt).map((x) => x.name)
+}
+
+function theBenhItems(bt: BaiThuoc): Array<{ id: number | null; name: string }> {
   const links = (bt.phapTriLinks ?? [])
     .slice()
     .sort((a, b) => (a.thuTu ?? 0) - (b.thuTu ?? 0))
   const seen = new Set<string>()
-  const out: string[] = []
+  const out: Array<{ id: number | null; name: string }> = []
   for (const l of links) {
     const v = (l.phapTri?.chung_trang || '').trim()
     if (!v || seen.has(v)) continue
     seen.add(v)
-    out.push(v)
+    out.push({ id: l.phapTri?.id ?? null, name: v })
   }
   return out
 }
@@ -420,8 +481,35 @@ function isLongCachDung(s: string | null | undefined): boolean {
   return !!s && s.length > CACH_DUNG_TRUNCATE_LEN
 }
 
+const route = useRoute()
+const highlightBtId = ref<number | null>(null)
+
 onMounted(async () => {
+  const qTab = route.query.tab
+  if (qTab === 'bai-thuoc' || qTab === 'vi-thuoc' || qTab === 'duoc-ly') {
+    activeTab.value = qTab
+  }
   await fetchData()
+  const rawBtId = route.query.btId
+  const targetId = Array.isArray(rawBtId) ? rawBtId[0] : rawBtId
+  const btId = targetId != null ? Number(targetId) : NaN
+  if (Number.isFinite(btId)) {
+    activeTab.value = 'bai-thuoc'
+    baiThuocSearch.value = ''
+    const idx = filteredBaiThuoc.value.findIndex((b) => b.id === btId)
+    if (idx >= 0) {
+      baiThuocPage.value = Math.floor(idx / itemsPerPage.value) + 1
+      highlightBtId.value = btId
+      await nextTick()
+      const el = document.querySelector(`[data-bt-id="${btId}"]`) as HTMLElement | null
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+      setTimeout(() => {
+        if (highlightBtId.value === btId) highlightBtId.value = null
+      }, 2500)
+    }
+  }
 })
 
 async function fetchData() {
@@ -2082,6 +2170,37 @@ async function suggestViThuocAi() {
             <span class="sub-tab__count">{{ baiThuocCategoryCounts['all'] }}</span>
           </button>
         </div>
+        <div
+          v-if="baiThuocCategory === 'tay-y' && chungBenhTayYOptions.length"
+          class="sub-sub-tabs"
+          role="tablist"
+          aria-label="Chủng bệnh Tây Y"
+        >
+          <button
+            type="button"
+            role="tab"
+            class="sub-sub-tab"
+            :class="{ active: selectedChungBenhId === null }"
+            :aria-selected="selectedChungBenhId === null"
+            @click="selectedChungBenhId = null"
+          >
+            Tất cả
+            <span class="sub-sub-tab__count">{{ baiThuocCategoryCounts['tay-y'] }}</span>
+          </button>
+          <button
+            v-for="cb in chungBenhTayYOptions"
+            :key="cb.id"
+            type="button"
+            role="tab"
+            class="sub-sub-tab"
+            :class="{ active: selectedChungBenhId === cb.id }"
+            :aria-selected="selectedChungBenhId === cb.id"
+            @click="selectedChungBenhId = cb.id"
+          >
+            {{ cb.name }}
+            <span class="sub-sub-tab__count">{{ cb.count }}</span>
+          </button>
+        </div>
         <div class="data-card">
           <div class="card-header">
             <div class="card-header-left">
@@ -2110,7 +2229,13 @@ async function suggestViThuocAi() {
           </div>
 
           <div v-else class="bt-grid">
-            <article v-for="bt in pagedBaiThuoc" :key="bt.id" class="bt-card">
+            <article
+              v-for="bt in pagedBaiThuoc"
+              :key="bt.id"
+              :data-bt-id="bt.id"
+              class="bt-card"
+              :class="{ 'bt-card--highlight': bt.id === highlightBtId }"
+            >
               <header class="bt-card__head">
                 <div class="bt-card__title">
                   <span class="bt-card__id">#{{ bt.id }}</span>
@@ -2131,10 +2256,20 @@ async function suggestViThuocAi() {
                   v-if="theBenhLabels(bt).length || benhTayYLabelsForBaiThuoc(bt.id).length"
                   class="bt-section-row"
                 >
-                  <section v-if="theBenhLabels(bt).length" class="bt-section bt-section--col">
+                  <section v-if="theBenhItems(bt).length" class="bt-section bt-section--col">
                     <span class="bt-section__label">Bệnh Đông Y</span>
                     <div class="chip-row chip-row--wrap">
-                      <span v-for="(t, i) in theBenhLabels(bt)" :key="i" class="chip chip-the">{{ t }}</span>
+                      <template v-for="(t, i) in theBenhItems(bt)" :key="i">
+                        <a
+                          v-if="t.id != null"
+                          :href="phapTriHref(t.id)"
+                          target="_blank"
+                          rel="noopener"
+                          class="chip chip-the chip-link-the"
+                          :title="`Mở pháp trị: ${t.name}`"
+                        >{{ t.name }}</a>
+                        <span v-else class="chip chip-the">{{ t.name }}</span>
+                      </template>
                     </div>
                   </section>
 
@@ -2148,23 +2283,37 @@ async function suggestViThuocAi() {
                       >
                         <span class="bty-group__label">{{ g.chungBenhName }}</span>
                         <div class="chip-row chip-row--wrap">
-                          <span
+                          <a
                             v-for="bty in g.items"
                             :key="bty.id"
-                            class="chip chip-tayy"
+                            :href="benhTayYHref(bty.id)"
+                            target="_blank"
+                            rel="noopener"
+                            class="chip chip-tayy chip-link-tayy"
+                            :title="`Mở bệnh tây y: ${bty.ten_benh}`"
                           >
                             {{ bty.ten_benh }}
-                          </span>
+                          </a>
                         </div>
                       </div>
                     </div>
                   </section>
                 </div>
 
-                <section v-if="phapTriLabels(bt).length" class="bt-section">
+                <section v-if="phapTriItems(bt).length" class="bt-section">
                   <span class="bt-section__label">Pháp trị</span>
                   <div class="chip-row chip-row--wrap">
-                    <span v-for="(p, i) in phapTriLabels(bt)" :key="i" class="chip chip-phap">{{ p }}</span>
+                    <template v-for="(p, i) in phapTriItems(bt)" :key="i">
+                      <a
+                        v-if="p.id != null"
+                        :href="phapTriHref(p.id)"
+                        target="_blank"
+                        rel="noopener"
+                        class="chip chip-phap chip-link-phap"
+                        :title="`Mở pháp trị: ${p.name}`"
+                      >{{ p.name }}</a>
+                      <span v-else class="chip chip-phap">{{ p.name }}</span>
+                    </template>
                   </div>
                 </section>
 
@@ -3069,6 +3218,55 @@ async function suggestViThuocAi() {
 }
 .sub-tab.active .sub-tab__count { background: var(--brown-600); color: var(--white); }
 
+.sub-sub-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  padding: var(--space-2) 0;
+}
+.sub-sub-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--brown-200);
+  background: var(--white);
+  color: var(--gray-700);
+  font-weight: 600;
+  font-size: 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+.sub-sub-tab:hover {
+  background: var(--brown-50);
+  border-color: var(--brown-300);
+  color: var(--brown-700);
+}
+.sub-sub-tab.active {
+  background: #fdf4ff;
+  color: #86198f;
+  border-color: #f5d0fe;
+}
+.sub-sub-tab__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.sub-sub-tab.active .sub-sub-tab__count {
+  background: #86198f;
+  color: var(--white);
+}
+
 .data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); gap: var(--space-3); }
 .card-header-left { display: flex; align-items: center; gap: var(--space-3); }
@@ -3104,6 +3302,19 @@ async function suggestViThuocAi() {
 .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.4; border: 1px solid transparent; }
 .chip-phap { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
 .chip-the { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.chip-link-the,
+.chip-link-phap,
+.chip-link-tayy {
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.05s;
+}
+.chip-link-phap:hover { background: #fde68a; border-color: #f59e0b; }
+.chip-link-the:hover { background: #d1fae5; border-color: #34d399; }
+.chip-link-tayy:hover { background: #fae8ff; border-color: #e9b8fb; }
+.chip-link-the:active,
+.chip-link-phap:active,
+.chip-link-tayy:active { transform: translateY(1px); }
 .chip-trieu { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 .chip-tayy { background: #fdf4ff; color: #86198f; border-color: #f5d0fe; }
 .muted { color: var(--gray-400); font-style: italic; }
@@ -3142,6 +3353,16 @@ async function suggestViThuocAi() {
   box-shadow: 0 6px 18px rgba(74, 47, 23, 0.08);
   border-color: var(--brown-200);
   transform: translateY(-1px);
+}
+.bt-card--highlight {
+  border-color: #d97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.25), 0 6px 18px rgba(217, 119, 6, 0.18);
+  animation: bt-flash 2.5s ease-out;
+}
+@keyframes bt-flash {
+  0%   { background-color: #fff7ed; }
+  60%  { background-color: #fff7ed; }
+  100% { background-color: #fff; }
 }
 .bt-card__head {
   display: flex;
