@@ -51,7 +51,7 @@ interface PhapTriRow {
 interface FormState {
   chung_trang: string
   nguyen_tac: string
-  luc_kinh: string
+  luc_kinh_list: string[]
   id_kinh_mach_list: number[]
   id_trieu_chung_list: number[]
   id_bai_thuoc_list: number[]
@@ -63,6 +63,9 @@ const error = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const dataList = ref<PhapTriRow[]>([])
 const searchQuery = ref('')
+
+type PhapTriCategory = 'all' | 'dong-y' | 'tay-y'
+const phapTriCategory = ref<PhapTriCategory>('all')
 
 const kinhMachOptions = ref<KinhMachLite[]>([])
 const trieuChungOptions = ref<TrieuChungLite[]>([])
@@ -134,16 +137,31 @@ const deletingItem = ref<PhapTriRow | null>(null)
 const emptyForm = (): FormState => ({
   chung_trang: '',
   nguyen_tac: '',
-  luc_kinh: '',
+  luc_kinh_list: [],
   id_kinh_mach_list: [],
   id_trieu_chung_list: [],
   id_bai_thuoc_list: [],
 })
 
+function parseLucKinh(value: string | null | undefined): string[] {
+  if (!value) return []
+  return value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+function toggleLucKinh(opt: string) {
+  const list = form.value.luc_kinh_list
+  form.value.luc_kinh_list = list.includes(opt)
+    ? list.filter((x) => x !== opt)
+    : [...list, opt]
+}
+
 const form = ref<FormState>(emptyForm())
 
 const currentPage = ref(1)
-const itemsPerPage = ref(10)
+const itemsPerPage = ref(12)
 
 onMounted(async () => {
   await Promise.all([
@@ -156,6 +174,10 @@ onMounted(async () => {
 })
 
 watch(searchQuery, () => {
+  currentPage.value = 1
+})
+
+watch(phapTriCategory, () => {
   currentPage.value = 1
 })
 
@@ -211,8 +233,14 @@ async function fetchBenhTayY() {
 
 const filteredList = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return dataList.value
+  const cat = phapTriCategory.value
   return dataList.value.filter((row) => {
+    if (cat !== 'all') {
+      const hasTayY = benhTayYForPhapTri(row.id).length > 0
+      if (cat === 'tay-y' && !hasTayY) return false
+      if (cat === 'dong-y' && hasTayY) return false
+    }
+    if (!q) return true
     const hay = [
       row.chung_trang,
       row.nguyen_tac,
@@ -227,6 +255,15 @@ const filteredList = computed(() => {
       .toLowerCase()
     return hay.includes(q)
   })
+})
+
+const phapTriCategoryCounts = computed(() => {
+  let tayY = 0
+  for (const row of dataList.value) {
+    if (benhTayYForPhapTri(row.id).length > 0) tayY++
+  }
+  const total = dataList.value.length
+  return { all: total, 'dong-y': total - tayY, 'tay-y': tayY }
 })
 
 const pagedList = computed(() => {
@@ -324,7 +361,7 @@ function openEditModal(row: PhapTriRow) {
   form.value = {
     chung_trang: row.chung_trang ?? '',
     nguyen_tac: row.nguyen_tac ?? '',
-    luc_kinh: row.luc_kinh ?? '',
+    luc_kinh_list: parseLucKinh(row.luc_kinh),
     id_kinh_mach_list: (row.kinh_mach_list ?? []).map((k) => k.idKinhMach),
     id_trieu_chung_list: (row.trieu_chung_list ?? []).map((t) => t.id),
     id_bai_thuoc_list:
@@ -356,7 +393,7 @@ async function handleSubmit() {
   const payload = {
     the_benh: f.chung_trang.trim() || null,
     nguyen_tac: f.nguyen_tac.trim() || null,
-    luc_kinh: f.luc_kinh.trim() || null,
+    luc_kinh: f.luc_kinh_list.length > 0 ? f.luc_kinh_list.join(', ') : null,
     id_kinh_mach_list: f.id_kinh_mach_list,
     id_trieu_chung_list: f.id_trieu_chung_list,
     id_bai_thuoc_list: f.id_bai_thuoc_list,
@@ -409,7 +446,7 @@ async function handleDelete() {
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">Quản Lý Pháp Trị</h1>
-        <p class="page-subtitle">Danh sách các phương pháp điều trị theo Tạng phủ — Thể bệnh — Lục kinh</p>
+        <p class="page-subtitle">Danh sách các phương pháp điều trị theo Tạng phủ — Thể bệnh — Tổn thương - Tác nhân</p>
       </div>
       <button type="button" class="btn-primary" @click="openCreateModal">+ Thêm pháp trị</button>
     </div>
@@ -433,10 +470,46 @@ async function handleDelete() {
             v-model="searchQuery"
             type="search"
             class="search-input"
-            placeholder="Tìm theo Tạng phủ, Thể bệnh, Pháp trị, Triệu chứng, Bài thuốc, Bệnh tây y, Lục kinh..."
+            placeholder="Tìm theo Tạng phủ, Thể bệnh, Pháp trị, Triệu chứng, Bài thuốc, Bệnh tây y, Tổn thương - Tác nhân..."
           />
         </div>
         <div class="toolbar-count">{{ filteredList.length }} / {{ dataList.length }} pháp trị</div>
+      </div>
+
+      <div class="sub-tabs" role="tablist" aria-label="Phân loại pháp trị">
+        <button
+          type="button"
+          role="tab"
+          class="sub-tab"
+          :class="{ active: phapTriCategory === 'dong-y' }"
+          :aria-selected="phapTriCategory === 'dong-y'"
+          @click="phapTriCategory = 'dong-y'"
+        >
+          Đông Y
+          <span class="sub-tab__count">{{ phapTriCategoryCounts['dong-y'] }}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="sub-tab"
+          :class="{ active: phapTriCategory === 'tay-y' }"
+          :aria-selected="phapTriCategory === 'tay-y'"
+          @click="phapTriCategory = 'tay-y'"
+        >
+          Tây Y
+          <span class="sub-tab__count">{{ phapTriCategoryCounts['tay-y'] }}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="sub-tab"
+          :class="{ active: phapTriCategory === 'all' }"
+          :aria-selected="phapTriCategory === 'all'"
+          @click="phapTriCategory = 'all'"
+        >
+          Tất cả
+          <span class="sub-tab__count">{{ phapTriCategoryCounts['all'] }}</span>
+        </button>
       </div>
 
       <div class="data-card">
@@ -492,10 +565,16 @@ async function handleDelete() {
                 </div>
               </section>
 
-              <section v-if="item.luc_kinh" class="disease-section">
-                <span class="disease-section__label">Lục kinh</span>
+              <section v-if="parseLucKinh(item.luc_kinh).length" class="disease-section">
+                <span class="disease-section__label">Tổn thương - Tác nhân</span>
                 <div class="chip-row chip-row--wrap">
-                  <span class="chip chip-luckinh">{{ item.luc_kinh }}</span>
+                  <span
+                    v-for="(lk, i) in parseLucKinh(item.luc_kinh)"
+                    :key="i"
+                    class="chip chip-luckinh"
+                  >
+                    {{ lk }}
+                  </span>
                 </div>
               </section>
 
@@ -577,8 +656,8 @@ async function handleDelete() {
 
             <div class="field field--full">
               <div class="field-head">
-                <span class="field-label">Lục kinh</span>
-                <span v-if="form.luc_kinh" class="field-count">Đã chọn</span>
+                <span class="field-label">Tổn thương - Tác nhân</span>
+                <span class="field-count">{{ form.luc_kinh_list.length }} đã chọn</span>
               </div>
               <div class="chip-picker">
                 <button
@@ -586,13 +665,13 @@ async function handleDelete() {
                   :key="opt"
                   type="button"
                   class="chip-toggle"
-                  :class="{ active: form.luc_kinh === opt }"
-                  @click="form.luc_kinh = form.luc_kinh === opt ? '' : opt"
+                  :class="{ active: form.luc_kinh_list.includes(opt) }"
+                  @click="toggleLucKinh(opt)"
                 >
                   {{ opt }}
                 </button>
               </div>
-              <small class="field-hint">Chọn 1 giá trị. Bấm lại lựa chọn đang chọn để bỏ.</small>
+              <small class="field-hint">Có thể chọn nhiều. Bấm lại lựa chọn đang chọn để bỏ.</small>
             </div>
 
             <div class="field field--full">
@@ -824,6 +903,52 @@ async function handleDelete() {
 .search-label { font-size: var(--font-size-xs); font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; }
 .search-input { padding: var(--space-2) var(--space-3); border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: var(--font-size-md); }
 .toolbar-count { font-size: var(--font-size-sm); color: var(--gray-500); font-weight: 600; }
+
+.sub-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--brown-100);
+  padding-bottom: 0;
+  flex-wrap: wrap;
+}
+.sub-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: var(--gray-600);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  margin-bottom: -1px;
+}
+.sub-tab:hover { color: var(--brown-600); background: var(--brown-50); }
+.sub-tab.active {
+  background: var(--white);
+  color: var(--brown-700);
+  border-color: var(--brown-200);
+  border-bottom-color: var(--white);
+}
+.sub-tab__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.sub-tab.active .sub-tab__count { background: var(--brown-600); color: var(--white); }
 
 .data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); }

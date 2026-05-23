@@ -176,13 +176,17 @@ function benhTayYGroupsForBaiThuoc(btId: number): BenhTayYGroup[] {
 }
 
 // Pagination
-const itemsPerPage = ref(10)
+const itemsPerPage = ref(12)
 const baiThuocPage = ref(1)
 const viThuocPage = ref(1)
 
 // Search
 const baiThuocSearch = ref('')
 const viThuocSearch = ref('')
+
+// Filter theo loại bài thuốc: tất cả / chỉ Đông Y (không gắn bệnh Tây Y) / có Tây Y
+type BaiThuocCategory = 'all' | 'dong-y' | 'tay-y'
+const baiThuocCategory = ref<BaiThuocCategory>('all')
 
 // Filter theo nhóm dược lý cho tab vị thuốc
 const viFilterNhomLonId = ref<number | null>(null)
@@ -261,8 +265,14 @@ watch(viFilterNhomNhoId, () => {
 
 const filteredBaiThuoc = computed(() => {
   const q = baiThuocSearch.value.trim().toLowerCase()
-  if (!q) return baiThuocList.value
+  const cat = baiThuocCategory.value
   return baiThuocList.value.filter((bt) => {
+    if (cat !== 'all') {
+      const hasTayY = benhTayYLabelsForBaiThuoc(bt.id).length > 0
+      if (cat === 'tay-y' && !hasTayY) return false
+      if (cat === 'dong-y' && hasTayY) return false
+    }
+    if (!q) return true
     const thanhPhan = (bt.chiTietViThuoc ?? [])
       .map((ct) => ct.viThuoc?.ten_vi_thuoc || '')
       .join(' ')
@@ -280,6 +290,15 @@ const filteredBaiThuoc = computed(() => {
       .toLowerCase()
     return hay.includes(q)
   })
+})
+
+const baiThuocCategoryCounts = computed(() => {
+  let tayY = 0
+  for (const bt of baiThuocList.value) {
+    if (benhTayYLabelsForBaiThuoc(bt.id).length > 0) tayY++
+  }
+  const total = baiThuocList.value.length
+  return { all: total, 'dong-y': total - tayY, 'tay-y': tayY }
 })
 
 const filteredViThuoc = computed(() => {
@@ -310,6 +329,7 @@ const totalBTPage = computed(() => Math.max(1, Math.ceil(filteredBaiThuoc.value.
 const totalVTPage = computed(() => Math.max(1, Math.ceil(filteredViThuoc.value.length / itemsPerPage.value)))
 
 watch(baiThuocSearch, () => { baiThuocPage.value = 1 })
+watch(baiThuocCategory, () => { baiThuocPage.value = 1 })
 watch(viThuocSearch, () => { viThuocPage.value = 1 })
 
 function getPageNumbers(current: number, total: number) {
@@ -2027,6 +2047,41 @@ async function suggestViThuocAi() {
           </div>
           <span class="toolbar-count">{{ filteredBaiThuoc.length }} / {{ baiThuocList.length }} bài thuốc</span>
         </div>
+        <div class="sub-tabs" role="tablist" aria-label="Phân loại bài thuốc">
+          <button
+            type="button"
+            role="tab"
+            class="sub-tab"
+            :class="{ active: baiThuocCategory === 'dong-y' }"
+            :aria-selected="baiThuocCategory === 'dong-y'"
+            @click="baiThuocCategory = 'dong-y'"
+          >
+            Đông Y
+            <span class="sub-tab__count">{{ baiThuocCategoryCounts['dong-y'] }}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="sub-tab"
+            :class="{ active: baiThuocCategory === 'tay-y' }"
+            :aria-selected="baiThuocCategory === 'tay-y'"
+            @click="baiThuocCategory = 'tay-y'"
+          >
+            Tây Y
+            <span class="sub-tab__count">{{ baiThuocCategoryCounts['tay-y'] }}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="sub-tab"
+            :class="{ active: baiThuocCategory === 'all' }"
+            :aria-selected="baiThuocCategory === 'all'"
+            @click="baiThuocCategory = 'all'"
+          >
+            Tất cả
+            <span class="sub-tab__count">{{ baiThuocCategoryCounts['all'] }}</span>
+          </button>
+        </div>
         <div class="data-card">
           <div class="card-header">
             <div class="card-header-left">
@@ -2967,6 +3022,52 @@ async function suggestViThuocAi() {
 .search-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; background: var(--gray-100); border: none; border-radius: 50%; color: var(--gray-600); cursor: pointer; font-size: 12px; }
 .search-clear:hover { background: var(--gray-200); color: var(--gray-800); }
 .toolbar-count { font-size: var(--font-size-sm); color: var(--gray-500); font-weight: 600; }
+
+.sub-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--brown-100);
+  padding-bottom: 0;
+  flex-wrap: wrap;
+}
+.sub-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: var(--gray-600);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  margin-bottom: -1px;
+}
+.sub-tab:hover { color: var(--brown-600); background: var(--brown-50); }
+.sub-tab.active {
+  background: var(--white);
+  color: var(--brown-700);
+  border-color: var(--brown-200);
+  border-bottom-color: var(--white);
+}
+.sub-tab__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.sub-tab.active .sub-tab__count { background: var(--brown-600); color: var(--white); }
 
 .data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); gap: var(--space-3); }

@@ -40,7 +40,7 @@ const emptyForm = (): FormState => ({
 const form = ref<FormState>(emptyForm())
 
 const currentPage = ref(1)
-const itemsPerPage = ref(10)
+const itemsPerPage = ref(12)
 
 onMounted(async () => {
   await fetchData()
