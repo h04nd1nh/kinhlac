@@ -1139,7 +1139,9 @@ async function btImportFromExcel(file: File) {
 
     btImportResult.value = stats
     btShowImportResult.value = true
-    await fetchData()
+    // Reset full caches để lần sau truy cập có data mới sau import.
+    baiThuocFullCache.value = new Map()
+    await loadBaiThuocPage()
   } catch (err: any) {
     stats.errors.push(err?.message ?? String(err))
     btImportResult.value = stats
