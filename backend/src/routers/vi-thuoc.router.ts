@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
 import { ViThuocService } from '../controllers/vi-thuoc.controller';
 import { CreateViThuocDto, UpdateViThuocDto } from '../models/dongy-thuoc.dto';
 
@@ -9,6 +9,24 @@ export class ViThuocRouter {
   @Get()
   findAll() {
     return this.service.findAll();
+  }
+
+  // Phải đứng TRƯỚC @Get(':id') để route 'lite' không bị match như id.
+  @Get('lite')
+  findLite(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+    @Query('idNhomNho') idNhomNho?: string,
+    @Query('idNhomLon') idNhomLon?: string,
+  ) {
+    return this.service.findLite({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      q: q ?? undefined,
+      idNhomNho: idNhomNho != null && idNhomNho !== '' ? Number(idNhomNho) : null,
+      idNhomLon: idNhomLon != null && idNhomLon !== '' ? Number(idNhomLon) : null,
+    });
   }
 
   @Get(':id')

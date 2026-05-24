@@ -132,10 +132,20 @@ const isLoading = ref(true)
 const error = ref<string | null>(null)
 
 const baiThuocList = ref<BaiThuoc[]>([])
+const baiThuocTotal = ref(0)
+const baiThuocStats = ref<{ all: number; 'dong-y': number; 'tay-y': number }>({ all: 0, 'dong-y': 0, 'tay-y': 0 })
 const viThuocList = ref<ViThuoc[]>([])
+const viThuocTotal = ref(0)
 const phapTriOptions = ref<PhapTriLite[]>([])
 const trieuChungOptions = ref<TrieuChungLite[]>([])
 const kinhMachList = ref<KinhMachLite[]>([])
+/** Cached full list of vi thuoc cho dropdown trong modal bài thuốc + phân tích. Lazy load 1 lần. */
+const viThuocFullList = ref<ViThuoc[]>([])
+const viThuocFullLoaded = ref(false)
+const baiThuocSupportLoaded = ref(false)
+const viThuocSupportLoaded = ref(false)
+/** Cache full bài thuốc theo id để dùng cho phân tích / sửa khi list chỉ là lite. */
+const baiThuocFullCache = ref<Map<number, BaiThuoc>>(new Map())
 
 interface NhomNhoLite {
   id: number
@@ -274,54 +284,18 @@ watch(viFilterNhomLonId, () => {
     }
   }
   viThuocPage.value = 1
+  void loadViThuocPage()
 })
 
 watch(viFilterNhomNhoId, () => {
   viThuocPage.value = 1
+  void loadViThuocPage()
 })
 
-const filteredBaiThuoc = computed(() => {
-  const q = baiThuocSearch.value.trim().toLowerCase()
-  const cat = baiThuocCategory.value
-  const cbId = selectedChungBenhId.value
-  return baiThuocList.value.filter((bt) => {
-    if (cat !== 'all') {
-      const btys = benhTayYLabelsForBaiThuoc(bt.id)
-      const hasTayY = btys.length > 0
-      if (cat === 'tay-y' && !hasTayY) return false
-      if (cat === 'dong-y' && hasTayY) return false
-      if (cat === 'tay-y' && cbId != null) {
-        if (!btys.some((bty) => bty.chungBenh?.id === cbId)) return false
-      }
-    }
-    if (!q) return true
-    const thanhPhan = (bt.chiTietViThuoc ?? [])
-      .map((ct) => ct.viThuoc?.ten_vi_thuoc || '')
-      .join(' ')
-    const hay = [
-      bt.ten_bai_thuoc,
-      bt.nguon_goc,
-      bt.cach_dung,
-      bt.trieu_chung,
-      ...phapTriLabels(bt),
-      ...theBenhLabels(bt),
-      thanhPhan,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return hay.includes(q)
-  })
-})
+/** Server đã filter & paginate; client chỉ render baiThuocList trực tiếp. */
+const filteredBaiThuoc = computed(() => baiThuocList.value)
 
-const baiThuocCategoryCounts = computed(() => {
-  let tayY = 0
-  for (const bt of baiThuocList.value) {
-    if (benhTayYLabelsForBaiThuoc(bt.id).length > 0) tayY++
-  }
-  const total = baiThuocList.value.length
-  return { all: total, 'dong-y': total - tayY, 'tay-y': tayY }
-})
+const baiThuocCategoryCounts = computed(() => baiThuocStats.value)
 
 interface ChungBenhTayYOption {
   id: number
@@ -347,40 +321,51 @@ const chungBenhTayYOptions = computed<ChungBenhTayYOption[]>(() => {
   return out.sort((a, b) => a.name.localeCompare(b.name, 'vi'))
 })
 
-const filteredViThuoc = computed(() => {
-  const q = viThuocSearch.value.trim().toLowerCase()
-  const allowedIds = viThuocIdsInSelectedNhomNho.value
-  return viThuocList.value.filter((vt) => {
-    if (allowedIds && !allowedIds.has(vt.id)) return false
-    if (!q) return true
-    const hay = [vt.ten_vi_thuoc, vt.tinh, vt.vi, vt.quy_kinh]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return hay.includes(q)
-  })
+const filteredViThuoc = computed(() => viThuocList.value)
+
+// Server đã paginate; alias để giữ template không phải đổi.
+const pagedBaiThuoc = computed(() => baiThuocList.value)
+const pagedViThuoc = computed(() => viThuocList.value)
+
+const totalBTPage = computed(() => Math.max(1, Math.ceil(baiThuocTotal.value / itemsPerPage.value)))
+const totalVTPage = computed(() => Math.max(1, Math.ceil(viThuocTotal.value / itemsPerPage.value)))
+
+// Debounce search 2s rồi reload page 1.
+let baiThuocSearchTimer: ReturnType<typeof setTimeout> | null = null
+watch(baiThuocSearch, () => {
+  if (baiThuocSearchTimer) clearTimeout(baiThuocSearchTimer)
+  baiThuocSearchTimer = setTimeout(() => {
+    baiThuocPage.value = 1
+    void loadBaiThuocPage()
+  }, 2000)
 })
 
-const pagedBaiThuoc = computed(() => {
-  const start = (baiThuocPage.value - 1) * itemsPerPage.value
-  return filteredBaiThuoc.value.slice(start, start + itemsPerPage.value)
+let viThuocSearchTimer: ReturnType<typeof setTimeout> | null = null
+watch(viThuocSearch, () => {
+  if (viThuocSearchTimer) clearTimeout(viThuocSearchTimer)
+  viThuocSearchTimer = setTimeout(() => {
+    viThuocPage.value = 1
+    void loadViThuocPage()
+  }, 2000)
 })
 
-const pagedViThuoc = computed(() => {
-  const start = (viThuocPage.value - 1) * itemsPerPage.value
-  return filteredViThuoc.value.slice(start, start + itemsPerPage.value)
-})
-
-const totalBTPage = computed(() => Math.max(1, Math.ceil(filteredBaiThuoc.value.length / itemsPerPage.value)))
-const totalVTPage = computed(() => Math.max(1, Math.ceil(filteredViThuoc.value.length / itemsPerPage.value)))
-
-watch(baiThuocSearch, () => { baiThuocPage.value = 1 })
 watch(baiThuocCategory, (v) => {
   baiThuocPage.value = 1
   if (v !== 'tay-y') selectedChungBenhId.value = null
+  void loadBaiThuocPage()
 })
-watch(selectedChungBenhId, () => { baiThuocPage.value = 1 })
-watch(viThuocSearch, () => { viThuocPage.value = 1 })
+
+watch(selectedChungBenhId, () => {
+  baiThuocPage.value = 1
+  void loadBaiThuocPage()
+})
+
+// Đổi trang → reload page mới từ server.
+watch(baiThuocPage, () => { void loadBaiThuocPage() })
+watch(viThuocPage, () => { void loadViThuocPage() })
+
+// Đổi tab → load data cần cho tab đó.
+watch(activeTab, () => { void loadActiveTabData() })
 
 function getPageNumbers(current: number, total: number) {
   const pages: number[] = []
@@ -489,55 +474,152 @@ onMounted(async () => {
   if (qTab === 'bai-thuoc' || qTab === 'vi-thuoc' || qTab === 'duoc-ly') {
     activeTab.value = qTab
   }
-  await fetchData()
+  await loadActiveTabData(true)
+
   const rawBtId = route.query.btId
   const targetId = Array.isArray(rawBtId) ? rawBtId[0] : rawBtId
   const btId = targetId != null ? Number(targetId) : NaN
   if (Number.isFinite(btId)) {
     activeTab.value = 'bai-thuoc'
     baiThuocSearch.value = ''
-    const idx = filteredBaiThuoc.value.findIndex((b) => b.id === btId)
-    if (idx >= 0) {
-      baiThuocPage.value = Math.floor(idx / itemsPerPage.value) + 1
-      highlightBtId.value = btId
-      await nextTick()
-      const el = document.querySelector(`[data-bt-id="${btId}"]`) as HTMLElement | null
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-      setTimeout(() => {
-        if (highlightBtId.value === btId) highlightBtId.value = null
-      }, 2500)
+    // Server đã paginate; nếu bài thuốc target không nằm trong page 1, mình chỉ highlight khi nó xuất hiện.
+    highlightBtId.value = btId
+    await nextTick()
+    const el = document.querySelector(`[data-bt-id="${btId}"]`) as HTMLElement | null
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
+    setTimeout(() => {
+      if (highlightBtId.value === btId) highlightBtId.value = null
+    }, 2500)
   }
 })
 
-async function fetchData() {
-  isLoading.value = true
+/** Build query string từ object (bỏ null/undefined/''). */
+function buildQuery(params: Record<string, unknown>): string {
+  const sp = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v == null) continue
+    const s = String(v)
+    if (!s) continue
+    sp.append(k, s)
+  }
+  const s = sp.toString()
+  return s ? `?${s}` : ''
+}
+
+/** Load 1 page bài thuốc từ /bai-thuoc/lite. */
+async function loadBaiThuocPage() {
+  const qs = buildQuery({
+    page: baiThuocPage.value,
+    limit: itemsPerPage.value,
+    q: baiThuocSearch.value.trim(),
+    category: baiThuocCategory.value,
+    chungBenhId: baiThuocCategory.value === 'tay-y' ? selectedChungBenhId.value : null,
+  })
+  const res: any = await api.get(`/bai-thuoc/lite${qs}`)
+  baiThuocList.value = res?.data ?? []
+  baiThuocTotal.value = Number(res?.total ?? 0)
+  if (res?.statsByCategory) {
+    baiThuocStats.value = res.statsByCategory
+  }
+}
+
+/** Load 1 page vị thuốc từ /vi-thuoc/lite. */
+async function loadViThuocPage() {
+  const qs = buildQuery({
+    page: viThuocPage.value,
+    limit: itemsPerPage.value,
+    q: viThuocSearch.value.trim(),
+    idNhomNho: viFilterNhomNhoId.value,
+    idNhomLon: viFilterNhomNhoId.value == null ? viFilterNhomLonId.value : null,
+  })
+  const res: any = await api.get(`/vi-thuoc/lite${qs}`)
+  viThuocList.value = res?.data ?? []
+  viThuocTotal.value = Number(res?.total ?? 0)
+}
+
+/** Fetch các catalog phụ trợ cho tab Bài thuốc (1 lần / session). */
+async function ensureBaiThuocSupport() {
+  if (baiThuocSupportLoaded.value) return
+  const [ptRes, tcRes, btyRes] = await Promise.all([
+    api.get<any>('/phap-tri'),
+    api.get<any>('/trieu-chung'),
+    api.get<any>('/benh-tay-y'),
+  ])
+  phapTriOptions.value = Array.isArray(ptRes) ? ptRes : (ptRes.data || [])
+  trieuChungOptions.value = Array.isArray(tcRes) ? tcRes : (tcRes.data || [])
+  benhTayYList.value = Array.isArray(btyRes) ? btyRes : (btyRes.data || [])
+  baiThuocSupportLoaded.value = true
+}
+
+/** Fetch các catalog phụ trợ cho tab Vị thuốc (1 lần / session). */
+async function ensureViThuocSupport() {
+  if (viThuocSupportLoaded.value) return
+  const [kmRes, nnRes] = await Promise.all([
+    api.get<any>('/kinh-mach'),
+    api.get<any>('/nhom-nho-duoc-ly'),
+  ])
+  kinhMachList.value = Array.isArray(kmRes) ? kmRes : (kmRes.data || [])
+  nhomNhoList.value = Array.isArray(nnRes) ? nnRes : (nnRes.data || [])
+  viThuocSupportLoaded.value = true
+}
+
+/** Fetch full vi-thuoc list (cho dropdown bài thuốc + phân tích). 1 lần / session. */
+async function ensureFullViThuocList() {
+  if (viThuocFullLoaded.value) return
+  const res: any = await api.get('/vi-thuoc')
+  viThuocFullList.value = Array.isArray(res) ? res : (res.data || [])
+  viThuocFullLoaded.value = true
+}
+
+/** Fetch nhóm nhỏ dược lý nếu chưa có (phục vụ phân tích bài thuốc). */
+async function ensureNhomNhoList() {
+  if (nhomNhoList.value.length > 0) return
+  const res: any = await api.get('/nhom-nho-duoc-ly')
+  nhomNhoList.value = Array.isArray(res) ? res : (res.data || [])
+}
+
+/** Fetch full bài thuốc theo id (cho phân tích/sửa). */
+async function loadBaiThuocFull(id: number): Promise<BaiThuoc | null> {
+  const cached = baiThuocFullCache.value.get(id)
+  if (cached) return cached
+  const res: any = await api.get(`/bai-thuoc/${id}`)
+  const item: BaiThuoc | null = res && typeof res === 'object' && 'id' in res ? res as BaiThuoc : (res?.data ?? null)
+  if (item) {
+    const next = new Map(baiThuocFullCache.value)
+    next.set(id, item)
+    baiThuocFullCache.value = next
+  }
+  return item
+}
+
+async function loadActiveTabData(forceReload = false) {
   error.value = null
+  isLoading.value = true
   try {
-    const [btRes, vtRes, ptRes, tcRes, nnRes, kmRes, btyRes] = await Promise.all([
-      api.get<any>('/bai-thuoc'),
-      api.get<any>('/vi-thuoc'),
-      api.get<any>('/phap-tri'),
-      api.get<any>('/trieu-chung'),
-      api.get<any>('/nhom-nho-duoc-ly'),
-      api.get<any>('/kinh-mach'),
-      api.get<any>('/benh-tay-y'),
-    ])
-    baiThuocList.value = Array.isArray(btRes) ? btRes : (btRes.data || [])
-    viThuocList.value = Array.isArray(vtRes) ? vtRes : (vtRes.data || [])
-    phapTriOptions.value = Array.isArray(ptRes) ? ptRes : (ptRes.data || [])
-    trieuChungOptions.value = Array.isArray(tcRes) ? tcRes : (tcRes.data || [])
-    nhomNhoList.value = Array.isArray(nnRes) ? nnRes : (nnRes.data || [])
-    kinhMachList.value = Array.isArray(kmRes) ? kmRes : (kmRes.data || [])
-    benhTayYList.value = Array.isArray(btyRes) ? btyRes : (btyRes.data || [])
+    if (activeTab.value === 'bai-thuoc') {
+      await ensureBaiThuocSupport()
+      if (forceReload || baiThuocList.value.length === 0) {
+        await loadBaiThuocPage()
+      }
+    } else if (activeTab.value === 'vi-thuoc') {
+      await ensureViThuocSupport()
+      if (forceReload || viThuocList.value.length === 0) {
+        await loadViThuocPage()
+      }
+    }
   } catch (err: any) {
     console.error(err)
-    error.value = 'Lỗi khi tải dữ liệu: ' + err.message
+    error.value = 'Lỗi khi tải dữ liệu: ' + (err?.message ?? err)
   } finally {
     isLoading.value = false
   }
+}
+
+/** Backwards-compat: nơi nào cũ gọi fetchData() — vẫn refresh tab hiện tại. */
+async function fetchData() {
+  await loadActiveTabData(true)
 }
 
 // ─── BÀI THUỐC CRUD ───────────────────────────────────────────────────────
@@ -566,7 +648,9 @@ const trieuChungById = computed(() => {
 
 const viThuocById = computed(() => {
   const m = new Map<number, ViThuoc>()
+  // Ưu tiên full list (lazy loaded); fallback sang page hiện tại.
   for (const v of viThuocList.value) m.set(v.id, v)
+  for (const v of viThuocFullList.value) m.set(v.id, v)
   return m
 })
 
@@ -618,7 +702,9 @@ function toggleId(list: number[], id: number): number[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
 }
 
-function openCreateBaiThuoc() {
+async function openCreateBaiThuoc() {
+  // Cần full vị thuốc list cho dropdown & datalist.
+  await ensureFullViThuocList()
   btEditingId.value = null
   btForm.value = emptyBaiThuocForm()
   btFormError.value = null
@@ -629,21 +715,25 @@ function openCreateBaiThuoc() {
   btShowModal.value = true
 }
 
-function openEditBaiThuoc(bt: BaiThuoc) {
-  btEditingId.value = bt.id
-  const phapIds = (bt.phapTriLinks ?? [])
+async function openEditBaiThuoc(bt: BaiThuoc) {
+  // Lite version đã đủ chiTiet/phapTri/trieuChung. Vẫn cần full vị thuốc list cho dropdown.
+  await ensureFullViThuocList()
+  // Lấy chi tiết bài thuốc bản full (fallback về bt lite nếu API lỗi).
+  const full = (await loadBaiThuocFull(bt.id)) ?? bt
+  btEditingId.value = full.id
+  const phapIds = (full.phapTriLinks ?? [])
     .slice()
     .sort((a, b) => (a.thuTu ?? 0) - (b.thuTu ?? 0))
     .map((l) => l.idPhapTri)
-  const trieuIds = (bt.trieuChungList ?? []).map((t) => t.id)
-  const chiTiet: BaiThuocFormChiTiet[] = (bt.chiTietViThuoc ?? []).map((ct) => ({
+  const trieuIds = (full.trieuChungList ?? []).map((t) => t.id)
+  const chiTiet: BaiThuocFormChiTiet[] = (full.chiTietViThuoc ?? []).map((ct) => ({
     id_vi_thuoc: ct.viThuoc?.id ?? ct.id_vi_thuoc ?? null,
     lieu_luong: ct.lieu_luong ?? '',
   }))
   btForm.value = {
-    ten_bai_thuoc: bt.ten_bai_thuoc ?? '',
-    nguon_goc: bt.nguon_goc ?? '',
-    cach_dung: bt.cach_dung ?? '',
+    ten_bai_thuoc: full.ten_bai_thuoc ?? '',
+    nguon_goc: full.nguon_goc ?? '',
+    cach_dung: full.cach_dung ?? '',
     phap_tri_ids: phapIds,
     trieu_chung_ids: trieuIds,
     chi_tiet: chiTiet,
@@ -701,10 +791,11 @@ async function submitBaiThuoc() {
   try {
     if (btEditingId.value != null) {
       await api.put(`/bai-thuoc/${btEditingId.value}`, payload)
+      baiThuocFullCache.value.delete(btEditingId.value)
     } else {
       await api.post('/bai-thuoc', payload)
     }
-    await fetchData()
+    await loadBaiThuocPage()
     closeBaiThuocModal()
   } catch (err: any) {
     btFormError.value = err.message || 'Không lưu được bài thuốc'
@@ -721,12 +812,17 @@ function confirmDeleteBaiThuoc(bt: BaiThuoc) {
 async function deleteBaiThuoc() {
   if (!btDeleting.value || btSubmitting.value) return
   btSubmitting.value = true
+  const deletedId = btDeleting.value.id
   try {
-    await api.delete(`/bai-thuoc/${btDeleting.value.id}`)
+    await api.delete(`/bai-thuoc/${deletedId}`)
     btShowDelete.value = false
     btDeleting.value = null
-    await fetchData()
-    if (pagedBaiThuoc.value.length === 0 && baiThuocPage.value > 1) baiThuocPage.value--
+    baiThuocFullCache.value.delete(deletedId)
+    await loadBaiThuocPage()
+    if (pagedBaiThuoc.value.length === 0 && baiThuocPage.value > 1) {
+      baiThuocPage.value--
+      // watcher sẽ trigger loadBaiThuocPage cho page mới
+    }
   } catch (err: any) {
     error.value = err.message || 'Không xóa được bài thuốc'
     btShowDelete.value = false
@@ -815,12 +911,19 @@ function btParseThanhPhan(raw: unknown): { name: string; lieu: string }[] {
   return out.filter((x) => x.name)
 }
 
-function btExportToExcel() {
+/** Fetch toàn bộ bài thuốc (lite) trong 1 lần. Dùng cho export/import. */
+async function fetchAllBaiThuocLite(): Promise<BaiThuoc[]> {
+  const res: any = await api.get('/bai-thuoc/lite?page=1&limit=100000')
+  return (res?.data ?? []) as BaiThuoc[]
+}
+
+async function btExportToExcel() {
   if (btIsExporting.value) return
   btIsExporting.value = true
   try {
+    const all = await fetchAllBaiThuocLite()
     const rows: Record<string, string>[] = []
-    for (const bt of baiThuocList.value) {
+    for (const bt of all) {
       const theBenh = theBenhLabels(bt).join(', ')
       const trieuChung = trieuChungLabels(bt).join(', ')
       const thanhPhan = thanhPhanItems(bt)
@@ -906,9 +1009,16 @@ async function btImportFromExcel(file: File) {
 
     btImportProgress.value = { current: 0, total: rows.length }
 
+    // Cần full vị thuốc + toàn bộ bài thuốc để build lookup (upsert đúng, tránh tạo trùng).
+    await Promise.all([
+      ensureFullViThuocList(),
+      ensureBaiThuocSupport(),
+    ])
+    const allBaiThuoc = await fetchAllBaiThuocLite()
+
     // Build lookup maps
     const viByKey = new Map<string, ViThuoc>()
-    for (const v of viThuocList.value) viByKey.set(btNormKey(v.ten_vi_thuoc), v)
+    for (const v of viThuocFullList.value) viByKey.set(btNormKey(v.ten_vi_thuoc), v)
 
     const ptByTheBenh = new Map<string, PhapTriLite>()
     for (const p of phapTriOptions.value) {
@@ -920,7 +1030,7 @@ async function btImportFromExcel(file: File) {
     for (const t of trieuChungOptions.value) tcByKey.set(btNormKey(t.ten_trieu_chung), t)
 
     const btByKey = new Map<string, BaiThuoc>()
-    for (const bt of baiThuocList.value) btByKey.set(btNormKey(bt.ten_bai_thuoc), bt)
+    for (const bt of allBaiThuoc) btByKey.set(btNormKey(bt.ten_bai_thuoc), bt)
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
@@ -1502,8 +1612,16 @@ function destroyAnaCharts() {
   }
 }
 
-function openAnalysis(bt: BaiThuoc) {
-  const r = analyzeBaiThuoc(bt)
+async function openAnalysis(bt: BaiThuoc) {
+  // Phân tích cần full chi tiết vị thuốc (với congDung/chuTri/kiengKy), full vị thuốc list (cho map id→data),
+  // và nhóm dược lý (để derive tác dụng / chủ trị bài thuốc).
+  await Promise.all([
+    loadBaiThuocFull(bt.id),
+    ensureFullViThuocList(),
+    ensureNhomNhoList(),
+  ])
+  const full = baiThuocFullCache.value.get(bt.id) ?? bt
+  const r = analyzeBaiThuoc(full)
   anaResult.value = r
   anaVtRows.splice(0, anaVtRows.length, ...r.viThuocList)
   anaShowModal.value = true
@@ -1954,7 +2072,10 @@ async function submitViThuoc() {
       }
       await api.post('/vi-thuoc', payload)
     }
-    await fetchData()
+    // Invalidate full caches để lần sau Sửa bài thuốc / Phân tích có data mới.
+    viThuocFullLoaded.value = false
+    viThuocFullList.value = []
+    await loadViThuocPage()
     closeViThuocModal()
   } catch (err: any) {
     vtFormError.value = err.message || 'Không lưu được vị thuốc'
@@ -1975,7 +2096,9 @@ async function deleteViThuoc() {
     await api.delete(`/vi-thuoc/${vtDeleting.value.id}`)
     vtShowDelete.value = false
     vtDeleting.value = null
-    await fetchData()
+    viThuocFullLoaded.value = false
+    viThuocFullList.value = []
+    await loadViThuocPage()
     if (pagedViThuoc.value.length === 0 && viThuocPage.value > 1) viThuocPage.value--
   } catch (err: any) {
     error.value = err.message || 'Không xóa được vị thuốc'
@@ -2274,7 +2397,7 @@ async function suggestViThuocAi() {
                   </section>
 
                   <section v-if="benhTayYLabelsForBaiThuoc(bt.id).length" class="bt-section bt-section--col">
-                    <span class="bt-section__label">Bệnh tây y</span>
+                    <span class="bt-section__label">Bệnh Tây Y</span>
                     <div class="bty-groups">
                       <div
                         v-for="g in benhTayYGroupsForBaiThuoc(bt.id)"
@@ -2290,7 +2413,7 @@ async function suggestViThuocAi() {
                             target="_blank"
                             rel="noopener"
                             class="chip chip-tayy chip-link-tayy"
-                            :title="`Mở bệnh tây y: ${bty.ten_benh}`"
+                            :title="`Mở bệnh Tây Y: ${bty.ten_benh}`"
                           >
                             {{ bty.ten_benh }}
                           </a>

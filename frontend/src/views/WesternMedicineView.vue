@@ -506,7 +506,7 @@ async function doDelete() {
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">Quản Lý Bệnh Tây Y</h1>
-        <p class="page-subtitle">Phân loại chủng bệnh và bệnh lý tây y</p>
+        <p class="page-subtitle">Phân loại chủng bệnh và bệnh lý Tây Y</p>
       </div>
       <div class="view-toggle">
         <button class="toggle-btn" :class="{ active: activeTab === 'benh-tay-y' }" @click="activeTab = 'benh-tay-y'">
@@ -570,7 +570,7 @@ async function doDelete() {
               </header>
               <div class="disease-card__body">
                 <section class="disease-section">
-                  <span class="disease-section__label">Số bệnh tây y</span>
+                  <span class="disease-section__label">Số bệnh Tây Y</span>
                   <span class="cell-tag">{{ benhTayYCountByChungBenh.get(cb.id) ?? 0 }} bệnh</span>
                 </section>
               </div>
@@ -608,7 +608,7 @@ async function doDelete() {
             />
           </label>
           <span class="toolbar-count">{{ filteredBtyList.length }} / {{ benhTayYList.length }} bệnh</span>
-          <button class="btn-primary" @click="openCreateBty">+ Thêm bệnh tây y</button>
+          <button class="btn-primary" @click="openCreateBty">+ Thêm bệnh Tây Y</button>
         </div>
 
         <div
@@ -809,7 +809,7 @@ async function doDelete() {
     <div v-if="showBtyModal" class="modal-overlay" @click.self="showBtyModal = false">
       <div class="modal modal--wide" @click.stop>
         <div class="modal-header">
-          <h3>{{ editingBty ? 'Sửa bệnh tây y' : 'Thêm bệnh tây y' }}</h3>
+          <h3>{{ editingBty ? 'Sửa bệnh Tây Y' : 'Thêm bệnh Tây Y' }}</h3>
           <button class="modal-close" @click="showBtyModal = false">✕</button>
         </div>
         <form class="modal-body" @submit.prevent="submitBty">
@@ -975,12 +975,12 @@ async function doDelete() {
         <div class="modal-body">
           <p>
             Bạn có chắc muốn xóa
-            <strong>{{ deletingTarget?.kind === 'cb' ? 'chủng bệnh' : 'bệnh tây y' }}</strong>
+            <strong>{{ deletingTarget?.kind === 'cb' ? 'chủng bệnh' : 'bệnh Tây Y' }}</strong>
             "<strong>{{ deletingTarget?.label }}</strong>"?
           </p>
           <p class="muted" style="font-size: 13px;">
             <template v-if="deletingTarget?.kind === 'cb'">
-              Lưu ý: xóa chủng bệnh sẽ xóa cascade tất cả bệnh tây y thuộc chủng đó.
+              Lưu ý: xóa chủng bệnh sẽ xóa cascade tất cả bệnh Tây Y thuộc chủng đó.
             </template>
             <template v-else>Thao tác này không thể hoàn tác.</template>
           </p>

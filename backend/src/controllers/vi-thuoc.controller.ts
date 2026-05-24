@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { ViThuoc } from '../models/vi-thuoc.model';
 import { ViThuocCongDung } from '../models/vi-thuoc-cong-dung.model';
 import { ViThuocChuTri } from '../models/vi-thuoc-chu-tri.model';
@@ -32,6 +32,64 @@ export class ViThuocService {
       relations: VI_THUOC_RELATIONS,
       order: { ten_vi_thuoc: 'ASC' },
     });
+  }
+
+  /**
+   * Lightweight, paginated list cho tab Vị thuốc.
+   * - Bỏ congDungLinks/chuTriLinks/kiengKyLinks/tenGoiKhacList để query nhanh.
+   * - Giữ kinhMachLinks vì UI cần để render quy kinh & mở modal sửa.
+   * - Hỗ trợ filter theo nhóm nhỏ dược lý (idNhomNho) hoặc nhóm lớn (idNhomLon) qua bảng nối.
+   */
+  async findLite(opts: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    idNhomNho?: number | null;
+    idNhomLon?: number | null;
+  }): Promise<{ data: ViThuoc[]; total: number; page: number; limit: number }> {
+    const page = Math.max(1, Math.floor(opts.page ?? 1));
+    const limit = Math.max(1, Math.min(200, Math.floor(opts.limit ?? 12)));
+    const q = (opts.q ?? '').trim();
+    const idNhomNho = Number.isFinite(opts.idNhomNho as number) ? Number(opts.idNhomNho) : null;
+    const idNhomLon = Number.isFinite(opts.idNhomLon as number) ? Number(opts.idNhomLon) : null;
+
+    const qb = this.repo.createQueryBuilder('vt');
+    if (q) {
+      const term = `%${q}%`;
+      qb.andWhere(
+        '(vt.ten_vi_thuoc ILIKE :term OR vt.tinh ILIKE :term OR vt.vi ILIKE :term OR vt.quy_kinh ILIKE :term OR vt.lieu_dung ILIKE :term)',
+        { term },
+      );
+    }
+    if (idNhomNho != null) {
+      qb.andWhere(
+        '(EXISTS (SELECT 1 FROM nhom_nho_vi_thuoc nnvt WHERE nnvt.id_vi_thuoc = vt.id AND nnvt.id_nhom_nho = :nnId))',
+        { nnId: idNhomNho },
+      );
+    } else if (idNhomLon != null) {
+      qb.andWhere(
+        '(EXISTS (SELECT 1 FROM nhom_nho_vi_thuoc nnvt JOIN nhom_nho_duoc_ly nnd ON nnd.id = nnvt.id_nhom_nho WHERE nnvt.id_vi_thuoc = vt.id AND nnd.id_nhom_lon = :nlId))',
+        { nlId: idNhomLon },
+      );
+    }
+
+    const [items, total] = await qb
+      .orderBy('vt.ten_vi_thuoc', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    let data: ViThuoc[] = [];
+    if (items.length) {
+      const ids = items.map((x) => x.id);
+      data = await this.repo.find({
+        where: { id: In(ids) },
+        relations: { kinhMachLinks: { kinhMach: true } },
+        order: { ten_vi_thuoc: 'ASC' },
+      });
+    }
+
+    return { data, total, page, limit };
   }
 
   findOne(id: number): Promise<ViThuoc | null> {

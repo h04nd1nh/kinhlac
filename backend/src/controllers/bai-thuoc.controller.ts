@@ -116,6 +116,92 @@ export class BaiThuocService {
     });
   }
 
+  /**
+   * Lightweight, paginated list for the medicines tab.
+   * - Cắt 4 cấp relations nặng (congDungLinks/chuTriLinks/kiengKyLinks/tenGoiKhacList) để query nhanh.
+   * - Hỗ trợ search server-side trên các cột text + category filter (đông y / tây y).
+   * - Hai-query pattern: count IDs trước, sau đó load lại với relations qua `In(ids)`
+   *   để tránh `LIMIT` bị méo do JOIN.
+   */
+  async findLite(opts: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    category?: 'all' | 'dong-y' | 'tay-y';
+    chungBenhId?: number | null;
+  }): Promise<{ data: BaiThuoc[]; total: number; page: number; limit: number; statsByCategory: { all: number; 'dong-y': number; 'tay-y': number } }> {
+    const page = Math.max(1, Math.floor(opts.page ?? 1));
+    const limit = Math.max(1, Math.min(200, Math.floor(opts.limit ?? 12)));
+    const q = (opts.q ?? '').trim();
+    const category = opts.category ?? 'all';
+    const chungBenhId = Number.isFinite(opts.chungBenhId as number) ? Number(opts.chungBenhId) : null;
+
+    const baseQb = this.repo.createQueryBuilder('bt');
+    if (q) {
+      const term = `%${q}%`;
+      baseQb.andWhere(
+        '(bt.ten_bai_thuoc ILIKE :term OR bt.nguon_goc ILIKE :term OR bt.cach_dung ILIKE :term OR bt.trieu_chung ILIKE :term OR bt.the_benh ILIKE :term OR bt.chung_trang ILIKE :term)',
+        { term },
+      );
+    }
+
+    // EXISTS / NOT EXISTS dựa trên bảng nối benh_tay_y_bai_thuoc.
+    const tayYExists = '(SELECT 1 FROM benh_tay_y_bai_thuoc bty_bt';
+    if (category === 'tay-y') {
+      if (chungBenhId != null) {
+        baseQb.andWhere(
+          `EXISTS ${tayYExists} JOIN benh_tay_y bty ON bty.id = bty_bt.id_benh_tay_y WHERE bty_bt.id_bai_thuoc = bt.id AND bty.id_chung_benh = :cbId)`,
+          { cbId: chungBenhId },
+        );
+      } else {
+        baseQb.andWhere(`EXISTS ${tayYExists} WHERE bty_bt.id_bai_thuoc = bt.id)`);
+      }
+    } else if (category === 'dong-y') {
+      baseQb.andWhere(`NOT EXISTS ${tayYExists} WHERE bty_bt.id_bai_thuoc = bt.id)`);
+    }
+
+    const [items, total] = await baseQb
+      .orderBy('bt.ten_bai_thuoc', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    let data: BaiThuoc[] = [];
+    if (items.length) {
+      const ids = items.map((x) => x.id);
+      data = await this.repo.find({
+        where: { id: In(ids) },
+        relations: [
+          'chiTietViThuoc',
+          'chiTietViThuoc.viThuoc',
+          'phapTriLinks',
+          'phapTriLinks.phapTri',
+          'trieuChungList',
+        ],
+        order: { ten_bai_thuoc: 'ASC' },
+      });
+    }
+
+    // Counts toàn bộ (không apply search) để hiển thị badge "Đông Y / Tây Y / Tất cả".
+    const totalAll = await this.repo.count();
+    const totalTayY = await this.repo
+      .createQueryBuilder('bt')
+      .where(`EXISTS ${tayYExists} WHERE bty_bt.id_bai_thuoc = bt.id)`)
+      .getCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      statsByCategory: {
+        all: totalAll,
+        'dong-y': totalAll - totalTayY,
+        'tay-y': totalTayY,
+      },
+    };
+  }
+
   findOne(id: number): Promise<BaiThuoc | null> {
     return this.repo.findOne({
       where: { id },

@@ -85,6 +85,7 @@ const searchQuery = ref('')
 
 type PhapTriCategory = 'all' | 'dong-y' | 'tay-y'
 const phapTriCategory = ref<PhapTriCategory>('all')
+const selectedTayYChungBenhId = ref<number | null>(null)
 
 interface TonThuongTacNhanLite {
   id: number
@@ -216,7 +217,12 @@ watch(searchQuery, () => {
   currentPage.value = 1
 })
 
-watch(phapTriCategory, () => {
+watch(phapTriCategory, (val) => {
+  currentPage.value = 1
+  if (val !== 'tay-y') selectedTayYChungBenhId.value = null
+})
+
+watch(selectedTayYChungBenhId, () => {
   currentPage.value = 1
 })
 
@@ -266,7 +272,7 @@ async function fetchBenhTayY() {
     const res: any = await api.get('/benh-tay-y')
     benhTayYList.value = Array.isArray(res) ? res : res?.data ?? []
   } catch (err) {
-    console.error('Không tải được danh sách bệnh tây y', err)
+    console.error('Không tải được danh sách bệnh Tây Y', err)
   }
 }
 
@@ -282,11 +288,16 @@ async function fetchTonThuong() {
 const filteredList = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   const cat = phapTriCategory.value
+  const cbId = selectedTayYChungBenhId.value
   return dataList.value.filter((row) => {
     if (cat !== 'all') {
-      const hasTayY = benhTayYForPhapTri(row.id).length > 0
+      const btyList = benhTayYForPhapTri(row.id)
+      const hasTayY = btyList.length > 0
       if (cat === 'tay-y' && !hasTayY) return false
       if (cat === 'dong-y' && hasTayY) return false
+      if (cat === 'tay-y' && cbId != null) {
+        if (!btyList.some((b) => b.chungBenh?.id === cbId)) return false
+      }
     }
     if (!q) return true
     const hay = [
@@ -312,6 +323,33 @@ const phapTriCategoryCounts = computed(() => {
   }
   const total = dataList.value.length
   return { all: total, 'dong-y': total - tayY, 'tay-y': tayY }
+})
+
+interface TayYChungBenhFilterOption {
+  id: number
+  name: string
+  count: number
+}
+
+const tayYChungBenhFilterOptions = computed<TayYChungBenhFilterOption[]>(() => {
+  const byCb = new Map<number, { name: string; ptIds: Set<number> }>()
+  for (const row of dataList.value) {
+    const btyList = benhTayYForPhapTri(row.id)
+    if (btyList.length === 0) continue
+    const seenForRow = new Set<number>()
+    for (const bty of btyList) {
+      const cb = bty.chungBenh
+      if (!cb || cb.id == null) continue
+      if (seenForRow.has(cb.id)) continue
+      seenForRow.add(cb.id)
+      const entry = byCb.get(cb.id) ?? { name: cb.ten_chung_benh || 'Khác', ptIds: new Set<number>() }
+      entry.ptIds.add(row.id)
+      byCb.set(cb.id, entry)
+    }
+  }
+  return Array.from(byCb.entries())
+    .map(([id, v]) => ({ id, name: v.name, count: v.ptIds.size }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
 })
 
 const pagedList = computed(() => {
@@ -524,7 +562,7 @@ async function handleDelete() {
             v-model="searchQuery"
             type="search"
             class="search-input"
-            placeholder="Tìm theo Tạng phủ, Thể bệnh, Pháp trị, Triệu chứng, Bài thuốc, Bệnh tây y, Tổn thương - Tác nhân..."
+            placeholder="Tìm theo Tạng phủ, Thể bệnh, Pháp trị, Triệu chứng, Bài thuốc, Bệnh Tây Y, Tổn thương - Tác nhân..."
           />
         </div>
         <div class="toolbar-count">{{ filteredList.length }} / {{ dataList.length }} pháp trị</div>
@@ -566,6 +604,38 @@ async function handleDelete() {
         </button>
       </div>
 
+      <div
+        v-if="phapTriCategory === 'tay-y' && tayYChungBenhFilterOptions.length"
+        class="sub-sub-tabs"
+        role="tablist"
+        aria-label="Lọc theo chủng bệnh"
+      >
+        <button
+          type="button"
+          role="tab"
+          class="sub-sub-tab"
+          :class="{ active: selectedTayYChungBenhId === null }"
+          :aria-selected="selectedTayYChungBenhId === null"
+          @click="selectedTayYChungBenhId = null"
+        >
+          Tất cả
+          <span class="sub-sub-tab__count">{{ phapTriCategoryCounts['tay-y'] }}</span>
+        </button>
+        <button
+          v-for="cb in tayYChungBenhFilterOptions"
+          :key="cb.id"
+          type="button"
+          role="tab"
+          class="sub-sub-tab"
+          :class="{ active: selectedTayYChungBenhId === cb.id }"
+          :aria-selected="selectedTayYChungBenhId === cb.id"
+          @click="selectedTayYChungBenhId = cb.id"
+        >
+          {{ cb.name }}
+          <span class="sub-sub-tab__count">{{ cb.count }}</span>
+        </button>
+      </div>
+
       <div class="data-card">
         <div class="card-header">
           <h3>Danh sách Pháp Trị</h3>
@@ -600,7 +670,7 @@ async function handleDelete() {
                         target="_blank"
                         rel="noopener"
                         class="chip chip-tayy chip-link"
-                        :title="`Mở bệnh tây y: ${bty.ten_benh}`"
+                        :title="`Mở bệnh Tây Y: ${bty.ten_benh}`"
                       >
                         {{ bty.ten_benh }}
                       </a>
@@ -1026,6 +1096,54 @@ async function handleDelete() {
   font-weight: 700;
 }
 .sub-tab.active .sub-tab__count { background: var(--brown-600); color: var(--white); }
+
+.sub-sub-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-4);
+}
+.sub-sub-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--brown-200);
+  background: var(--white);
+  color: var(--gray-700);
+  font-weight: 600;
+  font-size: 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+.sub-sub-tab:hover {
+  background: var(--brown-50);
+  border-color: var(--brown-300);
+  color: var(--brown-700);
+}
+.sub-sub-tab.active {
+  background: #fdf4ff;
+  color: #86198f;
+  border-color: #f5d0fe;
+}
+.sub-sub-tab__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.sub-sub-tab.active .sub-sub-tab__count {
+  background: #86198f;
+  color: var(--white);
+}
 
 .data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); }

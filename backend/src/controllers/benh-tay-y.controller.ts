@@ -57,7 +57,7 @@ export class BenhTayYService {
       ],
     });
     if (!item) {
-      throw new NotFoundException(`Bệnh tây y #${id} không tồn tại`);
+      throw new NotFoundException(`Bệnh Tây Y #${id} không tồn tại`);
     }
     return item;
   }
