@@ -55,6 +55,8 @@ export class PhapTriService {
     q?: string;
     category?: 'all' | 'dong-y' | 'tay-y';
     chungBenhId?: number | null;
+    tangPhuIds?: number[];
+    tonThuongTacNhans?: string[];
   }): Promise<{
     data: PhapTri[];
     total: number;
@@ -63,12 +65,16 @@ export class PhapTriService {
     statsByCategory: { all: number; 'dong-y': number; 'tay-y': number };
     relatedBenhTayYByPtId: Record<number, Array<{ id: number; ten_benh: string; chungBenh: { id: number; ten_chung_benh: string } | null }>>;
     tayYChungBenhStats: Array<{ id: number; name: string; count: number }>;
+    dongYTangPhuStats: Array<{ id: number; name: string; count: number }>;
+    dongYTonThuongStats: Array<{ id: number; name: string; count: number }>;
   }> {
     const page = Math.max(1, Math.floor(opts.page ?? 1));
     const limit = Math.max(1, Math.min(200, Math.floor(opts.limit ?? 12)));
     const q = (opts.q ?? '').trim();
     const category = opts.category ?? 'all';
     const chungBenhId = Number.isFinite(opts.chungBenhId as number) ? Number(opts.chungBenhId) : null;
+    const tangPhuIds = [...new Set((opts.tangPhuIds ?? []).filter((n) => Number.isFinite(n) && n > 0))];
+    const tonThuongTacNhans = [...new Set((opts.tonThuongTacNhans ?? []).map((s) => s.trim()).filter(Boolean))];
 
     // EXISTS clause cho "pháp trị có liên quan Tây Y": trực tiếp HOẶC qua bài thuốc.
     const tayYExistsClause = (cbIdParam?: string) => {
@@ -104,6 +110,21 @@ export class PhapTriService {
       }
     } else if (category === 'dong-y') {
       baseQb.andWhere(`NOT ${tayYExistsClause()}`);
+      if (tangPhuIds.length > 0) {
+        baseQb.andWhere(
+          `EXISTS (SELECT 1 FROM phap_tri_kinh_mach pkm WHERE pkm.id_phap_tri = pt.id AND pkm.id_kinh_mach IN (:...tangPhuIds))`,
+          { tangPhuIds },
+        );
+      }
+      if (tonThuongTacNhans.length > 0) {
+        baseQb.andWhere(
+          `pt.luc_kinh IS NOT NULL AND EXISTS (
+            SELECT 1 FROM unnest(string_to_array(pt.luc_kinh, ',')) AS tt(name)
+            WHERE LOWER(TRIM(tt.name)) IN (:...tonThuongNames)
+          )`,
+          { tonThuongNames: tonThuongTacNhans.map((s) => s.toLowerCase()) },
+        );
+      }
     }
 
     const [items, total] = await baseQb
@@ -202,6 +223,57 @@ export class PhapTriService {
       count: Number(r.cnt),
     }));
 
+    // Stats theo Tạng phủ (kinh mạch) cho pháp trị thuần Đông Y — render sub-sub-tabs khi ở tab Đông Y.
+    const tangPhuStatsRows: Array<{ id: number; name: string; cnt: number }> = await this.repo.query(
+      `SELECT km.id_kinh_mach AS id,
+              km.ten_kinh_mach AS name,
+              COUNT(DISTINCT pkm.id_phap_tri)::int AS cnt
+       FROM phap_tri_kinh_mach pkm
+       JOIN phap_tri pt ON pt.id = pkm.id_phap_tri
+       JOIN kinh_mach km ON km.id_kinh_mach = pkm.id_kinh_mach
+       WHERE NOT (
+         EXISTS (SELECT 1 FROM benh_tay_y_phap_tri btypt WHERE btypt.id_phap_tri = pt.id)
+         OR EXISTS (SELECT 1 FROM bai_thuoc_phap_tri btpt
+                    JOIN benh_tay_y_bai_thuoc btybt ON btybt.id_bai_thuoc = btpt.id_bai_thuoc
+                    WHERE btpt.id_phap_tri = pt.id)
+       )
+       GROUP BY km.id_kinh_mach, km.ten_kinh_mach
+       HAVING COUNT(DISTINCT pkm.id_phap_tri) > 0
+       ORDER BY km.ten_kinh_mach`,
+    );
+    const dongYTangPhuStats = tangPhuStatsRows.map((r) => ({
+      id: Number(r.id),
+      name: r.name,
+      count: Number(r.cnt),
+    }));
+
+    // Stats theo Tổn thương - Tác nhân: dùng catalog ton_thuong_tac_nhan + đếm pháp trị Đông Y có name xuất hiện trong luc_kinh.
+    const tonThuongStatsRows: Array<{ id: number; name: string; cnt: number }> = await this.repo.query(
+      `SELECT tt.id AS id, tt.ten AS name,
+              COUNT(DISTINCT pt.id)::int AS cnt
+       FROM ton_thuong_tac_nhan tt
+       LEFT JOIN phap_tri pt
+         ON pt.luc_kinh IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM unnest(string_to_array(pt.luc_kinh, ',')) AS u(v)
+          WHERE LOWER(TRIM(u.v)) = LOWER(TRIM(tt.ten))
+        )
+        AND NOT (
+          EXISTS (SELECT 1 FROM benh_tay_y_phap_tri btypt WHERE btypt.id_phap_tri = pt.id)
+          OR EXISTS (SELECT 1 FROM bai_thuoc_phap_tri btpt
+                     JOIN benh_tay_y_bai_thuoc btybt ON btybt.id_bai_thuoc = btpt.id_bai_thuoc
+                     WHERE btpt.id_phap_tri = pt.id)
+        )
+       GROUP BY tt.id, tt.ten
+       HAVING COUNT(DISTINCT pt.id) > 0
+       ORDER BY tt.ten`,
+    );
+    const dongYTonThuongStats = tonThuongStatsRows.map((r) => ({
+      id: Number(r.id),
+      name: r.name,
+      count: Number(r.cnt),
+    }));
+
     return {
       data,
       total,
@@ -214,6 +286,8 @@ export class PhapTriService {
       },
       relatedBenhTayYByPtId,
       tayYChungBenhStats,
+      dongYTangPhuStats,
+      dongYTonThuongStats,
     };
   }
 

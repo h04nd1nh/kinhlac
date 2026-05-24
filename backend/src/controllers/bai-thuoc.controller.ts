@@ -129,12 +129,24 @@ export class BaiThuocService {
     q?: string;
     category?: 'all' | 'dong-y' | 'tay-y';
     chungBenhId?: number | null;
-  }): Promise<{ data: BaiThuoc[]; total: number; page: number; limit: number; statsByCategory: { all: number; 'dong-y': number; 'tay-y': number } }> {
+    tangPhuIds?: number[];
+    tonThuongTacNhans?: string[];
+  }): Promise<{
+    data: BaiThuoc[];
+    total: number;
+    page: number;
+    limit: number;
+    statsByCategory: { all: number; 'dong-y': number; 'tay-y': number };
+    dongYTangPhuStats: Array<{ id: number; name: string; count: number }>;
+    dongYTonThuongStats: Array<{ id: number; name: string; count: number }>;
+  }> {
     const page = Math.max(1, Math.floor(opts.page ?? 1));
     const limit = Math.max(1, Math.min(200, Math.floor(opts.limit ?? 12)));
     const q = (opts.q ?? '').trim();
     const category = opts.category ?? 'all';
     const chungBenhId = Number.isFinite(opts.chungBenhId as number) ? Number(opts.chungBenhId) : null;
+    const tangPhuIds = [...new Set((opts.tangPhuIds ?? []).filter((n) => Number.isFinite(n) && n > 0))];
+    const tonThuongTacNhans = [...new Set((opts.tonThuongTacNhans ?? []).map((s) => s.trim()).filter(Boolean))];
 
     const baseQb = this.repo.createQueryBuilder('bt');
     if (q) {
@@ -158,6 +170,31 @@ export class BaiThuocService {
       }
     } else if (category === 'dong-y') {
       baseQb.andWhere(`NOT EXISTS ${tayYExists} WHERE bty_bt.id_bai_thuoc = bt.id)`);
+      if (tangPhuIds.length > 0) {
+        baseQb.andWhere(
+          `EXISTS (
+             SELECT 1 FROM bai_thuoc_phap_tri btpt
+             JOIN phap_tri_kinh_mach pkm ON pkm.id_phap_tri = btpt.id_phap_tri
+             WHERE btpt.id_bai_thuoc = bt.id AND pkm.id_kinh_mach IN (:...tangPhuIds)
+           )`,
+          { tangPhuIds },
+        );
+      }
+      if (tonThuongTacNhans.length > 0) {
+        baseQb.andWhere(
+          `EXISTS (
+             SELECT 1 FROM bai_thuoc_phap_tri btpt
+             JOIN phap_tri pt2 ON pt2.id = btpt.id_phap_tri
+             WHERE btpt.id_bai_thuoc = bt.id
+               AND pt2.luc_kinh IS NOT NULL
+               AND EXISTS (
+                 SELECT 1 FROM unnest(string_to_array(pt2.luc_kinh, ',')) AS tt(name)
+                 WHERE LOWER(TRIM(tt.name)) IN (:...tonThuongNames)
+               )
+           )`,
+          { tonThuongNames: tonThuongTacNhans.map((s) => s.toLowerCase()) },
+        );
+      }
     }
 
     const [items, total] = await baseQb
@@ -189,6 +226,53 @@ export class BaiThuocService {
       .where(`EXISTS ${tayYExists} WHERE bty_bt.id_bai_thuoc = bt.id)`)
       .getCount();
 
+    // Stats theo Tạng phủ (kinh mạch) cho bài thuốc thuần Đông Y — đi qua phap_tri.
+    const tangPhuStatsRows: Array<{ id: number; name: string; cnt: number }> = await this.repo.query(
+      `SELECT km.id_kinh_mach AS id,
+              km.ten_kinh_mach AS name,
+              COUNT(DISTINCT bt.id)::int AS cnt
+       FROM bai_thuoc bt
+       JOIN bai_thuoc_phap_tri btpt ON btpt.id_bai_thuoc = bt.id
+       JOIN phap_tri_kinh_mach pkm ON pkm.id_phap_tri = btpt.id_phap_tri
+       JOIN kinh_mach km ON km.id_kinh_mach = pkm.id_kinh_mach
+       WHERE NOT EXISTS (SELECT 1 FROM benh_tay_y_bai_thuoc bty_bt WHERE bty_bt.id_bai_thuoc = bt.id)
+       GROUP BY km.id_kinh_mach, km.ten_kinh_mach
+       HAVING COUNT(DISTINCT bt.id) > 0
+       ORDER BY km.ten_kinh_mach`,
+    );
+    const dongYTangPhuStats = tangPhuStatsRows.map((r) => ({
+      id: Number(r.id),
+      name: r.name,
+      count: Number(r.cnt),
+    }));
+
+    // Stats theo Tổn thương - Tác nhân cho bài thuốc Đông Y.
+    const tonThuongStatsRows: Array<{ id: number; name: string; cnt: number }> = await this.repo.query(
+      `SELECT tt.id AS id, tt.ten AS name,
+              COUNT(DISTINCT bt.id)::int AS cnt
+       FROM ton_thuong_tac_nhan tt
+       LEFT JOIN bai_thuoc bt
+         ON NOT EXISTS (SELECT 1 FROM benh_tay_y_bai_thuoc bty_bt WHERE bty_bt.id_bai_thuoc = bt.id)
+        AND EXISTS (
+          SELECT 1 FROM bai_thuoc_phap_tri btpt
+          JOIN phap_tri pt ON pt.id = btpt.id_phap_tri
+          WHERE btpt.id_bai_thuoc = bt.id
+            AND pt.luc_kinh IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM unnest(string_to_array(pt.luc_kinh, ',')) AS u(v)
+              WHERE LOWER(TRIM(u.v)) = LOWER(TRIM(tt.ten))
+            )
+        )
+       GROUP BY tt.id, tt.ten
+       HAVING COUNT(DISTINCT bt.id) > 0
+       ORDER BY tt.ten`,
+    );
+    const dongYTonThuongStats = tonThuongStatsRows.map((r) => ({
+      id: Number(r.id),
+      name: r.name,
+      count: Number(r.cnt),
+    }));
+
     return {
       data,
       total,
@@ -199,6 +283,8 @@ export class BaiThuocService {
         'dong-y': totalAll - totalTayY,
         'tay-y': totalTayY,
       },
+      dongYTangPhuStats,
+      dongYTonThuongStats,
     };
   }
 

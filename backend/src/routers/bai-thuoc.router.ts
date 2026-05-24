@@ -19,15 +19,33 @@ export class BaiThuocRouter {
     @Query('q') q?: string,
     @Query('category') category?: string,
     @Query('chungBenhId') chungBenhId?: string,
+    @Query('tangPhuIds') tangPhuIds?: string,
+    @Query('tonThuongTacNhans') tonThuongTacNhans?: string,
   ) {
     const cat = category === 'dong-y' || category === 'tay-y' ? category : 'all';
     const cbId = chungBenhId != null && chungBenhId !== '' ? Number(chungBenhId) : null;
+    const parseIdList = (raw?: string): number[] => {
+      if (raw == null || raw === '') return [];
+      return raw
+        .split(',')
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isFinite(n) && n > 0);
+    };
+    const parseStrList = (raw?: string): string[] => {
+      if (raw == null || raw === '') return [];
+      return raw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    };
     return this.service.findLite({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       q: q ?? undefined,
       category: cat,
       chungBenhId: cbId,
+      tangPhuIds: parseIdList(tangPhuIds),
+      tonThuongTacNhans: parseStrList(tonThuongTacNhans),
     });
   }
 

@@ -221,6 +221,13 @@ const baiThuocCategory = ref<BaiThuocCategory>('all')
 // Khi đang ở tab "Tây Y", có thể lọc thêm theo chủng bệnh (null = tất cả chủng)
 const selectedChungBenhId = ref<number | null>(null)
 
+// Khi đang ở tab "Đông Y", có thể lọc thêm theo Tạng phủ + Tổn thương-Tác nhân (multi-select)
+const selectedDongYTangPhuIds = ref<number[]>([])
+const selectedDongYTonThuongList = ref<string[]>([])
+interface DongYFilterOption { id: number; name: string; count: number }
+const dongYTangPhuStats = ref<DongYFilterOption[]>([])
+const dongYTonThuongStats = ref<DongYFilterOption[]>([])
+
 // Filter theo nhóm dược lý cho tab vị thuốc
 const viFilterNhomLonId = ref<number | null>(null)
 const viFilterNhomNhoId = ref<number | null>(null)
@@ -358,6 +365,10 @@ watch(viThuocSearch, () => {
 watch(baiThuocCategory, (v) => {
   baiThuocPage.value = 1
   if (v !== 'tay-y') selectedChungBenhId.value = null
+  if (v !== 'dong-y') {
+    selectedDongYTangPhuIds.value = []
+    selectedDongYTonThuongList.value = []
+  }
   void loadBaiThuocPage()
 })
 
@@ -365,6 +376,41 @@ watch(selectedChungBenhId, () => {
   baiThuocPage.value = 1
   void loadBaiThuocPage()
 })
+
+watch(
+  selectedDongYTangPhuIds,
+  () => {
+    baiThuocPage.value = 1
+    void loadBaiThuocPage()
+  },
+  { deep: true },
+)
+
+watch(
+  selectedDongYTonThuongList,
+  () => {
+    baiThuocPage.value = 1
+    void loadBaiThuocPage()
+  },
+  { deep: true },
+)
+
+function toggleDongYTangPhu(id: number) {
+  selectedDongYTangPhuIds.value = selectedDongYTangPhuIds.value.includes(id)
+    ? selectedDongYTangPhuIds.value.filter((x) => x !== id)
+    : [...selectedDongYTangPhuIds.value, id]
+}
+
+function toggleDongYTonThuong(name: string) {
+  selectedDongYTonThuongList.value = selectedDongYTonThuongList.value.includes(name)
+    ? selectedDongYTonThuongList.value.filter((x) => x !== name)
+    : [...selectedDongYTonThuongList.value, name]
+}
+
+function clearDongYFilters() {
+  selectedDongYTangPhuIds.value = []
+  selectedDongYTonThuongList.value = []
+}
 
 // Đổi trang → reload page mới từ server.
 watch(baiThuocPage, () => { void loadBaiThuocPage() })
@@ -524,6 +570,14 @@ async function loadBaiThuocPage() {
       q: baiThuocSearch.value.trim(),
       category: baiThuocCategory.value,
       chungBenhId: baiThuocCategory.value === 'tay-y' ? selectedChungBenhId.value : null,
+      tangPhuIds:
+        baiThuocCategory.value === 'dong-y' && selectedDongYTangPhuIds.value.length
+          ? selectedDongYTangPhuIds.value.join(',')
+          : null,
+      tonThuongTacNhans:
+        baiThuocCategory.value === 'dong-y' && selectedDongYTonThuongList.value.length
+          ? selectedDongYTonThuongList.value.join(',')
+          : null,
     })
     const res: any = await api.get(`/bai-thuoc/lite${qs}`)
     baiThuocList.value = res?.data ?? []
@@ -531,6 +585,8 @@ async function loadBaiThuocPage() {
     if (res?.statsByCategory) {
       baiThuocStats.value = res.statsByCategory
     }
+    dongYTangPhuStats.value = res?.dongYTangPhuStats ?? []
+    dongYTonThuongStats.value = res?.dongYTonThuongStats ?? []
   } finally {
     baiThuocPageLoading.value = false
   }
@@ -2361,6 +2417,57 @@ async function suggestViThuocAi() {
             <span class="sub-sub-tab__count">{{ cb.count }}</span>
           </button>
         </div>
+        <div
+          v-if="baiThuocCategory === 'dong-y' && (dongYTangPhuStats.length || dongYTonThuongStats.length)"
+          class="dong-y-filters"
+        >
+          <div v-if="dongYTangPhuStats.length" class="filter-row">
+            <span class="filter-row__label">Tạng phủ</span>
+            <div class="sub-sub-tabs sub-sub-tabs--inline" role="group" aria-label="Lọc theo tạng phủ">
+              <button
+                v-for="opt in dongYTangPhuStats"
+                :key="'tp-' + opt.id"
+                type="button"
+                class="sub-sub-tab"
+                :class="{ active: selectedDongYTangPhuIds.includes(opt.id) }"
+                :aria-pressed="selectedDongYTangPhuIds.includes(opt.id)"
+                @click="toggleDongYTangPhu(opt.id)"
+              >
+                {{ opt.name }}
+                <span class="sub-sub-tab__count">{{ opt.count }}</span>
+              </button>
+            </div>
+          </div>
+          <div v-if="dongYTonThuongStats.length" class="filter-row">
+            <span class="filter-row__label">Tổn thương</span>
+            <div
+              class="sub-sub-tabs sub-sub-tabs--inline sub-sub-tabs--alt"
+              role="group"
+              aria-label="Lọc theo tổn thương - tác nhân"
+            >
+              <button
+                v-for="opt in dongYTonThuongStats"
+                :key="'tt-' + opt.id"
+                type="button"
+                class="sub-sub-tab"
+                :class="{ active: selectedDongYTonThuongList.includes(opt.name) }"
+                :aria-pressed="selectedDongYTonThuongList.includes(opt.name)"
+                @click="toggleDongYTonThuong(opt.name)"
+              >
+                {{ opt.name }}
+                <span class="sub-sub-tab__count">{{ opt.count }}</span>
+              </button>
+            </div>
+            <button
+              v-if="selectedDongYTangPhuIds.length || selectedDongYTonThuongList.length"
+              type="button"
+              class="filter-clear-btn"
+              @click="clearDongYFilters"
+            >
+              Bỏ chọn
+            </button>
+          </div>
+        </div>
         <div class="data-card" :class="{ 'data-card--loading': baiThuocPageLoading }">
           <div v-if="baiThuocPageLoading" class="loading-bar" aria-hidden="true"></div>
           <div class="card-header">
@@ -3436,6 +3543,61 @@ async function suggestViThuocAi() {
   background: #86198f;
   color: var(--white);
 }
+
+.dong-y-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--space-3);
+}
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.filter-row__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--gray-500);
+  flex-shrink: 0;
+  min-width: 90px;
+}
+.sub-sub-tabs--inline { margin: 0; padding: 0; flex: 1; gap: 4px; }
+.sub-sub-tabs--inline .sub-sub-tab {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.sub-sub-tabs--inline .sub-sub-tab__count {
+  min-width: 16px;
+  height: 14px;
+  padding: 0 4px;
+  font-size: 9px;
+  border-radius: 7px;
+}
+.sub-sub-tabs--alt .sub-sub-tab.active {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+.sub-sub-tabs--alt .sub-sub-tab.active .sub-sub-tab__count {
+  background: #047857;
+  color: var(--white);
+}
+.filter-clear-btn {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gray-500);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.filter-clear-btn:hover { color: var(--brown-700); }
 
 .data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); gap: var(--space-3); }
