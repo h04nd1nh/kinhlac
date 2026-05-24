@@ -27,6 +27,8 @@ const error = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const dataList = ref<KinhMachRow[]>([])
 const searchQuery = ref('')
+/** Loading khi reload sau submit/delete — overlay nhẹ trên data-card. */
+const pageLoading = ref(false)
 
 const showModal = ref(false)
 const showDeleteConfirm = ref(false)
@@ -55,7 +57,9 @@ watch(searchQuery, () => {
 })
 
 async function fetchData() {
-  isLoading.value = true
+  const firstLoad = dataList.value.length === 0
+  if (firstLoad) isLoading.value = true
+  else pageLoading.value = true
   error.value = null
   try {
     const res: any = await api.get('/kinh-mach')
@@ -65,6 +69,7 @@ async function fetchData() {
     error.value = 'Lỗi khi tải dữ liệu: ' + (err.message || String(err))
   } finally {
     isLoading.value = false
+    pageLoading.value = false
   }
 }
 
@@ -218,7 +223,8 @@ async function handleDelete() {
         <span class="toolbar-count">{{ filteredList.length }} / {{ dataList.length }} kinh mạch</span>
       </div>
 
-      <div class="data-card">
+      <div class="data-card" :class="{ 'data-card--loading': pageLoading }">
+        <div v-if="pageLoading" class="loading-bar" aria-hidden="true"></div>
         <div class="card-header">
           <h3>Danh sách Kinh Mạch</h3>
           <span class="badge badge-success">{{ filteredList.length }} bản ghi</span>
@@ -434,7 +440,11 @@ async function handleDelete() {
 .search-input { padding: var(--space-2) var(--space-3); border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: var(--font-size-md); }
 .toolbar-count { font-size: var(--font-size-sm); color: var(--gray-500); font-weight: 600; }
 
-.data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
+.data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); position: relative; }
+.data-card--loading { pointer-events: none; }
+.loading-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; overflow: hidden; background: rgba(146, 64, 14, 0.08); z-index: 5; }
+.loading-bar::before { content: ''; position: absolute; top: 0; left: 0; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, var(--brown-500), transparent); animation: loadingBarSlide 1.1s ease-in-out infinite; }
+@keyframes loadingBarSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); }
 .card-header h3 { font-size: var(--font-size-lg); font-weight: 700; color: var(--brown-900); margin: 0; }
 

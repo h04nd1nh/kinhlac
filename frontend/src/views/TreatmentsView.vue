@@ -41,11 +41,6 @@ interface BenhTayYLite {
   id: number
   ten_benh: string
   chungBenh?: { id: number; ten_chung_benh: string } | null
-  phapTriList?: Array<{ id: number }> | null
-  baiThuocList?: Array<{
-    id: number
-    phapTriLinks?: Array<{ idPhapTri: number }> | null
-  }> | null
 }
 
 interface BaiThuocPhapTriLink {
@@ -81,7 +76,14 @@ const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const dataList = ref<PhapTriRow[]>([])
+const dataTotal = ref(0)
+const dataStats = ref<{ all: number; 'dong-y': number; 'tay-y': number }>({ all: 0, 'dong-y': 0, 'tay-y': 0 })
+const benhTayYByPtIdMap = ref<Record<number, BenhTayYLite[]>>({})
+const tayYChungBenhStats = ref<TayYChungBenhFilterOption[]>([])
 const searchQuery = ref('')
+const pageLoading = ref(false)
+/** Đánh dấu modal đang đợi load /bai-thuoc options. */
+const formLoading = ref(false)
 
 type PhapTriCategory = 'all' | 'dong-y' | 'tay-y'
 const phapTriCategory = ref<PhapTriCategory>('all')
@@ -93,32 +95,20 @@ interface TonThuongTacNhanLite {
   ghi_chu: string | null
 }
 
+interface TayYChungBenhFilterOption {
+  id: number
+  name: string
+  count: number
+}
+
 const kinhMachOptions = ref<KinhMachLite[]>([])
 const trieuChungOptions = ref<TrieuChungLite[]>([])
 const baiThuocOptions = ref<BaiThuocLite[]>([])
-const benhTayYList = ref<BenhTayYLite[]>([])
+const baiThuocOptionsLoaded = ref(false)
 const tonThuongOptions = ref<TonThuongTacNhanLite[]>([])
 
-const benhTayYByPhapTri = computed<Map<number, BenhTayYLite[]>>(() => {
-  const m = new Map<number, BenhTayYLite[]>()
-  const add = (ptId: number, bty: BenhTayYLite) => {
-    if (!Number.isFinite(ptId)) return
-    const list = m.get(ptId) ?? []
-    if (list.some((b) => b.id === bty.id)) return
-    list.push(bty)
-    m.set(ptId, list)
-  }
-  for (const bty of benhTayYList.value) {
-    for (const pt of bty.phapTriList ?? []) add(pt.id, bty)
-    for (const bt of bty.baiThuocList ?? []) {
-      for (const link of bt.phapTriLinks ?? []) add(link.idPhapTri, bty)
-    }
-  }
-  return m
-})
-
 function benhTayYForPhapTri(ptId: number): BenhTayYLite[] {
-  return benhTayYByPhapTri.value.get(ptId) ?? []
+  return benhTayYByPtIdMap.value[ptId] ?? []
 }
 
 interface BenhTayYGroup {
@@ -182,14 +172,7 @@ const currentPage = ref(1)
 const itemsPerPage = ref(12)
 
 onMounted(async () => {
-  await Promise.all([
-    fetchData(),
-    fetchKinhMach(),
-    fetchTrieuChung(),
-    fetchBaiThuoc(),
-    fetchBenhTayY(),
-    fetchTonThuong(),
-  ])
+  await fetchData()
   const rawPtId = route.query.ptId
   const targetId = Array.isArray(rawPtId) ? rawPtId[0] : rawPtId
   const ptId = targetId != null ? Number(targetId) : NaN
@@ -197,41 +180,74 @@ onMounted(async () => {
     phapTriCategory.value = 'all'
     searchQuery.value = ''
     await nextTick()
-    const idx = filteredList.value.findIndex((r) => r.id === ptId)
-    if (idx >= 0) {
-      currentPage.value = Math.floor(idx / itemsPerPage.value) + 1
-      highlightPtId.value = ptId
-      await nextTick()
-      const el = document.querySelector(`[data-pt-id="${ptId}"]`) as HTMLElement | null
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-      setTimeout(() => {
-        if (highlightPtId.value === ptId) highlightPtId.value = null
-      }, 2500)
-    }
+    highlightPtId.value = ptId
+    const el = document.querySelector(`[data-pt-id="${ptId}"]`) as HTMLElement | null
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => {
+      if (highlightPtId.value === ptId) highlightPtId.value = null
+    }, 2500)
   }
 })
 
-watch(searchQuery, () => {
-  currentPage.value = 1
-})
+function buildQuery(params: Record<string, unknown>): string {
+  const sp = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v == null) continue
+    const s = String(v)
+    if (!s) continue
+    sp.append(k, s)
+  }
+  const s = sp.toString()
+  return s ? `?${s}` : ''
+}
 
-watch(phapTriCategory, (val) => {
-  currentPage.value = 1
-  if (val !== 'tay-y') selectedTayYChungBenhId.value = null
-})
+/** Load 1 page pháp trị từ /phap-tri/lite (server pagination + search + category filter). */
+async function loadPhapTriPage() {
+  pageLoading.value = true
+  try {
+    const qs = buildQuery({
+      page: currentPage.value,
+      limit: itemsPerPage.value,
+      q: searchQuery.value.trim(),
+      category: phapTriCategory.value,
+      chungBenhId: phapTriCategory.value === 'tay-y' ? selectedTayYChungBenhId.value : null,
+    })
+    const res: any = await api.get(`/phap-tri/lite${qs}`)
+    dataList.value = res?.data ?? []
+    dataTotal.value = Number(res?.total ?? 0)
+    if (res?.statsByCategory) dataStats.value = res.statsByCategory
+    benhTayYByPtIdMap.value = res?.relatedBenhTayYByPtId ?? {}
+    tayYChungBenhStats.value = res?.tayYChungBenhStats ?? []
+  } finally {
+    pageLoading.value = false
+  }
+}
 
-watch(selectedTayYChungBenhId, () => {
-  currentPage.value = 1
-})
+/** Load các catalog tĩnh (kinh mạch, triệu chứng, tổn thương) — 1 lần. */
+async function loadSupportCatalogs() {
+  const [kmRes, tcRes, ttRes] = await Promise.all([
+    api.get<any>('/kinh-mach'),
+    api.get<any>('/trieu-chung'),
+    api.get<any>('/ton-thuong-tac-nhan'),
+  ])
+  kinhMachOptions.value = Array.isArray(kmRes) ? kmRes : kmRes?.data ?? []
+  trieuChungOptions.value = Array.isArray(tcRes) ? tcRes : tcRes?.data ?? []
+  tonThuongOptions.value = Array.isArray(ttRes) ? ttRes : ttRes?.data ?? []
+}
+
+/** Lazy load /bai-thuoc options chỉ khi mở modal. */
+async function ensureBaiThuocOptions() {
+  if (baiThuocOptionsLoaded.value) return
+  const res: any = await api.get('/bai-thuoc/lite?page=1&limit=100000')
+  baiThuocOptions.value = (res?.data ?? []).map((b: any) => ({ id: b.id, ten_bai_thuoc: b.ten_bai_thuoc }))
+  baiThuocOptionsLoaded.value = true
+}
 
 async function fetchData() {
   isLoading.value = true
   error.value = null
   try {
-    const res: any = await api.get('/phap-tri')
-    dataList.value = Array.isArray(res) ? res : res?.data ?? []
+    await Promise.all([loadPhapTriPage(), loadSupportCatalogs()])
   } catch (err: any) {
     console.error(err)
     error.value = 'Lỗi khi tải dữ liệu: ' + (err.message || String(err))
@@ -240,125 +256,36 @@ async function fetchData() {
   }
 }
 
-async function fetchKinhMach() {
-  try {
-    const res: any = await api.get('/kinh-mach')
-    kinhMachOptions.value = Array.isArray(res) ? res : res?.data ?? []
-  } catch (err) {
-    console.error('Không tải được danh sách kinh mạch', err)
-  }
-}
-
-async function fetchTrieuChung() {
-  try {
-    const res: any = await api.get('/trieu-chung')
-    trieuChungOptions.value = Array.isArray(res) ? res : res?.data ?? []
-  } catch (err) {
-    console.error('Không tải được danh sách triệu chứng', err)
-  }
-}
-
-async function fetchBaiThuoc() {
-  try {
-    const res: any = await api.get('/bai-thuoc')
-    baiThuocOptions.value = Array.isArray(res) ? res : res?.data ?? []
-  } catch (err) {
-    console.error('Không tải được danh sách bài thuốc', err)
-  }
-}
-
-async function fetchBenhTayY() {
-  try {
-    const res: any = await api.get('/benh-tay-y')
-    benhTayYList.value = Array.isArray(res) ? res : res?.data ?? []
-  } catch (err) {
-    console.error('Không tải được danh sách bệnh Tây Y', err)
-  }
-}
-
-async function fetchTonThuong() {
-  try {
-    const res: any = await api.get('/ton-thuong-tac-nhan')
-    tonThuongOptions.value = Array.isArray(res) ? res : res?.data ?? []
-  } catch (err) {
-    console.error('Không tải được danh sách Tổn thương - Tác nhân', err)
-  }
-}
-
-const filteredList = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  const cat = phapTriCategory.value
-  const cbId = selectedTayYChungBenhId.value
-  return dataList.value.filter((row) => {
-    if (cat !== 'all') {
-      const btyList = benhTayYForPhapTri(row.id)
-      const hasTayY = btyList.length > 0
-      if (cat === 'tay-y' && !hasTayY) return false
-      if (cat === 'dong-y' && hasTayY) return false
-      if (cat === 'tay-y' && cbId != null) {
-        if (!btyList.some((b) => b.chungBenh?.id === cbId)) return false
-      }
-    }
-    if (!q) return true
-    const hay = [
-      row.chung_trang,
-      row.nguyen_tac,
-      row.trieu_chung_mo_ta,
-      row.luc_kinh,
-      (row.kinh_mach_list ?? []).map((k) => k.ten_kinh_mach || k.ten_viet_tat || '').join(' '),
-      (row.bai_thuoc_links ?? []).map((l) => l.baiThuoc?.ten_bai_thuoc || '').join(' '),
-      benhTayYForPhapTri(row.id).map((b) => b.ten_benh).join(' '),
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return hay.includes(q)
-  })
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+watch(searchQuery, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    currentPage.value = 1
+    void loadPhapTriPage()
+  }, 2000)
 })
 
-const phapTriCategoryCounts = computed(() => {
-  let tayY = 0
-  for (const row of dataList.value) {
-    if (benhTayYForPhapTri(row.id).length > 0) tayY++
-  }
-  const total = dataList.value.length
-  return { all: total, 'dong-y': total - tayY, 'tay-y': tayY }
+watch(phapTriCategory, (val) => {
+  currentPage.value = 1
+  if (val !== 'tay-y') selectedTayYChungBenhId.value = null
+  void loadPhapTriPage()
 })
 
-interface TayYChungBenhFilterOption {
-  id: number
-  name: string
-  count: number
-}
-
-const tayYChungBenhFilterOptions = computed<TayYChungBenhFilterOption[]>(() => {
-  const byCb = new Map<number, { name: string; ptIds: Set<number> }>()
-  for (const row of dataList.value) {
-    const btyList = benhTayYForPhapTri(row.id)
-    if (btyList.length === 0) continue
-    const seenForRow = new Set<number>()
-    for (const bty of btyList) {
-      const cb = bty.chungBenh
-      if (!cb || cb.id == null) continue
-      if (seenForRow.has(cb.id)) continue
-      seenForRow.add(cb.id)
-      const entry = byCb.get(cb.id) ?? { name: cb.ten_chung_benh || 'Khác', ptIds: new Set<number>() }
-      entry.ptIds.add(row.id)
-      byCb.set(cb.id, entry)
-    }
-  }
-  return Array.from(byCb.entries())
-    .map(([id, v]) => ({ id, name: v.name, count: v.ptIds.size }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+watch(selectedTayYChungBenhId, () => {
+  currentPage.value = 1
+  void loadPhapTriPage()
 })
 
-const pagedList = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value
-  return filteredList.value.slice(start, start + itemsPerPage.value)
-})
+watch(currentPage, () => { void loadPhapTriPage() })
+
+/** Server đã filter & paginate. */
+const filteredList = computed(() => dataList.value)
+const pagedList = computed(() => dataList.value)
+const phapTriCategoryCounts = computed(() => dataStats.value)
+const tayYChungBenhFilterOptions = computed<TayYChungBenhFilterOption[]>(() => tayYChungBenhStats.value)
 
 const totalPages = computed(() => {
-  const n = Math.ceil(filteredList.value.length / itemsPerPage.value)
+  const n = Math.ceil(dataTotal.value / itemsPerPage.value)
   return n > 0 ? n : 1
 })
 
@@ -436,15 +363,28 @@ function resetPickerSearches() {
   baiThuocSearch.value = ''
 }
 
-function openCreateModal() {
+async function openCreateModal() {
+  formLoading.value = true
+  showModal.value = true
+  try {
+    await ensureBaiThuocOptions()
+  } finally {
+    formLoading.value = false
+  }
   editingId.value = null
   form.value = emptyForm()
   formError.value = null
   resetPickerSearches()
-  showModal.value = true
 }
 
-function openEditModal(row: PhapTriRow) {
+async function openEditModal(row: PhapTriRow) {
+  formLoading.value = true
+  showModal.value = true
+  try {
+    await ensureBaiThuocOptions()
+  } finally {
+    formLoading.value = false
+  }
   editingId.value = row.id
   const baiThuocIds = (row.bai_thuoc_links ?? [])
     .slice()
@@ -461,7 +401,6 @@ function openEditModal(row: PhapTriRow) {
   }
   formError.value = null
   resetPickerSearches()
-  showModal.value = true
 }
 
 function closeModal() {
@@ -497,7 +436,7 @@ async function handleSubmit() {
     } else {
       await api.post('/phap-tri', payload)
     }
-    await fetchData()
+    await loadPhapTriPage()
     closeModal()
   } catch (err: any) {
     formError.value = err.message || 'Không lưu được dữ liệu'
@@ -519,7 +458,7 @@ async function handleDelete() {
     await api.delete(`/phap-tri/${deletingItem.value.id}`)
     showDeleteConfirm.value = false
     deletingItem.value = null
-    await fetchData()
+    await loadPhapTriPage()
     if (pagedList.value.length === 0 && currentPage.value > 1) {
       currentPage.value--
     }
@@ -636,7 +575,8 @@ async function handleDelete() {
         </button>
       </div>
 
-      <div class="data-card">
+      <div class="data-card" :class="{ 'data-card--loading': pageLoading }">
+        <div v-if="pageLoading" class="loading-bar" aria-hidden="true"></div>
         <div class="card-header">
           <h3>Danh sách Pháp Trị</h3>
           <span class="badge badge-success">{{ filteredList.length }} bản ghi</span>
@@ -779,7 +719,11 @@ async function handleDelete() {
           <h3>{{ editingId != null ? 'Sửa pháp trị' : 'Thêm pháp trị' }}</h3>
           <button type="button" class="modal-close" aria-label="Đóng" @click="closeModal">✕</button>
         </div>
-        <form class="modal-body" @submit.prevent="handleSubmit">
+        <form class="modal-body modal-body--loadable" @submit.prevent="handleSubmit">
+          <div v-if="formLoading" class="modal-loading-overlay">
+            <div class="spinner spinner--sm"></div>
+            <span>Đang tải dữ liệu…</span>
+          </div>
           <p v-if="formError" class="form-error">{{ formError }}</p>
 
           <div class="form-grid">
@@ -1145,7 +1089,16 @@ async function handleDelete() {
   color: var(--white);
 }
 
-.data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
+.data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); position: relative; }
+.data-card--loading { pointer-events: none; }
+.data-card--loading .disease-grid { opacity: 0.55; transition: opacity .15s; }
+
+.spinner--sm { width: 20px; height: 20px; border-width: 2px; }
+.loading-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; overflow: hidden; background: rgba(146, 64, 14, 0.08); z-index: 5; }
+.loading-bar::before { content: ''; position: absolute; top: 0; left: 0; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, var(--brown-500), transparent); animation: loadingBarSlide 1.1s ease-in-out infinite; }
+@keyframes loadingBarSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+.modal-body--loadable { position: relative; min-height: 80px; }
+.modal-loading-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: rgba(255,255,255,0.82); backdrop-filter: blur(2px); z-index: 10; color: var(--brown-700); font-size: var(--font-size-sm); font-weight: 600; }
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); }
 .card-header h3 { font-size: var(--font-size-lg); font-weight: 700; color: var(--brown-900); margin: 0; }
 

@@ -98,11 +98,15 @@ const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const dataList = ref<BenhDongYExcelRow[]>([])
+const dataTotal = ref(0)
 const phapTriOptions = ref<PhapTriLite[]>([])
 const phacDoList = ref<PhacDoLite[]>([])
 const trieuChungOptions = ref<TrieuChungLite[]>([])
 const baiThuocOptions = ref<BaiThuocLite[]>([])
 const searchQuery = ref('')
+const pageLoading = ref(false)
+const formLoading = ref(false)
+const formOptionsLoaded = ref(false)
 const phapTriSearch = ref('')
 const trieuChungSearch = ref('')
 const baiThuocSearch = ref('')
@@ -135,25 +139,61 @@ const currentPage = ref(1)
 const itemsPerPage = ref(10)
 
 onMounted(async () => {
-  await Promise.all([
-    fetchData(),
-    fetchPhapTri(),
-    fetchPhacDo(),
-    fetchTrieuChung(),
-    fetchBaiThuoc(),
-  ])
+  await fetchData()
 })
 
-watch(searchQuery, () => {
-  currentPage.value = 1
-})
+function buildQuery(params: Record<string, unknown>): string {
+  const sp = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v == null) continue
+    const s = String(v)
+    if (!s) continue
+    sp.append(k, s)
+  }
+  const s = sp.toString()
+  return s ? `?${s}` : ''
+}
+
+async function loadPage() {
+  pageLoading.value = true
+  try {
+    const qs = buildQuery({
+      page: currentPage.value,
+      limit: itemsPerPage.value,
+      q: searchQuery.value.trim(),
+    })
+    const res: any = await api.get(`/benh-dong-y-excel/lite${qs}`)
+    dataList.value = res?.data ?? []
+    dataTotal.value = Number(res?.total ?? 0)
+  } finally {
+    pageLoading.value = false
+  }
+}
+
+async function loadPhacDo() {
+  const res: any = await api.get('/phac-do-dieu-tri')
+  phacDoList.value = Array.isArray(res) ? res : res?.data ?? []
+}
+
+/** Lazy load các option cho modal — chỉ khi mở modal. */
+async function ensureFormOptions() {
+  if (formOptionsLoaded.value) return
+  const [pt, tc, bt] = await Promise.all([
+    api.get<any>('/phap-tri/lite?page=1&limit=100000'),
+    api.get<any>('/trieu-chung'),
+    api.get<any>('/bai-thuoc/lite?page=1&limit=100000'),
+  ])
+  phapTriOptions.value = Array.isArray(pt) ? pt : pt?.data ?? []
+  trieuChungOptions.value = Array.isArray(tc) ? tc : tc?.data ?? []
+  baiThuocOptions.value = Array.isArray(bt) ? bt : bt?.data ?? []
+  formOptionsLoaded.value = true
+}
 
 async function fetchData() {
   isLoading.value = true
   error.value = null
   try {
-    const res: any = await api.get('/benh-dong-y-excel')
-    dataList.value = Array.isArray(res) ? res : res?.data ?? []
+    await Promise.all([loadPage(), loadPhacDo()])
   } catch (err: any) {
     console.error(err)
     error.value = 'Lỗi khi tải dữ liệu: ' + (err.message || String(err))
@@ -162,41 +202,16 @@ async function fetchData() {
   }
 }
 
-async function fetchPhapTri() {
-  try {
-    const res: any = await api.get('/phap-tri')
-    phapTriOptions.value = Array.isArray(res) ? res : res?.data ?? []
-  } catch (err) {
-    console.error('Không tải được danh sách pháp trị', err)
-  }
-}
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+watch(searchQuery, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    currentPage.value = 1
+    void loadPage()
+  }, 2000)
+})
 
-async function fetchPhacDo() {
-  try {
-    const res: any = await api.get('/phac-do-dieu-tri')
-    phacDoList.value = Array.isArray(res) ? res : res?.data ?? []
-  } catch (err) {
-    console.error('Không tải được danh sách phương huyệt', err)
-  }
-}
-
-async function fetchTrieuChung() {
-  try {
-    const res: any = await api.get('/trieu-chung')
-    trieuChungOptions.value = Array.isArray(res) ? res : res?.data ?? []
-  } catch (err) {
-    console.error('Không tải được danh sách triệu chứng', err)
-  }
-}
-
-async function fetchBaiThuoc() {
-  try {
-    const res: any = await api.get('/bai-thuoc')
-    baiThuocOptions.value = Array.isArray(res) ? res : res?.data ?? []
-  } catch (err) {
-    console.error('Không tải được danh sách bài thuốc', err)
-  }
-}
+watch(currentPage, () => { void loadPage() })
 
 const filteredTrieuChungOptions = computed(() => {
   const q = trieuChungSearch.value.trim().toLowerCase()
@@ -274,33 +289,11 @@ const filteredPhapTriOptions = computed(() => {
   return phapTriOptions.value.filter((p) => phapTriLabel(p).toLowerCase().includes(q))
 })
 
-const filteredList = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return dataList.value
-  return dataList.value.filter((row) => {
-    const hay = [
-      row.code,
-      row.name,
-      row.outputCell,
-      theBenhLabelsForBenh(row).join(' '),
-      phapTriLabelsForBenh(row).join(' '),
-      trieuChungLabelsForBenh(row).join(' '),
-      baiThuocLabelsForBenh(row).join(' '),
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return hay.includes(q)
-  })
-})
-
-const pagedList = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value
-  return filteredList.value.slice(start, start + itemsPerPage.value)
-})
-
+/** Server đã filter & paginate. */
+const filteredList = computed(() => dataList.value)
+const pagedList = computed(() => dataList.value)
 const totalPages = computed(() => {
-  const n = Math.ceil(filteredList.value.length / itemsPerPage.value)
+  const n = Math.ceil(dataTotal.value / itemsPerPage.value)
   return n > 0 ? n : 1
 })
 
@@ -395,15 +388,20 @@ function resetPickerSearches() {
   baiThuocSearch.value = ''
 }
 
-function openCreateModal() {
+async function openCreateModal() {
+  showModal.value = true
+  formLoading.value = true
+  try { await ensureFormOptions() } finally { formLoading.value = false }
   editingId.value = null
   form.value = emptyForm()
   formError.value = null
   resetPickerSearches()
-  showModal.value = true
 }
 
-function openEditModal(row: BenhDongYExcelRow) {
+async function openEditModal(row: BenhDongYExcelRow) {
+  showModal.value = true
+  formLoading.value = true
+  try { await ensureFormOptions() } finally { formLoading.value = false }
   editingId.value = row.id
   form.value = {
     code: row.code,
@@ -419,7 +417,6 @@ function openEditModal(row: BenhDongYExcelRow) {
   }
   formError.value = null
   resetPickerSearches()
-  showModal.value = true
 }
 
 function closeModal() {
@@ -465,8 +462,7 @@ async function handleSubmit() {
     } else {
       await api.post('/benh-dong-y-excel', payload)
     }
-    await fetchData()
-    currentPage.value = 1
+    await loadPage()
     closeModal()
   } catch (err: any) {
     formError.value = err.message || 'Không lưu được dữ liệu'
@@ -488,7 +484,7 @@ async function handleDelete() {
     await api.delete(`/benh-dong-y-excel/${deletingItem.value.id}`)
     showDeleteConfirm.value = false
     deletingItem.value = null
-    await fetchData()
+    await loadPage()
     if (pagedList.value.length === 0 && currentPage.value > 1) {
       currentPage.value--
     }
@@ -810,10 +806,11 @@ async function handleDelete() {
         <span class="toolbar-count">{{ filteredList.length }} / {{ dataList.length }} bệnh</span>
       </div>
 
-      <div class="data-card">
+      <div class="data-card" :class="{ 'data-card--loading': pageLoading }">
+        <div v-if="pageLoading" class="loading-bar" aria-hidden="true"></div>
         <div class="card-header">
           <h3>Bệnh Kinh lạc</h3>
-          <span class="badge badge-info">{{ dataList.length }} bản ghi</span>
+          <span class="badge badge-info">{{ dataTotal }} bản ghi</span>
         </div>
 
         <div v-if="pagedList.length === 0" class="empty-state">
@@ -951,7 +948,11 @@ async function handleDelete() {
           <h3>{{ editingId != null ? 'Sửa bệnh' : 'Thêm bệnh' }}</h3>
           <button type="button" class="modal-close" aria-label="Đóng" @click="closeModal">✕</button>
         </div>
-        <form class="modal-body" @submit.prevent="handleSubmit">
+        <form class="modal-body modal-body--loadable" @submit.prevent="handleSubmit">
+          <div v-if="formLoading" class="modal-loading-overlay">
+            <div class="spinner spinner--sm"></div>
+            <span>Đang tải tùy chọn…</span>
+          </div>
           <p v-if="formError" class="form-error">{{ formError }}</p>
           <div class="form-grid">
             <label class="field">
@@ -1248,12 +1249,21 @@ async function handleDelete() {
   font-weight: 600;
 }
 
+.spinner--sm { width: 20px; height: 20px; border-width: 2px; }
+.loading-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; overflow: hidden; background: rgba(146, 64, 14, 0.08); z-index: 5; }
+.loading-bar::before { content: ''; position: absolute; top: 0; left: 0; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, var(--brown-500), transparent); animation: loadingBarSlide 1.1s ease-in-out infinite; }
+@keyframes loadingBarSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+.data-card--loading { pointer-events: none; position: relative; }
+.modal-body--loadable { position: relative; min-height: 80px; }
+.modal-loading-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: rgba(255,255,255,0.82); backdrop-filter: blur(2px); z-index: 10; color: var(--brown-700); font-size: var(--font-size-sm); font-weight: 600; }
+
 .data-card {
   background: var(--white);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-xl);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
+  position: relative;
 }
 .card-header {
   display: flex;

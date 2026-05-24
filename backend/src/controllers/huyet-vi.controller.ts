@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { HuyetVi } from '../models/huyet-vi.model';
 import { CreateHuyetViDto, UpdateHuyetViDto } from '../models/huyet-vi.dto';
 
@@ -16,6 +16,46 @@ export class HuyetViService {
       relations: ['kinhMach'],
       order: { idHuyet: 'ASC' },
     });
+  }
+
+  /** Paginated + search; filter theo kinh mạch nếu cần. */
+  async findLite(opts: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    idKinhMach?: number | null;
+  }): Promise<{ data: HuyetVi[]; total: number; page: number; limit: number }> {
+    const page = Math.max(1, Math.floor(opts.page ?? 1));
+    const limit = Math.max(1, Math.min(200, Math.floor(opts.limit ?? 12)));
+    const q = (opts.q ?? '').trim();
+    const idKinhMach = Number.isFinite(opts.idKinhMach as number) ? Number(opts.idKinhMach) : null;
+
+    const qb = this.repo.createQueryBuilder('hv');
+    if (q) {
+      qb.andWhere(
+        '(hv.ten_huyet ILIKE :term OR hv.ma_huyet ILIKE :term OR hv.vi_tri_giai_phau ILIKE :term OR hv.loai_huyet ILIKE :term OR hv.chong_chi_dinh ILIKE :term)',
+        { term: `%${q}%` },
+      );
+    }
+    if (idKinhMach != null) {
+      qb.andWhere('hv.id_kinh_mach = :kmId', { kmId: idKinhMach });
+    }
+    const [items, total] = await qb
+      .orderBy('hv.idHuyet', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    let data: HuyetVi[] = [];
+    if (items.length) {
+      const ids = items.map((x) => x.idHuyet);
+      data = await this.repo.find({
+        where: { idHuyet: In(ids) },
+        relations: ['kinhMach'],
+        order: { idHuyet: 'ASC' },
+      });
+    }
+    return { data, total, page, limit };
   }
 
   async findOne(id: number): Promise<HuyetVi> {

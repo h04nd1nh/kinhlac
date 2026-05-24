@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   ParseIntPipe,
 } from '@nestjs/common';
 import { BenhTayYService } from '../controllers/benh-tay-y.controller';
@@ -18,6 +19,22 @@ export class BenhTayYRouter {
   @Get()
   findAll() {
     return this.service.findAll();
+  }
+
+  // Phải đứng TRƯỚC @Get(':id') để route 'lite' không bị match như id.
+  @Get('lite')
+  findLite(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+    @Query('idChungBenh') idChungBenh?: string,
+  ) {
+    return this.service.findLite({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      q: q ?? undefined,
+      idChungBenh: idChungBenh != null && idChungBenh !== '' ? Number(idChungBenh) : null,
+    });
   }
 
   @Get(':id')

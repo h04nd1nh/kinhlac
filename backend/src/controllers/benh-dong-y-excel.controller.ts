@@ -81,6 +81,46 @@ export class BenhDongYExcelService {
     return this.repo.find({ order: { id: 'ASC' }, relations: BenhDongYExcelService.RELATIONS });
   }
 
+  /**
+   * Lightweight paginated list cho UI quy tắc excel.
+   * - Search trên code/name/outputCell/excelFormula.
+   * - Giữ đủ relations cho list view (phapTriList, trieuChungList, baiThuocList).
+   */
+  async findLite(opts: {
+    page?: number;
+    limit?: number;
+    q?: string;
+  }): Promise<{ data: BenhDongYExcel[]; total: number; page: number; limit: number }> {
+    const page = Math.max(1, Math.floor(opts.page ?? 1));
+    const limit = Math.max(1, Math.min(200, Math.floor(opts.limit ?? 12)));
+    const q = (opts.q ?? '').trim();
+
+    const qb = this.repo.createQueryBuilder('r');
+    if (q) {
+      qb.andWhere(
+        '(r.code ILIKE :term OR r.name ILIKE :term OR r."outputCell" ILIKE :term OR r."excelFormula" ILIKE :term)',
+        { term: `%${q}%` },
+      );
+    }
+    const [items, total] = await qb
+      .orderBy('r.id', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    let data: BenhDongYExcel[] = [];
+    if (items.length) {
+      const ids = items.map((x) => x.id);
+      data = await this.repo.find({
+        where: { id: In(ids) },
+        relations: BenhDongYExcelService.RELATIONS,
+        order: { id: 'ASC' },
+      });
+    }
+
+    return { data, total, page, limit };
+  }
+
   async findOne(id: number): Promise<BenhDongYExcel> {
     const row = await this.repo.findOne({ where: { id }, relations: BenhDongYExcelService.RELATIONS });
     if (!row) {

@@ -523,12 +523,13 @@ onMounted(async () => {
 async function loadData() {
   isLoading.value = true
   try {
+    // Dùng /bai-thuoc/lite (limit lớn) để tránh load nested relations nặng từ endpoint cũ.
     const [patientRes, examRes, benhListRes, phacDoRes, baiThuocRes] = await Promise.all([
       api.get<Patient>(`/patients/${patientId.value}`),
       api.get<any>(`/examinations/${examId.value}`),
       api.get<any>('/benh-dong-y'),
       api.get<any>('/phac-do-dieu-tri'),
-      api.get<any>('/bai-thuoc'),
+      api.get<any>('/bai-thuoc/lite?page=1&limit=100000'),
     ])
     patient.value = patientRes
     examination.value = examRes

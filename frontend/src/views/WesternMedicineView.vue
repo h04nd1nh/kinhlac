@@ -79,11 +79,16 @@ const isSubmitting = ref(false)
 
 const chungBenhList = ref<ChungBenh[]>([])
 const benhTayYList = ref<BenhTayY[]>([])
+const benhTayYTotal = ref(0)
+const benhTayYCountsByChungBenh = ref<Record<number, number>>({})
 const baiThuocOptions = ref<BaiThuocLite[]>([])
 const trieuChungOptions = ref<TrieuChungLite[]>([])
 const thietChanOptions = ref<ThietChanLite[]>([])
 const machChanOptions = ref<MachChanLite[]>([])
 const phapTriOptions = ref<PhapTriLite[]>([])
+const btyPageLoading = ref(false)
+const formLoading = ref(false)
+const formOptionsLoaded = ref(false)
 
 const cbSearch = ref('')
 const btySearch = ref('')
@@ -134,51 +139,93 @@ onMounted(async () => {
   if (Number.isFinite(btyId)) {
     activeTab.value = 'benh-tay-y'
     btySearch.value = ''
-    const idx = filteredBtyList.value.findIndex((b) => b.id === btyId)
-    if (idx >= 0) {
-      btyPage.value = Math.floor(idx / pageSize) + 1
-      highlightBtyId.value = btyId
-      await nextTick()
-      const el = document.querySelector(`[data-bty-id="${btyId}"]`) as HTMLElement | null
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-      setTimeout(() => {
-        if (highlightBtyId.value === btyId) highlightBtyId.value = null
-      }, 2500)
-    }
+    highlightBtyId.value = btyId
+    await nextTick()
+    const el = document.querySelector(`[data-bty-id="${btyId}"]`) as HTMLElement | null
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => {
+      if (highlightBtyId.value === btyId) highlightBtyId.value = null
+    }, 2500)
   }
 })
 
 watch(cbSearch, () => (cbPage.value = 1))
-watch(btySearch, () => (btyPage.value = 1))
-watch(selectedBtyChungBenhId, () => (btyPage.value = 1))
-watch(activeTab, () => {
+
+let btySearchTimer: ReturnType<typeof setTimeout> | null = null
+watch(btySearch, () => {
+  if (btySearchTimer) clearTimeout(btySearchTimer)
+  btySearchTimer = setTimeout(() => {
+    btyPage.value = 1
+    void loadBenhTayYPage()
+  }, 2000)
+})
+watch(selectedBtyChungBenhId, () => {
+  btyPage.value = 1
+  void loadBenhTayYPage()
+})
+watch(btyPage, () => { void loadBenhTayYPage() })
+watch(activeTab, (val) => {
   cbSearch.value = ''
   btySearch.value = ''
   selectedBtyChungBenhId.value = null
+  if (val === 'benh-tay-y') void loadBenhTayYPage()
 })
+
+function buildQuery(params: Record<string, unknown>): string {
+  const sp = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v == null) continue
+    const s = String(v)
+    if (!s) continue
+    sp.append(k, s)
+  }
+  const s = sp.toString()
+  return s ? `?${s}` : ''
+}
+
+async function loadBenhTayYPage() {
+  btyPageLoading.value = true
+  try {
+    const qs = buildQuery({
+      page: btyPage.value,
+      limit: pageSize,
+      q: btySearch.value.trim(),
+      idChungBenh: selectedBtyChungBenhId.value,
+    })
+    const res: any = await api.get(`/benh-tay-y/lite${qs}`)
+    benhTayYList.value = res?.data ?? []
+    benhTayYTotal.value = Number(res?.total ?? 0)
+    benhTayYCountsByChungBenh.value = res?.countsByChungBenh ?? {}
+  } finally {
+    btyPageLoading.value = false
+  }
+}
+
+/** Lazy load các option cho modal Bệnh Tây Y (chỉ khi mở modal). */
+async function ensureFormOptions() {
+  if (formOptionsLoaded.value) return
+  const [bt, tc, ttc, mc, pt] = await Promise.all([
+    api.get<any>('/bai-thuoc/lite?page=1&limit=100000'),
+    api.get<any>('/trieu-chung'),
+    api.get<any>('/thiet-chan'),
+    api.get<any>('/mach-chan'),
+    api.get<any>('/phap-tri/lite?page=1&limit=100000'),
+  ])
+  baiThuocOptions.value = unwrap<BaiThuocLite>(bt)
+  trieuChungOptions.value = unwrap<TrieuChungLite>(tc)
+  thietChanOptions.value = unwrap<ThietChanLite>(ttc)
+  machChanOptions.value = unwrap<MachChanLite>(mc)
+  phapTriOptions.value = unwrap<PhapTriLite>(pt)
+  formOptionsLoaded.value = true
+}
 
 async function fetchAll() {
   isLoading.value = true
   error.value = null
   try {
-    const [cb, bty, bt, tc, ttc, mc, pt] = await Promise.all([
-      api.get<any>('/chung-benh'),
-      api.get<any>('/benh-tay-y'),
-      api.get<any>('/bai-thuoc'),
-      api.get<any>('/trieu-chung'),
-      api.get<any>('/thiet-chan'),
-      api.get<any>('/mach-chan'),
-      api.get<any>('/phap-tri'),
-    ])
+    const cb = await api.get<any>('/chung-benh')
     chungBenhList.value = unwrap<ChungBenh>(cb)
-    benhTayYList.value = unwrap<BenhTayY>(bty)
-    baiThuocOptions.value = unwrap<BaiThuocLite>(bt)
-    trieuChungOptions.value = unwrap<TrieuChungLite>(tc)
-    thietChanOptions.value = unwrap<ThietChanLite>(ttc)
-    machChanOptions.value = unwrap<MachChanLite>(mc)
-    phapTriOptions.value = unwrap<PhapTriLite>(pt)
+    await loadBenhTayYPage()
   } catch (err: any) {
     console.error(err)
     error.value = 'Lỗi khi tải dữ liệu: ' + (err.message || String(err))
@@ -253,9 +300,12 @@ function phapTriCombined(bty: BenhTayY): PhapTriLite[] {
   return out
 }
 
+/** Counts theo chủng bệnh dùng map từ server response. */
 const benhTayYCountByChungBenh = computed(() => {
   const m = new Map<number, number>()
-  for (const b of benhTayYList.value) m.set(b.idChungBenh, (m.get(b.idChungBenh) ?? 0) + 1)
+  for (const [id, cnt] of Object.entries(benhTayYCountsByChungBenh.value)) {
+    m.set(Number(id), Number(cnt))
+  }
   return m
 })
 
@@ -292,34 +342,10 @@ const cbTotalPages = computed(() =>
   Math.max(1, Math.ceil(filteredCbList.value.length / pageSize)),
 )
 
-const filteredBtyList = computed(() => {
-  const q = btySearch.value.trim().toLowerCase()
-  const cbId = selectedBtyChungBenhId.value
-  return benhTayYList.value.filter((b) => {
-    if (cbId != null && b.idChungBenh !== cbId) return false
-    if (!q) return true
-    const hay = [
-      b.ten_benh,
-      b.chungBenh?.ten_chung_benh ?? chungBenhMap.value.get(b.idChungBenh)?.ten_chung_benh,
-      (b.baiThuocList ?? []).map((x) => x.ten_bai_thuoc).join(' '),
-      (b.phapTriList ?? []).map(phapTriLabel).join(' '),
-      (b.trieuChungList ?? []).map((x) => x.ten_trieu_chung).join(' '),
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return hay.includes(q)
-  })
-})
-
-const pagedBtyList = computed(() => {
-  const start = (btyPage.value - 1) * pageSize
-  return filteredBtyList.value.slice(start, start + pageSize)
-})
-
-const btyTotalPages = computed(() =>
-  Math.max(1, Math.ceil(filteredBtyList.value.length / pageSize)),
-)
+/** Server đã filter & paginate. */
+const filteredBtyList = computed(() => benhTayYList.value)
+const pagedBtyList = computed(() => benhTayYList.value)
+const btyTotalPages = computed(() => Math.max(1, Math.ceil(benhTayYTotal.value / pageSize)))
 
 function pageNumbers(current: number, total: number): number[] {
   const start = Math.max(1, current - 2)
@@ -383,7 +409,8 @@ async function submitCb() {
     } else {
       await api.post('/chung-benh', { ten_chung_benh: name })
     }
-    await fetchAll()
+    const cbRes: any = await api.get<any>('/chung-benh')
+    chungBenhList.value = unwrap<ChungBenh>(cbRes)
     showCbModal.value = false
   } catch (err: any) {
     cbFormError.value = err.message || 'Không lưu được dữ liệu'
@@ -392,7 +419,14 @@ async function submitCb() {
   }
 }
 
-function openCreateBty() {
+async function openCreateBty() {
+  showBtyModal.value = true
+  formLoading.value = true
+  try {
+    await ensureFormOptions()
+  } finally {
+    formLoading.value = false
+  }
   editingBty.value = null
   btyForm.value = {
     ten_benh: '',
@@ -405,10 +439,16 @@ function openCreateBty() {
   }
   btyFormError.value = null
   resetPickerSearches()
-  showBtyModal.value = true
 }
 
-function openEditBty(bty: BenhTayY) {
+async function openEditBty(bty: BenhTayY) {
+  showBtyModal.value = true
+  formLoading.value = true
+  try {
+    await ensureFormOptions()
+  } finally {
+    formLoading.value = false
+  }
   editingBty.value = bty
   btyForm.value = {
     ten_benh: bty.ten_benh,
@@ -421,7 +461,6 @@ function openEditBty(bty: BenhTayY) {
   }
   btyFormError.value = null
   resetPickerSearches()
-  showBtyModal.value = true
 }
 
 function resetPickerSearches() {
@@ -459,7 +498,7 @@ async function submitBty() {
     } else {
       await api.post('/benh-tay-y', payload)
     }
-    await fetchAll()
+    await loadBenhTayYPage()
     showBtyModal.value = false
   } catch (err: any) {
     btyFormError.value = err.message || 'Không lưu được dữ liệu'
@@ -490,7 +529,12 @@ async function doDelete() {
     }
     showDeleteConfirm.value = false
     deletingTarget.value = null
-    await fetchAll()
+    if (t.kind === 'cb') {
+      const cbRes: any = await api.get<any>('/chung-benh')
+      chungBenhList.value = unwrap<ChungBenh>(cbRes)
+    } else {
+      await loadBenhTayYPage()
+    }
   } catch (err: any) {
     error.value = err.message || 'Không xóa được bản ghi'
     showDeleteConfirm.value = false
@@ -643,10 +687,11 @@ async function doDelete() {
           </button>
         </div>
 
-        <div class="data-card">
+        <div class="data-card" :class="{ 'data-card--loading': btyPageLoading }">
+          <div v-if="btyPageLoading" class="loading-bar" aria-hidden="true"></div>
           <div class="card-header">
             <h3>Danh sách Bệnh Tây Y</h3>
-            <span class="badge badge-success">{{ benhTayYList.length }} bản ghi</span>
+            <span class="badge badge-success">{{ benhTayYTotal }} bản ghi</span>
           </div>
 
           <div v-if="pagedBtyList.length === 0" class="empty-state">
@@ -812,7 +857,11 @@ async function doDelete() {
           <h3>{{ editingBty ? 'Sửa bệnh Tây Y' : 'Thêm bệnh Tây Y' }}</h3>
           <button class="modal-close" @click="showBtyModal = false">✕</button>
         </div>
-        <form class="modal-body" @submit.prevent="submitBty">
+        <form class="modal-body modal-body--loadable" @submit.prevent="submitBty">
+          <div v-if="formLoading" class="modal-loading-overlay">
+            <div class="spinner spinner--sm"></div>
+            <span>Đang tải tùy chọn…</span>
+          </div>
           <p v-if="btyFormError" class="form-error">{{ btyFormError }}</p>
           <div class="form-grid">
             <label class="field field--full">
@@ -1069,7 +1118,16 @@ async function doDelete() {
 .search-input:focus { outline: none; border-color: var(--brown-400); box-shadow: 0 0 0 3px rgba(161,98,7,0.12); }
 .toolbar-count { font-size: var(--font-size-sm); color: var(--gray-500); font-weight: 600; align-self: center; }
 
-.data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
+.data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); position: relative; }
+.data-card--loading { pointer-events: none; }
+.data-card--loading .bty-grid, .data-card--loading .cb-grid { opacity: 0.55; transition: opacity .15s; }
+
+.spinner--sm { width: 20px; height: 20px; border-width: 2px; }
+.loading-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; overflow: hidden; background: rgba(146, 64, 14, 0.08); z-index: 5; }
+.loading-bar::before { content: ''; position: absolute; top: 0; left: 0; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, var(--brown-500), transparent); animation: loadingBarSlide 1.1s ease-in-out infinite; }
+@keyframes loadingBarSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+.modal-body--loadable { position: relative; min-height: 80px; }
+.modal-loading-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: rgba(255,255,255,0.82); backdrop-filter: blur(2px); z-index: 10; color: var(--brown-700); font-size: var(--font-size-sm); font-weight: 600; }
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); }
 .card-header h3 { font-size: var(--font-size-lg); font-weight: 700; color: var(--brown-900); margin: 0; }
 

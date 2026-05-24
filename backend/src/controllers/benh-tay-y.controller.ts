@@ -42,6 +42,67 @@ export class BenhTayYService {
     });
   }
 
+  /**
+   * Lightweight, paginated list cho tab Bệnh Tây Y.
+   * - Bỏ baiThuocList.phapTriLinks (nested), thietChanList, machChanList — chỉ load khi xem chi tiết.
+   * - Search server-side trên ten_benh (text column).
+   * - Filter idChungBenh để hỗ trợ sub-tab "Chủng bệnh".
+   */
+  async findLite(opts: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    idChungBenh?: number | null;
+  }): Promise<{
+    data: BenhTayY[];
+    total: number;
+    page: number;
+    limit: number;
+    countsByChungBenh: Record<number, number>;
+  }> {
+    const page = Math.max(1, Math.floor(opts.page ?? 1));
+    const limit = Math.max(1, Math.min(200, Math.floor(opts.limit ?? 12)));
+    const q = (opts.q ?? '').trim();
+    const idChungBenh = Number.isFinite(opts.idChungBenh as number) ? Number(opts.idChungBenh) : null;
+
+    const qb = this.repo.createQueryBuilder('bty');
+    if (q) {
+      qb.andWhere('bty.ten_benh ILIKE :term', { term: `%${q}%` });
+    }
+    if (idChungBenh != null) {
+      qb.andWhere('bty.id_chung_benh = :cbId', { cbId: idChungBenh });
+    }
+    const [items, total] = await qb
+      .orderBy('bty.id', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    let data: BenhTayY[] = [];
+    if (items.length) {
+      const ids = items.map((x) => x.id);
+      data = await this.repo.find({
+        where: { id: In(ids) },
+        relations: [
+          'chungBenh',
+          'baiThuocList',
+          'trieuChungList',
+          'phapTriList',
+        ],
+        order: { id: 'ASC' },
+      });
+    }
+
+    // Count theo chủng bệnh (toàn DB) cho sub-tab filter.
+    const countRows: Array<{ id_chung_benh: number; cnt: string }> = await this.repo.query(
+      'SELECT id_chung_benh, COUNT(*)::text AS cnt FROM benh_tay_y GROUP BY id_chung_benh',
+    );
+    const countsByChungBenh: Record<number, number> = {};
+    for (const r of countRows) countsByChungBenh[Number(r.id_chung_benh)] = Number(r.cnt);
+
+    return { data, total, page, limit, countsByChungBenh };
+  }
+
   async findOne(id: number): Promise<BenhTayY> {
     const item = await this.repo.findOne({
       where: { id },

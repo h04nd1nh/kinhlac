@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
 
@@ -16,7 +16,7 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await _storage.read(key: tokenKey);
+          final token = await readToken();
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
           }
@@ -31,8 +31,28 @@ class ApiClient {
   static final ApiClient instance = ApiClient._internal();
 
   final Dio _dio;
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   Dio get dio => _dio;
-  FlutterSecureStorage get storage => _storage;
+
+  Future<SharedPreferences> _prefs() => SharedPreferences.getInstance();
+
+  Future<String?> readToken() async {
+    final p = await _prefs();
+    return p.getString(tokenKey);
+  }
+
+  Future<String?> readString(String key) async {
+    final p = await _prefs();
+    return p.getString(key);
+  }
+
+  Future<void> writeString(String key, String value) async {
+    final p = await _prefs();
+    await p.setString(key, value);
+  }
+
+  Future<void> remove(String key) async {
+    final p = await _prefs();
+    await p.remove(key);
+  }
 }

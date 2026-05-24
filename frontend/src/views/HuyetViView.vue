@@ -34,10 +34,12 @@ const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const dataList = ref<HuyetViRow[]>([])
+const dataTotal = ref(0)
 const kinhMachOptions = ref<KinhMachLite[]>([])
 const searchQuery = ref('')
 const kinhMachFilter = ref<number | null>(null)
 const kinhMachSearch = ref('')
+const pageLoading = ref(false)
 
 const showModal = ref(false)
 const showDeleteConfirm = ref(false)
@@ -59,19 +61,47 @@ const currentPage = ref(1)
 const itemsPerPage = ref(10)
 
 onMounted(async () => {
-  await Promise.all([fetchData(), fetchKinhMach()])
+  await fetchData()
 })
 
-watch([searchQuery, kinhMachFilter], () => {
-  currentPage.value = 1
-})
+function buildQuery(params: Record<string, unknown>): string {
+  const sp = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v == null) continue
+    const s = String(v)
+    if (!s) continue
+    sp.append(k, s)
+  }
+  const s = sp.toString()
+  return s ? `?${s}` : ''
+}
+
+async function loadPage() {
+  pageLoading.value = true
+  try {
+    const qs = buildQuery({
+      page: currentPage.value,
+      limit: itemsPerPage.value,
+      q: searchQuery.value.trim(),
+      idKinhMach: kinhMachFilter.value,
+    })
+    const res: any = await api.get(`/huyet-vi/lite${qs}`)
+    dataList.value = res?.data ?? []
+    dataTotal.value = Number(res?.total ?? 0)
+  } finally {
+    pageLoading.value = false
+  }
+}
 
 async function fetchData() {
   isLoading.value = true
   error.value = null
   try {
-    const res: any = await api.get('/huyet-vi')
-    dataList.value = Array.isArray(res) ? res : res?.data ?? []
+    const [, kmRes]: any = await Promise.all([
+      loadPage(),
+      api.get('/kinh-mach'),
+    ])
+    kinhMachOptions.value = Array.isArray(kmRes) ? kmRes : kmRes?.data ?? []
   } catch (err: any) {
     console.error(err)
     error.value = 'Lỗi khi tải dữ liệu: ' + (err.message || String(err))
@@ -80,14 +110,19 @@ async function fetchData() {
   }
 }
 
-async function fetchKinhMach() {
-  try {
-    const res: any = await api.get('/kinh-mach')
-    kinhMachOptions.value = Array.isArray(res) ? res : res?.data ?? []
-  } catch (err) {
-    console.error('Không tải được danh sách kinh mạch', err)
-  }
-}
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+watch(searchQuery, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    currentPage.value = 1
+    void loadPage()
+  }, 2000)
+})
+watch(kinhMachFilter, () => {
+  currentPage.value = 1
+  void loadPage()
+})
+watch(currentPage, () => { void loadPage() })
 
 function kinhMachLabel(k: KinhMachLite | null | undefined): string {
   if (!k) return '—'
@@ -106,34 +141,11 @@ const filteredKinhMachOptions = computed(() => {
   })
 })
 
-const filteredList = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  return dataList.value.filter((row) => {
-    if (kinhMachFilter.value != null && row.idKinhMach !== kinhMachFilter.value) return false
-    if (!q) return true
-    const hay = [
-      row.ten_huyet,
-      row.ma_huyet,
-      row.vi_tri_giai_phau,
-      row.loai_huyet,
-      row.chong_chi_dinh,
-      row.kinhMach?.ten_kinh_mach,
-      row.kinhMach?.ten_viet_tat,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return hay.includes(q)
-  })
-})
-
-const pagedList = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value
-  return filteredList.value.slice(start, start + itemsPerPage.value)
-})
-
+/** Server đã filter & paginate. */
+const filteredList = computed(() => dataList.value)
+const pagedList = computed(() => dataList.value)
 const totalPages = computed(() => {
-  const n = Math.ceil(filteredList.value.length / itemsPerPage.value)
+  const n = Math.ceil(dataTotal.value / itemsPerPage.value)
   return n > 0 ? n : 1
 })
 
@@ -203,7 +215,7 @@ async function handleSubmit() {
     } else {
       await api.post('/huyet-vi', payload)
     }
-    await fetchData()
+    await loadPage()
     closeModal()
   } catch (err: any) {
     formError.value = err.message || 'Không lưu được dữ liệu'
@@ -225,7 +237,7 @@ async function handleDelete() {
     await api.delete(`/huyet-vi/${deletingItem.value.idHuyet}`)
     showDeleteConfirm.value = false
     deletingItem.value = null
-    await fetchData()
+    await loadPage()
     if (pagedList.value.length === 0 && currentPage.value > 1) {
       currentPage.value--
     }
@@ -283,10 +295,11 @@ async function handleDelete() {
         <span class="toolbar-count">{{ filteredList.length }} / {{ dataList.length }} huyệt</span>
       </div>
 
-      <div class="data-card">
+      <div class="data-card" :class="{ 'data-card--loading': pageLoading }">
+        <div v-if="pageLoading" class="loading-bar" aria-hidden="true"></div>
         <div class="card-header">
           <h3>Danh sách Huyệt Vị</h3>
-          <span class="badge badge-success">{{ filteredList.length }} bản ghi</span>
+          <span class="badge badge-success">{{ dataTotal }} bản ghi</span>
         </div>
         <div class="table-responsive">
           <table class="data-table">
@@ -514,7 +527,11 @@ async function handleDelete() {
 .search-input { padding: var(--space-2) var(--space-3); border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: var(--font-size-md); font-family: inherit; }
 .toolbar-count { font-size: var(--font-size-sm); color: var(--gray-500); font-weight: 600; margin-left: auto; }
 
-.data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
+.data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); position: relative; }
+.data-card--loading { pointer-events: none; }
+.loading-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; overflow: hidden; background: rgba(146, 64, 14, 0.08); z-index: 5; }
+.loading-bar::before { content: ''; position: absolute; top: 0; left: 0; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, var(--brown-500), transparent); animation: loadingBarSlide 1.1s ease-in-out infinite; }
+@keyframes loadingBarSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); }
 .card-header h3 { font-size: var(--font-size-lg); font-weight: 700; color: var(--brown-900); margin: 0; }
 

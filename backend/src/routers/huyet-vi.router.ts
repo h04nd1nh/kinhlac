@@ -24,6 +24,22 @@ export class HuyetViRouter {
     return this.service.findAll();
   }
 
+  // Phải đứng TRƯỚC @Get(':id').
+  @Get('lite')
+  findLite(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+    @Query('idKinhMach') idKinhMach?: string,
+  ) {
+    return this.service.findLite({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      q: q ?? undefined,
+      idKinhMach: idKinhMach != null && idKinhMach !== '' ? Number(idKinhMach) : null,
+    });
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);

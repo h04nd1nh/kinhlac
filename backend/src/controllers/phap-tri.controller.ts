@@ -42,6 +42,181 @@ export class PhapTriService {
     });
   }
 
+  /**
+   * Lightweight, paginated list cho tab Pháp Trị.
+   * - Cắt relations nặng (benh_dong_y_list); giữ kinh_mach_list/trieu_chung_list/bai_thuoc_links.
+   * - Search server-side trên các text columns trong cùng bảng phap_tri.
+   * - Filter category Đông Y / Tây Y dựa vào EXISTS với benh_tay_y junction tables (trực tiếp + qua bài thuốc).
+   * - Trả về statsByCategory để hiển thị badge "Đông Y / Tây Y / Tất cả" trên UI.
+   */
+  async findLite(opts: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    category?: 'all' | 'dong-y' | 'tay-y';
+    chungBenhId?: number | null;
+  }): Promise<{
+    data: PhapTri[];
+    total: number;
+    page: number;
+    limit: number;
+    statsByCategory: { all: number; 'dong-y': number; 'tay-y': number };
+    relatedBenhTayYByPtId: Record<number, Array<{ id: number; ten_benh: string; chungBenh: { id: number; ten_chung_benh: string } | null }>>;
+    tayYChungBenhStats: Array<{ id: number; name: string; count: number }>;
+  }> {
+    const page = Math.max(1, Math.floor(opts.page ?? 1));
+    const limit = Math.max(1, Math.min(200, Math.floor(opts.limit ?? 12)));
+    const q = (opts.q ?? '').trim();
+    const category = opts.category ?? 'all';
+    const chungBenhId = Number.isFinite(opts.chungBenhId as number) ? Number(opts.chungBenhId) : null;
+
+    // EXISTS clause cho "pháp trị có liên quan Tây Y": trực tiếp HOẶC qua bài thuốc.
+    const tayYExistsClause = (cbIdParam?: string) => {
+      const cbFilter = cbIdParam ? ` AND bty.id_chung_benh = :${cbIdParam}` : '';
+      return `(
+        EXISTS (
+          SELECT 1 FROM benh_tay_y_phap_tri btypt
+          JOIN benh_tay_y bty ON bty.id = btypt.id_benh_tay_y
+          WHERE btypt.id_phap_tri = pt.id${cbFilter}
+        )
+        OR EXISTS (
+          SELECT 1 FROM bai_thuoc_phap_tri btpt
+          JOIN benh_tay_y_bai_thuoc btybt ON btybt.id_bai_thuoc = btpt.id_bai_thuoc
+          JOIN benh_tay_y bty ON bty.id = btybt.id_benh_tay_y
+          WHERE btpt.id_phap_tri = pt.id${cbFilter}
+        )
+      )`;
+    };
+
+    const baseQb = this.repo.createQueryBuilder('pt');
+    if (q) {
+      const term = `%${q}%`;
+      baseQb.andWhere(
+        '(pt.the_benh ILIKE :term OR pt.nguyen_tac ILIKE :term OR pt.trieu_chung_mo_ta ILIKE :term OR pt.luc_kinh ILIKE :term)',
+        { term },
+      );
+    }
+    if (category === 'tay-y') {
+      if (chungBenhId != null) {
+        baseQb.andWhere(tayYExistsClause('cbId'), { cbId: chungBenhId });
+      } else {
+        baseQb.andWhere(tayYExistsClause());
+      }
+    } else if (category === 'dong-y') {
+      baseQb.andWhere(`NOT ${tayYExistsClause()}`);
+    }
+
+    const [items, total] = await baseQb
+      .orderBy('pt.id', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    let data: PhapTri[] = [];
+    if (items.length) {
+      const ids = items.map((x) => x.id);
+      data = await this.repo.find({
+        where: { id: In(ids) },
+        relations: [
+          'kinh_mach_list',
+          'trieu_chung_list',
+          'bai_thuoc',
+          'bai_thuoc_links',
+          'bai_thuoc_links.baiThuoc',
+        ],
+        order: { id: 'ASC' },
+      });
+    }
+
+    // Counts toàn bộ (không apply search) cho 3 category.
+    const totalAll = await this.repo.count();
+    const totalTayY = await this.repo
+      .createQueryBuilder('pt')
+      .where(tayYExistsClause())
+      .getCount();
+
+    // Map pt.id → các bệnh Tây Y liên quan (trực tiếp + qua bài thuốc).
+    // Chỉ load cho các pt trong page hiện tại để giảm payload.
+    const relatedBenhTayYByPtId: Record<number, Array<{ id: number; ten_benh: string; chungBenh: { id: number; ten_chung_benh: string } | null }>> = {};
+    if (data.length) {
+      const ptIds = data.map((x) => x.id);
+      const rows: Array<{ pt_id: number; bty_id: number; ten_benh: string; cb_id: number | null; cb_name: string | null }> = await this.repo.query(
+        `SELECT btypt.id_phap_tri AS pt_id, bty.id AS bty_id, bty.ten_benh, bty.id_chung_benh AS cb_id, cb.ten_chung_benh AS cb_name
+         FROM benh_tay_y_phap_tri btypt
+         JOIN benh_tay_y bty ON bty.id = btypt.id_benh_tay_y
+         LEFT JOIN chung_benh cb ON cb.id = bty.id_chung_benh
+         WHERE btypt.id_phap_tri = ANY($1)
+         UNION
+         SELECT btpt.id_phap_tri AS pt_id, bty.id AS bty_id, bty.ten_benh, bty.id_chung_benh AS cb_id, cb.ten_chung_benh AS cb_name
+         FROM bai_thuoc_phap_tri btpt
+         JOIN benh_tay_y_bai_thuoc btybt ON btybt.id_bai_thuoc = btpt.id_bai_thuoc
+         JOIN benh_tay_y bty ON bty.id = btybt.id_benh_tay_y
+         LEFT JOIN chung_benh cb ON cb.id = bty.id_chung_benh
+         WHERE btpt.id_phap_tri = ANY($1)`,
+        [ptIds],
+      );
+      const seenByPt = new Map<number, Set<number>>();
+      for (const r of rows) {
+        const ptId = Number(r.pt_id);
+        const btyId = Number(r.bty_id);
+        let seen = seenByPt.get(ptId);
+        if (!seen) {
+          seen = new Set();
+          seenByPt.set(ptId, seen);
+          relatedBenhTayYByPtId[ptId] = [];
+        }
+        if (seen.has(btyId)) continue;
+        seen.add(btyId);
+        relatedBenhTayYByPtId[ptId].push({
+          id: btyId,
+          ten_benh: r.ten_benh,
+          chungBenh: r.cb_id != null ? { id: Number(r.cb_id), ten_chung_benh: r.cb_name ?? '' } : null,
+        });
+      }
+    }
+
+    // Stats theo chủng bệnh Tây Y (toàn DB, không lệ thuộc page) — để render sub-sub-tabs.
+    const cbStatsRows: Array<{ cb_id: number; cb_name: string; cnt: number }> = await this.repo.query(
+      `WITH related AS (
+        SELECT DISTINCT btypt.id_phap_tri AS pt_id, bty.id_chung_benh AS cb_id
+        FROM benh_tay_y_phap_tri btypt
+        JOIN benh_tay_y bty ON bty.id = btypt.id_benh_tay_y
+        WHERE bty.id_chung_benh IS NOT NULL
+        UNION
+        SELECT DISTINCT btpt.id_phap_tri AS pt_id, bty.id_chung_benh AS cb_id
+        FROM bai_thuoc_phap_tri btpt
+        JOIN benh_tay_y_bai_thuoc btybt ON btybt.id_bai_thuoc = btpt.id_bai_thuoc
+        JOIN benh_tay_y bty ON bty.id = btybt.id_benh_tay_y
+        WHERE bty.id_chung_benh IS NOT NULL
+      )
+      SELECT cb.id AS cb_id, cb.ten_chung_benh AS cb_name, COUNT(DISTINCT r.pt_id)::int AS cnt
+      FROM related r
+      JOIN chung_benh cb ON cb.id = r.cb_id
+      GROUP BY cb.id, cb.ten_chung_benh
+      HAVING COUNT(DISTINCT r.pt_id) > 0
+      ORDER BY cb.ten_chung_benh`,
+    );
+    const tayYChungBenhStats = cbStatsRows.map((r) => ({
+      id: Number(r.cb_id),
+      name: r.cb_name,
+      count: Number(r.cnt),
+    }));
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      statsByCategory: {
+        all: totalAll,
+        'dong-y': totalAll - totalTayY,
+        'tay-y': totalTayY,
+      },
+      relatedBenhTayYByPtId,
+      tayYChungBenhStats,
+    };
+  }
+
   async findOne(id: number): Promise<PhapTri> {
     const item = await this.repo.findOne({
       where: { id },

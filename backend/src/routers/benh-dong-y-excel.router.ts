@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { BenhDongYExcelService } from '../controllers/benh-dong-y-excel.controller';
 import {
@@ -28,6 +29,20 @@ export class BenhDongYExcelRouter {
   @Get()
   findAll() {
     return this.service.findAll();
+  }
+
+  // Phải đứng TRƯỚC @Get(':id').
+  @Get('lite')
+  findLite(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+  ) {
+    return this.service.findLite({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      q: q ?? undefined,
+    });
   }
 
   @Get(':id')

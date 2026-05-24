@@ -46,12 +46,12 @@ class AuthService {
   }
 
   Future<void> logout() async {
-    await _api.storage.delete(key: ApiClient.tokenKey);
-    await _api.storage.delete(key: _patientKey);
+    await _api.remove(ApiClient.tokenKey);
+    await _api.remove(_patientKey);
   }
 
   Future<Patient?> currentPatient() async {
-    final raw = await _api.storage.read(key: _patientKey);
+    final raw = await _api.readString(_patientKey);
     if (raw == null || raw.isEmpty) return null;
     try {
       return Patient.fromJson(jsonDecode(raw) as Map<String, dynamic>);
@@ -61,7 +61,7 @@ class AuthService {
   }
 
   Future<String?> currentToken() {
-    return _api.storage.read(key: ApiClient.tokenKey);
+    return _api.readToken();
   }
 
   Future<AuthResult> _post(String path, Map<String, dynamic> body) async {
@@ -71,9 +71,8 @@ class AuthService {
       final token = data['access_token'] as String;
       final patient =
           Patient.fromJson(data['patient'] as Map<String, dynamic>);
-      await _api.storage.write(key: ApiClient.tokenKey, value: token);
-      await _api.storage
-          .write(key: _patientKey, value: jsonEncode(patient.toJson()));
+      await _api.writeString(ApiClient.tokenKey, token);
+      await _api.writeString(_patientKey, jsonEncode(patient.toJson()));
       return AuthResult(accessToken: token, patient: patient);
     } on DioException catch (e) {
       throw AuthException(_extractMessage(e));

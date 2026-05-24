@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   ParseIntPipe,
 } from '@nestjs/common';
 import { PhapTriService } from '../controllers/phap-tri.controller';
@@ -18,6 +19,25 @@ export class PhapTriRouter {
   @Get()
   findAll() {
     return this.service.findAll();
+  }
+
+  // Phải đứng TRƯỚC @Get(':id') để route 'lite' không bị match như id.
+  @Get('lite')
+  findLite(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+    @Query('category') category?: string,
+    @Query('chungBenhId') chungBenhId?: string,
+  ) {
+    const cat = category === 'dong-y' || category === 'tay-y' ? category : 'all';
+    return this.service.findLite({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      q: q ?? undefined,
+      category: cat,
+      chungBenhId: chungBenhId != null && chungBenhId !== '' ? Number(chungBenhId) : null,
+    });
   }
 
   @Get(':id')

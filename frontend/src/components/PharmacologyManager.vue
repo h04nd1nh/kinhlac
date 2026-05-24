@@ -97,13 +97,14 @@ async function fetchAll() {
   isLoading.value = true
   error.value = null
   try {
+    // Dùng /vi-thuoc/lite để cắt nested relations nặng (congDungLinks/chuTriLinks/...).
     const [nhomLonRes, viThuocRes, chuTriRes] = await Promise.all([
       api.get<NhomLon[] | { data: NhomLon[] }>('/nhom-lon-duoc-ly'),
-      api.get<ViThuoc[] | { data: ViThuoc[] }>('/vi-thuoc'),
+      api.get<any>('/vi-thuoc/lite?page=1&limit=100000'),
       api.get<ChuTri[] | { data: ChuTri[] }>('/chu-tri'),
     ])
     nhomLonList.value = Array.isArray(nhomLonRes) ? nhomLonRes : (nhomLonRes.data ?? [])
-    viThuocCatalog.value = Array.isArray(viThuocRes) ? viThuocRes : (viThuocRes.data ?? [])
+    viThuocCatalog.value = Array.isArray(viThuocRes) ? viThuocRes : (viThuocRes?.data ?? [])
     chuTriCatalog.value = Array.isArray(chuTriRes) ? chuTriRes : (chuTriRes.data ?? [])
     const first = nhomLonList.value[0]
     if (!selectedNhomLonId.value && first) {
