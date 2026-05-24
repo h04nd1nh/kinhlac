@@ -88,10 +88,10 @@ const formLoading = ref(false)
 type PhapTriCategory = 'all' | 'dong-y' | 'tay-y'
 const phapTriCategory = ref<PhapTriCategory>('all')
 const selectedTayYChungBenhId = ref<number | null>(null)
-const selectedDongYTangPhuIds = ref<number[]>([])
-const selectedDongYTonThuongList = ref<string[]>([])
-const dongYTangPhuStats = ref<DongYFilterOption[]>([])
-const dongYTonThuongStats = ref<DongYFilterOption[]>([])
+const selectedTangPhuIds = ref<number[]>([])
+const selectedTonThuongList = ref<string[]>([])
+const tangPhuStats = ref<ExtraFilterOption[]>([])
+const tonThuongStats = ref<ExtraFilterOption[]>([])
 
 interface TonThuongTacNhanLite {
   id: number
@@ -105,7 +105,7 @@ interface TayYChungBenhFilterOption {
   count: number
 }
 
-interface DongYFilterOption {
+interface ExtraFilterOption {
   id: number
   name: string
   count: number
@@ -222,12 +222,12 @@ async function loadPhapTriPage() {
       category: phapTriCategory.value,
       chungBenhId: phapTriCategory.value === 'tay-y' ? selectedTayYChungBenhId.value : null,
       tangPhuIds:
-        phapTriCategory.value === 'dong-y' && selectedDongYTangPhuIds.value.length
-          ? selectedDongYTangPhuIds.value.join(',')
+        phapTriCategory.value !== 'all' && selectedTangPhuIds.value.length
+          ? selectedTangPhuIds.value.join(',')
           : null,
       tonThuongTacNhans:
-        phapTriCategory.value === 'dong-y' && selectedDongYTonThuongList.value.length
-          ? selectedDongYTonThuongList.value.join(',')
+        phapTriCategory.value !== 'all' && selectedTonThuongList.value.length
+          ? selectedTonThuongList.value.join(',')
           : null,
     })
     const res: any = await api.get(`/phap-tri/lite${qs}`)
@@ -236,8 +236,8 @@ async function loadPhapTriPage() {
     if (res?.statsByCategory) dataStats.value = res.statsByCategory
     benhTayYByPtIdMap.value = res?.relatedBenhTayYByPtId ?? {}
     tayYChungBenhStats.value = res?.tayYChungBenhStats ?? []
-    dongYTangPhuStats.value = res?.dongYTangPhuStats ?? []
-    dongYTonThuongStats.value = res?.dongYTonThuongStats ?? []
+    tangPhuStats.value = res?.tangPhuStats ?? []
+    tonThuongStats.value = res?.tonThuongStats ?? []
   } finally {
     pageLoading.value = false
   }
@@ -288,9 +288,9 @@ watch(searchQuery, () => {
 watch(phapTriCategory, (val) => {
   currentPage.value = 1
   if (val !== 'tay-y') selectedTayYChungBenhId.value = null
-  if (val !== 'dong-y') {
-    selectedDongYTangPhuIds.value = []
-    selectedDongYTonThuongList.value = []
+  if (val === 'all') {
+    selectedTangPhuIds.value = []
+    selectedTonThuongList.value = []
   }
   void loadPhapTriPage()
 })
@@ -301,7 +301,7 @@ watch(selectedTayYChungBenhId, () => {
 })
 
 watch(
-  selectedDongYTangPhuIds,
+  selectedTangPhuIds,
   () => {
     currentPage.value = 1
     void loadPhapTriPage()
@@ -310,7 +310,7 @@ watch(
 )
 
 watch(
-  selectedDongYTonThuongList,
+  selectedTonThuongList,
   () => {
     currentPage.value = 1
     void loadPhapTriPage()
@@ -318,21 +318,21 @@ watch(
   { deep: true },
 )
 
-function toggleDongYTangPhu(id: number) {
-  selectedDongYTangPhuIds.value = selectedDongYTangPhuIds.value.includes(id)
-    ? selectedDongYTangPhuIds.value.filter((x) => x !== id)
-    : [...selectedDongYTangPhuIds.value, id]
+function toggleTangPhu(id: number) {
+  selectedTangPhuIds.value = selectedTangPhuIds.value.includes(id)
+    ? selectedTangPhuIds.value.filter((x) => x !== id)
+    : [...selectedTangPhuIds.value, id]
 }
 
-function toggleDongYTonThuong(name: string) {
-  selectedDongYTonThuongList.value = selectedDongYTonThuongList.value.includes(name)
-    ? selectedDongYTonThuongList.value.filter((x) => x !== name)
-    : [...selectedDongYTonThuongList.value, name]
+function toggleTonThuong(name: string) {
+  selectedTonThuongList.value = selectedTonThuongList.value.includes(name)
+    ? selectedTonThuongList.value.filter((x) => x !== name)
+    : [...selectedTonThuongList.value, name]
 }
 
-function clearDongYFilters() {
-  selectedDongYTangPhuIds.value = []
-  selectedDongYTonThuongList.value = []
+function clearExtraFilters() {
+  selectedTangPhuIds.value = []
+  selectedTonThuongList.value = []
 }
 
 watch(currentPage, () => { void loadPhapTriPage() })
@@ -603,27 +603,27 @@ async function handleDelete() {
       </div>
 
       <div
-        v-if="phapTriCategory === 'dong-y' && (dongYTangPhuStats.length || dongYTonThuongStats.length)"
-        class="dong-y-filters"
+        v-if="phapTriCategory !== 'all' && (tangPhuStats.length || tonThuongStats.length)"
+        class="extra-filters"
       >
-        <div v-if="dongYTangPhuStats.length" class="filter-row">
+        <div v-if="tangPhuStats.length" class="filter-row">
           <span class="filter-row__label">Tạng phủ</span>
           <div class="sub-sub-tabs sub-sub-tabs--inline" role="group" aria-label="Lọc theo tạng phủ">
             <button
-              v-for="opt in dongYTangPhuStats"
+              v-for="opt in tangPhuStats"
               :key="'tp-' + opt.id"
               type="button"
               class="sub-sub-tab"
-              :class="{ active: selectedDongYTangPhuIds.includes(opt.id) }"
-              :aria-pressed="selectedDongYTangPhuIds.includes(opt.id)"
-              @click="toggleDongYTangPhu(opt.id)"
+              :class="{ active: selectedTangPhuIds.includes(opt.id) }"
+              :aria-pressed="selectedTangPhuIds.includes(opt.id)"
+              @click="toggleTangPhu(opt.id)"
             >
               {{ opt.name }}
               <span class="sub-sub-tab__count">{{ opt.count }}</span>
             </button>
           </div>
         </div>
-        <div v-if="dongYTonThuongStats.length" class="filter-row">
+        <div v-if="tonThuongStats.length" class="filter-row">
           <span class="filter-row__label">Tổn thương</span>
           <div
             class="sub-sub-tabs sub-sub-tabs--inline sub-sub-tabs--alt"
@@ -631,23 +631,23 @@ async function handleDelete() {
             aria-label="Lọc theo tổn thương - tác nhân"
           >
             <button
-              v-for="opt in dongYTonThuongStats"
+              v-for="opt in tonThuongStats"
               :key="'tt-' + opt.id"
               type="button"
               class="sub-sub-tab"
-              :class="{ active: selectedDongYTonThuongList.includes(opt.name) }"
-              :aria-pressed="selectedDongYTonThuongList.includes(opt.name)"
-              @click="toggleDongYTonThuong(opt.name)"
+              :class="{ active: selectedTonThuongList.includes(opt.name) }"
+              :aria-pressed="selectedTonThuongList.includes(opt.name)"
+              @click="toggleTonThuong(opt.name)"
             >
               {{ opt.name }}
               <span class="sub-sub-tab__count">{{ opt.count }}</span>
             </button>
           </div>
           <button
-            v-if="selectedDongYTangPhuIds.length || selectedDongYTonThuongList.length"
+            v-if="selectedTangPhuIds.length || selectedTonThuongList.length"
             type="button"
             class="filter-clear-btn"
-            @click="clearDongYFilters"
+            @click="clearExtraFilters"
           >
             Bỏ chọn
           </button>
@@ -1200,7 +1200,7 @@ async function handleDelete() {
   color: var(--white);
 }
 
-.dong-y-filters {
+.extra-filters {
   display: flex;
   flex-direction: column;
   gap: 4px;

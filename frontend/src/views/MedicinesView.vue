@@ -221,12 +221,12 @@ const baiThuocCategory = ref<BaiThuocCategory>('all')
 // Khi đang ở tab "Tây Y", có thể lọc thêm theo chủng bệnh (null = tất cả chủng)
 const selectedChungBenhId = ref<number | null>(null)
 
-// Khi đang ở tab "Đông Y", có thể lọc thêm theo Tạng phủ + Tổn thương-Tác nhân (multi-select)
-const selectedDongYTangPhuIds = ref<number[]>([])
-const selectedDongYTonThuongList = ref<string[]>([])
-interface DongYFilterOption { id: number; name: string; count: number }
-const dongYTangPhuStats = ref<DongYFilterOption[]>([])
-const dongYTonThuongStats = ref<DongYFilterOption[]>([])
+// Lọc thêm theo Tạng phủ + Tổn thương-Tác nhân (multi-select) — áp dụng cho cả Đông Y và Tây Y
+const selectedTangPhuIds = ref<number[]>([])
+const selectedTonThuongList = ref<string[]>([])
+interface ExtraFilterOption { id: number; name: string; count: number }
+const tangPhuStats = ref<ExtraFilterOption[]>([])
+const tonThuongStats = ref<ExtraFilterOption[]>([])
 
 // Filter theo nhóm dược lý cho tab vị thuốc
 const viFilterNhomLonId = ref<number | null>(null)
@@ -365,9 +365,9 @@ watch(viThuocSearch, () => {
 watch(baiThuocCategory, (v) => {
   baiThuocPage.value = 1
   if (v !== 'tay-y') selectedChungBenhId.value = null
-  if (v !== 'dong-y') {
-    selectedDongYTangPhuIds.value = []
-    selectedDongYTonThuongList.value = []
+  if (v === 'all') {
+    selectedTangPhuIds.value = []
+    selectedTonThuongList.value = []
   }
   void loadBaiThuocPage()
 })
@@ -378,7 +378,7 @@ watch(selectedChungBenhId, () => {
 })
 
 watch(
-  selectedDongYTangPhuIds,
+  selectedTangPhuIds,
   () => {
     baiThuocPage.value = 1
     void loadBaiThuocPage()
@@ -387,7 +387,7 @@ watch(
 )
 
 watch(
-  selectedDongYTonThuongList,
+  selectedTonThuongList,
   () => {
     baiThuocPage.value = 1
     void loadBaiThuocPage()
@@ -395,21 +395,21 @@ watch(
   { deep: true },
 )
 
-function toggleDongYTangPhu(id: number) {
-  selectedDongYTangPhuIds.value = selectedDongYTangPhuIds.value.includes(id)
-    ? selectedDongYTangPhuIds.value.filter((x) => x !== id)
-    : [...selectedDongYTangPhuIds.value, id]
+function toggleTangPhu(id: number) {
+  selectedTangPhuIds.value = selectedTangPhuIds.value.includes(id)
+    ? selectedTangPhuIds.value.filter((x) => x !== id)
+    : [...selectedTangPhuIds.value, id]
 }
 
-function toggleDongYTonThuong(name: string) {
-  selectedDongYTonThuongList.value = selectedDongYTonThuongList.value.includes(name)
-    ? selectedDongYTonThuongList.value.filter((x) => x !== name)
-    : [...selectedDongYTonThuongList.value, name]
+function toggleTonThuong(name: string) {
+  selectedTonThuongList.value = selectedTonThuongList.value.includes(name)
+    ? selectedTonThuongList.value.filter((x) => x !== name)
+    : [...selectedTonThuongList.value, name]
 }
 
-function clearDongYFilters() {
-  selectedDongYTangPhuIds.value = []
-  selectedDongYTonThuongList.value = []
+function clearExtraFilters() {
+  selectedTangPhuIds.value = []
+  selectedTonThuongList.value = []
 }
 
 // Đổi trang → reload page mới từ server.
@@ -571,12 +571,12 @@ async function loadBaiThuocPage() {
       category: baiThuocCategory.value,
       chungBenhId: baiThuocCategory.value === 'tay-y' ? selectedChungBenhId.value : null,
       tangPhuIds:
-        baiThuocCategory.value === 'dong-y' && selectedDongYTangPhuIds.value.length
-          ? selectedDongYTangPhuIds.value.join(',')
+        baiThuocCategory.value !== 'all' && selectedTangPhuIds.value.length
+          ? selectedTangPhuIds.value.join(',')
           : null,
       tonThuongTacNhans:
-        baiThuocCategory.value === 'dong-y' && selectedDongYTonThuongList.value.length
-          ? selectedDongYTonThuongList.value.join(',')
+        baiThuocCategory.value !== 'all' && selectedTonThuongList.value.length
+          ? selectedTonThuongList.value.join(',')
           : null,
     })
     const res: any = await api.get(`/bai-thuoc/lite${qs}`)
@@ -585,8 +585,8 @@ async function loadBaiThuocPage() {
     if (res?.statsByCategory) {
       baiThuocStats.value = res.statsByCategory
     }
-    dongYTangPhuStats.value = res?.dongYTangPhuStats ?? []
-    dongYTonThuongStats.value = res?.dongYTonThuongStats ?? []
+    tangPhuStats.value = res?.tangPhuStats ?? []
+    tonThuongStats.value = res?.tonThuongStats ?? []
   } finally {
     baiThuocPageLoading.value = false
   }
@@ -2418,27 +2418,27 @@ async function suggestViThuocAi() {
           </button>
         </div>
         <div
-          v-if="baiThuocCategory === 'dong-y' && (dongYTangPhuStats.length || dongYTonThuongStats.length)"
-          class="dong-y-filters"
+          v-if="baiThuocCategory !== 'all' && (tangPhuStats.length || tonThuongStats.length)"
+          class="extra-filters"
         >
-          <div v-if="dongYTangPhuStats.length" class="filter-row">
+          <div v-if="tangPhuStats.length" class="filter-row">
             <span class="filter-row__label">Tạng phủ</span>
             <div class="sub-sub-tabs sub-sub-tabs--inline" role="group" aria-label="Lọc theo tạng phủ">
               <button
-                v-for="opt in dongYTangPhuStats"
+                v-for="opt in tangPhuStats"
                 :key="'tp-' + opt.id"
                 type="button"
                 class="sub-sub-tab"
-                :class="{ active: selectedDongYTangPhuIds.includes(opt.id) }"
-                :aria-pressed="selectedDongYTangPhuIds.includes(opt.id)"
-                @click="toggleDongYTangPhu(opt.id)"
+                :class="{ active: selectedTangPhuIds.includes(opt.id) }"
+                :aria-pressed="selectedTangPhuIds.includes(opt.id)"
+                @click="toggleTangPhu(opt.id)"
               >
                 {{ opt.name }}
                 <span class="sub-sub-tab__count">{{ opt.count }}</span>
               </button>
             </div>
           </div>
-          <div v-if="dongYTonThuongStats.length" class="filter-row">
+          <div v-if="tonThuongStats.length" class="filter-row">
             <span class="filter-row__label">Tổn thương</span>
             <div
               class="sub-sub-tabs sub-sub-tabs--inline sub-sub-tabs--alt"
@@ -2446,23 +2446,23 @@ async function suggestViThuocAi() {
               aria-label="Lọc theo tổn thương - tác nhân"
             >
               <button
-                v-for="opt in dongYTonThuongStats"
+                v-for="opt in tonThuongStats"
                 :key="'tt-' + opt.id"
                 type="button"
                 class="sub-sub-tab"
-                :class="{ active: selectedDongYTonThuongList.includes(opt.name) }"
-                :aria-pressed="selectedDongYTonThuongList.includes(opt.name)"
-                @click="toggleDongYTonThuong(opt.name)"
+                :class="{ active: selectedTonThuongList.includes(opt.name) }"
+                :aria-pressed="selectedTonThuongList.includes(opt.name)"
+                @click="toggleTonThuong(opt.name)"
               >
                 {{ opt.name }}
                 <span class="sub-sub-tab__count">{{ opt.count }}</span>
               </button>
             </div>
             <button
-              v-if="selectedDongYTangPhuIds.length || selectedDongYTonThuongList.length"
+              v-if="selectedTangPhuIds.length || selectedTonThuongList.length"
               type="button"
               class="filter-clear-btn"
-              @click="clearDongYFilters"
+              @click="clearExtraFilters"
             >
               Bỏ chọn
             </button>
@@ -3544,7 +3544,7 @@ async function suggestViThuocAi() {
   color: var(--white);
 }
 
-.dong-y-filters {
+.extra-filters {
   display: flex;
   flex-direction: column;
   gap: 4px;
