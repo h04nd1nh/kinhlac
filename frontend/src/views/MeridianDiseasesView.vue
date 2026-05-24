@@ -925,7 +925,7 @@ async function handleDelete() {
             </div>
           </article>
         </div>
-        <div v-if="filteredList.length > itemsPerPage" class="pagination">
+        <div v-if="totalPages > 1" class="pagination">
           <button class="page-btn" :disabled="currentPage <= 1" @click="currentPage--">‹</button>
           <button
             v-for="pn in getPageNumbers()"
