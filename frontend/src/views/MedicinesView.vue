@@ -130,6 +130,12 @@ interface ViThuocForm {
 const activeTab = ref<'bai-thuoc' | 'vi-thuoc' | 'duoc-ly'>('bai-thuoc')
 const isLoading = ref(true)
 const error = ref<string | null>(null)
+/** Loading khi reload page list (search/page change/filter) — overlay nhẹ trên grid. */
+const baiThuocPageLoading = ref(false)
+const viThuocPageLoading = ref(false)
+/** Loading khi mở modal Sửa / Phân tích bài thuốc (đợi full data về). */
+const btFullLoading = ref(false)
+const anaLoading = ref(false)
 
 const baiThuocList = ref<BaiThuoc[]>([])
 const baiThuocTotal = ref(0)
@@ -510,33 +516,43 @@ function buildQuery(params: Record<string, unknown>): string {
 
 /** Load 1 page bài thuốc từ /bai-thuoc/lite. */
 async function loadBaiThuocPage() {
-  const qs = buildQuery({
-    page: baiThuocPage.value,
-    limit: itemsPerPage.value,
-    q: baiThuocSearch.value.trim(),
-    category: baiThuocCategory.value,
-    chungBenhId: baiThuocCategory.value === 'tay-y' ? selectedChungBenhId.value : null,
-  })
-  const res: any = await api.get(`/bai-thuoc/lite${qs}`)
-  baiThuocList.value = res?.data ?? []
-  baiThuocTotal.value = Number(res?.total ?? 0)
-  if (res?.statsByCategory) {
-    baiThuocStats.value = res.statsByCategory
+  baiThuocPageLoading.value = true
+  try {
+    const qs = buildQuery({
+      page: baiThuocPage.value,
+      limit: itemsPerPage.value,
+      q: baiThuocSearch.value.trim(),
+      category: baiThuocCategory.value,
+      chungBenhId: baiThuocCategory.value === 'tay-y' ? selectedChungBenhId.value : null,
+    })
+    const res: any = await api.get(`/bai-thuoc/lite${qs}`)
+    baiThuocList.value = res?.data ?? []
+    baiThuocTotal.value = Number(res?.total ?? 0)
+    if (res?.statsByCategory) {
+      baiThuocStats.value = res.statsByCategory
+    }
+  } finally {
+    baiThuocPageLoading.value = false
   }
 }
 
 /** Load 1 page vị thuốc từ /vi-thuoc/lite. */
 async function loadViThuocPage() {
-  const qs = buildQuery({
-    page: viThuocPage.value,
-    limit: itemsPerPage.value,
-    q: viThuocSearch.value.trim(),
-    idNhomNho: viFilterNhomNhoId.value,
-    idNhomLon: viFilterNhomNhoId.value == null ? viFilterNhomLonId.value : null,
-  })
-  const res: any = await api.get(`/vi-thuoc/lite${qs}`)
-  viThuocList.value = res?.data ?? []
-  viThuocTotal.value = Number(res?.total ?? 0)
+  viThuocPageLoading.value = true
+  try {
+    const qs = buildQuery({
+      page: viThuocPage.value,
+      limit: itemsPerPage.value,
+      q: viThuocSearch.value.trim(),
+      idNhomNho: viFilterNhomNhoId.value,
+      idNhomLon: viFilterNhomNhoId.value == null ? viFilterNhomLonId.value : null,
+    })
+    const res: any = await api.get(`/vi-thuoc/lite${qs}`)
+    viThuocList.value = res?.data ?? []
+    viThuocTotal.value = Number(res?.total ?? 0)
+  } finally {
+    viThuocPageLoading.value = false
+  }
 }
 
 /** Fetch các catalog phụ trợ cho tab Bài thuốc (1 lần / session). */
@@ -703,8 +719,14 @@ function toggleId(list: number[], id: number): number[] {
 }
 
 async function openCreateBaiThuoc() {
-  // Cần full vị thuốc list cho dropdown & datalist.
-  await ensureFullViThuocList()
+  btFullLoading.value = true
+  btShowModal.value = true
+  try {
+    // Cần full vị thuốc list cho dropdown & datalist.
+    await ensureFullViThuocList()
+  } finally {
+    btFullLoading.value = false
+  }
   btEditingId.value = null
   btForm.value = emptyBaiThuocForm()
   btFormError.value = null
@@ -712,14 +734,20 @@ async function openCreateBaiThuoc() {
   btTrieuChungSearch.value = ''
   btViThuocSearch.value = []
   btViThuocAddSearch.value = ''
-  btShowModal.value = true
 }
 
 async function openEditBaiThuoc(bt: BaiThuoc) {
-  // Lite version đã đủ chiTiet/phapTri/trieuChung. Vẫn cần full vị thuốc list cho dropdown.
-  await ensureFullViThuocList()
-  // Lấy chi tiết bài thuốc bản full (fallback về bt lite nếu API lỗi).
-  const full = (await loadBaiThuocFull(bt.id)) ?? bt
+  btFullLoading.value = true
+  btShowModal.value = true
+  let full: BaiThuoc = bt
+  try {
+    // Lite version đã đủ chiTiet/phapTri/trieuChung. Vẫn cần full vị thuốc list cho dropdown.
+    await ensureFullViThuocList()
+    // Lấy chi tiết bài thuốc bản full (fallback về bt lite nếu API lỗi).
+    full = (await loadBaiThuocFull(bt.id)) ?? bt
+  } finally {
+    btFullLoading.value = false
+  }
   btEditingId.value = full.id
   const phapIds = (full.phapTriLinks ?? [])
     .slice()
@@ -1615,19 +1643,26 @@ function destroyAnaCharts() {
 }
 
 async function openAnalysis(bt: BaiThuoc) {
-  // Phân tích cần full chi tiết vị thuốc (với congDung/chuTri/kiengKy), full vị thuốc list (cho map id→data),
-  // và nhóm dược lý (để derive tác dụng / chủ trị bài thuốc).
-  await Promise.all([
-    loadBaiThuocFull(bt.id),
-    ensureFullViThuocList(),
-    ensureNhomNhoList(),
-  ])
-  const full = baiThuocFullCache.value.get(bt.id) ?? bt
-  const r = analyzeBaiThuoc(full)
-  anaResult.value = r
-  anaVtRows.splice(0, anaVtRows.length, ...r.viThuocList)
+  anaLoading.value = true
+  anaResult.value = null
+  anaVtRows.splice(0, anaVtRows.length)
   anaShowModal.value = true
-  nextTick(() => initAnaCharts())
+  try {
+    // Phân tích cần full chi tiết vị thuốc (với congDung/chuTri/kiengKy), full vị thuốc list (cho map id→data),
+    // và nhóm dược lý (để derive tác dụng / chủ trị bài thuốc).
+    await Promise.all([
+      loadBaiThuocFull(bt.id),
+      ensureFullViThuocList(),
+      ensureNhomNhoList(),
+    ])
+    const full = baiThuocFullCache.value.get(bt.id) ?? bt
+    const r = analyzeBaiThuoc(full)
+    anaResult.value = r
+    anaVtRows.splice(0, anaVtRows.length, ...r.viThuocList)
+    nextTick(() => initAnaCharts())
+  } finally {
+    anaLoading.value = false
+  }
 }
 
 function closeAnalysis() {
@@ -2326,7 +2361,8 @@ async function suggestViThuocAi() {
             <span class="sub-sub-tab__count">{{ cb.count }}</span>
           </button>
         </div>
-        <div class="data-card">
+        <div class="data-card" :class="{ 'data-card--loading': baiThuocPageLoading }">
+          <div v-if="baiThuocPageLoading" class="loading-bar" aria-hidden="true"></div>
           <div class="card-header">
             <div class="card-header-left">
               <h3>Danh sách Bài Thuốc</h3>
@@ -2556,7 +2592,8 @@ async function suggestViThuocAi() {
           >Bỏ lọc</button>
           <span class="toolbar-count">{{ filteredViThuoc.length }} / {{ viThuocList.length }} vị thuốc</span>
         </div>
-        <div class="data-card">
+        <div class="data-card" :class="{ 'data-card--loading': viThuocPageLoading }">
+          <div v-if="viThuocPageLoading" class="loading-bar" aria-hidden="true"></div>
           <div class="card-header">
             <div class="card-header-left">
               <h3>Danh sách Vị Thuốc</h3>
@@ -2622,7 +2659,11 @@ async function suggestViThuocAi() {
           <h3>{{ btEditingId != null ? 'Sửa bài thuốc' : 'Thêm bài thuốc' }}</h3>
           <button type="button" class="modal-close" @click="closeBaiThuocModal">✕</button>
         </div>
-        <form class="modal-body" @submit.prevent="submitBaiThuoc">
+        <form class="modal-body modal-body--loadable" @submit.prevent="submitBaiThuoc">
+          <div v-if="btFullLoading" class="modal-loading-overlay">
+            <div class="spinner spinner--sm"></div>
+            <span>Đang tải dữ liệu bài thuốc…</span>
+          </div>
           <p v-if="btFormError" class="form-error">{{ btFormError }}</p>
 
           <div class="form-grid">
@@ -3057,7 +3098,11 @@ async function suggestViThuocAi() {
           <button type="button" class="modal-close" @click="closeAnalysis">✕</button>
         </div>
         <div class="modal-body ana-body">
-          <template v-if="anaResult && !anaResult.empty">
+          <div v-if="anaLoading" class="ana-loading">
+            <div class="spinner"></div>
+            <p>Đang tải dữ liệu phân tích…</p>
+          </div>
+          <template v-else-if="anaResult && !anaResult.empty">
             <!-- Tứ khí -->
             <div class="ana-card">
               <div class="ana-section-title">1) Phân tích Tứ khí</div>
@@ -3716,7 +3761,69 @@ async function suggestViThuocAi() {
 
 .loading-state { display: flex; flex-direction: column; align-items: center; padding: var(--space-12) 0; color: var(--brown-600); }
 .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--brown-500); border-radius: 50%; animation: spin .7s linear infinite; }
+.spinner--sm { width: 20px; height: 20px; border-width: 2px; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Loading bar — thanh tiến trình mỏng phía trên data-card khi đang reload page. */
+.data-card { position: relative; }
+.data-card--loading { pointer-events: none; }
+.data-card--loading .bt-grid,
+.data-card--loading .vt-grid { opacity: 0.55; transition: opacity .15s; }
+.loading-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(146, 64, 14, 0.08);
+  z-index: 5;
+}
+.loading-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--brown-500), transparent);
+  animation: loadingBarSlide 1.1s ease-in-out infinite;
+}
+@keyframes loadingBarSlide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+/* Modal overlay loading — dùng cho modal Sửa bài thuốc khi đang fetch full data. */
+.modal-body--loadable { position: relative; min-height: 80px; }
+.modal-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(2px);
+  z-index: 10;
+  color: var(--brown-700);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+/* Loading state trong modal phân tích bài thuốc. */
+.ana-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-12) var(--space-4);
+  color: var(--brown-700);
+  font-weight: 600;
+}
+
 .error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: #fef2f2; border-radius: var(--radius-lg); }
 
 /* Buttons */
