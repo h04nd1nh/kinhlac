@@ -258,8 +258,9 @@ async function loadSupportCatalogs() {
 /** Lazy load /bai-thuoc options chỉ khi mở modal. */
 async function ensureBaiThuocOptions() {
   if (baiThuocOptionsLoaded.value) return
-  const res: any = await api.get('/bai-thuoc/lite?page=1&limit=100000')
-  baiThuocOptions.value = (res?.data ?? []).map((b: any) => ({ id: b.id, ten_bai_thuoc: b.ten_bai_thuoc }))
+  const res: any = await api.get('/bai-thuoc/options')
+  const arr: any[] = Array.isArray(res) ? res : res?.data ?? []
+  baiThuocOptions.value = arr.map((b: any) => ({ id: b.id, ten_bai_thuoc: b.ten_bai_thuoc }))
   baiThuocOptionsLoaded.value = true
 }
 

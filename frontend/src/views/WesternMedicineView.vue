@@ -205,11 +205,11 @@ async function loadBenhTayYPage() {
 async function ensureFormOptions() {
   if (formOptionsLoaded.value) return
   const [bt, tc, ttc, mc, pt] = await Promise.all([
-    api.get<any>('/bai-thuoc/lite?page=1&limit=100000'),
+    api.get<any>('/bai-thuoc/options'),
     api.get<any>('/trieu-chung'),
     api.get<any>('/thiet-chan'),
     api.get<any>('/mach-chan'),
-    api.get<any>('/phap-tri/lite?page=1&limit=100000'),
+    api.get<any>('/phap-tri/options'),
   ])
   baiThuocOptions.value = unwrap<BaiThuocLite>(bt)
   trieuChungOptions.value = unwrap<TrieuChungLite>(tc)

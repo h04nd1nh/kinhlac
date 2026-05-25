@@ -21,6 +21,12 @@ export class PhapTriRouter {
     return this.service.findAll();
   }
 
+  // Phải đứng TRƯỚC @Get(':id') để route 'options' không bị match như id.
+  @Get('options')
+  findOptions() {
+    return this.service.findOptions();
+  }
+
   // Phải đứng TRƯỚC @Get(':id') để route 'lite' không bị match như id.
   @Get('lite')
   findLite(

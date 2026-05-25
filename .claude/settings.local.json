@@ -36,7 +36,11 @@
       "Bash(curl -sI --max-time 10 http://kinhlac.online)",
       "Bash(curl -s --max-time 10 -o /dev/null -w \"HTTP: %{http_code}\\\\nHTTPS: skip\\\\n\" http://kinhlac.online/api/)",
       "Bash(curl -s --max-time 10 -w \"\\\\n---\\\\nHTTP: %{http_code}\\\\n\" http://kinhlac.online/api/patient-auth/login -X POST -H \"Content-Type: application/json\" -d '{}')",
-      "Bash(curl -s --max-time 10 -X POST -H \"Content-Type: application/json\" -d '{}' https://kinhlac.online/api/patient-auth/login -w \"\\\\n---\\\\nHTTP: %{http_code}\\\\n\")"
+      "Bash(curl -s --max-time 10 -X POST -H \"Content-Type: application/json\" -d '{}' https://kinhlac.online/api/patient-auth/login -w \"\\\\n---\\\\nHTTP: %{http_code}\\\\n\")",
+      "Bash(psql -h localhost -U postgres -d kinhlac -c \"SELECT COUNT\\(*\\) FROM bai_thuoc;\" 2>nul || echo \"Không kết nối được DB - bỏ qua\")"
+    ],
+    "additionalDirectories": [
+      "D:\\project\\kinhlac"
     ]
   }
 }

@@ -179,9 +179,9 @@ async function loadPhacDo() {
 async function ensureFormOptions() {
   if (formOptionsLoaded.value) return
   const [pt, tc, bt] = await Promise.all([
-    api.get<any>('/phap-tri/lite?page=1&limit=100000'),
+    api.get<any>('/phap-tri/options'),
     api.get<any>('/trieu-chung'),
-    api.get<any>('/bai-thuoc/lite?page=1&limit=100000'),
+    api.get<any>('/bai-thuoc/options'),
   ])
   phapTriOptions.value = Array.isArray(pt) ? pt : pt?.data ?? []
   trieuChungOptions.value = Array.isArray(tc) ? tc : tc?.data ?? []

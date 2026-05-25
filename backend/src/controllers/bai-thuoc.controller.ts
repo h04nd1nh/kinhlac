@@ -117,6 +117,17 @@ export class BaiThuocService {
   }
 
   /**
+   * Trả full danh sách id + tên dùng cho dropdown picker.
+   * Không relations, không pagination — dữ liệu rất nhẹ nên đủ an toàn để gọi unbounded.
+   */
+  findOptions(): Promise<Array<Pick<BaiThuoc, 'id' | 'ten_bai_thuoc'>>> {
+    return this.repo.find({
+      select: ['id', 'ten_bai_thuoc'],
+      order: { ten_bai_thuoc: 'ASC' },
+    });
+  }
+
+  /**
    * Lightweight, paginated list for the medicines tab.
    * - Cắt 4 cấp relations nặng (congDungLinks/chuTriLinks/kiengKyLinks/tenGoiKhacList) để query nhanh.
    * - Hỗ trợ search server-side trên các cột text + category filter (đông y / tây y).

@@ -43,6 +43,17 @@ export class PhapTriService {
   }
 
   /**
+   * Trả full danh sách id + nhãn dùng cho dropdown picker.
+   * Không relations, không pagination — dữ liệu rất nhẹ nên đủ an toàn để gọi unbounded.
+   */
+  findOptions(): Promise<Array<Pick<PhapTri, 'id' | 'chung_trang' | 'nguyen_tac'>>> {
+    return this.repo.find({
+      select: ['id', 'chung_trang', 'nguyen_tac'],
+      order: { id: 'ASC' },
+    });
+  }
+
+  /**
    * Lightweight, paginated list cho tab Pháp Trị.
    * - Cắt relations nặng (benh_dong_y_list); giữ kinh_mach_list/trieu_chung_list/bai_thuoc_links.
    * - Search server-side trên các text columns trong cùng bảng phap_tri.
