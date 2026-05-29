@@ -98,7 +98,7 @@ export class BenhDongYExcelService {
     const qb = this.repo.createQueryBuilder('r');
     if (q) {
       qb.andWhere(
-        '(r.code ILIKE :term OR r.name ILIKE :term OR r."outputCell" ILIKE :term OR r."excelFormula" ILIKE :term)',
+        '(r.code ILIKE :term OR r.name ILIKE :term OR r.outputCell ILIKE :term OR r.excelFormula ILIKE :term)',
         { term: `%${q}%` },
       );
     }
