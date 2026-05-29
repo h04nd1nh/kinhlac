@@ -12,12 +12,7 @@ import {
   InputChiSo,
   UpdateBenhDongYHienDaiDto,
 } from '../models/benh-dong-y-hien-dai.dto';
-
-type RuleClause = {
-  left: string;
-  operator: '>' | '<' | '>=' | '<=' | '=' | '!=';
-  right: string;
-};
+import { evaluateLogicExpression } from '../utils/excel-rule-engine';
 
 @Injectable()
 export class BenhDongYHienDaiService {
@@ -124,63 +119,8 @@ export class BenhDongYHienDaiService {
     return result;
   }
 
-  private parseClause(clause: string): RuleClause {
-    const normalized = clause.trim().replace(/^\(+|\)+$/g, '');
-    const m = normalized.match(/^(ABS\([A-Za-z][A-Za-z0-9]*\)|[A-Za-z][A-Za-z0-9]*|-?\d+(?:\.\d+)?)\s*(>=|<=|!=|=|>|<)\s*(ABS\([A-Za-z][A-Za-z0-9]*\)|[A-Za-z][A-Za-z0-9]*|-?\d+(?:\.\d+)?)$/);
-    if (!m) {
-      throw new BadRequestException(`Không parse được mệnh đề: ${clause}`);
-    }
-    return {
-      left: m[1],
-      operator: m[2] as RuleClause['operator'],
-      right: m[3],
-    };
-  }
-
-  private resolveOperand(operand: string, input: InputChiSo): number | null {
-    const absMatch = operand.match(/^ABS\(([A-Za-z][A-Za-z0-9]*)\)$/);
-    if (absMatch) {
-      const v = input[absMatch[1].toUpperCase()];
-      return Number.isFinite(v) ? Math.abs(v) : null;
-    }
-    if (/^-?\d+(?:\.\d+)?$/.test(operand)) return Number(operand);
-    const v = input[operand.toUpperCase()];
-    return Number.isFinite(v) ? v : null;
-  }
-
-  private compare(left: number, op: RuleClause['operator'], right: number): boolean {
-    switch (op) {
-      case '>': return left > right;
-      case '<': return left < right;
-      case '>=': return left >= right;
-      case '<=': return left <= right;
-      case '=': return left === right;
-      case '!=': return left !== right;
-      default: return false;
-    }
-  }
-
   private evaluateRule(logicExpression: string, input: InputChiSo): boolean {
-    const clauses = logicExpression
-      .split(/\s+AND\s+/i)
-      .map((x) => x.trim())
-      .filter(Boolean);
-    if (!clauses.length) return false;
-    for (const rawClause of clauses) {
-      let clause: RuleClause;
-      try {
-        clause = this.parseClause(rawClause);
-      } catch {
-        // Mệnh đề chứa OR / LEN() / so chuỗi / nhân ô — engine pure-AND chưa hỗ trợ.
-        // Bỏ qua rule này (coi như không match) thay vì crash cả lần diagnose.
-        return false;
-      }
-      const left = this.resolveOperand(clause.left, input);
-      const right = this.resolveOperand(clause.right, input);
-      if (left === null || right === null) return false;
-      if (!this.compare(left, clause.operator, right)) return false;
-    }
-    return true;
+    return evaluateLogicExpression(logicExpression, input as Record<string, number>);
   }
 
   async diagnose(rawInput: Record<string, unknown>) {
