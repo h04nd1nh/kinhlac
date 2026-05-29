@@ -287,7 +287,11 @@ export class MeridiansService {
     const e18 = this.round2((a18 - a19) / 6);
 
     return {
+      // Trung điểm + cận lệch chi trên (D7) / chi dưới (D18)
+      D7: d7,
+      D18: d18,
       E7: e7,
+      // E* = trung bình kinh - D (đã có sẵn từ trước)
       E10: this.round2(d10 - d7),
       E11: this.round2(d11 - d7),
       E12: this.round2(d12 - d7),
@@ -301,6 +305,45 @@ export class MeridiansService {
       E24: this.round2(d24 - d18),
       E25: this.round2(d25 - d18),
       E26: this.round2(d26 - d18),
+      // H* = |trái - phải| theo từng kinh (chi trên 10..15, chi dưới 21..26)
+      H10: this.round2(Math.abs(data.tieutruongtrai - data.tieutruongphai)),
+      H11: this.round2(Math.abs(data.tamtrai - data.tamphai)),
+      H12: this.round2(Math.abs(data.tamtieutrai - data.tamtieuphai)),
+      H13: this.round2(Math.abs(data.tambaotrai - data.tambaophai)),
+      H14: this.round2(Math.abs(data.daitrangtrai - data.daitrangphai)),
+      H15: this.round2(Math.abs(data.phetrai - data.phephai)),
+      H21: this.round2(Math.abs(data.bangquangtrai - data.bangquangphai)),
+      H22: this.round2(Math.abs(data.thantrai - data.thanphai)),
+      H23: this.round2(Math.abs(data.damtrai - data.damphai)),
+      H24: this.round2(Math.abs(data.vitrai - data.viphai)),
+      H25: this.round2(Math.abs(data.cantrai - data.canphai)),
+      H26: this.round2(Math.abs(data.tytrai - data.typhai)),
+      // AN* = trái - D (độ lệch trái khỏi trung điểm), AQ* = phải - D (độ lệch phải)
+      // Quy ước nhân AN*AQ<0 ⇔ trái-phải nằm ngược phía của trung điểm.
+      AN10: this.round2(data.tieutruongtrai - d7),
+      AN11: this.round2(data.tamtrai - d7),
+      AN12: this.round2(data.tamtieutrai - d7),
+      AN13: this.round2(data.tambaotrai - d7),
+      AN14: this.round2(data.daitrangtrai - d7),
+      AN15: this.round2(data.phetrai - d7),
+      AQ10: this.round2(data.tieutruongphai - d7),
+      AQ11: this.round2(data.tamphai - d7),
+      AQ12: this.round2(data.tamtieuphai - d7),
+      AQ13: this.round2(data.tambaophai - d7),
+      AQ14: this.round2(data.daitrangphai - d7),
+      AQ15: this.round2(data.phephai - d7),
+      AN21: this.round2(data.bangquangtrai - d18),
+      AN22: this.round2(data.thantrai - d18),
+      AN23: this.round2(data.damtrai - d18),
+      AN24: this.round2(data.vitrai - d18),
+      AN25: this.round2(data.cantrai - d18),
+      AN26: this.round2(data.tytrai - d18),
+      AQ21: this.round2(data.bangquangphai - d18),
+      AQ22: this.round2(data.thanphai - d18),
+      AQ23: this.round2(data.damphai - d18),
+      AQ24: this.round2(data.viphai - d18),
+      AQ25: this.round2(data.canphai - d18),
+      AQ26: this.round2(data.typhai - d18),
     };
   }
 
