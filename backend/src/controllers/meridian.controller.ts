@@ -244,12 +244,17 @@ export class MeridiansService {
   }
 
   private buildExcelIndicators(data: AnalyzeInputDto): Record<string, number | string> {
-    const d10 = this.round2((data.tieutruongtrai + data.tieutruongphai) / 2);
-    const d11 = this.round2((data.tamtrai + data.tamphai) / 2);
-    const d12 = this.round2((data.tamtieutrai + data.tamtieuphai) / 2);
-    const d13 = this.round2((data.tambaotrai + data.tambaophai) / 2);
-    const d14 = this.round2((data.daitrangtrai + data.daitrangphai) / 2);
-    const d15 = this.round2((data.phetrai + data.phephai) / 2);
+    // KHÔNG làm tròn các bước trung gian: sheet Excel gốc giữ nguyên full-precision
+    // (map.md: D7=(A7+A8)/2, E11=D11-D7, ...). Làm tròn (round2) ở đây sẽ ép một số
+    // dương cực nhỏ do sai số dấu phẩy động (vd E11 = 7.1e-15, Excel coi "0" nhưng >0)
+    // về 0 tuyệt đối, khiến điều kiện ">0" trượt trong khi trên sheet vẫn đúng.
+    // JS và Excel cùng IEEE754 nên giữ cùng thứ tự phép tính ⇒ khớp hành vi sheet.
+    const d10 = (data.tieutruongtrai + data.tieutruongphai) / 2;
+    const d11 = (data.tamtrai + data.tamphai) / 2;
+    const d12 = (data.tamtieutrai + data.tamtieuphai) / 2;
+    const d13 = (data.tambaotrai + data.tambaophai) / 2;
+    const d14 = (data.daitrangtrai + data.daitrangphai) / 2;
+    const d15 = (data.phetrai + data.phephai) / 2;
 
     const upperRawVals = [
       data.tieutruongtrai,
@@ -268,15 +273,15 @@ export class MeridiansService {
     const upperVals = upperRawVals;
     const a7 = upperVals.length ? Math.max(...upperVals) : 0;
     const a8 = upperVals.length ? Math.min(...upperVals) : 0;
-    const d7 = this.round2((a7 + a8) / 2);
-    const e7 = this.round2((a7 - a8) / 6);
+    const d7 = (a7 + a8) / 2;
+    const e7 = (a7 - a8) / 6;
 
-    const d21 = this.round2((data.bangquangtrai + data.bangquangphai) / 2);
-    const d22 = this.round2((data.thantrai + data.thanphai) / 2);
-    const d23 = this.round2((data.damtrai + data.damphai) / 2);
-    const d24 = this.round2((data.vitrai + data.viphai) / 2);
-    const d25 = this.round2((data.cantrai + data.canphai) / 2);
-    const d26 = this.round2((data.tytrai + data.typhai) / 2);
+    const d21 = (data.bangquangtrai + data.bangquangphai) / 2;
+    const d22 = (data.thantrai + data.thanphai) / 2;
+    const d23 = (data.damtrai + data.damphai) / 2;
+    const d24 = (data.vitrai + data.viphai) / 2;
+    const d25 = (data.cantrai + data.canphai) / 2;
+    const d26 = (data.tytrai + data.typhai) / 2;
 
     const lowerRawVals = [
       data.bangquangtrai,
@@ -295,14 +300,14 @@ export class MeridiansService {
     const lowerVals = lowerRawVals;
     const a18 = lowerVals.length ? Math.max(...lowerVals) : 0;
     const a19 = lowerVals.length ? Math.min(...lowerVals) : 0;
-    const d18 = this.round2((a18 + a19) / 2);
-    const e18 = this.round2((a18 - a19) / 6);
+    const d18 = (a18 + a19) / 2;
+    const e18 = (a18 - a19) / 6;
 
     // Ngưỡng corridor cho dấu B*/G* (F7/F8 chi trên, F18/F19 chi dưới)
-    const f7 = this.round2(d7 + e7);
-    const f8 = this.round2(d7 - e7);
-    const f18 = this.round2(d18 + e18);
-    const f19 = this.round2(d18 - e18);
+    const f7 = d7 + e7;
+    const f8 = d7 - e7;
+    const f18 = d18 + e18;
+    const f19 = d18 - e18;
     const sU = (v: number) => this.signOfValue(v, f7, f8);
     const sL = (v: number) => this.signOfValue(v, f18, f19);
 
@@ -347,33 +352,33 @@ export class MeridiansService {
       D18: d18,
       E7: e7,
       E8: e7,
-      // E* = trung bình kinh - D (đã có sẵn từ trước)
-      E10: this.round2(d10 - d7),
-      E11: this.round2(d11 - d7),
-      E12: this.round2(d12 - d7),
-      E13: this.round2(d13 - d7),
-      E14: this.round2(d14 - d7),
-      E15: this.round2(d15 - d7),
+      // E* = trung bình kinh - D (full-precision như Excel, không round2)
+      E10: d10 - d7,
+      E11: d11 - d7,
+      E12: d12 - d7,
+      E13: d13 - d7,
+      E14: d14 - d7,
+      E15: d15 - d7,
       E18: e18,
-      E21: this.round2(d21 - d18),
-      E22: this.round2(d22 - d18),
-      E23: this.round2(d23 - d18),
-      E24: this.round2(d24 - d18),
-      E25: this.round2(d25 - d18),
-      E26: this.round2(d26 - d18),
+      E21: d21 - d18,
+      E22: d22 - d18,
+      E23: d23 - d18,
+      E24: d24 - d18,
+      E25: d25 - d18,
+      E26: d26 - d18,
       // H* = |trái - phải| theo từng kinh (chi trên 10..15, chi dưới 21..26)
-      H10: this.round2(Math.abs(data.tieutruongtrai - data.tieutruongphai)),
-      H11: this.round2(Math.abs(data.tamtrai - data.tamphai)),
-      H12: this.round2(Math.abs(data.tamtieutrai - data.tamtieuphai)),
-      H13: this.round2(Math.abs(data.tambaotrai - data.tambaophai)),
-      H14: this.round2(Math.abs(data.daitrangtrai - data.daitrangphai)),
-      H15: this.round2(Math.abs(data.phetrai - data.phephai)),
-      H21: this.round2(Math.abs(data.bangquangtrai - data.bangquangphai)),
-      H22: this.round2(Math.abs(data.thantrai - data.thanphai)),
-      H23: this.round2(Math.abs(data.damtrai - data.damphai)),
-      H24: this.round2(Math.abs(data.vitrai - data.viphai)),
-      H25: this.round2(Math.abs(data.cantrai - data.canphai)),
-      H26: this.round2(Math.abs(data.tytrai - data.typhai)),
+      H10: Math.abs(data.tieutruongtrai - data.tieutruongphai),
+      H11: Math.abs(data.tamtrai - data.tamphai),
+      H12: Math.abs(data.tamtieutrai - data.tamtieuphai),
+      H13: Math.abs(data.tambaotrai - data.tambaophai),
+      H14: Math.abs(data.daitrangtrai - data.daitrangphai),
+      H15: Math.abs(data.phetrai - data.phephai),
+      H21: Math.abs(data.bangquangtrai - data.bangquangphai),
+      H22: Math.abs(data.thantrai - data.thanphai),
+      H23: Math.abs(data.damtrai - data.damphai),
+      H24: Math.abs(data.vitrai - data.viphai),
+      H25: Math.abs(data.cantrai - data.canphai),
+      H26: Math.abs(data.tytrai - data.typhai),
       // AN*/AQ* = mã hoá dấu B*/G* sang số {-1, 0, +1} (theo tieuketbatcuong.md).
       // Quy ước AN*AQ<0 ⇔ trái-phải lệch corridor ngược chiều; >0 ⇔ cùng chiều vượt corridor.
       AN10: an10, AN11: an11, AN12: an12, AN13: an13, AN14: an14, AN15: an15,
