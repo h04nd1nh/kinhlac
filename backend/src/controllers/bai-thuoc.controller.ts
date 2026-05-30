@@ -142,6 +142,7 @@ export class BaiThuocService {
     chungBenhId?: number | null;
     tangPhuIds?: number[];
     tonThuongTacNhans?: string[];
+    focusId?: number | null;
   }): Promise<{
     data: BaiThuoc[];
     total: number;
@@ -151,13 +152,14 @@ export class BaiThuocService {
     tangPhuStats: Array<{ id: number; name: string; count: number }>;
     tonThuongStats: Array<{ id: number; name: string; count: number }>;
   }> {
-    const page = Math.max(1, Math.floor(opts.page ?? 1));
+    let page = Math.max(1, Math.floor(opts.page ?? 1));
     const limit = Math.max(1, Math.min(200, Math.floor(opts.limit ?? 12)));
     const q = (opts.q ?? '').trim();
     const category = opts.category ?? 'all';
     const chungBenhId = Number.isFinite(opts.chungBenhId as number) ? Number(opts.chungBenhId) : null;
     const tangPhuIds = [...new Set((opts.tangPhuIds ?? []).filter((n) => Number.isFinite(n) && n > 0))];
     const tonThuongTacNhans = [...new Set((opts.tonThuongTacNhans ?? []).map((s) => s.trim()).filter(Boolean))];
+    const focusId = Number.isFinite(opts.focusId as number) && Number(opts.focusId) > 0 ? Number(opts.focusId) : null;
 
     const baseQb = this.repo.createQueryBuilder('bt');
     if (q) {
@@ -210,8 +212,31 @@ export class BaiThuocService {
       }
     }
 
+    // Deep-link focus: nếu có focusId, nhảy tới trang chứa bài thuốc đó
+    // (theo đúng filter hiện tại + thứ tự ten_bai_thuoc ASC, id ASC) để frontend scroll/highlight được.
+    if (focusId != null) {
+      const target = await this.repo.findOne({
+        where: { id: focusId },
+        select: { id: true, ten_bai_thuoc: true },
+      });
+      if (target) {
+        const exists = await baseQb.clone().andWhere('bt.id = :fid', { fid: focusId }).getCount();
+        if (exists > 0) {
+          const before = await baseQb
+            .clone()
+            .andWhere(
+              '(bt.ten_bai_thuoc < :ften OR (bt.ten_bai_thuoc = :ften AND bt.id < :fid))',
+              { ften: target.ten_bai_thuoc, fid: focusId },
+            )
+            .getCount();
+          page = Math.floor(before / limit) + 1;
+        }
+      }
+    }
+
     const [items, total] = await baseQb
       .orderBy('bt.ten_bai_thuoc', 'ASC')
+      .addOrderBy('bt.id', 'ASC')
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
@@ -228,7 +253,7 @@ export class BaiThuocService {
           'phapTriLinks.phapTri',
           'trieuChungList',
         ],
-        order: { ten_bai_thuoc: 'ASC' },
+        order: { ten_bai_thuoc: 'ASC', id: 'ASC' },
       });
     }
 

@@ -182,13 +182,17 @@ const currentPage = ref(1)
 const itemsPerPage = ref(12)
 
 onMounted(async () => {
-  await fetchData()
   const rawPtId = route.query.ptId
   const targetId = Array.isArray(rawPtId) ? rawPtId[0] : rawPtId
   const ptId = targetId != null ? Number(targetId) : NaN
-  if (Number.isFinite(ptId)) {
+  const hasFocus = Number.isFinite(ptId)
+  if (hasFocus) {
+    // Reset filter để pháp trị target chắc chắn nằm trong tập kết quả.
     phapTriCategory.value = 'all'
     searchQuery.value = ''
+  }
+  await fetchData(hasFocus ? ptId : undefined)
+  if (hasFocus) {
     await nextTick()
     highlightPtId.value = ptId
     const el = document.querySelector(`[data-pt-id="${ptId}"]`) as HTMLElement | null
@@ -211,8 +215,9 @@ function buildQuery(params: Record<string, unknown>): string {
   return s ? `?${s}` : ''
 }
 
-/** Load 1 page pháp trị từ /phap-tri/lite (server pagination + search + category filter). */
-async function loadPhapTriPage() {
+/** Load 1 page pháp trị từ /phap-tri/lite (server pagination + search + category filter).
+ *  Truyền focusId để server tự nhảy tới trang chứa pháp trị đó (deep link). */
+async function loadPhapTriPage(focusId?: number) {
   pageLoading.value = true
   try {
     const qs = buildQuery({
@@ -229,10 +234,19 @@ async function loadPhapTriPage() {
         phapTriCategory.value !== 'all' && selectedTonThuongList.value.length
           ? selectedTonThuongList.value.join(',')
           : null,
+      focusId: focusId != null && Number.isFinite(focusId) ? focusId : null,
     })
     const res: any = await api.get(`/phap-tri/lite${qs}`)
     dataList.value = res?.data ?? []
     dataTotal.value = Number(res?.total ?? 0)
+    // Server trả về trang thực tế chứa focusId — đồng bộ pagination UI (không reload lại).
+    if (focusId != null && Number.isFinite(Number(res?.page))) {
+      const p = Number(res.page)
+      if (p !== currentPage.value) {
+        skipPageWatch = true
+        currentPage.value = p
+      }
+    }
     if (res?.statsByCategory) dataStats.value = res.statsByCategory
     benhTayYByPtIdMap.value = res?.relatedBenhTayYByPtId ?? {}
     tayYChungBenhStats.value = res?.tayYChungBenhStats ?? []
@@ -264,11 +278,11 @@ async function ensureBaiThuocOptions() {
   baiThuocOptionsLoaded.value = true
 }
 
-async function fetchData() {
+async function fetchData(focusId?: number) {
   isLoading.value = true
   error.value = null
   try {
-    await Promise.all([loadPhapTriPage(), loadSupportCatalogs()])
+    await Promise.all([loadPhapTriPage(focusId), loadSupportCatalogs()])
   } catch (err: any) {
     console.error(err)
     error.value = 'Lỗi khi tải dữ liệu: ' + (err.message || String(err))
@@ -336,7 +350,15 @@ function clearExtraFilters() {
   selectedTonThuongList.value = []
 }
 
-watch(currentPage, () => { void loadPhapTriPage() })
+// Cờ chặn reload thừa khi currentPage bị set lại từ focusId (deep link).
+let skipPageWatch = false
+watch(currentPage, () => {
+  if (skipPageWatch) {
+    skipPageWatch = false
+    return
+  }
+  void loadPhapTriPage()
+})
 
 /** Server đã filter & paginate. */
 const filteredList = computed(() => dataList.value)

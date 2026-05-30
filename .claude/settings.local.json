@@ -37,7 +37,18 @@
       "Bash(curl -s --max-time 10 -o /dev/null -w \"HTTP: %{http_code}\\\\nHTTPS: skip\\\\n\" http://kinhlac.online/api/)",
       "Bash(curl -s --max-time 10 -w \"\\\\n---\\\\nHTTP: %{http_code}\\\\n\" http://kinhlac.online/api/patient-auth/login -X POST -H \"Content-Type: application/json\" -d '{}')",
       "Bash(curl -s --max-time 10 -X POST -H \"Content-Type: application/json\" -d '{}' https://kinhlac.online/api/patient-auth/login -w \"\\\\n---\\\\nHTTP: %{http_code}\\\\n\")",
-      "Bash(psql -h localhost -U postgres -d kinhlac -c \"SELECT COUNT\\(*\\) FROM bai_thuoc;\" 2>nul || echo \"Không kết nối được DB - bỏ qua\")"
+      "Bash(psql -h localhost -U postgres -d kinhlac -c \"SELECT COUNT\\(*\\) FROM bai_thuoc;\" 2>nul || echo \"Không kết nối được DB - bỏ qua\")",
+      "Bash(curl -s \"https://kinhlac.online/api/examinations/9426\")",
+      "Bash(python -m json.tool)",
+      "Bash(curl -sS -w \"\\\\nHTTP_STATUS:%{http_code}\\\\n\" \"https://kinhlac.online/api/examinations/9426\")",
+      "Bash(curl -sS \"https://kinhlac.online/api/examinations/9426\" -o /tmp/ex9426.json)",
+      "Bash(python3 -)",
+      "Read(//c/tmp/**)",
+      "Bash(curl -sS \"https://kinhlac.online/api/examinations/9426\" -o ex9426.json)",
+      "Bash(curl -sS \"https://kinhlac.online/api/benh-dong-y-hien-dai\" -o rules_hd.json)",
+      "Bash(ls backend/dist/utils/excel-rule-engine.js)",
+      "Bash(ls backend/node_modules/.bin/ts-node)",
+      "Bash(npx ts-node *)"
     ],
     "additionalDirectories": [
       "D:\\project\\kinhlac"

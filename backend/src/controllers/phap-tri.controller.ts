@@ -68,6 +68,7 @@ export class PhapTriService {
     chungBenhId?: number | null;
     tangPhuIds?: number[];
     tonThuongTacNhans?: string[];
+    focusId?: number | null;
   }): Promise<{
     data: PhapTri[];
     total: number;
@@ -79,13 +80,14 @@ export class PhapTriService {
     tangPhuStats: Array<{ id: number; name: string; count: number }>;
     tonThuongStats: Array<{ id: number; name: string; count: number }>;
   }> {
-    const page = Math.max(1, Math.floor(opts.page ?? 1));
+    let page = Math.max(1, Math.floor(opts.page ?? 1));
     const limit = Math.max(1, Math.min(200, Math.floor(opts.limit ?? 12)));
     const q = (opts.q ?? '').trim();
     const category = opts.category ?? 'all';
     const chungBenhId = Number.isFinite(opts.chungBenhId as number) ? Number(opts.chungBenhId) : null;
     const tangPhuIds = [...new Set((opts.tangPhuIds ?? []).filter((n) => Number.isFinite(n) && n > 0))];
     const tonThuongTacNhans = [...new Set((opts.tonThuongTacNhans ?? []).map((s) => s.trim()).filter(Boolean))];
+    const focusId = Number.isFinite(opts.focusId as number) && Number(opts.focusId) > 0 ? Number(opts.focusId) : null;
 
     // EXISTS clause cho "pháp trị có liên quan Tây Y": trực tiếp HOẶC qua bài thuốc.
     const tayYExistsClause = (cbIdParam?: string) => {
@@ -137,6 +139,16 @@ export class PhapTriService {
           )`,
           { tonThuongNames: tonThuongTacNhans.map((s) => s.toLowerCase()) },
         );
+      }
+    }
+
+    // Deep-link focus: nếu có focusId, nhảy tới trang chứa pháp trị đó
+    // (theo đúng filter hiện tại + thứ tự pt.id ASC) để frontend scroll/highlight được.
+    if (focusId != null) {
+      const exists = await baseQb.clone().andWhere('pt.id = :focusId', { focusId }).getCount();
+      if (exists > 0) {
+        const before = await baseQb.clone().andWhere('pt.id < :focusId', { focusId }).getCount();
+        page = Math.floor(before / limit) + 1;
       }
     }
 

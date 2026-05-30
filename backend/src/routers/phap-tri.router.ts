@@ -37,6 +37,7 @@ export class PhapTriRouter {
     @Query('chungBenhId') chungBenhId?: string,
     @Query('tangPhuIds') tangPhuIds?: string,
     @Query('tonThuongTacNhans') tonThuongTacNhans?: string,
+    @Query('focusId') focusId?: string,
   ) {
     const cat = category === 'dong-y' || category === 'tay-y' ? category : 'all';
     const parseIdList = (raw?: string): number[] => {
@@ -61,6 +62,7 @@ export class PhapTriRouter {
       chungBenhId: chungBenhId != null && chungBenhId !== '' ? Number(chungBenhId) : null,
       tangPhuIds: parseIdList(tangPhuIds),
       tonThuongTacNhans: parseStrList(tonThuongTacNhans),
+      focusId: focusId != null && focusId !== '' ? Number(focusId) : null,
     });
   }
 

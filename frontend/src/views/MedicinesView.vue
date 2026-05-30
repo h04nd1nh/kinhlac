@@ -413,7 +413,15 @@ function clearExtraFilters() {
 }
 
 // Đổi trang → reload page mới từ server.
-watch(baiThuocPage, () => { void loadBaiThuocPage() })
+// Cờ chặn reload thừa khi baiThuocPage bị set lại từ focusId (deep link).
+let skipBaiThuocPageWatch = false
+watch(baiThuocPage, () => {
+  if (skipBaiThuocPageWatch) {
+    skipBaiThuocPageWatch = false
+    return
+  }
+  void loadBaiThuocPage()
+})
 watch(viThuocPage, () => { void loadViThuocPage() })
 
 // Đổi tab → load data cần cho tab đó.
@@ -526,15 +534,20 @@ onMounted(async () => {
   if (qTab === 'bai-thuoc' || qTab === 'vi-thuoc' || qTab === 'duoc-ly') {
     activeTab.value = qTab
   }
-  await loadActiveTabData(true)
 
   const rawBtId = route.query.btId
   const targetId = Array.isArray(rawBtId) ? rawBtId[0] : rawBtId
   const btId = targetId != null ? Number(targetId) : NaN
-  if (Number.isFinite(btId)) {
+  const hasFocus = Number.isFinite(btId)
+  if (hasFocus) {
     activeTab.value = 'bai-thuoc'
     baiThuocSearch.value = ''
-    // Server đã paginate; nếu bài thuốc target không nằm trong page 1, mình chỉ highlight khi nó xuất hiện.
+  }
+
+  // Truyền focusId xuống server để nhảy đúng tới trang chứa bài thuốc target.
+  await loadActiveTabData(true, hasFocus ? btId : undefined)
+
+  if (hasFocus) {
     highlightBtId.value = btId
     await nextTick()
     const el = document.querySelector(`[data-bt-id="${btId}"]`) as HTMLElement | null
@@ -560,8 +573,9 @@ function buildQuery(params: Record<string, unknown>): string {
   return s ? `?${s}` : ''
 }
 
-/** Load 1 page bài thuốc từ /bai-thuoc/lite. */
-async function loadBaiThuocPage() {
+/** Load 1 page bài thuốc từ /bai-thuoc/lite.
+ *  Truyền focusId để server tự nhảy tới trang chứa bài thuốc đó (deep link). */
+async function loadBaiThuocPage(focusId?: number) {
   baiThuocPageLoading.value = true
   try {
     const qs = buildQuery({
@@ -578,10 +592,19 @@ async function loadBaiThuocPage() {
         baiThuocCategory.value !== 'all' && selectedTonThuongList.value.length
           ? selectedTonThuongList.value.join(',')
           : null,
+      focusId: focusId != null && Number.isFinite(focusId) ? focusId : null,
     })
     const res: any = await api.get(`/bai-thuoc/lite${qs}`)
     baiThuocList.value = res?.data ?? []
     baiThuocTotal.value = Number(res?.total ?? 0)
+    // Server trả về trang thực tế chứa focusId — đồng bộ pagination UI (không reload lại).
+    if (focusId != null && Number.isFinite(Number(res?.page))) {
+      const p = Number(res.page)
+      if (p !== baiThuocPage.value) {
+        skipBaiThuocPageWatch = true
+        baiThuocPage.value = p
+      }
+    }
     if (res?.statsByCategory) {
       baiThuocStats.value = res.statsByCategory
     }
@@ -666,14 +689,14 @@ async function loadBaiThuocFull(id: number): Promise<BaiThuoc | null> {
   return item
 }
 
-async function loadActiveTabData(forceReload = false) {
+async function loadActiveTabData(forceReload = false, focusBtId?: number) {
   error.value = null
   isLoading.value = true
   try {
     if (activeTab.value === 'bai-thuoc') {
       await ensureBaiThuocSupport()
       if (forceReload || baiThuocList.value.length === 0) {
-        await loadBaiThuocPage()
+        await loadBaiThuocPage(focusBtId)
       }
     } else if (activeTab.value === 'vi-thuoc') {
       await ensureViThuocSupport()
