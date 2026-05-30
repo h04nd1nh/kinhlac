@@ -220,17 +220,19 @@ export class BenhDongYExcelService {
 
     for (const [key, value] of Object.entries(raw)) {
       if (value === null || value === undefined || value === '') continue;
-      const num = typeof value === 'number' ? value : Number(value);
-      if (Number.isFinite(num)) {
-        result[key.toUpperCase()] = num;
+      if (typeof value === 'number') {
+        if (Number.isFinite(value)) result[key.toUpperCase()] = value;
+        continue;
       }
+      // Giữ chuỗi (vd. B10="+"/"-"/"0"); engine tự coerce chuỗi số khi cần.
+      result[key.toUpperCase()] = String(value);
     }
 
     return result;
   }
 
   private evaluateRule(logicExpression: string, input: InputChiSo): boolean {
-    return evaluateLogicExpression(logicExpression, input as Record<string, number>);
+    return evaluateLogicExpression(logicExpression, input);
   }
 
   async diagnose(rawInput: Record<string, unknown>) {

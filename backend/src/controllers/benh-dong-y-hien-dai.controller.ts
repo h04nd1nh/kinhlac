@@ -111,16 +111,19 @@ export class BenhDongYHienDaiService {
     const result: InputChiSo = {};
     for (const [key, value] of Object.entries(raw)) {
       if (value === null || value === undefined || value === '') continue;
-      const num = typeof value === 'number' ? value : Number(value);
-      if (Number.isFinite(num)) {
-        result[key.toUpperCase()] = num;
+      if (typeof value === 'number') {
+        if (Number.isFinite(value)) result[key.toUpperCase()] = value;
+        continue;
       }
+      // Giữ nguyên chuỗi cho các ô dấu (B*/G* = "+"/"-"/"0"); engine sẽ tự
+      // coerce chuỗi số ("5", "-1.2") khi cần so sánh số học.
+      result[key.toUpperCase()] = String(value);
     }
     return result;
   }
 
   private evaluateRule(logicExpression: string, input: InputChiSo): boolean {
-    return evaluateLogicExpression(logicExpression, input as Record<string, number>);
+    return evaluateLogicExpression(logicExpression, input);
   }
 
   async diagnose(rawInput: Record<string, unknown>) {

@@ -231,7 +231,19 @@ export class MeridiansService {
    * - E18, E21..E26 cho nhóm chi dưới
    * - A7/A8/A18/A19 lấy theo MAX/MIN toàn bộ số đo trái+phải của từng nhóm
    */
-  private buildExcelIndicators(data: AnalyzeInputDto): Record<string, number> {
+  /**
+   * Quy ước dấu chi trên/dưới khớp công thức Excel gốc:
+   *   B* = IF(left > F7, "+", IF(left < F8, "-", "0")) — dấu vế trái so với corridor
+   *   G* = IF(right> F7, "+", IF(right< F8, "-", "0")) — dấu vế phải so với corridor
+   * Chi trên: F7 = D7+E7, F8 = D7-E7.  Chi dưới: F18 = D18+E18, F19 = D18-E18.
+   */
+  private signOfValue(value: number, upper: number, lower: number): string {
+    if (value > upper) return '+';
+    if (value < lower) return '-';
+    return '0';
+  }
+
+  private buildExcelIndicators(data: AnalyzeInputDto): Record<string, number | string> {
     const d10 = this.round2((data.tieutruongtrai + data.tieutruongphai) / 2);
     const d11 = this.round2((data.tamtrai + data.tamphai) / 2);
     const d12 = this.round2((data.tamtieutrai + data.tamtieuphai) / 2);
@@ -286,11 +298,55 @@ export class MeridiansService {
     const d18 = this.round2((a18 + a19) / 2);
     const e18 = this.round2((a18 - a19) / 6);
 
+    // Ngưỡng corridor cho dấu B*/G* (F7/F8 chi trên, F18/F19 chi dưới)
+    const f7 = this.round2(d7 + e7);
+    const f8 = this.round2(d7 - e7);
+    const f18 = this.round2(d18 + e18);
+    const f19 = this.round2(d18 - e18);
+    const sU = (v: number) => this.signOfValue(v, f7, f8);
+    const sL = (v: number) => this.signOfValue(v, f18, f19);
+
+    // B*/G* dạng chuỗi "+"/"-"/"0" (dấu vế trái/phải vs corridor)
+    const b10 = sU(data.tieutruongtrai), g10 = sU(data.tieutruongphai);
+    const b11 = sU(data.tamtrai), g11 = sU(data.tamphai);
+    const b12 = sU(data.tamtieutrai), g12 = sU(data.tamtieuphai);
+    const b13 = sU(data.tambaotrai), g13 = sU(data.tambaophai);
+    const b14 = sU(data.daitrangtrai), g14 = sU(data.daitrangphai);
+    const b15 = sU(data.phetrai), g15 = sU(data.phephai);
+    const b21 = sL(data.bangquangtrai), g21 = sL(data.bangquangphai);
+    const b22 = sL(data.thantrai), g22 = sL(data.thanphai);
+    const b23 = sL(data.damtrai), g23 = sL(data.damphai);
+    const b24 = sL(data.vitrai), g24 = sL(data.viphai);
+    const b25 = sL(data.cantrai), g25 = sL(data.canphai);
+    const b26 = sL(data.tytrai), g26 = sL(data.typhai);
+
+    // AN*/AQ* = mã hoá dấu sang số {-1, 0, +1} theo công thức Excel gốc:
+    //   AN10 = IF(B10="-",-1,IF(B10="+",1,0))   AQ10 = IF(G10="-",-1,IF(G10="+",1,0))
+    const toNum = (s: string): number => (s === '+' ? 1 : s === '-' ? -1 : 0);
+    const an10 = toNum(b10), aq10 = toNum(g10);
+    const an11 = toNum(b11), aq11 = toNum(g11);
+    const an12 = toNum(b12), aq12 = toNum(g12);
+    const an13 = toNum(b13), aq13 = toNum(g13);
+    const an14 = toNum(b14), aq14 = toNum(g14);
+    const an15 = toNum(b15), aq15 = toNum(g15);
+    const an21 = toNum(b21), aq21 = toNum(g21);
+    const an22 = toNum(b22), aq22 = toNum(g22);
+    const an23 = toNum(b23), aq23 = toNum(g23);
+    const an24 = toNum(b24), aq24 = toNum(g24);
+    const an25 = toNum(b25), aq25 = toNum(g25);
+    const an26 = toNum(b26), aq26 = toNum(g26);
+
+    // AP* = tên kinh khi cả hai bên cùng vượt corridor về phía "+":
+    //   AP10 = IF(AND(AN10*AQ10>0; OR(AN10>0;AQ10>0)); A10; "")
+    const apOf = (an: number, aq: number, name: string): string =>
+      an * aq > 0 && (an > 0 || aq > 0) ? name : '';
+
     return {
       // Trung điểm + cận lệch chi trên (D7) / chi dưới (D18)
       D7: d7,
       D18: d18,
       E7: e7,
+      E8: e7,
       // E* = trung bình kinh - D (đã có sẵn từ trước)
       E10: this.round2(d10 - d7),
       E11: this.round2(d11 - d7),
@@ -318,32 +374,31 @@ export class MeridiansService {
       H24: this.round2(Math.abs(data.vitrai - data.viphai)),
       H25: this.round2(Math.abs(data.cantrai - data.canphai)),
       H26: this.round2(Math.abs(data.tytrai - data.typhai)),
-      // AN* = trái - D (độ lệch trái khỏi trung điểm), AQ* = phải - D (độ lệch phải)
-      // Quy ước nhân AN*AQ<0 ⇔ trái-phải nằm ngược phía của trung điểm.
-      AN10: this.round2(data.tieutruongtrai - d7),
-      AN11: this.round2(data.tamtrai - d7),
-      AN12: this.round2(data.tamtieutrai - d7),
-      AN13: this.round2(data.tambaotrai - d7),
-      AN14: this.round2(data.daitrangtrai - d7),
-      AN15: this.round2(data.phetrai - d7),
-      AQ10: this.round2(data.tieutruongphai - d7),
-      AQ11: this.round2(data.tamphai - d7),
-      AQ12: this.round2(data.tamtieuphai - d7),
-      AQ13: this.round2(data.tambaophai - d7),
-      AQ14: this.round2(data.daitrangphai - d7),
-      AQ15: this.round2(data.phephai - d7),
-      AN21: this.round2(data.bangquangtrai - d18),
-      AN22: this.round2(data.thantrai - d18),
-      AN23: this.round2(data.damtrai - d18),
-      AN24: this.round2(data.vitrai - d18),
-      AN25: this.round2(data.cantrai - d18),
-      AN26: this.round2(data.tytrai - d18),
-      AQ21: this.round2(data.bangquangphai - d18),
-      AQ22: this.round2(data.thanphai - d18),
-      AQ23: this.round2(data.damphai - d18),
-      AQ24: this.round2(data.viphai - d18),
-      AQ25: this.round2(data.canphai - d18),
-      AQ26: this.round2(data.typhai - d18),
+      // AN*/AQ* = mã hoá dấu B*/G* sang số {-1, 0, +1} (theo tieuketbatcuong.md).
+      // Quy ước AN*AQ<0 ⇔ trái-phải lệch corridor ngược chiều; >0 ⇔ cùng chiều vượt corridor.
+      AN10: an10, AN11: an11, AN12: an12, AN13: an13, AN14: an14, AN15: an15,
+      AQ10: aq10, AQ11: aq11, AQ12: aq12, AQ13: aq13, AQ14: aq14, AQ15: aq15,
+      AN21: an21, AN22: an22, AN23: an23, AN24: an24, AN25: an25, AN26: an26,
+      AQ21: aq21, AQ22: aq22, AQ23: aq23, AQ24: aq24, AQ25: aq25, AQ26: aq26,
+      // B* = dấu trái so với corridor chi trên/dưới; G* = dấu phải. Giá trị "+"/"-"/"0".
+      B10: b10, B11: b11, B12: b12, B13: b13, B14: b14, B15: b15,
+      G10: g10, G11: g11, G12: g12, G13: g13, G14: g14, G15: g15,
+      B21: b21, B22: b22, B23: b23, B24: b24, B25: b25, B26: b26,
+      G21: g21, G22: g22, G23: g23, G24: g24, G25: g25, G26: g26,
+      // AP* = tên kinh khi cả hai bên cùng vượt corridor về phía "+" (rỗng nếu không).
+      // Dùng cho rule có LEN(AP14)>0 (tương đương AP14!="").
+      AP10: apOf(an10, aq10, 'Tiểu trường'),
+      AP11: apOf(an11, aq11, 'Tâm'),
+      AP12: apOf(an12, aq12, 'Tam tiêu'),
+      AP13: apOf(an13, aq13, 'Tâm bào'),
+      AP14: apOf(an14, aq14, 'Đại trường'),
+      AP15: apOf(an15, aq15, 'Phế'),
+      AP21: apOf(an21, aq21, 'Bàng quang'),
+      AP22: apOf(an22, aq22, 'Thận'),
+      AP23: apOf(an23, aq23, 'Đảm'),
+      AP24: apOf(an24, aq24, 'Vị'),
+      AP25: apOf(an25, aq25, 'Can'),
+      AP26: apOf(an26, aq26, 'Tỳ'),
     };
   }
 

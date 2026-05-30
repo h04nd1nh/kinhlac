@@ -13,7 +13,7 @@
  * tránh làm hỏng cả lần diagnose vì một rule lỗi cú pháp.
  */
 
-export type InputValues = Record<string, number>;
+export type InputValues = Record<string, number | string>;
 
 type CmpOp = '>' | '<' | '>=' | '<=' | '=' | '!=';
 
@@ -196,11 +196,12 @@ function resolveOperand(op: Operand, input: InputValues): number | string | null
       return op.value;
     case 'cell': {
       const v = input[op.name.toUpperCase()];
-      return Number.isFinite(v) ? v : null;
+      if (typeof v === 'string') return v;
+      return typeof v === 'number' && Number.isFinite(v) ? v : null;
     }
     case 'abs': {
       const v = input[op.cell.toUpperCase()];
-      return Number.isFinite(v) ? Math.abs(v) : null;
+      return typeof v === 'number' && Number.isFinite(v) ? Math.abs(v) : null;
     }
     case 'mul': {
       let prod = 1;
@@ -216,27 +217,38 @@ function resolveOperand(op: Operand, input: InputValues): number | string | null
   }
 }
 
+function coerceNumeric(v: number | string): number | string {
+  if (typeof v === 'number') return v;
+  const t = v.trim();
+  if (/^-?\d+(?:\.\d+)?$/.test(t)) return Number(t);
+  return v;
+}
+
 function compare(left: number | string, op: CmpOp, right: number | string): boolean {
+  // Coerce numeric-looking strings ("0", "5", "-1.2") sang số trước khi so sánh —
+  // để rule viết B10="0" vẫn khớp khi input lưu B10 ở dạng số 0 (và ngược lại).
+  const l = coerceNumeric(left);
+  const r = coerceNumeric(right);
   switch (op) {
     case '>':
-      return left > right;
+      return l > r;
     case '<':
-      return left < right;
+      return l < r;
     case '>=':
-      return left >= right;
+      return l >= r;
     case '<=':
-      return left <= right;
+      return l <= r;
     case '=':
       // So sánh số dạng tolerant để tránh sai số dấu phẩy động.
-      if (typeof left === 'number' && typeof right === 'number') {
-        return Math.abs(left - right) < 1e-9;
+      if (typeof l === 'number' && typeof r === 'number') {
+        return Math.abs(l - r) < 1e-9;
       }
-      return left === right;
+      return l === r;
     case '!=':
-      if (typeof left === 'number' && typeof right === 'number') {
-        return Math.abs(left - right) >= 1e-9;
+      if (typeof l === 'number' && typeof r === 'number') {
+        return Math.abs(l - r) >= 1e-9;
       }
-      return left !== right;
+      return l !== r;
   }
 }
 
@@ -251,7 +263,7 @@ function evalExpr(e: Expr, input: InputValues): boolean {
       const l = resolveOperand(e.left, input);
       const r = resolveOperand(e.right, input);
       if (l === null || r === null) return false;
-      return compare(l, e.op, r);
+      return compare(l as number | string, e.op, r as number | string);
     }
   }
 }
