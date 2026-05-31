@@ -48,7 +48,20 @@
       "Bash(curl -sS \"https://kinhlac.online/api/benh-dong-y-hien-dai\" -o rules_hd.json)",
       "Bash(ls backend/dist/utils/excel-rule-engine.js)",
       "Bash(ls backend/node_modules/.bin/ts-node)",
-      "Bash(npx ts-node *)"
+      "Bash(npx ts-node *)",
+      "Bash(curl -sS \"https://kinhlac.online/api/benh-dong-y-hien-dai\")",
+      "Bash(node -e 'let s=\"\";process.stdin.on\\(\"data\",d=>s+=d\\).on\\(\"end\",\\(\\)=>{const r=JSON.parse\\(s\\);console.log\\(r.map\\(x=>x.outputCell+\" \"+x.code+\" \"+x.name\\).join\\(\"\\\\n\"\\)\\)}\\)')",
+      "Bash(which psql *)",
+      "Bash(node -e \"console.log\\('node ok'\\)\")",
+      "Bash(ls -la public)",
+      "Bash(ls src/assets)",
+      "Bash(ls *.ico *.png *.svg)",
+      "Bash(node scripts/gen-favicon-ico.cjs)",
+      "Bash(node -e \"const p=require\\('path'\\).join\\(process.cwd\\(\\),'public','favicon.ico'\\); console.log\\('TARGET='+p\\);\")",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(rm -f gen.log)",
+      "PowerShell($f=\"c:\\\\Users\\\\This PC\\\\Desktop\\\\kinhlac\\\\frontend\\\\public\\\\favicon.ico\"; $b=[System.IO.File]::ReadAllBytes\\($f\\); \"Size: $\\($b.Length\\)\"; \"Header bytes: $\\($b[0..7] -join ','\\)\"; \"Reserved\\(0,0\\)=$\\($b[0]\\),$\\($b[1]\\)  Type\\(1\\)=$\\($b[2]\\),$\\($b[3]\\)  Count=$\\($b[4]\\),$\\($b[5]\\)\")",
+      "PowerShell($f=\"c:\\\\Users\\\\This PC\\\\Desktop\\\\kinhlac\\\\frontend\\\\public\\\\favicon.ico\"; $b=[System.IO.File]::ReadAllBytes\\($f\\); \"Size: $\\($b.Length\\)\"; \"First16: $\\(\\($b[0..15] | ForEach-Object { $_.ToString\\('x2'\\) }\\) -join ' '\\)\")"
     ],
     "additionalDirectories": [
       "D:\\project\\kinhlac"

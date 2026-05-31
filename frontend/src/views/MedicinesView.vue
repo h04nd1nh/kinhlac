@@ -784,7 +784,7 @@ const filteredBtTrieuChung = computed(() => {
 function onViThuocAddChange() {
   const name = btViThuocAddSearch.value.trim()
   if (!name) return
-  const match = viThuocList.value.find(
+  const match = viThuocFullList.value.find(
     (v) => (v.ten_vi_thuoc || '').toLowerCase() === name.toLowerCase(),
   )
   if (!match) return
@@ -2922,7 +2922,7 @@ async function suggestViThuocAi() {
               />
               <datalist id="vi-thuoc-options">
                 <option
-                  v-for="v in viThuocList"
+                  v-for="v in viThuocFullList"
                   :key="v.id"
                   :value="v.ten_vi_thuoc"
                 >{{ [v.tinh, v.vi].filter(Boolean).join(' · ') }}</option>
