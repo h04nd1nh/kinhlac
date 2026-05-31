@@ -34,6 +34,17 @@ export class TrieuChungRouter {
     return this.service.findAll();
   }
 
+  /**
+   * Suy luận chẩn đoán từ danh sách triệu chứng.
+   * Body: { trieu_chung_ids: number[] } (chấp nhận alias `ids`).
+   * Trả về xếp hạng pháp trị (theo thể bệnh) và bệnh Tây Y kèm % tương đồng.
+   */
+  @Post('chan-doan')
+  diagnose(@Body() body: { trieu_chung_ids?: number[]; ids?: number[] }) {
+    const ids = body?.trieu_chung_ids ?? body?.ids ?? [];
+    return this.service.diagnose(Array.isArray(ids) ? ids : []);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);

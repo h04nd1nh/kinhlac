@@ -156,6 +156,181 @@ const matchedTrieuChungList = computed(() => {
   return out
 })
 
+// ===== Chẩn đoán từ triệu chứng (Section VI) =====
+interface DiagnosisMatchedSymptom {
+  id: number
+  ten_trieu_chung: string
+}
+interface DiagnosisCandidate {
+  id: number
+  label: string
+  subLabel: string | null
+  groupLabel: string | null
+  groupId: number | null
+  score: number
+  percent: number
+  matchedCount: number
+  total: number
+  matched: DiagnosisMatchedSymptom[]
+}
+interface DiagnosisResult {
+  input: DiagnosisMatchedSymptom[]
+  phapTri: DiagnosisCandidate[]
+  phapTriTotal: number
+  benhTayY: DiagnosisCandidate[]
+  benhTayYTotal: number
+}
+
+const selectedDiagSymptomIds = ref<number[]>([])
+const isDiagnosing = ref(false)
+const diagError = ref<string | null>(null)
+const diagResult = ref<DiagnosisResult | null>(null)
+const hasRunDiagnosis = ref(false)
+
+function toggleDiagSymptom(id: number) {
+  selectedDiagSymptomIds.value = selectedDiagSymptomIds.value.includes(id)
+    ? selectedDiagSymptomIds.value.filter((x) => x !== id)
+    : [...selectedDiagSymptomIds.value, id]
+}
+function selectAllDiagSymptoms() {
+  selectedDiagSymptomIds.value = matchedTrieuChungList.value.map((t) => t.id)
+}
+function clearDiagSymptoms() {
+  selectedDiagSymptomIds.value = []
+  diagResult.value = null
+  hasRunDiagnosis.value = false
+  diagError.value = null
+}
+async function runMeridianDiagnosis() {
+  if (!selectedDiagSymptomIds.value.length || isDiagnosing.value) return
+  // Chỉ gửi các id còn hợp lệ trong danh sách triệu chứng hiện tại.
+  const validIds = new Set(matchedTrieuChungList.value.map((t) => t.id))
+  const ids = selectedDiagSymptomIds.value.filter((id) => validIds.has(id))
+  if (!ids.length) return
+  isDiagnosing.value = true
+  diagError.value = null
+  try {
+    const res = await api.post<DiagnosisResult>('/trieu-chung/chan-doan', {
+      trieu_chung_ids: ids,
+    })
+    diagResult.value = res
+    hasRunDiagnosis.value = true
+  } catch (err: any) {
+    console.error(err)
+    diagError.value = 'Lỗi khi chẩn đoán: ' + (err.message || String(err))
+  } finally {
+    isDiagnosing.value = false
+  }
+}
+
+function phapTriHref(id: number): string {
+  return router.resolve({ name: 'treatments', query: { ptId: id } }).href
+}
+function benhTayYHref(id: number): string {
+  return router.resolve({
+    name: 'western-medicine',
+    query: { tab: 'benh-tay-y', btyId: id },
+  }).href
+}
+function confidenceClass(percent: number): string {
+  if (percent >= 60) return 'conf-high'
+  if (percent >= 30) return 'conf-mid'
+  return 'conf-low'
+}
+function confidenceLabel(percent: number): string {
+  if (percent >= 60) return 'Rất phù hợp'
+  if (percent >= 30) return 'Khá phù hợp'
+  return 'Gợi ý'
+}
+const hasAnyDiagResults = computed(
+  () => !!diagResult.value && (diagResult.value.phapTri.length > 0 || diagResult.value.benhTayY.length > 0),
+)
+const unexplainedDiagSymptoms = computed<DiagnosisMatchedSymptom[]>(() => {
+  const res = diagResult.value
+  if (!res) return []
+  const matchedIds = new Set<number>()
+  for (const c of res.phapTri) for (const m of c.matched) matchedIds.add(m.id)
+  for (const c of res.benhTayY) for (const m of c.matched) matchedIds.add(m.id)
+  return res.input.filter((s) => !matchedIds.has(s.id))
+})
+
+// ===== Popup tra cứu Danh sách pháp trị (bấm vào mô hình bệnh Đông Y ở Section III) =====
+interface PhapTriSearchRow {
+  id: number
+  chung_trang: string | null
+  nguyen_tac: string | null
+  trieu_chung_list?: { id: number; ten_trieu_chung: string }[]
+  kinh_mach_list?: { idKinhMach: number; ten_kinh_mach: string | null; ten_viet_tat: string | null }[]
+  bai_thuoc?: { id: number; ten_bai_thuoc: string } | null
+  bai_thuoc_links?: { idBaiThuoc: number; thuTu: number; baiThuoc?: { id: number; ten_bai_thuoc: string } | null }[]
+}
+
+const showPhapTriModal = ref(false)
+const phapTriModalContext = ref('')
+const phapTriQuery = ref('')
+const phapTriResults = ref<PhapTriSearchRow[]>([])
+const phapTriTotal = ref(0)
+const phapTriLoading = ref(false)
+const phapTriError = ref<string | null>(null)
+let phapTriSearchTimer: ReturnType<typeof setTimeout> | null = null
+let suppressPhapTriWatch = false
+
+function openPhapTriSearch(item: { name?: string | null }) {
+  phapTriModalContext.value = (item?.name || '').trim()
+  suppressPhapTriWatch = true
+  phapTriQuery.value = phapTriModalContext.value
+  showPhapTriModal.value = true
+  void runPhapTriSearch()
+}
+function closePhapTriModal() {
+  showPhapTriModal.value = false
+}
+async function runPhapTriSearch() {
+  phapTriLoading.value = true
+  phapTriError.value = null
+  try {
+    const q = phapTriQuery.value.trim()
+    const res: any = await api.get(
+      `/phap-tri/lite?page=1&limit=30&category=all&q=${encodeURIComponent(q)}`,
+    )
+    phapTriResults.value = res?.data ?? []
+    phapTriTotal.value = Number(res?.total ?? 0)
+  } catch (err: any) {
+    console.error(err)
+    phapTriError.value = 'Lỗi khi tìm pháp trị: ' + (err.message || String(err))
+    phapTriResults.value = []
+    phapTriTotal.value = 0
+  } finally {
+    phapTriLoading.value = false
+  }
+}
+watch(phapTriQuery, () => {
+  if (suppressPhapTriWatch) {
+    suppressPhapTriWatch = false
+    return
+  }
+  if (!showPhapTriModal.value) return
+  if (phapTriSearchTimer) clearTimeout(phapTriSearchTimer)
+  phapTriSearchTimer = setTimeout(() => void runPhapTriSearch(), 350)
+})
+
+function ptKinhMachLabel(k: {
+  idKinhMach: number
+  ten_kinh_mach: string | null
+  ten_viet_tat: string | null
+}): string {
+  return k.ten_kinh_mach || k.ten_viet_tat || `#${k.idKinhMach}`
+}
+function ptBaiThuocLabels(row: PhapTriSearchRow): string[] {
+  const links = (row.bai_thuoc_links ?? [])
+    .slice()
+    .sort((a, b) => (a.thuTu ?? 0) - (b.thuTu ?? 0))
+  const out = links.map((l) => l.baiThuoc?.ten_bai_thuoc || '').filter(Boolean)
+  if (out.length) return out
+  if (row.bai_thuoc?.ten_bai_thuoc) return [row.bai_thuoc.ten_bai_thuoc]
+  return []
+}
+
 function phuongHuyetDisplayLabel(row: PhacDoApiRow): string {
   const h = row.huyetVi
   if (!h) return `#${row.idHuyet}`
@@ -1085,22 +1260,142 @@ function footerDiffClassMerged() {
               <p v-else-if="!matchedTrieuChungList.length" class="suggested-empty">
                 Các bệnh YHCT khớp chưa được gắn triệu chứng nào.
               </p>
-              <div v-else class="ph-groups">
+              <div v-else class="tc-diag">
                 <div class="ph-group ph-group--trieu-chung">
                   <div class="ph-group__head">
-                    <span class="ph-group__method">Triệu chứng</span>
-                    <span class="ph-group__count">{{ matchedTrieuChungList.length }} triệu chứng</span>
-                  </div>
-                  <div class="ph-group__chips">
-                    <span
-                      v-for="t in matchedTrieuChungList"
-                      :key="t.id"
-                      class="ph-chip"
-                    >
-                      <span class="ph-chip__name">{{ t.ten_trieu_chung }}</span>
+                    <span class="ph-group__method">Chọn triệu chứng để chẩn đoán</span>
+                    <span class="tc-pick__actions">
+                      <button type="button" class="tc-link" @click="selectAllDiagSymptoms">Chọn tất cả</button>
+                      <button
+                        v-if="selectedDiagSymptomIds.length"
+                        type="button"
+                        class="tc-link"
+                        @click="clearDiagSymptoms"
+                      >Bỏ chọn</button>
                     </span>
                   </div>
+                  <div class="ph-group__chips">
+                    <button
+                      v-for="t in matchedTrieuChungList"
+                      :key="t.id"
+                      type="button"
+                      class="ph-chip ph-chip--pick"
+                      :class="{ 'ph-chip--active': selectedDiagSymptomIds.includes(t.id) }"
+                      @click="toggleDiagSymptom(t.id)"
+                    >
+                      <span class="ph-chip__name">{{ t.ten_trieu_chung }}</span>
+                    </button>
+                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  class="tc-diag-btn"
+                  :disabled="!selectedDiagSymptomIds.length || isDiagnosing"
+                  @click="runMeridianDiagnosis"
+                >
+                  <span v-if="isDiagnosing" class="tc-spinner" aria-hidden="true"></span>
+                  {{ isDiagnosing ? 'Đang phân tích…' : selectedDiagSymptomIds.length ? `Chẩn đoán (${selectedDiagSymptomIds.length})` : 'Chẩn đoán' }}
+                </button>
+
+                <p v-if="isDiagnosing || hasRunDiagnosis || diagError" class="tc-hint">
+                  Kết quả hiển thị ở mục <strong>VII — Gợi ý chẩn đoán</strong> (cột bên phải).
+                </p>
+
+                <!-- Kết quả gợi ý — teleport sang cột phải (mục VII) -->
+                <Teleport defer to="#diag-results-host">
+                <div v-if="diagError" class="tc-error">{{ diagError }}</div>
+                <div v-else-if="isDiagnosing" class="tc-loading">
+                  <div v-for="n in 2" :key="n" class="tc-skeleton"></div>
+                </div>
+                <div v-else-if="hasRunDiagnosis && !hasAnyDiagResults" class="tc-empty">
+                  Không tìm thấy thể bệnh / bệnh Tây Y phù hợp với các triệu chứng đã chọn.
+                </div>
+                <div v-else-if="hasRunDiagnosis" class="tc-results">
+                  <div v-if="unexplainedDiagSymptoms.length" class="tc-unexplained">
+                    <span class="tc-unexplained__label">⚠ Chưa được giải thích:</span>
+                    <span v-for="s in unexplainedDiagSymptoms" :key="s.id" class="tc-tag tc-tag--warn">{{ s.ten_trieu_chung }}</span>
+                  </div>
+
+                  <div class="tc-cols">
+                    <!-- Đông Y -->
+                    <div class="tc-col">
+                      <h3 class="tc-col__title tc-col__title--dongy">
+                        <span class="tc-dot"></span>
+                        Thể bệnh &amp; Pháp trị (Đông Y)
+                        <span class="tc-col__count">{{ diagResult?.phapTri.length || 0 }}<template v-if="(diagResult?.phapTriTotal || 0) > (diagResult?.phapTri.length || 0)">/{{ diagResult?.phapTriTotal }}</template></span>
+                      </h3>
+                      <p v-if="!diagResult?.phapTri.length" class="tc-none">Không có thể bệnh phù hợp.</p>
+                      <a
+                        v-for="(c, i) in diagResult?.phapTri"
+                        :key="'pt-' + c.id"
+                        :href="phapTriHref(c.id)"
+                        target="_blank"
+                        rel="noopener"
+                        class="tc-card"
+                        :class="{ 'tc-card--top': i === 0 }"
+                        :title="`Mở pháp trị: ${c.label}`"
+                      >
+                        <div class="tc-card__rank" :class="`tc-rank--${Math.min(i + 1, 4)}`">{{ i + 1 }}</div>
+                        <div class="tc-card__main">
+                          <div class="tc-card__head">
+                            <span class="tc-card__name">{{ c.label }}</span>
+                            <span v-if="i === 0" class="tc-top-tag">Phù hợp nhất</span>
+                          </div>
+                          <p v-if="c.subLabel" class="tc-card__sub">{{ c.subLabel }}</p>
+                          <div class="tc-card__matched">
+                            <span class="tc-pill">{{ c.matchedCount }}/{{ c.total }}</span>
+                            <span v-for="m in c.matched" :key="m.id" class="tc-tag tc-tag--trieu">{{ m.ten_trieu_chung }}</span>
+                          </div>
+                        </div>
+                        <div class="tc-card__score">
+                          <span class="tc-pct" :class="confidenceClass(c.percent)">{{ c.percent }}<small>%</small></span>
+                          <span class="tc-pct-label" :class="confidenceClass(c.percent)">{{ confidenceLabel(c.percent) }}</span>
+                        </div>
+                        <div class="tc-bar"><span :class="confidenceClass(c.percent)" :style="{ width: c.percent + '%' }"></span></div>
+                      </a>
+                    </div>
+
+                    <!-- Tây Y -->
+                    <div class="tc-col">
+                      <h3 class="tc-col__title tc-col__title--tayy">
+                        <span class="tc-dot"></span>
+                        Bệnh Tây Y
+                        <span class="tc-col__count">{{ diagResult?.benhTayY.length || 0 }}<template v-if="(diagResult?.benhTayYTotal || 0) > (diagResult?.benhTayY.length || 0)">/{{ diagResult?.benhTayYTotal }}</template></span>
+                      </h3>
+                      <p v-if="!diagResult?.benhTayY.length" class="tc-none">Không có bệnh Tây Y phù hợp.</p>
+                      <a
+                        v-for="(c, i) in diagResult?.benhTayY"
+                        :key="'bty-' + c.id"
+                        :href="benhTayYHref(c.id)"
+                        target="_blank"
+                        rel="noopener"
+                        class="tc-card"
+                        :class="{ 'tc-card--top': i === 0 }"
+                        :title="`Mở bệnh Tây Y: ${c.label}`"
+                      >
+                        <div class="tc-card__rank" :class="`tc-rank--${Math.min(i + 1, 4)}`">{{ i + 1 }}</div>
+                        <div class="tc-card__main">
+                          <div class="tc-card__head">
+                            <span class="tc-card__name">{{ c.label }}</span>
+                            <span v-if="c.groupLabel" class="tc-tag tc-tag--cb">{{ c.groupLabel }}</span>
+                            <span v-if="i === 0" class="tc-top-tag">Phù hợp nhất</span>
+                          </div>
+                          <div class="tc-card__matched">
+                            <span class="tc-pill">{{ c.matchedCount }}/{{ c.total }}</span>
+                            <span v-for="m in c.matched" :key="m.id" class="tc-tag tc-tag--trieu">{{ m.ten_trieu_chung }}</span>
+                          </div>
+                        </div>
+                        <div class="tc-card__score">
+                          <span class="tc-pct" :class="confidenceClass(c.percent)">{{ c.percent }}<small>%</small></span>
+                          <span class="tc-pct-label" :class="confidenceClass(c.percent)">{{ confidenceLabel(c.percent) }}</span>
+                        </div>
+                        <div class="tc-bar"><span :class="confidenceClass(c.percent)" :style="{ width: c.percent + '%' }"></span></div>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                </Teleport>
               </div>
             </div>
           </section>
@@ -1208,6 +1503,19 @@ function footerDiffClassMerged() {
                     <span class="synd-idx">{{ Number(idx) + 1 }}</span>
                     <span class="synd-name">{{ item.name }}</span>
                     <span class="synd-rate">{{ item.outputCell }}</span>
+                    <button
+                      type="button"
+                      class="pt-search-btn"
+                      title="Tìm pháp trị cho mô hình bệnh này"
+                      @click.stop="openPhapTriSearch(item)"
+                      @keydown.stop
+                    >
+                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" class="pt-search-ic">
+                        <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2" />
+                        <path d="m17 17-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                      </svg>
+                      Pháp trị
+                    </button>
                   </div>
                 </div>
                 <div v-else class="pathology-placeholder">
@@ -1279,9 +1587,103 @@ function footerDiffClassMerged() {
             </div>
           </section>
 
+          <!-- Section VII: kết quả gợi ý chẩn đoán (đích teleport từ mục VI) -->
+          <section class="result-section mt-6">
+            <h2 class="section-title">
+              <span class="section-num">VII</span> GỢI Ý CHẨN ĐOÁN
+              <span v-if="hasRunDiagnosis && diagResult" class="section-count">
+                (dựa trên {{ diagResult.input.length }} triệu chứng)
+              </span>
+            </h2>
+            <div class="result-card p-4">
+              <p
+                v-if="!isDiagnosing && !hasRunDiagnosis && !diagError"
+                class="tc-placeholder"
+              >
+                Chọn triệu chứng ở <strong>mục VI (cột trái)</strong> rồi bấm “Chẩn đoán” để xem gợi ý
+                thể bệnh / pháp trị (Đông Y) và bệnh Tây Y phù hợp nhất.
+              </p>
+              <div id="diag-results-host" class="tc-results-host"></div>
+            </div>
+          </section>
+
         </div>
       </div>
     </template>
+
+    <!-- Popup tra cứu Danh sách pháp trị (bấm vào mô hình bệnh Đông Y - Section III) -->
+    <div v-if="showPhapTriModal" class="ptm-overlay" @click.self="closePhapTriModal">
+      <div class="ptm-modal" role="dialog" aria-modal="true">
+        <div class="ptm-head">
+          <div class="ptm-head__title">
+            <h3>Danh sách Pháp trị</h3>
+            <span v-if="phapTriModalContext" class="ptm-context">Mô hình: {{ phapTriModalContext }}</span>
+          </div>
+          <button type="button" class="ptm-close" aria-label="Đóng" @click="closePhapTriModal">✕</button>
+        </div>
+
+        <div class="ptm-search">
+          <svg class="ptm-search__ic" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2" />
+            <path d="m17 17-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <input
+            v-model="phapTriQuery"
+            type="search"
+            class="ptm-search__input"
+            placeholder="Tìm theo thể bệnh, pháp trị, triệu chứng, bài thuốc..."
+            autocomplete="off"
+          />
+          <button v-if="phapTriQuery" type="button" class="ptm-search__clear" aria-label="Xóa" @click="phapTriQuery = ''">✕</button>
+        </div>
+
+        <div class="ptm-body">
+          <div v-if="phapTriLoading" class="ptm-state">
+            <div class="spinner"></div>
+            <p>Đang tìm pháp trị…</p>
+          </div>
+          <div v-else-if="phapTriError" class="ptm-error">{{ phapTriError }}</div>
+          <div v-else-if="!phapTriResults.length" class="ptm-state">
+            <p class="muted-italic">Không tìm thấy pháp trị phù hợp.</p>
+          </div>
+          <template v-else>
+            <p class="ptm-count">
+              {{ phapTriResults.length }}<span v-if="phapTriTotal > phapTriResults.length"> / {{ phapTriTotal }}</span> kết quả
+            </p>
+            <a
+              v-for="pt in phapTriResults"
+              :key="pt.id"
+              :href="phapTriHref(pt.id)"
+              target="_blank"
+              rel="noopener"
+              class="ptm-card"
+              :title="`Mở pháp trị #${pt.id}`"
+            >
+              <div class="ptm-card__head">
+                <span class="ptm-card__id">#{{ pt.id }}</span>
+                <span class="ptm-card__name">{{ pt.chung_trang || 'Pháp trị #' + pt.id }}</span>
+                <span class="ptm-card__open">Mở ↗</span>
+              </div>
+              <p v-if="pt.nguyen_tac" class="ptm-card__phap">
+                <span class="ptm-card__phap-label">Pháp trị:</span> {{ pt.nguyen_tac }}
+              </p>
+              <div v-if="(pt.kinh_mach_list || []).length" class="ptm-row">
+                <span class="ptm-row__label">Tạng phủ</span>
+                <span v-for="k in pt.kinh_mach_list" :key="k.idKinhMach" class="ptm-tag ptm-tag--tang">{{ ptKinhMachLabel(k) }}</span>
+              </div>
+              <div v-if="(pt.trieu_chung_list || []).length" class="ptm-row">
+                <span class="ptm-row__label">Triệu chứng</span>
+                <span v-for="t in pt.trieu_chung_list" :key="t.id" class="ptm-tag ptm-tag--trieu">{{ t.ten_trieu_chung }}</span>
+              </div>
+              <div v-if="ptBaiThuocLabels(pt).length" class="ptm-row">
+                <span class="ptm-row__label">Bài thuốc</span>
+                <span v-for="(b, bi) in ptBaiThuocLabels(pt)" :key="bi" class="ptm-tag ptm-tag--bai">{{ b }}</span>
+              </div>
+            </a>
+          </template>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1527,14 +1929,115 @@ function footerDiffClassMerged() {
   background: #b91c1c; color: var(--white); border-color: #b91c1c;
 }
 
-/* Triệu chứng — chip group màu tím (không click) */
+/* Triệu chứng — chip group màu tím, có thể chọn để chẩn đoán */
 .ph-group--trieu-chung .ph-chip {
   background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe;
-  cursor: default;
 }
-.ph-group--trieu-chung .ph-chip:hover {
-  background: #f5f3ff; border-color: #ddd6fe;
+.ph-group--trieu-chung .ph-chip--pick { cursor: pointer; font-family: inherit; }
+.ph-group--trieu-chung .ph-chip--pick:hover { background: #ede9fe; border-color: #c4b5fd; }
+.ph-group--trieu-chung .ph-chip--active,
+.ph-group--trieu-chung .ph-chip--active:hover {
+  background: #6d28d9; color: var(--white); border-color: #6d28d9;
 }
+
+/* ----- Chẩn đoán trong Section VI ----- */
+.tc-diag { display: flex; flex-direction: column; gap: var(--space-3); }
+.tc-pick__actions { display: inline-flex; gap: var(--space-3); }
+.tc-link { background: none; border: 0; padding: 0; color: #6d28d9; font-size: 11px; font-weight: 700; cursor: pointer; text-decoration: underline; }
+.tc-link:hover { color: #4c1d95; }
+
+.tc-diag-btn {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: var(--space-2) var(--space-5);
+  background: var(--brown-600); color: var(--white);
+  border: 0; border-radius: var(--radius-md);
+  font-weight: 700; font-size: var(--font-size-sm); cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.tc-diag-btn:hover:not(:disabled) { background: var(--brown-700); }
+.tc-diag-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.tc-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4); border-top-color: var(--white); border-radius: 50%; animation: spin .7s linear infinite; }
+
+.tc-error { padding: var(--space-3); background: #fef2f2; color: var(--danger); border-radius: var(--radius-md); font-size: var(--font-size-sm); }
+.tc-empty { padding: var(--space-4); text-align: center; color: var(--gray-500); font-size: var(--font-size-sm); font-style: italic; background: #fafafa; border-radius: var(--radius-md); }
+.tc-loading { display: flex; flex-direction: column; gap: var(--space-2); }
+.tc-skeleton { height: 56px; border-radius: var(--radius-md); background: linear-gradient(90deg, var(--gray-100) 25%, #f3f4f6 37%, var(--gray-100) 63%); background-size: 400% 100%; animation: tc-shimmer 1.4s ease infinite; }
+@keyframes tc-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+
+.tc-unexplained { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: var(--space-2) var(--space-3); background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-md); margin-bottom: var(--space-3); }
+.tc-unexplained__label { font-size: 11px; font-weight: 700; color: #b45309; text-transform: uppercase; letter-spacing: 0.03em; }
+
+.tc-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-4); align-items: start; }
+.tc-col__title { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--space-2); padding-bottom: 6px; font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-800); border-bottom: 1px solid var(--gray-100); }
+.tc-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.tc-col__title--dongy .tc-dot { background: #10b981; }
+.tc-col__title--tayy .tc-dot { background: #2563eb; }
+.tc-col__count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; font-size: 10px; font-weight: 700; }
+.tc-col__title--dongy .tc-col__count { background: #d1fae5; color: #047857; }
+.tc-col__title--tayy .tc-col__count { background: #dbeafe; color: #1d4ed8; }
+.tc-none { margin: 0; padding: 4px 0; color: var(--gray-400); font-style: italic; font-size: var(--font-size-sm); }
+
+.tc-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "rank main score" "bar bar bar";
+  gap: 6px var(--space-2);
+  align-items: start;
+  text-decoration: none; color: inherit;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+.tc-card:hover { box-shadow: 0 4px 12px rgba(74,47,23,0.1); border-color: var(--brown-300); transform: translateY(-1px); }
+.tc-card:last-child { margin-bottom: 0; }
+.tc-card--top { border-color: #fcd34d; background: linear-gradient(180deg, #fffdf5 0%, #fff 60%); }
+
+.tc-card__rank { grid-area: rank; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: 11px; font-weight: 800; background: var(--gray-100); color: var(--gray-600); }
+.tc-rank--1 { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #fff; }
+.tc-rank--2 { background: #e5e7eb; color: #4b5563; }
+.tc-rank--3 { background: #fde7d3; color: #b45309; }
+
+.tc-card__main { grid-area: main; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tc-card__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tc-card__name { font-weight: 700; color: var(--brown-900); font-size: var(--font-size-sm); line-height: 1.35; word-break: break-word; }
+.tc-top-tag { padding: 1px 7px; border-radius: 999px; background: #fef3c7; color: #b45309; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+.tc-card__sub { margin: 0; font-size: 12px; color: var(--gray-700); line-height: 1.45; }
+.tc-card__matched { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+
+.tc-card__score { grid-area: score; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.tc-pct { font-size: 18px; font-weight: 800; line-height: 1; }
+.tc-pct small { font-size: 10px; font-weight: 700; }
+.tc-pct.conf-high { color: #059669; }
+.tc-pct.conf-mid { color: #d97706; }
+.tc-pct.conf-low { color: var(--gray-400); }
+.tc-pct-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+.tc-pct-label.conf-high { color: #059669; }
+.tc-pct-label.conf-mid { color: #d97706; }
+.tc-pct-label.conf-low { color: var(--gray-400); }
+
+.tc-bar { grid-area: bar; height: 5px; background: var(--gray-100); border-radius: 999px; overflow: hidden; }
+.tc-bar > span { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+.tc-bar > span.conf-high { background: #10b981; }
+.tc-bar > span.conf-mid { background: #f59e0b; }
+.tc-bar > span.conf-low { background: var(--gray-400); }
+
+.tc-pill { flex: 0 0 auto; padding: 1px 8px; border-radius: 999px; background: var(--brown-50); color: var(--brown-700); border: 1px solid var(--brown-100); font-size: 10px; font-weight: 700; }
+.tc-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.4; border: 1px solid transparent; }
+.tc-tag--trieu { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.tc-tag--cb { background: var(--brown-100); color: var(--brown-800); border-color: var(--brown-200); }
+.tc-tag--warn { background: #fff7ed; color: #9a3412; border-color: #fed7aa; border-style: dashed; }
+
+.tc-hint { margin: 0; font-size: 12px; color: var(--gray-500); line-height: 1.5; }
+.tc-placeholder { margin: 0; padding: var(--space-3) 0; text-align: center; font-size: var(--font-size-sm); color: var(--gray-500); font-style: italic; line-height: 1.6; }
+/* Khung kết quả ở mục VII — cuộn dọc khi danh sách dài */
+.tc-results-host { max-height: 70vh; overflow-y: auto; overflow-x: hidden; padding-right: 4px; }
+.tc-results-host::-webkit-scrollbar { width: 8px; }
+.tc-results-host::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 999px; }
+.tc-results-host::-webkit-scrollbar-thumb:hover { background: var(--gray-400); }
 
 /* Phương Dược — chip group giống Section IV, màu vàng */
 .ph-group--bai-thuoc .ph-chip {
@@ -1958,6 +2461,89 @@ function footerDiffClassMerged() {
   background: #d1fae5;
   padding: 2px 6px;
   border-radius: var(--radius-sm);
+}
+
+/* Nút "Pháp trị" trên mỗi mô hình bệnh Đông Y (Section III) */
+.pt-search-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--brown-700);
+  background: var(--white);
+  border: 1px solid var(--brown-300);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s);
+}
+.pt-search-btn:hover { background: var(--brown-600); color: var(--white); border-color: var(--brown-600); }
+.pt-search-ic { width: 13px; height: 13px; }
+
+/* Popup tra cứu pháp trị */
+.ptm-overlay {
+  position: fixed; inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-4);
+  z-index: 300;
+  animation: ptm-fade 0.18s ease;
+}
+@keyframes ptm-fade { from { opacity: 0; } to { opacity: 1; } }
+.ptm-modal {
+  background: var(--white);
+  border-radius: var(--radius-xl);
+  width: 100%; max-width: 720px; max-height: 88vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.22);
+}
+.ptm-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--gray-100);
+  background: var(--brown-50);
+}
+.ptm-head__title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ptm-head h3 { margin: 0; font-size: var(--font-size-lg); font-weight: 700; color: var(--brown-900); }
+.ptm-context { font-size: 12px; color: var(--brown-600); font-weight: 600; word-break: break-word; }
+.ptm-close { flex: 0 0 auto; background: none; border: 0; font-size: 18px; color: var(--gray-500); cursor: pointer; padding: 4px 8px; border-radius: var(--radius-sm); }
+.ptm-close:hover { background: var(--gray-100); color: var(--gray-800); }
+
+.ptm-search { position: relative; display: flex; align-items: center; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--gray-100); }
+.ptm-search__ic { position: absolute; left: calc(var(--space-5) + 10px); width: 16px; height: 16px; color: var(--gray-400); pointer-events: none; }
+.ptm-search__input { width: 100%; padding: var(--space-2) 34px; border: 1px solid var(--gray-300); border-radius: var(--radius-md); font-size: var(--font-size-md); font-family: inherit; box-sizing: border-box; }
+.ptm-search__input:focus { outline: none; border-color: var(--brown-500); box-shadow: 0 0 0 3px rgba(146, 64, 14, 0.1); }
+.ptm-search__clear { position: absolute; right: calc(var(--space-5) + 8px); width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: var(--gray-100); color: var(--gray-600); border-radius: 50%; font-size: 12px; cursor: pointer; }
+.ptm-search__clear:hover { background: var(--gray-200); color: var(--gray-800); }
+
+.ptm-body { padding: var(--space-4) var(--space-5); overflow-y: auto; flex: 1; background: #fdfbf9; }
+.ptm-state { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); padding: var(--space-8) 0; color: var(--gray-500); }
+.ptm-state p { margin: 0; }
+.ptm-error { padding: var(--space-3); background: #fef2f2; color: var(--danger); border-radius: var(--radius-md); font-size: var(--font-size-sm); }
+.muted-italic { font-style: italic; }
+.ptm-count { margin: 0 0 var(--space-3); font-size: 12px; font-weight: 600; color: var(--gray-500); }
+
+.ptm-card { display: block; text-decoration: none; color: inherit; background: var(--white); border: 1px solid var(--brown-100); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); box-shadow: 0 1px 2px rgba(74, 47, 23, 0.04); transition: box-shadow var(--transition-fast, 0.15s), border-color var(--transition-fast, 0.15s), transform var(--transition-fast, 0.15s); }
+.ptm-card:last-child { margin-bottom: 0; }
+.ptm-card:hover { box-shadow: 0 6px 16px rgba(74, 47, 23, 0.1); border-color: var(--brown-300); transform: translateY(-1px); }
+.ptm-card__head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.ptm-card__id { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--brown-700); background: var(--brown-50); border: 1px solid var(--brown-200); padding: 1px 7px; border-radius: 999px; }
+.ptm-card__name { flex: 1; min-width: 0; font-weight: 700; color: var(--brown-900); font-size: var(--font-size-md); word-break: break-word; }
+.ptm-card__open { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--brown-600); }
+.ptm-card__phap { margin: 6px 0 0; font-size: var(--font-size-sm); color: var(--gray-700); line-height: 1.5; }
+.ptm-card__phap-label { font-weight: 700; color: var(--brown-700); }
+.ptm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 6px; }
+.ptm-row__label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-400); margin-right: 2px; }
+.ptm-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.4; border: 1px solid transparent; }
+.ptm-tag--tang { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.ptm-tag--trieu { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.ptm-tag--bai { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+
+@media (max-width: 640px) {
+  .ptm-modal { max-height: 92vh; }
 }
 .leading-relaxed { line-height: 1.625; }
 .flex { display: flex; }

@@ -64,7 +64,15 @@
       "PowerShell($f=\"c:\\\\Users\\\\This PC\\\\Desktop\\\\kinhlac\\\\frontend\\\\public\\\\favicon.ico\"; $b=[System.IO.File]::ReadAllBytes\\($f\\); \"Size: $\\($b.Length\\)\"; \"First16: $\\(\\($b[0..15] | ForEach-Object { $_.ToString\\('x2'\\) }\\) -join ' '\\)\")",
       "PowerShell(\\(Get-Content \"c:\\\\Users\\\\This PC\\\\Desktop\\\\kinhlac\\\\backend\\\\src\\\\controllers\\\\benh-tay-y.controller.ts\" | Measure-Object -Line\\).Lines)",
       "PowerShell($f = \"c:\\\\Users\\\\This PC\\\\Desktop\\\\kinhlac\\\\backend\\\\src\\\\controllers\\\\benh-tay-y.controller.ts\"; \\(Get-Content $f\\).Length)",
-      "Bash(awk 'END{print NR}' \"/c/Users/This PC/Desktop/kinhlac/frontend/src/views/TreatmentsView.vue\")"
+      "Bash(awk 'END{print NR}' \"/c/Users/This PC/Desktop/kinhlac/frontend/src/views/TreatmentsView.vue\")",
+      "PowerShell($root = \"C:\\\\Users\\\\This PC\\\\.claude\\\\plugins\\\\cache\\\\understand-anything\\\\understand-anything\\\\2.7.5\"; Write-Output \"root tsc: $\\(Test-Path \"$root\\\\node_modules\\\\typescript\\\\bin\\\\tsc\"\\)\"; Write-Output \"core node_modules tsc: $\\(Test-Path \"$root\\\\packages\\\\core\\\\node_modules\\\\typescript\\\\bin\\\\tsc\"\\)\"; Write-Output \"core tsconfig: $\\(Test-Path \"$root\\\\packages\\\\core\\\\tsconfig.json\"\\)\"')",
+      "PowerShell(Set-Location *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(New-Item *)",
+      "PowerShell($loc = \"C:\\\\Users\\\\This PC\\\\.claude\\\\plugins\\\\cache\\\\understand-anything\\\\understand-anything\\\\2.7.5\\\\skills\\\\understand\\\\locales\"; Write-Output \"locales: $\\(Get-ChildItem $loc -Name -ErrorAction SilentlyContinue\\)\"; Write-Output \"vi.md exists: $\\(Test-Path \"$loc\\\\vi.md\"\\)\"; Write-Output \"=== app_kinhlac top contents ===\"; Get-ChildItem \"C:\\\\Users\\\\This PC\\\\Desktop\\\\kinhlac\\\\app_kinhlac\" -ErrorAction SilentlyContinue | Select-Object -First 15 Name | Format-Table -AutoSize | Out-String)",
+      "Bash(node *)",
+      "PowerShell($skill = \"C:/Users/This PC/.claude/plugins/cache/understand-anything/understand-anything/2.7.5/skills/understand\"; & node \"$skill/compute-batches.mjs\" \"C:/Users/This PC/Desktop/kinhlac\"; Write-Output \"exit: $LASTEXITCODE\")",
+      "PowerShell(node \"C:\\\\Users\\\\This PC\\\\Desktop\\\\kinhlac\\\\frontend\\\\diag-sfc.cjs\")"
     ],
     "additionalDirectories": [
       "D:\\project\\kinhlac"

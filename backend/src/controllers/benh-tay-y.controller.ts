@@ -46,7 +46,9 @@ export class BenhTayYService {
 
   /**
    * Lightweight, paginated list cho tab Bệnh Tây Y.
-   * - Bỏ baiThuocList.phapTriLinks (nested), thietChanList, machChanList — chỉ load khi xem chi tiết.
+   * - Bỏ thietChanList, machChanList — chỉ load khi xem chi tiết.
+   * - Vẫn load chuỗi baiThuocList.phapTriLinks.phapTri.trieu_chung_list + phapTriList.trieu_chung_list
+   *   vì card cần hiển thị Pháp trị (gộp trực tiếp + qua bài thuốc) kèm triệu chứng của từng pháp trị.
    * - Search server-side trên ten_benh (text column).
    * - Filter idChungBenh để hỗ trợ sub-tab "Chủng bệnh".
    */
@@ -99,6 +101,9 @@ export class BenhTayYService {
         relations: [
           'chungBenh',
           'baiThuocList',
+          'baiThuocList.phapTriLinks',
+          'baiThuocList.phapTriLinks.phapTri',
+          'baiThuocList.phapTriLinks.phapTri.trieu_chung_list',
           'trieuChungList',
           'phapTriList',
           'phapTriList.trieu_chung_list',
