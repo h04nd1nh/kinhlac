@@ -61,7 +61,10 @@
       "Bash(echo \"EXIT=$?\")",
       "Bash(rm -f gen.log)",
       "PowerShell($f=\"c:\\\\Users\\\\This PC\\\\Desktop\\\\kinhlac\\\\frontend\\\\public\\\\favicon.ico\"; $b=[System.IO.File]::ReadAllBytes\\($f\\); \"Size: $\\($b.Length\\)\"; \"Header bytes: $\\($b[0..7] -join ','\\)\"; \"Reserved\\(0,0\\)=$\\($b[0]\\),$\\($b[1]\\)  Type\\(1\\)=$\\($b[2]\\),$\\($b[3]\\)  Count=$\\($b[4]\\),$\\($b[5]\\)\")",
-      "PowerShell($f=\"c:\\\\Users\\\\This PC\\\\Desktop\\\\kinhlac\\\\frontend\\\\public\\\\favicon.ico\"; $b=[System.IO.File]::ReadAllBytes\\($f\\); \"Size: $\\($b.Length\\)\"; \"First16: $\\(\\($b[0..15] | ForEach-Object { $_.ToString\\('x2'\\) }\\) -join ' '\\)\")"
+      "PowerShell($f=\"c:\\\\Users\\\\This PC\\\\Desktop\\\\kinhlac\\\\frontend\\\\public\\\\favicon.ico\"; $b=[System.IO.File]::ReadAllBytes\\($f\\); \"Size: $\\($b.Length\\)\"; \"First16: $\\(\\($b[0..15] | ForEach-Object { $_.ToString\\('x2'\\) }\\) -join ' '\\)\")",
+      "PowerShell(\\(Get-Content \"c:\\\\Users\\\\This PC\\\\Desktop\\\\kinhlac\\\\backend\\\\src\\\\controllers\\\\benh-tay-y.controller.ts\" | Measure-Object -Line\\).Lines)",
+      "PowerShell($f = \"c:\\\\Users\\\\This PC\\\\Desktop\\\\kinhlac\\\\backend\\\\src\\\\controllers\\\\benh-tay-y.controller.ts\"; \\(Get-Content $f\\).Length)",
+      "Bash(awk 'END{print NR}' \"/c/Users/This PC/Desktop/kinhlac/frontend/src/views/TreatmentsView.vue\")"
     ],
     "additionalDirectories": [
       "D:\\project\\kinhlac"

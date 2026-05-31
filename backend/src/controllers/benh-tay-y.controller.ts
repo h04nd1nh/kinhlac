@@ -33,10 +33,12 @@ export class BenhTayYService {
         'baiThuocList',
         'baiThuocList.phapTriLinks',
         'baiThuocList.phapTriLinks.phapTri',
+        'baiThuocList.phapTriLinks.phapTri.trieu_chung_list',
         'trieuChungList',
         'thietChanList',
         'machChanList',
         'phapTriList',
+        'phapTriList.trieu_chung_list',
       ],
       order: { id: 'ASC' },
     });
@@ -99,6 +101,7 @@ export class BenhTayYService {
           'baiThuocList',
           'trieuChungList',
           'phapTriList',
+          'phapTriList.trieu_chung_list',
         ],
         order: { id: 'ASC' },
       });
@@ -122,10 +125,12 @@ export class BenhTayYService {
         'baiThuocList',
         'baiThuocList.phapTriLinks',
         'baiThuocList.phapTriLinks.phapTri',
+        'baiThuocList.phapTriLinks.phapTri.trieu_chung_list',
         'trieuChungList',
         'thietChanList',
         'machChanList',
         'phapTriList',
+        'phapTriList.trieu_chung_list',
       ],
     });
     if (!item) {

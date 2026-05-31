@@ -33,6 +33,7 @@ export class BaiThuocService {
     'chiTietViThuoc.viThuoc.tenGoiKhacList',
     'phapTriLinks',
     'phapTriLinks.phapTri',
+    'phapTriLinks.phapTri.trieu_chung_list',
     'trieuChungList',
   ] as const;
 
@@ -251,6 +252,7 @@ export class BaiThuocService {
           'chiTietViThuoc.viThuoc',
           'phapTriLinks',
           'phapTriLinks.phapTri',
+          'phapTriLinks.phapTri.trieu_chung_list',
           'trieuChungList',
         ],
         order: { ten_bai_thuoc: 'ASC', id: 'ASC' },

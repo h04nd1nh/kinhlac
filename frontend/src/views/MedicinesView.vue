@@ -57,6 +57,7 @@ interface PhapTriLite {
   id: number
   nguyen_tac: string | null
   chung_trang: string | null
+  trieu_chung_list?: TrieuChungLite[] | null
 }
 
 interface BaiThuocPhapTriLink {
@@ -447,7 +448,9 @@ function phapTriLabels(bt: BaiThuoc): string[] {
   return phapTriItems(bt).map((x) => x.name)
 }
 
-function phapTriItems(bt: BaiThuoc): Array<{ id: number | null; name: string }> {
+function phapTriItems(
+  bt: BaiThuoc,
+): Array<{ id: number | null; name: string; trieuChung: string[] }> {
   const links = (bt.phapTriLinks ?? [])
     .slice()
     .sort((a, b) => (a.thuTu ?? 0) - (b.thuTu ?? 0))
@@ -455,6 +458,9 @@ function phapTriItems(bt: BaiThuoc): Array<{ id: number | null; name: string }> 
     .map((l) => ({
       id: l.phapTri?.id ?? null,
       name: (l.phapTri?.nguyen_tac || '').trim(),
+      trieuChung: (l.phapTri?.trieu_chung_list ?? [])
+        .map((t) => t.ten_trieu_chung)
+        .filter(Boolean),
     }))
     .filter((x) => x.name.length > 0)
 }
@@ -2593,8 +2599,8 @@ async function suggestViThuocAi() {
 
                 <section v-if="phapTriItems(bt).length" class="bt-section">
                   <span class="bt-section__label">Pháp trị</span>
-                  <div class="chip-row chip-row--wrap">
-                    <template v-for="(p, i) in phapTriItems(bt)" :key="i">
+                  <div class="phap-tri-list">
+                    <div v-for="(p, i) in phapTriItems(bt)" :key="i" class="phap-tri-item">
                       <a
                         v-if="p.id != null"
                         :href="phapTriHref(p.id)"
@@ -2604,7 +2610,14 @@ async function suggestViThuocAi() {
                         :title="`Mở pháp trị: ${p.name}`"
                       >{{ p.name }}</a>
                       <span v-else class="chip chip-phap">{{ p.name }}</span>
-                    </template>
+                      <div v-if="p.trieuChung.length" class="chip-row chip-row--wrap phap-tri-trieu">
+                        <span
+                          v-for="(t, j) in p.trieuChung"
+                          :key="j"
+                          class="chip chip-trieu"
+                        >{{ t }}</span>
+                      </div>
+                    </div>
                   </div>
                 </section>
 
@@ -3673,6 +3686,11 @@ async function suggestViThuocAi() {
 .chip-trieu { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 .chip-tayy { background: #fdf4ff; color: #86198f; border-color: #f5d0fe; }
 .muted { color: var(--gray-400); font-style: italic; }
+
+/* Pháp trị + triệu chứng (triệu chứng nằm dưới pháp trị mà bài thuốc liên kết) */
+.phap-tri-list { display: flex; flex-direction: column; gap: 8px; }
+.phap-tri-item { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.phap-tri-trieu { padding-left: 10px; border-left: 2px solid #bfdbfe; }
 
 .thanh-phan-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
 .thanh-phan-list li { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }

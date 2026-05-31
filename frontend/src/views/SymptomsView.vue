@@ -2,10 +2,25 @@
 import { ref, onMounted, computed } from 'vue'
 import { api } from '@/services/api'
 
+interface BenhTayYLite {
+  id: number
+  ten_benh: string
+}
+interface BaiThuocLite {
+  id: number
+  ten_bai_thuoc: string
+}
 interface Symptom {
   id: number
   ten_trieu_chung: string
+  theBenhList?: string[]
+  baiThuocList?: BaiThuocLite[]
+  benhTayYList?: BenhTayYLite[]
+  doPhoBien?: number
 }
+
+// Số chip tối đa hiển thị trong mỗi ô trước khi gộp phần còn lại thành "+N".
+const CHIP_LIMIT = 6
 
 const isLoading = ref(true)
 const error = ref<string | null>(null)
@@ -35,7 +50,8 @@ async function fetchData() {
   isLoading.value = true
   error.value = null
   try {
-    const res: any = await api.get('/trieu-chung')
+    // stats=1: trả kèm thể bệnh / bài thuốc / bệnh Tây Y và sắp xếp theo độ phổ biến giảm dần.
+    const res: any = await api.get('/trieu-chung?stats=1')
     dataList.value = Array.isArray(res) ? res : (res.data || [])
   } catch (err: any) {
     console.error(err)
@@ -131,7 +147,7 @@ function getPageNumbers() {
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">Quản Lý Triệu Chứng</h1>
-        <p class="page-subtitle">Danh sách phân loại các triệu chứng lâm sàng</p>
+        <p class="page-subtitle">Danh sách triệu chứng lâm sàng — sắp xếp theo độ phổ biến giảm dần</p>
       </div>
       <button class="btn-primary" @click="openCreateModal">+ Thêm mới</button>
     </div>
@@ -156,18 +172,48 @@ function getPageNumbers() {
           <table class="data-table">
             <thead>
               <tr>
-                <th width="80">ID</th>
-                <th>Tên Triệu Chứng</th>
+                <th width="70">ID</th>
+                <th width="220">Tên Triệu Chứng</th>
+                <th>Thể Bệnh</th>
+                <th>Bài Thuốc</th>
+                <th>Bệnh Tây Y</th>
                 <th width="140">Thao Tác</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="pagedList.length === 0">
-                <td colspan="3" class="text-center py-8 text-gray-500">Chưa có dữ liệu</td>
+                <td colspan="6" class="text-center py-8 text-gray-500">Chưa có dữ liệu</td>
               </tr>
               <tr v-for="item in pagedList" :key="item.id">
                 <td>#{{ item.id }}</td>
-                <td class="font-bold text-brown-900">{{ item.ten_trieu_chung }}</td>
+                <td class="font-bold text-brown-900">
+                  {{ item.ten_trieu_chung }}
+                  <span v-if="item.doPhoBien" class="pho-bien" :title="`Tham chiếu bởi ${item.doPhoBien} bản ghi`">{{ item.doPhoBien }}</span>
+                </td>
+                <!-- Thể bệnh -->
+                <td>
+                  <div v-if="item.theBenhList && item.theBenhList.length" class="chip-row">
+                    <span v-for="tb in item.theBenhList.slice(0, CHIP_LIMIT)" :key="tb" class="chip chip-the">{{ tb }}</span>
+                    <span v-if="item.theBenhList.length > CHIP_LIMIT" class="chip chip-more">+{{ item.theBenhList.length - CHIP_LIMIT }}</span>
+                  </div>
+                  <span v-else class="empty-cell">—</span>
+                </td>
+                <!-- Bài thuốc -->
+                <td>
+                  <div v-if="item.baiThuocList && item.baiThuocList.length" class="chip-row">
+                    <span v-for="b in item.baiThuocList.slice(0, CHIP_LIMIT)" :key="b.id" class="chip chip-bai">{{ b.ten_bai_thuoc }}</span>
+                    <span v-if="item.baiThuocList.length > CHIP_LIMIT" class="chip chip-more">+{{ item.baiThuocList.length - CHIP_LIMIT }}</span>
+                  </div>
+                  <span v-else class="empty-cell">—</span>
+                </td>
+                <!-- Bệnh Tây Y -->
+                <td>
+                  <div v-if="item.benhTayYList && item.benhTayYList.length" class="chip-row">
+                    <span v-for="b in item.benhTayYList.slice(0, CHIP_LIMIT)" :key="b.id" class="chip chip-benh">{{ b.ten_benh }}</span>
+                    <span v-if="item.benhTayYList.length > CHIP_LIMIT" class="chip chip-more">+{{ item.benhTayYList.length - CHIP_LIMIT }}</span>
+                  </div>
+                  <span v-else class="empty-cell">—</span>
+                </td>
                 <td>
                   <div class="action-buttons">
                     <button class="btn-action btn-edit" @click="openEditModal(item)">Sửa</button>
@@ -251,6 +297,16 @@ function getPageNumbers() {
 .data-table tbody tr { transition: background 0.2s; }
 .data-table tbody tr:hover { background: var(--gray-50); }
 .data-table td { font-size: var(--font-size-md); color: var(--gray-800); vertical-align: middle; }
+
+/* Chip cells (Thể bệnh / Bài thuốc / Bệnh Tây Y) */
+.chip-row { display: flex; flex-wrap: wrap; gap: 4px; max-width: 360px; }
+.chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.4; border: 1px solid transparent; }
+.chip-the { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.chip-bai { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.chip-benh { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.chip-more { background: var(--gray-100); color: var(--gray-600); border-color: var(--gray-200); }
+.empty-cell { color: var(--gray-300); }
+.pho-bien { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--brown-100); color: var(--brown-700); font-size: 11px; font-weight: 700; vertical-align: middle; }
 
 .action-buttons { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .btn-action { padding: 4px 10px; font-size: 12px; font-weight: 600; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--white); cursor: pointer; transition: all var(--transition-fast); }

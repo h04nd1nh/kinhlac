@@ -21,7 +21,11 @@ export class TrieuChungRouter {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('stats') stats?: string,
   ) {
+    if (stats === '1' || stats === 'true') {
+      return this.service.findAllWithStats();
+    }
     const pageNum = page ? parseInt(page, 10) : 0;
     const limitNum = limit ? parseInt(limit, 10) : 0;
     if (pageNum > 0 && limitNum > 0) {

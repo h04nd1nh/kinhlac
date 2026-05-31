@@ -142,6 +142,7 @@ function benhTayYGroupsForPhapTri(ptId: number): BenhTayYGroup[] {
 const kinhMachSearch = ref('')
 const trieuChungSearch = ref('')
 const baiThuocSearch = ref('')
+const creatingTrieuChung = ref(false)
 
 const lucKinhOptionNames = computed<string[]>(() =>
   tonThuongOptions.value.map((o) => o.ten).filter(Boolean),
@@ -399,6 +400,36 @@ const filteredTrieuChungOptions = computed(() => {
     (t.ten_trieu_chung || '').toLowerCase().includes(q),
   )
 })
+/** Cho phép tạo nhanh triệu chứng khi từ khóa tìm chưa khớp tên nào (so khớp không phân biệt hoa thường). */
+const canCreateTrieuChung = computed(() => {
+  const q = trieuChungSearch.value.trim()
+  if (!q) return false
+  return !trieuChungOptions.value.some(
+    (t) => (t.ten_trieu_chung || '').trim().toLowerCase() === q.toLowerCase(),
+  )
+})
+
+/** Tạo ngay một triệu chứng mới từ ô tìm kiếm rồi tự chọn vào pháp trị. */
+async function createTrieuChungInline() {
+  const name = trieuChungSearch.value.trim()
+  if (!name || creatingTrieuChung.value) return
+  creatingTrieuChung.value = true
+  try {
+    const res: any = await api.post('/trieu-chung', { ten_trieu_chung: name })
+    const created: TrieuChungLite = res?.data ?? { id: res?.id, ten_trieu_chung: name }
+    if (created?.id != null) {
+      trieuChungOptions.value = [...trieuChungOptions.value, created]
+      if (!form.value.id_trieu_chung_list.includes(created.id)) {
+        form.value.id_trieu_chung_list = [...form.value.id_trieu_chung_list, created.id]
+      }
+      trieuChungSearch.value = ''
+    }
+  } catch (err: any) {
+    formError.value = err.message || 'Không tạo được triệu chứng'
+  } finally {
+    creatingTrieuChung.value = false
+  }
+}
 
 const filteredBaiThuocOptions = computed(() => {
   const q = baiThuocSearch.value.trim().toLowerCase()
@@ -976,7 +1007,16 @@ async function handleDelete() {
                   >
                     {{ t.ten_trieu_chung }}
                   </button>
-                  <span v-if="filteredTrieuChungOptions.length === 0" class="muted">
+                  <button
+                    v-if="canCreateTrieuChung"
+                    type="button"
+                    class="chip-toggle chip-create"
+                    :disabled="creatingTrieuChung"
+                    @click="createTrieuChungInline"
+                  >
+                    {{ creatingTrieuChung ? 'Đang tạo…' : `+ Tạo: "${trieuChungSearch.trim()}"` }}
+                  </button>
+                  <span v-if="filteredTrieuChungOptions.length === 0 && !canCreateTrieuChung" class="muted">
                     Không khớp "{{ trieuChungSearch }}"
                   </span>
                 </div>
@@ -1638,4 +1678,7 @@ async function handleDelete() {
   color: var(--white);
   border-color: var(--brown-600);
 }
+.chip-create { border-style: dashed; border-color: var(--brown-400); color: var(--brown-700); background: var(--brown-50); }
+.chip-create:hover:not(:disabled) { background: var(--brown-100); border-color: var(--brown-500); }
+.chip-create:disabled { opacity: 0.6; cursor: not-allowed; }
 </style>

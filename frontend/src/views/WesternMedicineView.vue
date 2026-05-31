@@ -28,6 +28,7 @@ interface PhapTriLite {
   id: number
   chung_trang: string | null
   nguyen_tac: string | null
+  trieu_chung_list?: TrieuChungLite[] | null
 }
 
 interface BaiThuocPhapTriLink {
@@ -123,6 +124,7 @@ const trieuChungSearch = ref('')
 const phapTriSearch = ref('')
 const thietChanSearch = ref('')
 const machChanSearch = ref('')
+const creatingTrieuChung = ref(false)
 
 const showDeleteConfirm = ref(false)
 const deletingTarget = ref<{ kind: 'cb' | 'bty'; id: number; label: string } | null>(null)
@@ -306,6 +308,13 @@ function phapTriCombined(bty: BenhTayY): PhapTriLite[] {
   return out
 }
 
+/** Triệu chứng của một pháp trị — hiển thị lồng ngay dưới pháp trị (giống tab bài thuốc). */
+function phapTriTrieuChungList(p: PhapTriLite): string[] {
+  return (p.trieu_chung_list ?? [])
+    .map((t) => (t.ten_trieu_chung ?? '').trim())
+    .filter(Boolean)
+}
+
 /** Counts theo chủng bệnh dùng map từ server response. */
 const benhTayYCountByChungBenh = computed(() => {
   const m = new Map<number, number>()
@@ -370,6 +379,14 @@ const filteredTrieuChungOptions = computed(() => {
   const q = trieuChungSearch.value.trim().toLowerCase()
   if (!q) return trieuChungOptions.value
   return trieuChungOptions.value.filter((t) => t.ten_trieu_chung.toLowerCase().includes(q))
+})
+/** Cho phép tạo nhanh triệu chứng khi từ khóa tìm chưa khớp tên nào (so khớp không phân biệt hoa thường). */
+const canCreateTrieuChung = computed(() => {
+  const q = trieuChungSearch.value.trim()
+  if (!q) return false
+  return !trieuChungOptions.value.some(
+    (t) => t.ten_trieu_chung.trim().toLowerCase() === q.toLowerCase(),
+  )
 })
 const filteredPhapTriOptions = computed(() => {
   const q = phapTriSearch.value.trim().toLowerCase()
@@ -475,6 +492,28 @@ function resetPickerSearches() {
   phapTriSearch.value = ''
   thietChanSearch.value = ''
   machChanSearch.value = ''
+}
+
+/** Tạo ngay một triệu chứng mới từ ô tìm kiếm rồi tự chọn vào form. */
+async function createTrieuChungInline() {
+  const name = trieuChungSearch.value.trim()
+  if (!name || creatingTrieuChung.value) return
+  creatingTrieuChung.value = true
+  try {
+    const res: any = await api.post('/trieu-chung', { ten_trieu_chung: name })
+    const created: TrieuChungLite = res?.data ?? { id: res?.id, ten_trieu_chung: name }
+    if (created?.id != null) {
+      trieuChungOptions.value = [...trieuChungOptions.value, created]
+      if (!btyForm.value.trieu_chung_ids.includes(created.id)) {
+        btyForm.value.trieu_chung_ids = [...btyForm.value.trieu_chung_ids, created.id]
+      }
+      trieuChungSearch.value = ''
+    }
+  } catch (err: any) {
+    btyFormError.value = err.message || 'Không tạo được triệu chứng'
+  } finally {
+    creatingTrieuChung.value = false
+  }
 }
 
 async function submitBty() {
@@ -766,18 +805,26 @@ async function doDelete() {
 
                 <section v-if="phapTriCombined(bty).length" class="disease-section">
                   <span class="disease-section__label">Pháp trị ({{ phapTriCombined(bty).length }})</span>
-                  <div class="chip-row chip-row--wrap">
-                    <a
-                      v-for="p in phapTriCombined(bty)"
-                      :key="p.id"
-                      :href="phapTriHref(p.id)"
-                      target="_blank"
-                      rel="noopener"
-                      class="chip chip-phap chip-link-phap"
-                      :title="`Mở pháp trị: ${phapTriLabel(p)}`"
-                    >
-                      {{ phapTriLabel(p) }}
-                    </a>
+                  <div class="phap-tri-list">
+                    <div v-for="p in phapTriCombined(bty)" :key="p.id" class="phap-tri-item">
+                      <a
+                        :href="phapTriHref(p.id)"
+                        target="_blank"
+                        rel="noopener"
+                        class="chip chip-phap chip-link-phap"
+                        :title="`Mở pháp trị: ${phapTriLabel(p)}`"
+                      >{{ phapTriLabel(p) }}</a>
+                      <div
+                        v-if="phapTriTrieuChungList(p).length"
+                        class="chip-row chip-row--wrap phap-tri-trieu"
+                      >
+                        <span
+                          v-for="(t, j) in phapTriTrieuChungList(p)"
+                          :key="j"
+                          class="chip chip-trieu-pt"
+                        >{{ t }}</span>
+                      </div>
+                    </div>
                   </div>
                 </section>
 
@@ -960,7 +1007,16 @@ async function doDelete() {
                 >
                   {{ t.ten_trieu_chung }}
                 </button>
-                <span v-if="filteredTrieuChungOptions.length === 0" class="muted">Không khớp</span>
+                <button
+                  v-if="canCreateTrieuChung"
+                  type="button"
+                  class="chip-toggle chip-create"
+                  :disabled="creatingTrieuChung"
+                  @click="createTrieuChungInline"
+                >
+                  {{ creatingTrieuChung ? 'Đang tạo…' : `+ Tạo: "${trieuChungSearch.trim()}"` }}
+                </button>
+                <span v-if="filteredTrieuChungOptions.length === 0 && !canCreateTrieuChung" class="muted">Không khớp</span>
               </div>
             </div>
 
@@ -1244,6 +1300,12 @@ async function doDelete() {
 .pt-tbl tbody tr:hover { background: #fdfbf9; }
 
 .chip-trieu { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+.chip-trieu-pt { background: #fff7ed; color: #9a3412; border-color: #fed7aa; border-style: dashed; }
+
+/* Pháp trị + triệu chứng lồng dưới (giống tab bài thuốc) */
+.phap-tri-list { display: flex; flex-direction: column; gap: 8px; }
+.phap-tri-item { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.phap-tri-trieu { padding-left: 10px; border-left: 2px solid #fed7aa; }
 .chip-thiet { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
 .chip-mach { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -1316,6 +1378,9 @@ async function doDelete() {
 .chip-toggle { padding: 4px 10px; font-size: 13px; font-weight: 600; border-radius: 999px; border: 1px solid var(--gray-300); background: var(--white); color: var(--gray-700); cursor: pointer; transition: all var(--transition-fast); }
 .chip-toggle:hover { border-color: var(--brown-400); color: var(--brown-700); }
 .chip-toggle.active { background: var(--brown-600); color: var(--white); border-color: var(--brown-600); }
+.chip-create { border-style: dashed; border-color: var(--brown-400); color: var(--brown-700); background: var(--brown-50); }
+.chip-create:hover:not(:disabled) { background: var(--brown-100); border-color: var(--brown-500); }
+.chip-create:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .muted { color: var(--gray-400); font-style: italic; }
 .mt-4 { margin-top: 1rem !important; }
