@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/services/api'
 
@@ -68,6 +68,9 @@ const isSaving = ref(false)
 const showDeleteModal = ref(false)
 const deletingId = ref<number | null>(null)
 const isDeleting = ref(false)
+
+// Tìm kiếm danh sách
+const searchQuery = ref('')
 
 // Pagination
 const currentPage = ref(1)
@@ -165,12 +168,30 @@ async function handleDelete() {
   }
 }
 
-const pagedList = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value
-  return dataList.value.slice(start, start + itemsPerPage.value)
+// Lọc theo tên triệu chứng kèm thể bệnh / bài thuốc / bệnh Tây Y hiển thị trong bảng.
+const filteredList = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return dataList.value
+  return dataList.value.filter((item) => {
+    if (item.ten_trieu_chung.toLowerCase().includes(q)) return true
+    if (item.theBenhList?.some((tb) => tb.toLowerCase().includes(q))) return true
+    if (item.baiThuocList?.some((b) => b.ten_bai_thuoc.toLowerCase().includes(q))) return true
+    if (item.benhTayYList?.some((b) => b.ten_benh.toLowerCase().includes(q))) return true
+    return false
+  })
 })
 
-const totalPages = computed(() => Math.ceil(dataList.value.length / itemsPerPage.value))
+const pagedList = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value
+  return filteredList.value.slice(start, start + itemsPerPage.value)
+})
+
+const totalPages = computed(() => Math.ceil(filteredList.value.length / itemsPerPage.value))
+
+// Về trang đầu mỗi khi đổi từ khóa để không kẹt ở trang trống.
+watch(searchQuery, () => {
+  currentPage.value = 1
+})
 
 function getPageNumbers() {
   const pages: number[] = []
@@ -322,7 +343,27 @@ const unexplainedSymptoms = computed<DiagnosisMatchedSymptom[]>(() => {
       <div class="data-card">
         <div class="card-header">
           <h3>Danh sách Triệu Chứng</h3>
-          <span class="badge badge-warning">{{ dataList.length }} triệu chứng</span>
+          <div class="picker-search list-search">
+            <svg class="search-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2" />
+              <path d="m17 17-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <input
+              v-model="searchQuery"
+              type="search"
+              class="search-input search-input--icon"
+              placeholder="Tìm triệu chứng, thể bệnh, bài thuốc, bệnh Tây Y..."
+              autocomplete="off"
+            />
+            <button
+              v-if="searchQuery"
+              type="button"
+              class="search-clear"
+              aria-label="Xóa tìm kiếm"
+              @click="searchQuery = ''"
+            >×</button>
+          </div>
+          <span class="badge badge-warning">{{ filteredList.length }}<template v-if="searchQuery">/{{ dataList.length }}</template> triệu chứng</span>
         </div>
         <div class="table-responsive">
           <table class="data-table">
@@ -338,7 +379,9 @@ const unexplainedSymptoms = computed<DiagnosisMatchedSymptom[]>(() => {
             </thead>
             <tbody>
               <tr v-if="pagedList.length === 0">
-                <td colspan="6" class="text-center py-8 text-gray-500">Chưa có dữ liệu</td>
+                <td colspan="6" class="text-center py-8 text-gray-500">
+                  {{ searchQuery ? `Không tìm thấy triệu chứng khớp "${searchQuery}"` : 'Chưa có dữ liệu' }}
+                </td>
               </tr>
               <tr v-for="item in pagedList" :key="item.id">
                 <td>#{{ item.id }}</td>
@@ -699,8 +742,9 @@ const unexplainedSymptoms = computed<DiagnosisMatchedSymptom[]>(() => {
 }
 
 .data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: var(--space-6); }
-.card-header { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); }
+.card-header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-4) var(--space-5); background: var(--brown-50); border-bottom: 1px solid var(--brown-100); }
 .card-header h3 { font-size: var(--font-size-lg); font-weight: 700; color: var(--brown-900); margin: 0; }
+.list-search { flex: 1 1 240px; max-width: 420px; }
 
 .table-responsive { width: 100%; overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; }

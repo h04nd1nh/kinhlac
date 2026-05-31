@@ -264,6 +264,16 @@ interface PhapTriSearchRow {
   bai_thuoc?: { id: number; ten_bai_thuoc: string } | null
   bai_thuoc_links?: { idBaiThuoc: number; thuTu: number; baiThuoc?: { id: number; ten_bai_thuoc: string } | null }[]
 }
+interface PtmBenhTayYLite {
+  id: number
+  ten_benh: string
+  chungBenh?: { id: number; ten_chung_benh: string } | null
+}
+interface PtmBenhTayYGroup {
+  key: string
+  chungBenhName: string
+  items: PtmBenhTayYLite[]
+}
 
 const showPhapTriModal = ref(false)
 const phapTriModalContext = ref('')
@@ -272,6 +282,7 @@ const phapTriResults = ref<PhapTriSearchRow[]>([])
 const phapTriTotal = ref(0)
 const phapTriLoading = ref(false)
 const phapTriError = ref<string | null>(null)
+const phapTriBenhTayYMap = ref<Record<number, PtmBenhTayYLite[]>>({})
 let phapTriSearchTimer: ReturnType<typeof setTimeout> | null = null
 let suppressPhapTriWatch = false
 
@@ -295,11 +306,13 @@ async function runPhapTriSearch() {
     )
     phapTriResults.value = res?.data ?? []
     phapTriTotal.value = Number(res?.total ?? 0)
+    phapTriBenhTayYMap.value = res?.relatedBenhTayYByPtId ?? {}
   } catch (err: any) {
     console.error(err)
     phapTriError.value = 'Lỗi khi tìm pháp trị: ' + (err.message || String(err))
     phapTriResults.value = []
     phapTriTotal.value = 0
+    phapTriBenhTayYMap.value = {}
   } finally {
     phapTriLoading.value = false
   }
@@ -330,6 +343,36 @@ function ptBaiThuocLabels(row: PhapTriSearchRow): string[] {
   if (row.bai_thuoc?.ten_bai_thuoc) return [row.bai_thuoc.ten_bai_thuoc]
   return []
 }
+function ptBenhTayYGroups(ptId: number): PtmBenhTayYGroup[] {
+  const list = phapTriBenhTayYMap.value[ptId] ?? []
+  const groups = new Map<string, PtmBenhTayYGroup>()
+  for (const bty of list) {
+    const name = bty.chungBenh?.ten_chung_benh?.trim() || 'Khác'
+    const key = bty.chungBenh?.id != null ? `cb-${bty.chungBenh.id}` : `name-${name.toLowerCase()}`
+    const g = groups.get(key) ?? { key, chungBenhName: name, items: [] }
+    g.items.push(bty)
+    groups.set(key, g)
+  }
+  return Array.from(groups.values()).sort((a, b) =>
+    a.chungBenhName.localeCompare(b.chungBenhName, 'vi'),
+  )
+}
+function ptHasTayY(pt: PhapTriSearchRow): boolean {
+  return (phapTriBenhTayYMap.value[pt.id]?.length ?? 0) > 0
+}
+/** Tách kết quả thành 2 cột: Tây Y (pháp trị có liên kết bệnh Tây Y) và Đông Y (phần còn lại). */
+const phapTriColumns = computed(() => {
+  const dongY: PhapTriSearchRow[] = []
+  const tayY: PhapTriSearchRow[] = []
+  for (const pt of phapTriResults.value) {
+    if (ptHasTayY(pt)) tayY.push(pt)
+    else dongY.push(pt)
+  }
+  return [
+    { key: 'dongy', title: 'Đông Y', cls: 'ptm-col__title--dongy', items: dongY },
+    { key: 'tayy', title: 'Tây Y', cls: 'ptm-col__title--tayy', items: tayY },
+  ]
+})
 
 function phuongHuyetDisplayLabel(row: PhacDoApiRow): string {
   const h = row.huyetVi
@@ -1650,36 +1693,61 @@ function footerDiffClassMerged() {
             <p class="ptm-count">
               {{ phapTriResults.length }}<span v-if="phapTriTotal > phapTriResults.length"> / {{ phapTriTotal }}</span> kết quả
             </p>
-            <a
-              v-for="pt in phapTriResults"
-              :key="pt.id"
-              :href="phapTriHref(pt.id)"
-              target="_blank"
-              rel="noopener"
-              class="ptm-card"
-              :title="`Mở pháp trị #${pt.id}`"
-            >
-              <div class="ptm-card__head">
-                <span class="ptm-card__id">#{{ pt.id }}</span>
-                <span class="ptm-card__name">{{ pt.chung_trang || 'Pháp trị #' + pt.id }}</span>
-                <span class="ptm-card__open">Mở ↗</span>
+            <div class="ptm-cols">
+              <div v-for="col in phapTriColumns" :key="col.key" class="ptm-col">
+                <h4 class="ptm-col__title" :class="col.cls">
+                  <span class="ptm-col__dot"></span>
+                  {{ col.title }}
+                  <span class="ptm-col__count">{{ col.items.length }}</span>
+                </h4>
+                <p v-if="!col.items.length" class="ptm-col__empty">Không có pháp trị.</p>
+                <article v-for="pt in col.items" :key="pt.id" class="ptm-card">
+                  <div class="ptm-card__head">
+                    <span class="ptm-card__id">#{{ pt.id }}</span>
+                    <a
+                      :href="phapTriHref(pt.id)"
+                      target="_blank"
+                      rel="noopener"
+                      class="ptm-card__name"
+                      :title="`Mở pháp trị #${pt.id}`"
+                    >{{ pt.chung_trang || 'Pháp trị #' + pt.id }}</a>
+                    <a :href="phapTriHref(pt.id)" target="_blank" rel="noopener" class="ptm-card__open">Mở ↗</a>
+                  </div>
+                  <p v-if="pt.nguyen_tac" class="ptm-card__phap">
+                    <span class="ptm-card__phap-label">Pháp trị:</span> {{ pt.nguyen_tac }}
+                  </p>
+                  <div v-if="(pt.kinh_mach_list || []).length" class="ptm-row">
+                    <span class="ptm-row__label">Tạng phủ</span>
+                    <span v-for="k in pt.kinh_mach_list" :key="k.idKinhMach" class="ptm-tag ptm-tag--tang">{{ ptKinhMachLabel(k) }}</span>
+                  </div>
+                  <div v-if="(pt.trieu_chung_list || []).length" class="ptm-row">
+                    <span class="ptm-row__label">Triệu chứng</span>
+                    <span v-for="t in pt.trieu_chung_list" :key="t.id" class="ptm-tag ptm-tag--trieu">{{ t.ten_trieu_chung }}</span>
+                  </div>
+                  <div v-if="ptBaiThuocLabels(pt).length" class="ptm-row">
+                    <span class="ptm-row__label">Bài thuốc</span>
+                    <span v-for="(b, bi) in ptBaiThuocLabels(pt)" :key="bi" class="ptm-tag ptm-tag--bai">{{ b }}</span>
+                  </div>
+                  <div v-if="ptBenhTayYGroups(pt.id).length" class="ptm-row ptm-row--tayy">
+                    <span class="ptm-row__label">Bệnh Tây Y</span>
+                    <div class="ptm-bty-groups">
+                      <div v-for="g in ptBenhTayYGroups(pt.id)" :key="g.key" class="ptm-bty-group">
+                        <span class="ptm-bty-group__label">{{ g.chungBenhName }}</span>
+                        <a
+                          v-for="bty in g.items"
+                          :key="bty.id"
+                          :href="benhTayYHref(bty.id)"
+                          target="_blank"
+                          rel="noopener"
+                          class="ptm-tag ptm-tag--tayy"
+                          :title="`Mở bệnh Tây Y: ${bty.ten_benh}`"
+                        >{{ bty.ten_benh }}</a>
+                      </div>
+                    </div>
+                  </div>
+                </article>
               </div>
-              <p v-if="pt.nguyen_tac" class="ptm-card__phap">
-                <span class="ptm-card__phap-label">Pháp trị:</span> {{ pt.nguyen_tac }}
-              </p>
-              <div v-if="(pt.kinh_mach_list || []).length" class="ptm-row">
-                <span class="ptm-row__label">Tạng phủ</span>
-                <span v-for="k in pt.kinh_mach_list" :key="k.idKinhMach" class="ptm-tag ptm-tag--tang">{{ ptKinhMachLabel(k) }}</span>
-              </div>
-              <div v-if="(pt.trieu_chung_list || []).length" class="ptm-row">
-                <span class="ptm-row__label">Triệu chứng</span>
-                <span v-for="t in pt.trieu_chung_list" :key="t.id" class="ptm-tag ptm-tag--trieu">{{ t.ten_trieu_chung }}</span>
-              </div>
-              <div v-if="ptBaiThuocLabels(pt).length" class="ptm-row">
-                <span class="ptm-row__label">Bài thuốc</span>
-                <span v-for="(b, bi) in ptBaiThuocLabels(pt)" :key="bi" class="ptm-tag ptm-tag--bai">{{ b }}</span>
-              </div>
-            </a>
+            </div>
           </template>
         </div>
       </div>
@@ -2496,7 +2564,7 @@ function footerDiffClassMerged() {
 .ptm-modal {
   background: var(--white);
   border-radius: var(--radius-xl);
-  width: 100%; max-width: 720px; max-height: 88vh;
+  width: 100%; max-width: 900px; max-height: 88vh;
   display: flex; flex-direction: column; overflow: hidden;
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.22);
 }
@@ -2526,13 +2594,27 @@ function footerDiffClassMerged() {
 .muted-italic { font-style: italic; }
 .ptm-count { margin: 0 0 var(--space-3); font-size: 12px; font-weight: 600; color: var(--gray-500); }
 
+/* 2 cột Đông Y / Tây Y trong popup */
+.ptm-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); align-items: start; }
+.ptm-col { min-width: 0; }
+.ptm-col__title { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--space-3); padding: 4px 0 6px; font-size: var(--font-size-sm); font-weight: 700; color: var(--gray-800); border-bottom: 1px solid var(--gray-200); position: sticky; top: -1px; background: #fdfbf9; z-index: 1; }
+.ptm-col__dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.ptm-col__title--dongy .ptm-col__dot { background: #10b981; }
+.ptm-col__title--tayy .ptm-col__dot { background: #86198f; }
+.ptm-col__count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; font-size: 10px; font-weight: 700; background: var(--gray-100); color: var(--gray-600); }
+.ptm-col__title--dongy .ptm-col__count { background: #d1fae5; color: #047857; }
+.ptm-col__title--tayy .ptm-col__count { background: #fae8ff; color: #86198f; }
+.ptm-col__empty { margin: 0; padding: var(--space-2) 0; color: var(--gray-400); font-style: italic; font-size: var(--font-size-sm); }
+
 .ptm-card { display: block; text-decoration: none; color: inherit; background: var(--white); border: 1px solid var(--brown-100); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); box-shadow: 0 1px 2px rgba(74, 47, 23, 0.04); transition: box-shadow var(--transition-fast, 0.15s), border-color var(--transition-fast, 0.15s), transform var(--transition-fast, 0.15s); }
 .ptm-card:last-child { margin-bottom: 0; }
 .ptm-card:hover { box-shadow: 0 6px 16px rgba(74, 47, 23, 0.1); border-color: var(--brown-300); transform: translateY(-1px); }
 .ptm-card__head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .ptm-card__id { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--brown-700); background: var(--brown-50); border: 1px solid var(--brown-200); padding: 1px 7px; border-radius: 999px; }
-.ptm-card__name { flex: 1; min-width: 0; font-weight: 700; color: var(--brown-900); font-size: var(--font-size-md); word-break: break-word; }
-.ptm-card__open { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--brown-600); }
+.ptm-card__name { flex: 1; min-width: 0; font-weight: 700; color: var(--brown-900); font-size: var(--font-size-md); word-break: break-word; text-decoration: none; }
+.ptm-card__name:hover { text-decoration: underline; }
+.ptm-card__open { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--brown-600); text-decoration: none; }
+.ptm-card__open:hover { color: var(--brown-800); text-decoration: underline; }
 .ptm-card__phap { margin: 6px 0 0; font-size: var(--font-size-sm); color: var(--gray-700); line-height: 1.5; }
 .ptm-card__phap-label { font-weight: 700; color: var(--brown-700); }
 .ptm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 6px; }
@@ -2541,6 +2623,14 @@ function footerDiffClassMerged() {
 .ptm-tag--tang { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
 .ptm-tag--trieu { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 .ptm-tag--bai { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+
+/* Bệnh Tây Y — gộp theo chủng bệnh, giống section pháp trị */
+.ptm-row--tayy { align-items: flex-start; }
+.ptm-bty-groups { display: flex; flex-wrap: wrap; gap: 6px; }
+.ptm-bty-group { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 5px; padding: 3px 8px; background: #fdf4ff; border: 1px solid #f5d0fe; border-radius: var(--radius-md); }
+.ptm-bty-group__label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #86198f; white-space: nowrap; }
+.ptm-tag--tayy { background: #fdf4ff; color: #86198f; border-color: #f5d0fe; text-decoration: none; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.ptm-tag--tayy:hover { background: #fae8ff; border-color: #e9b8fb; }
 
 @media (max-width: 640px) {
   .ptm-modal { max-height: 92vh; }
