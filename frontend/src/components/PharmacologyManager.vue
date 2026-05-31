@@ -1282,7 +1282,7 @@ async function onImportFileChange(ev: Event) {
 .import-summary { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px var(--space-4); font-size: var(--font-size-sm); }
 .import-summary li { padding: 6px 0; border-bottom: 1px dashed var(--gray-100); color: var(--gray-700); }
 .import-summary strong { color: var(--brown-900); }
-.import-errors { margin-top: var(--space-4); padding: var(--space-3) var(--space-4); background: #fef2f2; border-radius: var(--radius-md); }
+.import-errors { margin-top: var(--space-4); padding: var(--space-3) var(--space-4); background: var(--danger-bg); border-radius: var(--radius-md); }
 .import-errors h4 { margin: 0 0 6px; color: var(--danger); font-size: var(--font-size-sm); }
 .import-errors ul { margin: 0; padding-left: 1.2em; max-height: 200px; overflow-y: auto; font-size: var(--font-size-xs); color: var(--gray-700); }
 
@@ -1377,8 +1377,8 @@ async function onImportFileChange(ev: Event) {
 .chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip-list.selected { padding: 8px; background: var(--gray-50); border-radius: var(--radius-md); min-height: 40px; margin-bottom: 8px; }
 .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: var(--radius-full); font-size: var(--font-size-xs); font-weight: 600; }
-.chip-vi { background: #e0f2fe; color: #075985; }
-.chip-ct { background: #fef3c7; color: #b45309; }
+.chip-vi { background: var(--chip-herb-bg); color: var(--chip-herb-fg); }
+.chip-ct { background: var(--warning-bg); color: var(--warning-fg); }
 .lieu-chip { display: inline-block; padding: 3px 10px; background: var(--brown-100); color: var(--brown-800); border-radius: var(--radius-full); font-size: var(--font-size-xs); font-weight: 700; }
 .chip.removable { padding-right: 4px; }
 .chip-x { background: rgba(0,0,0,.08); border-radius: 999px; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; }
@@ -1402,12 +1402,12 @@ async function onImportFileChange(ev: Event) {
 .btn-secondary:hover { background: var(--gray-200); }
 .icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); color: var(--gray-600); font-size: 15px; cursor: pointer; background: transparent; border: 0; transition: background .12s, color .12s; }
 .icon-btn:hover { background: var(--gray-100); color: var(--brown-700); }
-.icon-btn.danger:hover { background: #fef2f2; color: var(--danger); }
+.icon-btn.danger:hover { background: var(--danger-bg); color: var(--danger); }
 .icon-btn.ai {
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  background: linear-gradient(135deg, var(--ai-solid), var(--ai-solid-2));
   color: var(--white);
 }
-.icon-btn.ai:hover { filter: brightness(1.1); background: linear-gradient(135deg, #7c3aed, #4f46e5); color: var(--white); }
+.icon-btn.ai:hover { filter: brightness(1.1); background: linear-gradient(135deg, var(--ai-solid), var(--ai-solid-2)); color: var(--white); }
 .icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .row-actions { display: flex; gap: 4px; }
 
@@ -1417,7 +1417,7 @@ async function onImportFileChange(ev: Event) {
 .loading-state { display: flex; flex-direction: column; align-items: center; padding: var(--space-12) 0; color: var(--brown-600); }
 .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--brown-500); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: #fef2f2; border-radius: var(--radius-lg); }
+.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: var(--danger-bg); border-radius: var(--radius-lg); }
 
 /* Modal */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: var(--space-4); }
@@ -1450,8 +1450,8 @@ async function onImportFileChange(ev: Event) {
 .ai-error {
   margin: 0 0 var(--space-3);
   padding: 8px 12px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
   border-radius: var(--radius-md);
   color: var(--danger);
   font-size: var(--font-size-sm);
@@ -1462,13 +1462,13 @@ async function onImportFileChange(ev: Event) {
   justify-content: space-between;
   gap: var(--space-3);
   padding: 8px 12px;
-  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
-  border: 1px solid #ddd6fe;
+  background: var(--ai-bg);
+  border: 1px solid var(--ai-border);
   border-radius: var(--radius-md);
   margin-bottom: var(--space-3);
   flex-wrap: wrap;
 }
-.ai-summary-count { font-size: var(--font-size-sm); font-weight: 700; color: #6d28d9; }
+.ai-summary-count { font-size: var(--font-size-sm); font-weight: 700; color: var(--ai-fg); }
 .ai-summary-hint { font-size: 11px; color: var(--gray-600); }
 
 .ai-table {
@@ -1496,16 +1496,16 @@ async function onImportFileChange(ev: Event) {
   font-size: 12px;
   font-weight: 600;
   border-radius: var(--radius-sm);
-  border: 1px solid #c4b5fd;
-  background: #ede9fe;
-  color: #6d28d9;
+  border: 1px solid var(--ai-border);
+  background: var(--ai-bg);
+  color: var(--ai-fg);
   cursor: pointer;
   white-space: nowrap;
   transition: background .12s;
 }
 .btn-mini-apply:hover:not(:disabled) {
-  background: #ddd6fe;
-  border-color: #a78bfa;
+  background: var(--ai-bg);
+  border-color: var(--ai-solid);
 }
 .btn-mini-apply:disabled { opacity: 0.5; cursor: not-allowed; }
 .ai-select-all {
@@ -1521,7 +1521,7 @@ async function onImportFileChange(ev: Event) {
 .ai-select-all:hover:not(:disabled) { background: var(--brown-50); border-color: var(--brown-300); }
 .ai-select-all:disabled { opacity: 0.5; cursor: not-allowed; }
 .ai-table__head {
-  background: #fdfbf9;
+  background: var(--surface-2);
   border-bottom: 1px solid var(--gray-100);
   font-size: 10px;
   font-weight: 700;
@@ -1530,7 +1530,7 @@ async function onImportFileChange(ev: Event) {
   color: var(--gray-500);
 }
 .ai-table__row + .ai-table__row { border-top: 1px solid var(--gray-100); }
-.ai-table__row:hover { background: #fdfbf9; }
+.ai-table__row:hover { background: var(--surface-2); }
 .aic { min-width: 0; word-break: break-word; font-size: var(--font-size-sm); }
 .ai-select {
   width: 100%;

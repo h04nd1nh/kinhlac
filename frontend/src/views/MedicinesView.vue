@@ -3450,7 +3450,7 @@ async function suggestViThuocAi() {
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
 .search-wrap { position: relative; flex: 1; min-width: 240px; max-width: 520px; }
 .search-input { width: 100%; padding: var(--space-2) 32px var(--space-2) var(--space-3); border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: var(--font-size-md); background: var(--white); }
-.search-input:focus { outline: none; border-color: var(--brown-500); box-shadow: 0 0 0 3px rgba(146, 64, 14, 0.1); }
+.search-input:focus { outline: none; border-color: var(--brown-500); box-shadow: var(--focus-ring); }
 .filter-select {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--gray-200);
@@ -3466,7 +3466,7 @@ async function suggestViThuocAi() {
 .filter-select:focus {
   outline: none;
   border-color: var(--brown-500);
-  box-shadow: 0 0 0 3px rgba(146, 64, 14, 0.1);
+  box-shadow: var(--focus-ring);
 }
 .filter-select:disabled { opacity: 0.55; cursor: not-allowed; background: var(--gray-50); }
 .filter-clear {
@@ -3558,9 +3558,9 @@ async function suggestViThuocAi() {
   color: var(--brown-700);
 }
 .sub-sub-tab.active {
-  background: #fdf4ff;
-  color: #86198f;
-  border-color: #f5d0fe;
+  background: var(--brown-50);
+  color: var(--brown-800);
+  border-color: var(--brown-200);
 }
 .sub-sub-tab__count {
   display: inline-flex;
@@ -3576,7 +3576,7 @@ async function suggestViThuocAi() {
   font-weight: 700;
 }
 .sub-sub-tab.active .sub-sub-tab__count {
-  background: #86198f;
+  background: var(--brown-700);
   color: var(--white);
 }
 
@@ -3614,12 +3614,12 @@ async function suggestViThuocAi() {
   border-radius: 7px;
 }
 .sub-sub-tabs--alt .sub-sub-tab.active {
-  background: #ecfdf5;
-  color: #047857;
-  border-color: #a7f3d0;
+  background: var(--chip-pattern-bg);
+  color: var(--chip-pattern-fg);
+  border-color: var(--chip-pattern-border);
 }
 .sub-sub-tabs--alt .sub-sub-tab.active .sub-sub-tab__count {
-  background: #047857;
+  background: var(--chip-pattern-fg);
   color: var(--white);
 }
 .filter-clear-btn {
@@ -3643,7 +3643,7 @@ async function suggestViThuocAi() {
 .table-responsive { width: 100%; overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th, .data-table td { padding: var(--space-3) var(--space-5); text-align: left; border-bottom: 1px solid var(--gray-100); }
-.data-table th { background: #fdfbf9; font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
+.data-table th { background: var(--surface-2); font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
 .data-table tbody tr { transition: background 0.2s; }
 .data-table tbody tr:hover { background: var(--gray-50); }
 .data-table td { font-size: var(--font-size-md); color: var(--gray-800); vertical-align: top; }
@@ -3663,13 +3663,13 @@ async function suggestViThuocAi() {
 .text-gray-500 { color: var(--gray-500) !important; }
 
 .badge { display: inline-block; padding: 4px 10px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-.badge-info { background: #e0f2fe; color: #0369a1; }
-.badge-success { background: #d1fae5; color: #059669; }
+.badge-info { background: var(--info-bg); color: var(--info-fg); }
+.badge-success { background: var(--success-bg); color: var(--success-fg); }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.4; border: 1px solid transparent; }
-.chip-phap { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
-.chip-the { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.chip-phap { background: var(--chip-method-bg); color: var(--chip-method-fg); border-color: var(--chip-method-border); }
+.chip-the { background: var(--chip-pattern-bg); color: var(--chip-pattern-fg); border-color: var(--chip-pattern-border); }
 .chip-link-the,
 .chip-link-phap,
 .chip-link-tayy {
@@ -3677,20 +3677,20 @@ async function suggestViThuocAi() {
   cursor: pointer;
   transition: background-color 0.15s, border-color 0.15s, transform 0.05s;
 }
-.chip-link-phap:hover { background: #fde68a; border-color: #f59e0b; }
-.chip-link-the:hover { background: #d1fae5; border-color: #34d399; }
-.chip-link-tayy:hover { background: #fae8ff; border-color: #e9b8fb; }
+.chip-link-phap:hover { background: var(--chip-method-bg); border-color: var(--chip-method-fg); }
+.chip-link-the:hover { background: var(--chip-pattern-bg); border-color: var(--chip-pattern-fg); }
+.chip-link-tayy:hover { background: var(--chip-brand-bg); border-color: var(--chip-brand-fg); }
 .chip-link-the:active,
 .chip-link-phap:active,
 .chip-link-tayy:active { transform: translateY(1px); }
-.chip-trieu { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
-.chip-tayy { background: #fdf4ff; color: #86198f; border-color: #f5d0fe; }
+.chip-trieu { background: var(--chip-symptom-bg); color: var(--chip-symptom-fg); border-color: var(--chip-symptom-border); }
+.chip-tayy { background: var(--chip-brand-bg); color: var(--chip-brand-fg); border-color: var(--chip-brand-border); }
 .muted { color: var(--gray-400); font-style: italic; }
 
 /* Pháp trị + triệu chứng (triệu chứng nằm dưới pháp trị mà bài thuốc liên kết) */
 .phap-tri-list { display: flex; flex-direction: column; gap: 8px; }
 .phap-tri-item { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-.phap-tri-trieu { padding-left: 10px; border-left: 2px solid #bfdbfe; }
+.phap-tri-trieu { padding-left: 10px; border-left: 2px solid var(--chip-symptom-border); }
 
 .thanh-phan-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
 .thanh-phan-list li { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
@@ -3703,14 +3703,14 @@ async function suggestViThuocAi() {
   text-align: center;
   color: var(--gray-500);
   font-size: var(--font-size-md);
-  background: linear-gradient(180deg, #fff 0%, #fdfbf9 100%);
+  background: linear-gradient(180deg, #fff 0%, var(--surface-2) 100%);
 }
 .bt-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
-  background: #fdfbf9;
+  background: var(--surface-2);
 }
 .bt-card {
   display: flex;
@@ -3808,8 +3808,8 @@ async function suggestViThuocAi() {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  background: #fdf4ff;
-  border: 1px solid #f5d0fe;
+  background: var(--chip-brand-bg);
+  border: 1px solid var(--chip-brand-border);
   border-radius: var(--radius-md);
   max-width: 100%;
 }
@@ -3818,7 +3818,7 @@ async function suggestViThuocAi() {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #86198f;
+  color: var(--chip-brand-fg);
   white-space: nowrap;
 }
 .bty-group .chip-row { flex: 1 1 auto; min-width: 0; }
@@ -3838,7 +3838,7 @@ async function suggestViThuocAi() {
 }
 .bt-section--thanh-phan .thanh-phan-list {
   padding: 6px 10px;
-  background: #fdfbf9;
+  background: var(--surface-2);
   border: 1px solid var(--gray-100);
   border-radius: var(--radius-md);
   gap: 4px;
@@ -3861,7 +3861,7 @@ async function suggestViThuocAi() {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
-  background: #fdfbf9;
+  background: var(--surface-2);
 }
 .vt-card {
   display: flex;
@@ -4027,7 +4027,7 @@ async function suggestViThuocAi() {
   font-weight: 600;
 }
 
-.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: #fef2f2; border-radius: var(--radius-lg); }
+.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: var(--danger-bg); border-radius: var(--radius-lg); }
 
 /* Buttons */
 .btn-primary { padding: var(--space-2) var(--space-4); background: var(--brown-600); color: var(--white); border: none; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); cursor: pointer; transition: background var(--transition-fast); }
@@ -4037,10 +4037,10 @@ async function suggestViThuocAi() {
 .btn-secondary:hover:not(:disabled) { background: var(--gray-50); }
 .btn-danger { padding: var(--space-2) var(--space-4); background: var(--danger); color: var(--white); border: none; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); cursor: pointer; }
 .btn-danger:hover:not(:disabled) { background: #b91c1c; }
-.btn-ai { padding: var(--space-2) var(--space-4); background: linear-gradient(135deg, #7c3aed, #4f46e5); color: var(--white); border: none; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); cursor: pointer; transition: filter var(--transition-fast); }
+.btn-ai { padding: var(--space-2) var(--space-4); background: linear-gradient(135deg, var(--ai-solid), var(--ai-solid-2)); color: var(--white); border: none; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); cursor: pointer; transition: filter var(--transition-fast); }
 .btn-ai:hover:not(:disabled) { filter: brightness(1.08); }
 .btn-ai:disabled { opacity: 0.6; cursor: not-allowed; }
-.vt-ai-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-2) var(--space-3); background: #f5f3ff; border: 1px dashed #c4b5fd; border-radius: var(--radius-md); margin-bottom: var(--space-3); }
+.vt-ai-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-2) var(--space-3); background: var(--ai-bg); border: 1px dashed var(--ai-border); border-radius: var(--radius-md); margin-bottom: var(--space-3); }
 
 .vt-nhom-card {
   display: flex;
@@ -4082,10 +4082,10 @@ async function suggestViThuocAi() {
   font-weight: 600;
 }
 .vt-nhom-chip--ai {
-  background: linear-gradient(135deg, #ede9fe, #f5f3ff);
-  color: #6d28d9;
-  border-color: #c4b5fd;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
+  background: var(--ai-bg);
+  color: var(--ai-fg);
+  border-color: var(--ai-border);
+  box-shadow: 0 0 0 2px var(--ai-border);
 }
 .vt-ai-badge-mini {
   font-size: 11px;
@@ -4109,36 +4109,36 @@ async function suggestViThuocAi() {
 .vt-ai-nhom-reason {
   margin: 0;
   font-size: 12px;
-  color: #6d28d9;
-  background: #faf5ff;
-  border-left: 3px solid #a78bfa;
+  color: var(--ai-fg);
+  background: var(--ai-bg);
+  border-left: 3px solid var(--ai-solid);
   padding: 6px 10px;
   border-radius: var(--radius-sm);
   line-height: 1.45;
 }
-.vt-ai-nhom-reason strong { color: #5b21b6; }
+.vt-ai-nhom-reason strong { color: var(--ai-fg); }
 .vt-ai-hint { font-size: var(--font-size-xs); color: var(--gray-600); }
 .vt-km-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; background: var(--gray-50); border-radius: var(--radius-md); min-height: 36px; margin-bottom: 6px; }
 .vt-km-empty { color: var(--gray-400); font-size: var(--font-size-xs); padding: 4px 6px; }
-.vt-km-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: 999px; background: #dbeafe; color: #1e3a8a; font-size: var(--font-size-xs); font-weight: 600; }
+.vt-km-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--info-bg); color: var(--info-fg); font-size: var(--font-size-xs); font-weight: 600; }
 .vt-km-x { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(0,0,0,.08); font-size: 12px; line-height: 1; }
 .vt-km-x:hover { background: rgba(0,0,0,.18); }
 .vt-km-dropdown { margin-top: 4px; max-height: 200px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: var(--radius-md); background: var(--white); }
 .vt-km-option { display: block; width: 100%; text-align: left; padding: 8px 12px; font-size: var(--font-size-sm); cursor: pointer; }
 .vt-km-option:hover { background: var(--brown-50); }
 .vt-km-abbr { color: var(--gray-500); margin-left: 6px; font-size: var(--font-size-xs); }
-.vt-km-warn { margin: 8px 0 0; padding: 6px 10px; background: #fef3c7; color: #92400e; border-radius: var(--radius-sm); font-size: var(--font-size-xs); }
+.vt-km-warn { margin: 8px 0 0; padding: 6px 10px; background: var(--warning-bg); color: var(--warning-fg); border-radius: var(--radius-sm); font-size: var(--font-size-xs); }
 .mt-4 { margin-top: var(--space-4); }
 
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .btn-action { padding: 4px 10px; font-size: 12px; font-weight: 600; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--white); cursor: pointer; transition: all var(--transition-fast); }
 .btn-edit:hover { background: var(--brown-50); border-color: var(--brown-400); color: var(--brown-700); }
 .btn-delete { color: var(--danger); }
-.btn-delete:hover { background: #fef2f2; border-color: #fca5a5; }
+.btn-delete:hover { background: var(--danger-bg); border-color: var(--danger-border); }
 .btn-mini { padding: 4px 10px; font-size: 12px; font-weight: 600; border-radius: var(--radius-sm); border: 1px solid var(--brown-300); background: var(--brown-50); color: var(--brown-700); cursor: pointer; }
 .btn-mini:hover { background: var(--brown-100); }
-.btn-mini-danger { border-color: #fca5a5; background: #fef2f2; color: var(--danger); }
-.btn-mini-danger:hover { background: #fee2e2; }
+.btn-mini-danger { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger); }
+.btn-mini-danger:hover { background: var(--danger-bg); }
 
 /* Modal */
 .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); display: flex; align-items: center; justify-content: center; z-index: 200; padding: var(--space-4); }
@@ -4152,14 +4152,14 @@ async function suggestViThuocAi() {
 .modal-body { padding: var(--space-5); overflow-y: auto; flex: 1; }
 .modal-footer { display: flex; gap: var(--space-2); justify-content: flex-end; padding: var(--space-4) var(--space-5); border-top: 1px solid var(--gray-100); background: var(--gray-50); }
 
-.form-error { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); margin-bottom: var(--space-3); font-size: var(--font-size-sm); }
+.form-error { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); margin-bottom: var(--space-3); font-size: var(--font-size-sm); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field--full { grid-column: 1 / -1; }
 .field > span, .field-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-700); }
 
 .input { width: 100%; padding: var(--space-2) var(--space-3); border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: var(--font-size-md); font-family: inherit; background: var(--white); }
-.input:focus { outline: none; border-color: var(--brown-500); box-shadow: 0 0 0 3px rgba(146, 64, 14, 0.1); }
+.input:focus { outline: none; border-color: var(--brown-500); box-shadow: var(--focus-ring); }
 .input[readonly], .input:disabled { background: var(--gray-100); color: var(--gray-600); cursor: not-allowed; }
 .input--sm { padding: 6px 10px; font-size: 13px; }
 
@@ -4245,8 +4245,8 @@ async function suggestViThuocAi() {
 .summary-item { display: flex; flex-direction: column; align-items: center; padding: 10px; background: var(--gray-50); border-radius: var(--radius-md); border: 1px solid var(--gray-200); }
 .summary-label { font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; }
 .summary-value { font-size: 22px; font-weight: 700; color: var(--gray-800); margin-top: 4px; }
-.summary-value-success { color: #059669; }
-.summary-value-info { color: #0369a1; }
+.summary-value-success { color: var(--success-fg); }
+.summary-value-info { color: var(--info-fg); }
 .summary-value-error { color: var(--danger); }
 
 .import-section { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--gray-200); }
@@ -4257,12 +4257,12 @@ async function suggestViThuocAi() {
 .missing-list li:last-child { border-bottom: none; }
 .missing-name { color: var(--gray-800); font-weight: 500; }
 .missing-rows { color: var(--gray-500); font-size: 12px; white-space: nowrap; }
-.badge-warn { background: #fef3c7; color: #92400e; }
-.badge-error { background: #fee2e2; color: var(--danger); }
+.badge-warn { background: var(--warning-bg); color: var(--warning-fg); }
+.badge-error { background: var(--danger-bg); color: var(--danger); }
 
 /* ─── Phân tích bài thuốc ─── */
-.btn-analyze { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
-.btn-analyze:hover { background: #fde68a; border-color: #f59e0b; color: #78350f; }
+.btn-analyze { background: var(--warning-bg); border-color: var(--warning-border); color: var(--warning-fg); }
+.btn-analyze:hover { background: var(--warning-bg); border-color: var(--warning-fg); color: var(--warning-fg); }
 
 .ana-overlay { padding: var(--space-2); }
 .ana-modal {
@@ -4430,7 +4430,7 @@ async function suggestViThuocAi() {
 .ana-vt-gram input:focus {
   outline: none;
   border-color: var(--brown-500);
-  box-shadow: 0 0 0 2px rgba(146, 64, 14, 0.12);
+  box-shadow: var(--focus-ring);
 }
 .ana-vt-pct { text-align: center; color: var(--gray-600); }
 .ana-vt-role { text-align: center; }
@@ -4466,6 +4466,6 @@ async function suggestViThuocAi() {
 .ana-chip-cong { border-color: #D4C5A0; background: #F5F0E8; color: #5B3A1A; }
 .ana-chip-kk { border-color: #E8A598; background: #FDF5F3; color: #7A2E23; }
 .ana-chip-tacdung { border-color: #C49A6C; background: #FAEBD8; color: #5B3A1A; }
-.ana-chip-tayy { border-color: #f5d0fe; background: #fdf4ff; color: #86198f; }
+.ana-chip-tayy { border-color: var(--chip-brand-border); background: var(--chip-brand-bg); color: var(--chip-brand-fg); }
 .ana-sub-hint { font-weight: 400; color: var(--gray-400); font-size: 10px; }
 </style>

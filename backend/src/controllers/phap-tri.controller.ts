@@ -76,6 +76,7 @@ export class PhapTriService {
     limit: number;
     statsByCategory: { all: number; 'dong-y': number; 'tay-y': number };
     relatedBenhTayYByPtId: Record<number, Array<{ id: number; ten_benh: string; chungBenh: { id: number; ten_chung_benh: string } | null }>>;
+    theBenhByPtId: Record<number, string[]>;
     tayYChungBenhStats: Array<{ id: number; name: string; count: number }>;
     tangPhuStats: Array<{ id: number; name: string; count: number }>;
     tonThuongStats: Array<{ id: number; name: string; count: number }>;
@@ -221,6 +222,27 @@ export class PhapTriService {
       }
     }
 
+    // Thể bệnh (thực thể the_benh) dẫn xuất theo pháp trị: pt → benh_dong_y_phap_tri → the_benh.id_benh.
+    // Dùng cho "Thể Bệnh → Triệu Chứng" trên card; frontend fallback về chung_trang (text) nếu rỗng.
+    const theBenhByPtId: Record<number, string[]> = {};
+    if (data.length) {
+      const ptIds = data.map((x) => x.id);
+      const tbRows: Array<{ pt_id: number; ten_the_benh: string }> = await this.repo.query(
+        `SELECT DISTINCT bdpt.id_phap_tri AS pt_id, tbe.ten_the_benh
+         FROM benh_dong_y_phap_tri bdpt
+         JOIN the_benh tbe ON tbe.id_benh = bdpt.id_benh_dong_y
+         WHERE bdpt.id_phap_tri = ANY($1)
+         ORDER BY tbe.ten_the_benh`,
+        [ptIds],
+      );
+      for (const r of tbRows) {
+        const k = Number(r.pt_id);
+        const arr = theBenhByPtId[k] ?? [];
+        arr.push(r.ten_the_benh);
+        theBenhByPtId[k] = arr;
+      }
+    }
+
     // Stats theo chủng bệnh Tây Y (toàn DB, không lệ thuộc page) — để render sub-sub-tabs.
     const cbStatsRows: Array<{ cb_id: number; cb_name: string; cnt: number }> = await this.repo.query(
       `WITH related AS (
@@ -322,6 +344,7 @@ export class PhapTriService {
         'tay-y': totalTayY,
       },
       relatedBenhTayYByPtId,
+      theBenhByPtId,
       tayYChungBenhStats,
       tangPhuStats,
       tonThuongStats,
@@ -498,6 +521,36 @@ export class PhapTriService {
     await this.repo.save(item);
   }
 
+  /**
+   * Sinh lại bảng cache `trieu_chung_bai_thuoc_phap_tri` (Triệu Chứng ↔ Bài Thuốc dẫn xuất QUA Pháp Trị)
+   * cho tập triệu chứng bị ảnh hưởng bởi một thao tác Pháp Trị.
+   *
+   * Bảng cache do hàm này SỞ HỮU hoàn toàn: xoá sạch các hàng của những triệu chứng bị ảnh hưởng rồi
+   * tính lại từ trạng thái HIỆN TẠI (phap_tri_trieu_chung × bài thuốc của cùng pháp trị). Phải gọi SAU khi
+   * trieu_chung_list (m2m) và bai_thuoc_links đã được lưu. KHÔNG đụng tới `bai_thuoc_trieu_chung` (curated).
+   */
+  private async syncDerivedTrieuChungBaiThuoc(tcIds: number[]): Promise<void> {
+    const ids = [...new Set(tcIds.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0))];
+    if (ids.length === 0) return;
+    await this.repo.query(
+      `DELETE FROM trieu_chung_bai_thuoc_phap_tri WHERE id_trieu_chung = ANY($1)`,
+      [ids],
+    );
+    await this.repo.query(
+      `INSERT INTO trieu_chung_bai_thuoc_phap_tri (id_trieu_chung, id_bai_thuoc)
+       SELECT DISTINCT ptc.id_trieu_chung, src.id_bai_thuoc
+       FROM phap_tri_trieu_chung ptc
+       JOIN (
+         SELECT id_phap_tri, id_bai_thuoc FROM bai_thuoc_phap_tri
+         UNION
+         SELECT id AS id_phap_tri, id_bai_thuoc FROM phap_tri WHERE id_bai_thuoc IS NOT NULL
+       ) src ON src.id_phap_tri = ptc.id_phap_tri
+       WHERE ptc.id_trieu_chung = ANY($1)
+       ON CONFLICT DO NOTHING`,
+      [ids],
+    );
+  }
+
   async create(dto: CreatePhapTriDto): Promise<PhapTri> {
     const theBenh = PhapTriService.readTheBenh(dto);
     const entity = this.repo.create({
@@ -528,11 +581,14 @@ export class PhapTriService {
       throw e;
     }
     await this.syncPhapTriBaiThuocLinks(entity.id, dto, 'create');
+    await this.syncDerivedTrieuChungBaiThuoc((entity.trieu_chung_list ?? []).map((t) => t.id));
     return this.findOne(entity.id);
   }
 
   async update(id: number, dto: UpdatePhapTriDto): Promise<PhapTri> {
     const item = await this.findOne(id);
+    // Triệu chứng TRƯỚC khi sửa (applyRefs sẽ ghi đè item.trieu_chung_list) — để tính lại cache cho cả cũ ∪ mới.
+    const oldTcIds = (item.trieu_chung_list ?? []).map((t) => t.id);
     const theBenh = PhapTriService.readTheBenh(dto);
     if (theBenh !== undefined) item.chung_trang = theBenh;
     if (dto.nguyen_tac !== undefined) item.nguyen_tac = dto.nguyen_tac;
@@ -558,11 +614,16 @@ export class PhapTriService {
       throw e;
     }
     await this.syncPhapTriBaiThuocLinks(id, dto, 'update');
+    const newTcIds = (item.trieu_chung_list ?? []).map((t) => t.id);
+    await this.syncDerivedTrieuChungBaiThuoc([...oldTcIds, ...newTcIds]);
     return this.findOne(id);
   }
 
   async remove(id: number): Promise<void> {
     const item = await this.findOne(id);
+    const tcIds = (item.trieu_chung_list ?? []).map((t) => t.id);
     await this.repo.remove(item);
+    // Pháp trị (cùng junction phap_tri_trieu_chung / bai_thuoc_phap_tri) đã bị xoá → tính lại cache cho các triệu chứng cũ.
+    await this.syncDerivedTrieuChungBaiThuoc(tcIds);
   }
 }

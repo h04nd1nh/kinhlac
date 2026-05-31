@@ -387,7 +387,7 @@ async function handleDelete() {
 .table-responsive { width: 100%; overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th, .data-table td { padding: var(--space-3) var(--space-4); text-align: left; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
-.data-table th { background: #fdfbf9; font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
+.data-table th { background: var(--surface-2); font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
 .data-table tbody tr:hover { background: var(--gray-50); }
 .data-table td { font-size: var(--font-size-md); color: var(--gray-800); }
 .cell-id { color: var(--gray-500); font-weight: 600; font-size: var(--font-size-sm); }
@@ -405,7 +405,7 @@ async function handleDelete() {
 }
 .btn-edit:hover { background: var(--brown-50); border-color: var(--brown-400); color: var(--brown-700); }
 .btn-delete { color: var(--danger); }
-.btn-delete:hover { background: #fef2f2; border-color: #fca5a5; }
+.btn-delete:hover { background: var(--danger-bg); border-color: var(--danger-border); }
 
 .pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-4); background: var(--gray-50); border-top: 1px solid var(--gray-100); }
 .page-btn { min-width: 32px; height: 32px; padding: 0 8px; display: flex; align-items: center; justify-content: center; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-600); cursor: pointer; transition: all var(--transition-fast); }
@@ -422,12 +422,12 @@ async function handleDelete() {
 .text-gray-500 { color: var(--gray-500) !important; }
 
 .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-.badge-success { background: #d1fae5; color: #059669; }
+.badge-success { background: var(--success-bg); color: var(--success-fg); }
 
 .loading-state { display: flex; flex-direction: column; align-items: center; padding: var(--space-12) 0; color: var(--brown-600); }
 .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--brown-500); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: #fef2f2; border-radius: var(--radius-lg); }
+.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: var(--danger-bg); border-radius: var(--radius-lg); }
 
 .modal-overlay {
   position: fixed; inset: 0;
@@ -459,7 +459,7 @@ async function handleDelete() {
   background: var(--gray-50);
 }
 
-.form-error { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); margin-bottom: var(--space-3); font-size: var(--font-size-sm); }
+.form-error { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); margin-bottom: var(--space-3); font-size: var(--font-size-sm); }
 
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
 .field { display: flex; flex-direction: column; gap: 4px; }
@@ -475,7 +475,7 @@ async function handleDelete() {
   font-size: var(--font-size-md);
   font-family: inherit;
 }
-.input:focus { outline: none; border-color: var(--brown-500); box-shadow: 0 0 0 3px rgba(146, 64, 14, 0.1); }
+.input:focus { outline: none; border-color: var(--brown-500); box-shadow: var(--focus-ring); }
 
 .textarea {
   width: 100%;
@@ -487,7 +487,7 @@ async function handleDelete() {
   resize: vertical;
   min-height: 80px;
 }
-.textarea:focus { outline: none; border-color: var(--brown-500); box-shadow: 0 0 0 3px rgba(146, 64, 14, 0.1); }
+.textarea:focus { outline: none; border-color: var(--brown-500); box-shadow: var(--focus-ring); }
 
 .muted { color: var(--gray-400); font-style: italic; }
 .note-cell {

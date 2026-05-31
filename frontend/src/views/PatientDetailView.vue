@@ -320,8 +320,8 @@ function getAge(dob: string | null) {
 .exam-tags{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-bottom:var(--space-3)}
 .exam-tag{display:inline-block;padding:3px 10px;border-radius:var(--radius-full);font-size:var(--font-size-xs);font-weight:600}
 .tag--am-duong{background:var(--brown-100);color:var(--brown-700)}
-.tag--khi{background:#eff6ff;color:#2563eb}
-.tag--huyet{background:#fdf2f8;color:#db2777}
+.tag--khi{background:var(--info-bg);color:var(--info-fg)}
+.tag--huyet{background:var(--danger-bg);color:var(--danger-fg)}
 .exam-syndromes{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2);margin-bottom:var(--space-3)}
 .syndromes-label{font-size:var(--font-size-xs);color:var(--gray-500);font-weight:600}
 .syndrome-chip{display:inline-block;padding:2px 8px;border-radius:var(--radius-sm);background:var(--gray-100);color:var(--gray-700);font-size:var(--font-size-xs)}

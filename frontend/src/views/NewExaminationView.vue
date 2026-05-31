@@ -333,7 +333,7 @@ async function saveExamination() {
 .mt-4 { margin-top: var(--space-4); }
 .form-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-700); }
 .form-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); font-size: var(--font-size-sm); color: var(--black); transition: all var(--transition-fast); background: var(--white); outline: none; }
-.form-input:focus { border-color: var(--brown-500); box-shadow: 0 0 0 3px rgba(166, 114, 53, 0.1); }
+.form-input:focus { border-color: var(--brown-500); box-shadow: var(--focus-ring); }
 .form-input:disabled { background: var(--gray-50); color: var(--gray-500); cursor: not-allowed; }
 textarea.form-input { resize: vertical; min-height: 80px; }
 

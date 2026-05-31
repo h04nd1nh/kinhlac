@@ -180,7 +180,7 @@ async function deleteOverride(date: string) {
         <p class="page-subtitle">Thiết lập giờ mở cửa, slot khám và ngày đặc biệt</p>
       </div>
       <button class="btn btn-ghost" @click="router.push({ name: 'appointments' })">
-        ← Quay lại lịch khám
+        ← Quay lại Lịch Trị Liệu
       </button>
     </div>
 
@@ -343,8 +343,8 @@ async function deleteOverride(date: string) {
 .page-title { font-size: var(--font-size-2xl); font-weight: 800; color: var(--brown-800); margin-bottom: 4px; }
 .page-subtitle { color: var(--gray-500); font-size: var(--font-size-md); }
 
-.alert-error { padding: var(--space-3); background: #fee2e2; color: #991b1b; border-radius: var(--radius-md); margin-bottom: var(--space-4); }
-.alert-success { padding: var(--space-3); background: #d1fae5; color: #047857; border-radius: var(--radius-md); margin-bottom: var(--space-4); }
+.alert-error { padding: var(--space-3); background: var(--danger-bg); color: var(--danger-fg); border-radius: var(--radius-md); margin-bottom: var(--space-4); }
+.alert-success { padding: var(--space-3); background: var(--success-bg); color: var(--success-fg); border-radius: var(--radius-md); margin-bottom: var(--space-4); }
 
 .loading { padding: var(--space-6); text-align: center; color: var(--gray-500); }
 
@@ -386,12 +386,12 @@ async function deleteOverride(date: string) {
 .btn-secondary:hover:not(:disabled) { background: var(--brown-50); }
 .btn-ghost { background: transparent; color: var(--gray-600); }
 .btn-ghost:hover:not(:disabled) { background: var(--gray-100); }
-.btn-danger { background: #dc2626; color: var(--white); }
-.btn-danger:hover:not(:disabled) { background: #b91c1c; }
+.btn-danger { background: var(--danger); color: var(--white); }
+.btn-danger:hover:not(:disabled) { background: var(--danger-fg); }
 .btn-sm { padding: 4px 10px; font-size: var(--font-size-xs); }
 
 .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
-.badge-danger { background: #fee2e2; color: #991b1b; }
+.badge-danger { background: var(--danger-bg); color: var(--danger-fg); }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 200; }
 .modal { background: var(--white); border-radius: var(--radius-xl); padding: var(--space-5); width: 520px; max-width: 92vw; box-shadow: var(--shadow-xl); }

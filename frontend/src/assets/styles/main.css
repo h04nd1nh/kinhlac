@@ -1,56 +1,105 @@
 /* ============================================
    Design System – Y Học Cổ Truyền
-   Brown / White / Black theme
+   Brown / Cream / Warm-neutral theme (refined)
+   --------------------------------------------
+   - Tông Nâu/Kem giữ bản sắc Đông Y, làm hài hòa hơn.
+   - Gam trung tính ngả ấm (warm stone) để ăn nhập với nâu.
+   - Token ngữ nghĩa (surface/text/border/status/chip) để
+     toàn bộ view dùng chung, giảm màu hard-code "sặc sỡ".
+   - Nền tảng responsive: typography co giãn (clamp),
+     helper .table-scroll & tiện ích ẩn/hiện theo màn hình.
    ============================================ */
 
 :root {
-  /* ---- Brown palette ---- */
-  --brown-50:  #fdf8f1;
-  --brown-100: #f5e6d0;
-  --brown-200: #e8cda5;
-  --brown-300: #d4a76a;
-  --brown-400: #c08b42;
-  --brown-500: #a67235;
-  --brown-600: #8b5e2f;
-  --brown-700: #6f4b26;
-  --brown-800: #553a1e;
-  --brown-900: #3b2814;
+  /* ---- Brown palette (primary identity) ---- */
+  --brown-50:  #faf6ef;
+  --brown-100: #f1e7d6;
+  --brown-200: #e3cfb0;
+  --brown-300: #cfad78;
+  --brown-400: #bd9050;
+  --brown-500: #a4743a;
+  --brown-600: #8a5e28;  /* primary */
+  --brown-700: #6f4a22;
+  --brown-800: #54391d;
+  --brown-900: #3a2715;
+  /* r,g,b của primary (brown-600) — cho rgba() động; theme đổi giá trị này */
+  --primary-rgb: 138, 94, 40;
 
-  /* ---- Neutrals ---- */
+  /* ---- Neutrals (warm-tinted "stone" — harmonise with brown) ---- */
   --white:     #ffffff;
-  --gray-50:   #fafafa;
-  --gray-100:  #f5f5f5;
-  --gray-200:  #eeeeee;
-  --gray-300:  #e0e0e0;
-  --gray-400:  #bdbdbd;
-  --gray-500:  #9e9e9e;
-  --gray-600:  #757575;
-  --gray-700:  #616161;
-  --gray-800:  #424242;
-  --gray-900:  #212121;
-  --black:     #1a1a1a;
+  --gray-50:   #faf9f6;
+  --gray-100:  #f4f1ec;
+  --gray-200:  #e9e4dc;
+  --gray-300:  #dad3c8;
+  --gray-400:  #b9b0a2;
+  --gray-500:  #948b7d;
+  --gray-600:  #6f685c;
+  --gray-700:  #524c42;
+  --gray-800:  #38332b;
+  --gray-900:  #221f19;
+  --black:     #1c1812;
 
-  /* ---- Semantic ---- */
+  /* ---- Semantic surfaces / text / borders ---- */
+  --bg-app:         var(--gray-50);
+  --surface:        #ffffff;
+  --surface-2:      #fbf8f2;   /* warm off-white: card bg, table head, empty */
+  --surface-sunken: var(--gray-100);
+  --border:         var(--gray-200);
+  --border-strong:  var(--gray-300);
+  --border-brand:   var(--brown-200);
+
+  --text:           var(--gray-900);
+  --text-muted:     var(--gray-600);
+  --text-subtle:    var(--gray-500);
+  --text-brand:     var(--brown-800);
+
+  /* ---- Primary (brand) ---- */
   --primary:       var(--brown-600);
   --primary-light: var(--brown-400);
   --primary-dark:  var(--brown-800);
   --primary-bg:    var(--brown-50);
 
-  --danger:   #c0392b;
-  --success:  #27ae60;
-  --warning:  #e67e22;
-  --info:     #2980b9;
+  /* ---- Status (muted, earthy — fits warm theme) ---- */
+  --danger:   #b4452f;
+  --success:  #3f7d4e;
+  --warning:  #b9772a;
+  --info:     #2d6e8e;
+
+  --danger-bg:   #fbeae5;  --danger-border:  #f1c4b7;  --danger-fg:  #9a3620;
+  --success-bg:  #e9f1e8;  --success-border: #cadfc7;  --success-fg: #356a42;
+  --warning-bg:  #f8eed8;  --warning-border: #ead2a1;  --warning-fg: #8a5a1c;
+  --info-bg:     #e6f0f4;  --info-border:    #c3dbe5;  --info-fg:    #245c77;
+
+  /* ---- Chip palette (muted, earthy — replaces bright "rainbow") ---- */
+  --chip-brand-bg:   var(--brown-100); --chip-brand-fg:   var(--brown-800); --chip-brand-border:   var(--brown-200);
+  --chip-herb-bg:    #f4e7c7;          --chip-herb-fg:    #7a531b;          --chip-herb-border:    #e6cf9b; /* bài thuốc */
+  --chip-method-bg:  #f6e2cf;          --chip-method-fg:  #8a4a20;          --chip-method-border:  #ecc8a6; /* pháp trị */
+  --chip-pattern-bg: #e6efe3;          --chip-pattern-fg: #3c6647;          --chip-pattern-border: #cadfc7; /* thể bệnh / thiệt chẩn */
+  --chip-symptom-bg: #ece6f0;          --chip-symptom-fg: #574569;          --chip-symptom-border: #d8cce0; /* triệu chứng */
+  --chip-pulse-bg:   #e4ecf2;          --chip-pulse-fg:   #345a73;          --chip-pulse-border:   #c6d8e4; /* mạch chẩn */
+
+  /* ---- AI accent (softened indigo/plum — still "special", harmonised) ---- */
+  --ai-bg:      #efeaf4;
+  --ai-fg:      #5b4382;
+  --ai-border:  #d9cce8;
+  --ai-solid:   #6d579b;
+  --ai-solid-2: #574488;
+
+  /* ---- Focus ring (brand) — theo --primary-rgb để đổi cùng theme ---- */
+  --focus-ring: 0 0 0 3px rgba(var(--primary-rgb), .18);
 
   /* ---- Typography ---- */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-size-xs:   0.75rem;
   --font-size-sm:   0.875rem;
   --font-size-base: 1rem;
+  --font-size-md:   1rem;     /* alias used across views */
   --font-size-lg:   1.125rem;
   --font-size-xl:   1.25rem;
-  --font-size-2xl:  1.5rem;
-  --font-size-3xl:  1.875rem;
-  --font-size-4xl:  2.25rem;
+  /* Tiêu đề co giãn theo bề rộng màn hình (multi-screen) */
+  --font-size-2xl:  clamp(1.3rem, 1.12rem + 0.9vw, 1.5rem);
+  --font-size-3xl:  clamp(1.5rem, 1.2rem + 1.3vw, 1.875rem);
+  --font-size-4xl:  clamp(1.7rem, 1.3rem + 1.9vw, 2.25rem);
 
   /* ---- Spacing ---- */
   --space-1: 0.25rem;
@@ -71,11 +120,11 @@
   --radius-xl:  24px;
   --radius-full: 9999px;
 
-  /* ---- Shadows ---- */
-  --shadow-sm:  0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-  --shadow-md:  0 4px 12px rgba(0,0,0,.08);
-  --shadow-lg:  0 10px 30px rgba(0,0,0,.1);
-  --shadow-xl:  0 20px 50px rgba(0,0,0,.14);
+  /* ---- Shadows (warm-tinted, soft) ---- */
+  --shadow-sm:  0 1px 3px rgba(58, 39, 21, .06), 0 1px 2px rgba(58, 39, 21, .04);
+  --shadow-md:  0 4px 14px rgba(58, 39, 21, .08);
+  --shadow-lg:  0 12px 32px rgba(58, 39, 21, .10);
+  --shadow-xl:  0 22px 52px rgba(58, 39, 21, .14);
 
   /* ---- Transitions ---- */
   --transition-fast: 150ms cubic-bezier(.4,0,.2,1);
@@ -86,6 +135,9 @@
   --sidebar-width: 260px;
   --sidebar-collapsed-width: 72px;
   --header-height: 64px;
+
+  /* ---- Breakpoints (tham chiếu — CSS không dùng var trong @media) ----
+     wide ≥1280 · desktop ≤1280 · tablet-land ≤1024 · tablet ≤768 · phone ≤560 */
 }
 
 /* ============================================
@@ -104,13 +156,14 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   font-family: var(--font-family);
   font-size: var(--font-size-base);
-  color: var(--black);
-  background: var(--white);
+  color: var(--text);
+  background: var(--bg-app);
   line-height: 1.6;
   min-height: 100vh;
 }
@@ -142,6 +195,12 @@ img {
   display: block;
 }
 
+/* Accessible focus for keyboard users (không phá vỡ focus ring tuỳ biến) */
+:focus-visible {
+  outline: 2px solid var(--brown-500);
+  outline-offset: 2px;
+}
+
 /* ============================================
    Utility Classes
    ============================================ */
@@ -171,24 +230,55 @@ img {
   opacity: 0;
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ---- Responsive helpers (global) ---- */
+
+/* Bọc bảng nhiều cột để cuộn ngang mượt trên màn hình hẹp thay vì vỡ layout */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.table-scroll > table { min-width: max-content; }
+
+/* Ẩn/hiện theo màn hình */
+.u-hide-mobile { display: revert; }
+.u-only-mobile { display: none; }
+@media (max-width: 768px) {
+  .u-hide-mobile { display: none !important; }
+  .u-only-mobile { display: revert !important; }
 }
 
+/* Scrollbar styling (warm) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
 ::-webkit-scrollbar-track {
   background: var(--gray-100);
 }
-
 ::-webkit-scrollbar-thumb {
-  background: var(--gray-400);
+  background: var(--gray-300);
   border-radius: var(--radius-full);
+  border: 2px solid var(--gray-100);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-400);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-300) transparent;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--gray-500);
-}
+/* ============================================
+   Responsive root scaling (multi-screen)
+   --------------------------------------------
+   Thu nhỏ nhẹ thang rem trên màn hình nhỏ để toàn bộ
+   khoảng cách / cỡ chữ co lại đồng đều, gọn gàng hơn.
+   ============================================ */
+@media (max-width: 1024px) { html { font-size: 15.5px; } }
+@media (max-width: 768px)  { html { font-size: 15px; } }
+@media (max-width: 400px)  { html { font-size: 14.5px; } }
 
 /* ============================================
    Viết hoa chữ cái đầu (Title Case) cho toàn UI

@@ -385,8 +385,8 @@ function goToPatient(id: number) {
   <div class="appointments-page">
     <div class="page-header">
       <div>
-        <h1 class="page-title">Lịch khám</h1>
-        <p class="page-subtitle">Quản lý vé khám 45 phút theo ngày</p>
+        <h1 class="page-title">Lịch Trị Liệu</h1>
+        <p class="page-subtitle">Quản lý các lần trị liệu của bệnh nhân theo ngày</p>
       </div>
       <div class="header-actions">
         <button class="btn btn-secondary" @click="router.push({ name: 'schedule-config' })">
@@ -623,8 +623,8 @@ function goToPatient(id: number) {
 .page-subtitle { color: var(--gray-500); font-size: var(--font-size-md); }
 .header-actions { display: flex; gap: var(--space-2); }
 
-.alert-error { padding: var(--space-3); background: #fee2e2; color: #991b1b; border-radius: var(--radius-md); margin-bottom: var(--space-4); display: flex; justify-content: space-between; align-items: center; }
-.btn-link { background: transparent; color: #991b1b; text-decoration: underline; }
+.alert-error { padding: var(--space-3); background: var(--danger-bg); color: var(--danger-fg); border-radius: var(--radius-md); margin-bottom: var(--space-4); display: flex; justify-content: space-between; align-items: center; }
+.btn-link { background: transparent; color: var(--danger-fg); text-decoration: underline; }
 
 .layout { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); }
 @media(max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
@@ -677,7 +677,7 @@ function goToPatient(id: number) {
 /* Skeleton slot card */
 .slot-skeleton { background: var(--gray-50); border-color: var(--gray-200); pointer-events: none; min-height: 120px; }
 .skel-line {
-  background: linear-gradient(90deg, #eef0f2 0%, #f7f8fa 50%, #eef0f2 100%);
+  background: linear-gradient(90deg, var(--gray-200) 0%, var(--gray-100) 50%, var(--gray-200) 100%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.2s linear infinite;
   border-radius: 4px;
@@ -707,16 +707,16 @@ function goToPatient(id: number) {
 .cal-cell { min-height: 72px; border-right: 1px solid var(--gray-100); border-bottom: 1px solid var(--gray-100); padding: 4px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: background .15s; }
 .cal-cell:nth-child(7n) { border-right: none; }
 .cal-cell:hover { background: var(--brown-50); }
-.cal-cell.not-in-month { background: #fafafa; opacity: .55; }
+.cal-cell.not-in-month { background: var(--gray-50); opacity: .55; }
 .cal-cell.is-today .cell-date { color: var(--brown-700); font-weight: 800; }
 .cal-cell.is-selected { background: var(--brown-100); }
 .cal-cell.is-selected .cell-date { color: var(--brown-900); font-weight: 800; }
 .cell-date { font-size: var(--font-size-sm); color: var(--gray-700); }
 .cell-counts { display: flex; flex-wrap: wrap; gap: 2px; }
 .chip { font-size: 10px; padding: 1px 6px; border-radius: 999px; font-weight: 700; }
-.chip-open { background: #e0f2fe; color: #0369a1; }
-.chip-booked { background: #fef3c7; color: #b45309; }
-.chip-closed { background: #f3f4f6; color: #4b5563; }
+.chip-open { background: var(--info-bg); color: var(--info-fg); }
+.chip-booked { background: var(--warning-bg); color: var(--warning-fg); }
+.chip-closed { background: var(--surface-sunken); color: var(--text-muted); }
 
 .day-header { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--gray-200); background: var(--brown-50); }
 .day-title { font-size: var(--font-size-md); font-weight: 700; color: var(--brown-900); }
@@ -726,10 +726,10 @@ function goToPatient(id: number) {
 .stat { padding: var(--space-2); border-radius: var(--radius-md); text-align: center; }
 .stat-num { display: block; font-size: var(--font-size-xl); font-weight: 800; }
 .stat-label { display: block; font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 600; }
-.stat-open { background: #e0f2fe; color: #0369a1; }
-.stat-booked { background: #fef3c7; color: #b45309; }
-.stat-completed { background: #d1fae5; color: #047857; }
-.stat-closed { background: #f3f4f6; color: #4b5563; }
+.stat-open { background: var(--info-bg); color: var(--info-fg); }
+.stat-booked { background: var(--warning-bg); color: var(--warning-fg); }
+.stat-completed { background: var(--success-bg); color: var(--success-fg); }
+.stat-closed { background: var(--surface-sunken); color: var(--text-muted); }
 
 .day-actions { display: flex; gap: var(--space-2); padding: 0 var(--space-4) var(--space-3); }
 
@@ -738,11 +738,11 @@ function goToPatient(id: number) {
 
 .slots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-3); padding: 0 var(--space-4) var(--space-4); }
 .slot-card { padding: var(--space-3); border: 1px solid var(--gray-200); border-radius: var(--radius-md); display: flex; flex-direction: column; gap: var(--space-2); background: var(--white); }
-.slot-card.slot-open { border-color: #bae6fd; background: #f0f9ff; }
-.slot-card.slot-booked { border-color: #fcd34d; background: #fffbeb; }
-.slot-card.slot-completed { border-color: #6ee7b7; background: #ecfdf5; }
-.slot-card.slot-closed { background: #f9fafb; opacity: .7; }
-.slot-card.slot-cancelled { border-color: #fca5a5; background: #fef2f2; opacity: .8; }
+.slot-card.slot-open { border-color: var(--info-border); background: var(--info-bg); }
+.slot-card.slot-booked { border-color: var(--warning-border); background: var(--warning-bg); }
+.slot-card.slot-completed { border-color: var(--success-border); background: var(--success-bg); }
+.slot-card.slot-closed { background: var(--surface-sunken); opacity: .7; }
+.slot-card.slot-cancelled { border-color: var(--danger-border); background: var(--danger-bg); opacity: .8; }
 .slot-head { display: flex; justify-content: space-between; align-items: center; }
 .slot-time { font-weight: 800; font-size: var(--font-size-lg); color: var(--brown-800); }
 .slot-status { font-size: var(--font-size-xs); font-weight: 700; text-transform: uppercase; color: var(--gray-600); }
@@ -763,12 +763,12 @@ function goToPatient(id: number) {
 .btn-sm { padding: 4px 10px; border-radius: var(--radius-sm); font-size: var(--font-size-xs); font-weight: 700; cursor: pointer; }
 .btn-sm:disabled { opacity: .6; cursor: not-allowed; }
 .btn-sm.btn-primary { background: var(--brown-600); color: var(--white); }
-.btn-sm.btn-success { background: #059669; color: var(--white); }
-.btn-sm.btn-danger { background: #dc2626; color: var(--white); }
+.btn-sm.btn-success { background: var(--success); color: var(--white); }
+.btn-sm.btn-danger { background: var(--danger); color: var(--white); }
 .btn-sm.btn-ghost { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-300); }
 
 .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
-.badge-danger { background: #fee2e2; color: #991b1b; }
+.badge-danger { background: var(--danger-bg); color: var(--danger-fg); }
 
 /* Modal */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 200; }
@@ -780,4 +780,9 @@ function goToPatient(id: number) {
 .input:focus { outline: none; border-color: var(--brown-500); }
 .select-list { margin-top: 4px; height: auto; }
 .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-4); }
+
+@media(max-width: 560px) {
+  .day-stats { grid-template-columns: repeat(2, 1fr); }
+  .slots-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
 </style>

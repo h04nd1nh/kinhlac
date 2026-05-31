@@ -814,15 +814,15 @@ async function doDelete() {
                         class="chip chip-phap chip-link-phap"
                         :title="`Mở pháp trị: ${phapTriLabel(p)}`"
                       >{{ phapTriLabel(p) }}</a>
-                      <div
-                        v-if="phapTriTrieuChungList(p).length"
-                        class="chip-row chip-row--wrap phap-tri-trieu"
-                      >
-                        <span
-                          v-for="(t, j) in phapTriTrieuChungList(p)"
-                          :key="j"
-                          class="chip chip-trieu-pt"
-                        >{{ t }}</span>
+                      <div v-if="phapTriTrieuChungList(p).length" class="phap-tri-trieu">
+                        <span class="phap-tri-trieu__label">Triệu chứng</span>
+                        <div class="chip-row chip-row--wrap">
+                          <span
+                            v-for="(t, j) in phapTriTrieuChungList(p)"
+                            :key="j"
+                            class="chip chip-trieu-pt"
+                          >{{ t }}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1147,9 +1147,9 @@ async function doDelete() {
   color: var(--brown-700);
 }
 .sub-sub-tab.active {
-  background: #fdf4ff;
-  color: #86198f;
-  border-color: #f5d0fe;
+  background: var(--brown-50);
+  color: var(--brown-800);
+  border-color: var(--brown-200);
 }
 .sub-sub-tab__count {
   display: inline-flex;
@@ -1165,19 +1165,19 @@ async function doDelete() {
   font-weight: 700;
 }
 .sub-sub-tab.active .sub-sub-tab__count {
-  background: #86198f;
+  background: var(--brown-700);
   color: var(--white);
 }
 
 .loading-state { display: flex; flex-direction: column; align-items: center; padding: var(--space-12) 0; color: var(--brown-600); gap: var(--space-3); }
 .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--brown-500); border-radius: 50%; animation: spin .7s linear infinite; }
-.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: #fef2f2; border-radius: var(--radius-lg); }
+.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: var(--danger-bg); border-radius: var(--radius-lg); }
 
 .toolbar { display: flex; align-items: flex-end; gap: var(--space-3); margin-bottom: var(--space-4); flex-wrap: wrap; }
 .search-wrap { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 4px; }
 .search-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray-500); }
 .search-input { padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); background: var(--white); font-size: var(--font-size-sm); width: 100%; }
-.search-input:focus { outline: none; border-color: var(--brown-400); box-shadow: 0 0 0 3px rgba(161,98,7,0.12); }
+.search-input:focus { outline: none; border-color: var(--brown-400); box-shadow: var(--focus-ring); }
 .toolbar-count { font-size: var(--font-size-sm); color: var(--gray-500); font-weight: 600; align-self: center; }
 
 .data-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); position: relative; }
@@ -1198,7 +1198,7 @@ async function doDelete() {
   text-align: center;
   color: var(--gray-500);
   font-size: var(--font-size-md);
-  background: linear-gradient(180deg, #fff 0%, #fdfbf9 100%);
+  background: linear-gradient(180deg, #fff 0%, var(--surface-2) 100%);
 }
 
 .disease-grid {
@@ -1206,7 +1206,7 @@ async function doDelete() {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
-  background: #fdfbf9;
+  background: var(--surface-2);
 }
 .disease-grid--sm { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
 
@@ -1252,10 +1252,10 @@ async function doDelete() {
 .cell-tag { display: inline-block; padding: 2px 8px; background: var(--brown-50); border-radius: var(--radius-sm); font-family: ui-monospace, monospace; font-size: var(--font-size-sm); }
 
 .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.4; border: 1px solid transparent; }
-.chip-chungbenh { background: var(--brown-100); color: var(--brown-800); border-color: var(--brown-200); }
-.chip-bai { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
-.chip-phap { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
-.chip-the { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.chip-chungbenh { background: var(--chip-brand-bg); color: var(--chip-brand-fg); border-color: var(--chip-brand-border); }
+.chip-bai { background: var(--chip-herb-bg); color: var(--chip-herb-fg); border-color: var(--chip-herb-border); }
+.chip-phap { background: var(--chip-method-bg); color: var(--chip-method-fg); border-color: var(--chip-method-border); font-weight: 700; }
+.chip-the { background: var(--chip-pattern-bg); color: var(--chip-pattern-fg); border-color: var(--chip-pattern-border); }
 .chip-link-bai,
 .chip-link-the,
 .chip-link-phap {
@@ -1263,9 +1263,9 @@ async function doDelete() {
   cursor: pointer;
   transition: background-color 0.15s, border-color 0.15s, transform 0.05s;
 }
-.chip-link-bai:hover { background: #fde68a; border-color: #f59e0b; }
-.chip-link-phap:hover { background: #fed7aa; border-color: #f97316; }
-.chip-link-the:hover { background: #d1fae5; border-color: #34d399; }
+.chip-link-bai:hover { background: var(--chip-herb-bg); border-color: var(--chip-herb-fg); }
+.chip-link-phap:hover { background: var(--chip-method-bg); border-color: var(--chip-method-fg); }
+.chip-link-the:hover { background: var(--chip-pattern-bg); border-color: var(--chip-pattern-fg); }
 .chip-link-bai:active,
 .chip-link-the:active,
 .chip-link-phap:active { transform: translateY(1px); }
@@ -1279,7 +1279,7 @@ async function doDelete() {
   overflow: hidden;
 }
 .pt-tbl thead th {
-  background: #fdfbf9;
+  background: var(--surface-2);
   padding: 5px 10px;
   font-size: 10px;
   font-weight: 700;
@@ -1297,17 +1297,38 @@ async function doDelete() {
   word-break: break-word;
 }
 .pt-tbl tbody tr:first-child td { border-top: 0; }
-.pt-tbl tbody tr:hover { background: #fdfbf9; }
+.pt-tbl tbody tr:hover { background: var(--surface-2); }
 
-.chip-trieu { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
-.chip-trieu-pt { background: #fff7ed; color: #9a3412; border-color: #fed7aa; border-style: dashed; }
+.chip-trieu { background: var(--chip-symptom-bg); color: var(--chip-symptom-fg); border-color: var(--chip-symptom-border); }
+/* Triệu chứng lồng trong pháp trị: tím dễ đọc (đồng nhất nghĩa "triệu chứng"),
+   viền đứt nét để báo hiệu "dẫn xuất qua pháp trị". */
+.chip-trieu-pt { background: var(--chip-symptom-bg); color: var(--chip-symptom-fg); border: 1px dashed var(--chip-symptom-border); }
 
-/* Pháp trị + triệu chứng lồng dưới (giống tab bài thuốc) */
+/* Pháp trị: mỗi pháp trị là một khối riêng, triệu chứng lồng rõ ràng bên dưới */
 .phap-tri-list { display: flex; flex-direction: column; gap: 8px; }
-.phap-tri-item { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-.phap-tri-trieu { padding-left: 10px; border-left: 2px solid #fed7aa; }
-.chip-thiet { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
-.chip-mach { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.phap-tri-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--chip-method-bg);
+  border: 1px solid var(--chip-method-border);
+  border-left: 3px solid var(--chip-method-fg);
+  border-radius: var(--radius-md);
+}
+.phap-tri-trieu { width: 100%; }
+.phap-tri-trieu__label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-400);
+  margin-bottom: 4px;
+}
+.chip-thiet { background: var(--chip-pattern-bg); color: var(--chip-pattern-fg); border-color: var(--chip-pattern-border); }
+.chip-mach { background: var(--chip-pulse-bg); color: var(--chip-pulse-fg); border-color: var(--chip-pulse-border); }
 .chip-row { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip-row--wrap { gap: 6px; }
 .chip-row--wrap .chip { white-space: normal; word-break: break-word; max-width: 100%; }
@@ -1325,8 +1346,8 @@ async function doDelete() {
 }
 .btn-edit { background: var(--brown-50); color: var(--brown-800); border-color: var(--brown-200); }
 .btn-edit:hover { background: var(--brown-100); }
-.btn-delete { background: #fef2f2; color: var(--danger); border-color: #fecaca; }
-.btn-delete:hover { background: #fee2e2; }
+.btn-delete { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+.btn-delete:hover { background: var(--danger-bg); }
 
 .pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-4); background: var(--gray-50); border-top: 1px solid var(--gray-100); flex-wrap: wrap; }
 .page-btn { min-width: 32px; height: 32px; padding: 0 8px; display: flex; align-items: center; justify-content: center; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-600); cursor: pointer; transition: all var(--transition-fast); }
@@ -1336,8 +1357,8 @@ async function doDelete() {
 .page-info { margin-left: var(--space-4); font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 600; }
 
 .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-.badge-info { background: #e0f2fe; color: #0369a1; }
-.badge-success { background: #d1fae5; color: #059669; }
+.badge-info { background: var(--info-bg); color: var(--info-fg); }
+.badge-success { background: var(--success-bg); color: var(--success-fg); }
 
 .btn-primary { background: var(--brown-600); color: var(--white); padding: 8px 16px; border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); border: 0; cursor: pointer; transition: background .15s; }
 .btn-primary:hover:not(:disabled) { background: var(--brown-700); }
@@ -1360,14 +1381,14 @@ async function doDelete() {
 .modal-body { padding: var(--space-5); overflow-y: auto; }
 .modal-footer { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--gray-100); }
 
-.form-error { color: var(--danger); background: #fef2f2; border: 1px solid #fecaca; padding: 8px 12px; border-radius: var(--radius-md); font-size: var(--font-size-sm); margin-bottom: var(--space-3); }
+.form-error { color: var(--danger); background: var(--danger-bg); border: 1px solid var(--danger-border); padding: 8px 12px; border-radius: var(--radius-md); font-size: var(--font-size-sm); margin-bottom: var(--space-3); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field--full { grid-column: 1 / -1; }
 .field > span:first-child { font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-700); }
 .field abbr { color: var(--danger); text-decoration: none; margin-left: 2px; }
 .input, .textarea { padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: var(--font-size-sm); background: var(--white); }
-.input:focus, .textarea:focus { outline: none; border-color: var(--brown-400); box-shadow: 0 0 0 3px rgba(161,98,7,0.12); }
+.input:focus, .textarea:focus { outline: none; border-color: var(--brown-400); box-shadow: var(--focus-ring); }
 .input--sm { padding: 6px 10px; font-size: 13px; }
 
 .field-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }

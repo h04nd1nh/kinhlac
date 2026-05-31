@@ -5,3 +5,9 @@
 # Firebase Service Account
 backend/config/*.json
 *.xlsx
+
+# App desktop cũ (chỉ để tham khảo, không build / không push)
+APP CU/
+
+# Cấu hình cá nhân của Claude Code (mỗi máy mỗi khác)
+.claude/settings.local.json

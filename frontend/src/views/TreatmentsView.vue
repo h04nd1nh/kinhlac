@@ -1241,9 +1241,9 @@ async function handleDelete() {
   color: var(--brown-700);
 }
 .sub-sub-tab.active {
-  background: #fdf4ff;
-  color: #86198f;
-  border-color: #f5d0fe;
+  background: var(--brown-50);
+  color: var(--brown-800);
+  border-color: var(--brown-200);
 }
 .sub-sub-tab__count {
   display: inline-flex;
@@ -1259,7 +1259,7 @@ async function handleDelete() {
   font-weight: 700;
 }
 .sub-sub-tab.active .sub-sub-tab__count {
-  background: #86198f;
+  background: var(--brown-700);
   color: var(--white);
 }
 
@@ -1297,12 +1297,12 @@ async function handleDelete() {
   border-radius: 7px;
 }
 .sub-sub-tabs--alt .sub-sub-tab.active {
-  background: #ecfdf5;
-  color: #047857;
-  border-color: #a7f3d0;
+  background: var(--chip-pattern-bg);
+  color: var(--chip-pattern-fg);
+  border-color: var(--chip-pattern-border);
 }
 .sub-sub-tabs--alt .sub-sub-tab.active .sub-sub-tab__count {
-  background: #047857;
+  background: var(--chip-pattern-fg);
   color: var(--white);
 }
 .filter-clear-btn {
@@ -1336,7 +1336,7 @@ async function handleDelete() {
   text-align: center;
   color: var(--gray-500);
   font-size: var(--font-size-md);
-  background: linear-gradient(180deg, #fff 0%, #fdfbf9 100%);
+  background: linear-gradient(180deg, #fff 0%, var(--surface-2) 100%);
 }
 
 .disease-grid {
@@ -1344,7 +1344,7 @@ async function handleDelete() {
   grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
-  background: #fdfbf9;
+  background: var(--surface-2);
 }
 
 .disease-card {
@@ -1406,8 +1406,8 @@ async function handleDelete() {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  background: #fdf4ff;
-  border: 1px solid #f5d0fe;
+  background: var(--chip-brand-bg);
+  border: 1px solid var(--chip-brand-border);
   border-radius: var(--radius-md);
   max-width: 100%;
 }
@@ -1416,7 +1416,7 @@ async function handleDelete() {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #86198f;
+  color: var(--chip-brand-fg);
   white-space: nowrap;
 }
 .bty-group .chip-row { flex: 1 1 auto; min-width: 0; }
@@ -1491,13 +1491,13 @@ async function handleDelete() {
   line-height: 1.4;
   border: 1px solid transparent;
 }
-.chip-tang { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
-.chip-trieu { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
-.chip-bai { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.chip-tang { background: var(--chip-pattern-bg); color: var(--chip-pattern-fg); border-color: var(--chip-pattern-border); }
+.chip-trieu { background: var(--chip-symptom-bg); color: var(--chip-symptom-fg); border-color: var(--chip-symptom-border); }
+.chip-bai { background: var(--chip-herb-bg); color: var(--chip-herb-fg); border-color: var(--chip-herb-border); }
 .chip-luckinh { background: #fce7f3; color: #9d174d; border-color: #f9a8d4; }
-.chip-tayy { background: #fdf4ff; color: #86198f; border-color: #f5d0fe; }
+.chip-tayy { background: var(--chip-brand-bg); color: var(--chip-brand-fg); border-color: var(--chip-brand-border); }
 .chip-link { text-decoration: none; cursor: pointer; transition: background-color 0.15s, border-color 0.15s, transform 0.05s; }
-.chip-link:hover { background: #fae8ff; border-color: #e9b8fb; }
+.chip-link:hover { background: var(--chip-brand-bg); border-color: var(--chip-brand-fg); }
 .chip-link:active { transform: translateY(1px); }
 .muted { color: var(--gray-400); font-style: italic; }
 
@@ -1514,7 +1514,7 @@ async function handleDelete() {
 }
 .btn-edit:hover { background: var(--brown-50); border-color: var(--brown-400); color: var(--brown-700); }
 .btn-delete { color: var(--danger); }
-.btn-delete:hover { background: #fef2f2; border-color: #fca5a5; }
+.btn-delete:hover { background: var(--danger-bg); border-color: var(--danger-border); }
 
 .pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-4); background: var(--gray-50); border-top: 1px solid var(--gray-100); }
 .page-btn { min-width: 32px; height: 32px; padding: 0 8px; display: flex; align-items: center; justify-content: center; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-600); cursor: pointer; transition: all var(--transition-fast); }
@@ -1530,12 +1530,12 @@ async function handleDelete() {
 .text-gray-500 { color: var(--gray-500) !important; }
 
 .badge { display: inline-block; padding: 4px 10px; border-radius: var(--radius-full, 999px); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-.badge-success { background: #d1fae5; color: #059669; }
+.badge-success { background: var(--success-bg); color: var(--success-fg); }
 
 .loading-state { display: flex; flex-direction: column; align-items: center; padding: var(--space-12) 0; color: var(--brown-600); }
 .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--brown-500); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: #fef2f2; border-radius: var(--radius-lg); }
+.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: var(--danger-bg); border-radius: var(--radius-lg); }
 
 /* Modal */
 .modal-overlay {
@@ -1574,9 +1574,9 @@ async function handleDelete() {
 }
 
 .form-error {
-  background: #fef2f2;
+  background: var(--danger-bg);
   color: var(--danger);
-  border: 1px solid #fecaca;
+  border: 1px solid var(--danger-border);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   margin-bottom: var(--space-3);
@@ -1601,7 +1601,7 @@ async function handleDelete() {
 .input:focus, .textarea:focus {
   outline: none;
   border-color: var(--brown-500);
-  box-shadow: 0 0 0 3px rgba(146, 64, 14, 0.1);
+  box-shadow: var(--focus-ring);
 }
 .textarea { resize: vertical; min-height: 60px; }
 

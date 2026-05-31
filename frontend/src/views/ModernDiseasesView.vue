@@ -563,7 +563,7 @@ async function handleDelete() {
   text-align: center;
   color: var(--gray-500);
   font-size: var(--font-size-md);
-  background: linear-gradient(180deg, #fff 0%, #fdfbf9 100%);
+  background: linear-gradient(180deg, #fff 0%, var(--surface-2) 100%);
 }
 
 .disease-grid {
@@ -571,7 +571,7 @@ async function handleDelete() {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
-  background: #fdfbf9;
+  background: var(--surface-2);
 }
 .disease-card {
   display: flex;
@@ -671,8 +671,8 @@ async function handleDelete() {
 .btn-action { padding: 6px 12px; border-radius: var(--radius-sm); font-size: var(--font-size-xs); font-weight: 600; cursor: pointer; border: 1px solid transparent; }
 .btn-edit { background: var(--brown-50); color: var(--brown-800); border-color: var(--brown-200); }
 .btn-edit:hover { background: var(--brown-100); }
-.btn-delete { background: #fef2f2; color: var(--danger); border-color: #fecaca; }
-.btn-delete:hover { background: #fee2e2; }
+.btn-delete { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+.btn-delete:hover { background: var(--danger-bg); }
 
 .pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-4); background: var(--gray-50); border-top: 1px solid var(--gray-100); }
 .page-btn { min-width: 32px; height: 32px; padding: 0 8px; display: flex; align-items: center; justify-content: center; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: var(--font-size-sm); font-weight: 600; color: var(--gray-600); cursor: pointer; transition: all var(--transition-fast); }
@@ -682,7 +682,7 @@ async function handleDelete() {
 .page-info { margin-left: var(--space-4); font-size: var(--font-size-xs); color: var(--gray-500); font-weight: 600; }
 
 .badge { display: inline-block; padding: 4px 10px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-.badge-info { background: #e0f2fe; color: #0369a1; }
+.badge-info { background: var(--info-bg); color: var(--info-fg); }
 
 .text-center { text-align: center !important; }
 .py-8 { padding-top: 2rem !important; padding-bottom: 2rem !important; }
@@ -694,7 +694,7 @@ async function handleDelete() {
 .loading-state { display: flex; flex-direction: column; align-items: center; padding: var(--space-12) 0; color: var(--brown-600); }
 .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--brown-500); border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: #fef2f2; border-radius: var(--radius-lg); }
+.error-state { text-align: center; padding: var(--space-8); color: var(--danger); background: var(--danger-bg); border-radius: var(--radius-lg); }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: var(--space-4); }
 .modal { background: var(--white); border-radius: var(--radius-lg); width: 100%; max-width: 600px; max-height: 92vh; overflow-y: auto; box-shadow: var(--shadow-xl); animation: modalIn 0.25s ease; }

@@ -1,18 +1,71 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useTheme } from '@/composables/useTheme'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
+// ----- Giao diện (theme đổi theo ngày / ghim / tự tạo) -----
+const { allThemes, effectiveTheme, mode, dailyTheme, setMode, addCustomTheme, removeCustomTheme, generateRamp } =
+  useTheme()
+const themeMenuOpen = ref(false)
+function pickTheme(id: string) {
+  setMode(id)
+  themeMenuOpen.value = false
+}
+function deleteTheme(id: string) {
+  removeCustomTheme(id)
+}
+
+// Trình tạo màu tuỳ chỉnh
+type RampStep = '50' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900'
+const previewSteps: RampStep[] = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900']
+const creatorOpen = ref(false)
+const newName = ref('Màu Của Tôi')
+const newColor = ref('#8a5e28')
+const previewRamp = computed(() => generateRamp(newColor.value))
+function openCreator() {
+  themeMenuOpen.value = false
+  newName.value = 'Màu Của Tôi'
+  newColor.value = effectiveTheme.value.ramp['600']
+  creatorOpen.value = true
+}
+function onHexInput(e: Event) {
+  const v = (e.target as HTMLInputElement).value.trim()
+  if (/^#?[0-9a-fA-F]{6}$/.test(v)) newColor.value = v.startsWith('#') ? v : '#' + v
+}
+function saveCustomTheme() {
+  const t = addCustomTheme({ name: newName.value, baseHex: newColor.value })
+  setMode(t.id)
+  creatorOpen.value = false
+}
+
+// Desktop: thu gọn thành rail hẹp. Mobile/tablet (≤1024px): drawer trượt.
 const isSidebarCollapsed = ref(false)
+const isMobileOpen = ref(false)
+
+const MOBILE_BP = 1024
+function isMobileViewport() {
+  return typeof window !== 'undefined' && window.innerWidth <= MOBILE_BP
+}
+
+// Khoá cuộn nền khi mở drawer trên mobile
+watch(isMobileOpen, (open) => {
+  if (typeof document !== 'undefined') {
+    document.body.style.overflow = open ? 'hidden' : ''
+  }
+})
+onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') document.body.style.overflow = ''
+})
 
 const navItems = [
   { name: 'Trang Chủ', routeName: 'home', icon: 'home' },
   { name: 'Bệnh Nhân', routeName: 'patients', icon: 'patients' },
-  { name: 'Lịch Khám', routeName: 'appointments', icon: 'calendar' },
+  { name: 'Lịch Trị Liệu', routeName: 'appointments', icon: 'calendar' },
   { name: 'Bệnh Tây Y', routeName: 'western-medicine', icon: 'stethoscope' },
   { name: 'Bệnh Đo Kinh Lạc', routeName: 'meridian-diseases', icon: 'rules' },
   { name: 'Quản Lý Thuốc', routeName: 'medicines', icon: 'pill' },
@@ -24,10 +77,25 @@ const currentRouteName = computed(() => route.name)
 
 function navigate(routeName: string) {
   router.push({ name: routeName })
+  isMobileOpen.value = false
 }
 
+// Nút trong header sidebar: desktop → thu gọn rail; mobile → đóng drawer.
 function toggleSidebar() {
-  isSidebarCollapsed.value = !isSidebarCollapsed.value
+  if (isMobileViewport()) {
+    isMobileOpen.value = false
+  } else {
+    isSidebarCollapsed.value = !isSidebarCollapsed.value
+  }
+}
+
+// Nút hamburger ở top-header (chỉ hiện ≤1024px)
+function toggleMobile() {
+  isMobileOpen.value = !isMobileOpen.value
+}
+
+function closeMobile() {
+  isMobileOpen.value = false
 }
 
 function handleLogout() {
@@ -37,7 +105,10 @@ function handleLogout() {
 </script>
 
 <template>
-  <div class="dashboard-layout" :class="{ collapsed: isSidebarCollapsed }">
+  <div class="dashboard-layout" :class="{ collapsed: isSidebarCollapsed, 'mobile-open': isMobileOpen }">
+    <!-- Backdrop cho drawer trên mobile -->
+    <div class="sidebar-backdrop" @click="closeMobile" aria-hidden="true"></div>
+
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-header">
@@ -125,7 +196,7 @@ function handleLogout() {
     <main class="main-content">
       <header class="top-header">
         <div class="header-left">
-          <button class="mobile-menu-btn" @click="toggleSidebar">
+          <button class="mobile-menu-btn" @click="toggleMobile" aria-label="Mở menu">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
           </button>
           <h1 class="page-title">
@@ -133,6 +204,78 @@ function handleLogout() {
           </h1>
         </div>
         <div class="header-right">
+          <!-- Chọn giao diện (theme) -->
+          <div class="theme-switch">
+            <button
+              class="theme-btn"
+              :class="{ open: themeMenuOpen }"
+              @click="themeMenuOpen = !themeMenuOpen"
+              :title="'Giao diện: ' + effectiveTheme.name"
+              aria-label="Đổi giao diện"
+            >
+              <span class="theme-swatch">
+                <i :style="{ background: effectiveTheme.ramp['300'] }"></i>
+                <i :style="{ background: effectiveTheme.ramp['500'] }"></i>
+                <i :style="{ background: effectiveTheme.ramp['700'] }"></i>
+              </span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3a9 9 0 100 18h1.5a2.5 2.5 0 002-4 2.5 2.5 0 012-4H20a9 9 0 00-8-7z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1.2" fill="currentColor" stroke="none"/><circle cx="16.5" cy="11.5" r="1.2" fill="currentColor" stroke="none"/></svg>
+            </button>
+
+            <div v-if="themeMenuOpen" class="theme-overlay" @click="themeMenuOpen = false" aria-hidden="true"></div>
+
+            <div v-if="themeMenuOpen" class="theme-menu" role="menu">
+              <div class="theme-menu-title">Giao Diện</div>
+
+              <button
+                class="theme-opt theme-opt--auto"
+                :class="{ active: mode === 'auto' }"
+                @click="pickTheme('auto')"
+                role="menuitem"
+              >
+                <span class="theme-swatch">
+                  <i :style="{ background: dailyTheme().ramp['300'] }"></i>
+                  <i :style="{ background: dailyTheme().ramp['500'] }"></i>
+                  <i :style="{ background: dailyTheme().ramp['700'] }"></i>
+                </span>
+                <span class="theme-opt-text">
+                  <span class="theme-opt-name">Tự Động Theo Ngày</span>
+                  <span class="theme-opt-sub">Hôm nay: {{ dailyTheme().name }}</span>
+                </span>
+                <svg v-if="mode === 'auto'" class="theme-check" width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 010 1.42l-7.5 7.5a1 1 0 01-1.42 0l-3.5-3.5a1 1 0 111.42-1.42l2.79 2.79 6.79-6.79a1 1 0 011.42 0z" clip-rule="evenodd"/></svg>
+              </button>
+
+              <div class="theme-menu-divider"></div>
+
+              <div class="theme-list">
+                <div
+                  v-for="t in allThemes"
+                  :key="t.id"
+                  class="theme-opt"
+                  :class="{ active: mode === t.id }"
+                  @click="pickTheme(t.id)"
+                  role="menuitem"
+                >
+                  <span class="theme-swatch">
+                    <i :style="{ background: t.ramp['300'] }"></i>
+                    <i :style="{ background: t.ramp['500'] }"></i>
+                    <i :style="{ background: t.ramp['700'] }"></i>
+                  </span>
+                  <span class="theme-opt-name">{{ t.name }}</span>
+                  <svg v-if="mode === t.id" class="theme-check" width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 010 1.42l-7.5 7.5a1 1 0 01-1.42 0l-3.5-3.5a1 1 0 111.42-1.42l2.79 2.79 6.79-6.79a1 1 0 011.42 0z" clip-rule="evenodd"/></svg>
+                  <button v-if="t.custom" class="theme-del" @click.stop="deleteTheme(t.id)" title="Xoá màu này" aria-label="Xoá màu">
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" clip-rule="evenodd"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="theme-menu-divider"></div>
+              <button class="theme-create-btn" @click="openCreator">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/></svg>
+                Tạo Màu Mới
+              </button>
+            </div>
+          </div>
+
           <span class="header-greeting">Xin chào, <strong>{{ authStore.username || 'Admin' }}</strong></span>
         </div>
       </header>
@@ -141,14 +284,62 @@ function handleLogout() {
         <RouterView />
       </div>
     </main>
+
+    <!-- Modal: tạo giao diện tuỳ chỉnh -->
+    <div v-if="creatorOpen" class="tc-overlay" @click.self="creatorOpen = false">
+      <div class="tc-modal" role="dialog" aria-modal="true">
+        <div class="tc-head">
+          <h3>Tạo Giao Diện Mới</h3>
+          <button class="tc-close" @click="creatorOpen = false" aria-label="Đóng">×</button>
+        </div>
+
+        <div class="tc-body">
+          <label class="tc-field">
+            <span class="tc-label">Tên giao diện</span>
+            <input class="tc-input" v-model="newName" maxlength="24" placeholder="Màu của tôi" />
+          </label>
+
+          <div class="tc-field">
+            <span class="tc-label">Màu chủ đạo</span>
+            <div class="tc-color-row">
+              <input type="color" class="tc-color" v-model="newColor" aria-label="Chọn màu" />
+              <input class="tc-input tc-hex" :value="newColor" @input="onHexInput" spellcheck="false" maxlength="7" />
+            </div>
+            <span class="tc-hint">Chọn một tông màu — hệ thống tự tạo dải màu hài hoà, đảm bảo dễ đọc.</span>
+          </div>
+
+          <div class="tc-preview">
+            <span class="tc-label">Dải Màu (50 → 900)</span>
+            <div class="tc-ramp">
+              <i v-for="s in previewSteps" :key="s" :style="{ background: previewRamp[s] }" :title="s"></i>
+            </div>
+            <div class="tc-mock">
+              <div class="tc-mock-hero" :style="{ background: `linear-gradient(135deg, ${previewRamp['600']}, ${previewRamp['800']})` }">Aa</div>
+              <button class="tc-mock-btn" :style="{ background: previewRamp['600'] }">Nút Chính</button>
+              <span class="tc-mock-chip" :style="{ background: previewRamp['100'], color: previewRamp['800'] }">Nhãn</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tc-foot">
+          <button class="tc-btn tc-btn--ghost" @click="creatorOpen = false">Huỷ</button>
+          <button class="tc-btn tc-btn--primary" :style="{ background: previewRamp['600'] }" @click="saveCustomTheme">
+            Lưu &amp; Áp Dụng
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.dashboard-layout{display:flex;min-height:100vh;background:var(--gray-50)}
+.dashboard-layout{display:flex;min-height:100vh;background:var(--bg-app)}
+
+/* Backdrop (chỉ dùng ở chế độ drawer ≤1024px) */
+.sidebar-backdrop{position:fixed;inset:0;background:rgba(28,24,18,.45);backdrop-filter:blur(2px);z-index:90;opacity:0;visibility:hidden;transition:opacity var(--transition-base),visibility var(--transition-base)}
 
 /* Sidebar */
-.sidebar{width:var(--sidebar-width);background:var(--white);border-right:1px solid var(--gray-200);display:flex;flex-direction:column;transition:width var(--transition-base);position:fixed;top:0;left:0;bottom:0;z-index:100;overflow:hidden}
+.sidebar{width:var(--sidebar-width);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:width var(--transition-base),transform var(--transition-base);position:fixed;top:0;left:0;bottom:0;z-index:100;overflow:hidden}
 .collapsed .sidebar{width:var(--sidebar-collapsed-width)}
 
 .sidebar-header{display:flex;align-items:center;justify-content:space-between;padding:var(--space-5) var(--space-4);border-bottom:1px solid var(--gray-100);min-height:var(--header-height)}
@@ -161,10 +352,11 @@ function handleLogout() {
 
 /* Nav items */
 .sidebar-nav{flex:1;padding:var(--space-4) var(--space-3);display:flex;flex-direction:column;gap:var(--space-1);overflow-y:auto}
-.nav-item{display:flex;align-items:center;gap:var(--space-3);padding:20px;border-radius:var(--radius-md);color:var(--gray-600);font-size:var(--font-size-sm);font-weight:500;transition:all var(--transition-fast);position:relative;overflow:hidden;white-space:nowrap}
+.nav-item{display:flex;align-items:center;gap:var(--space-3);padding:11px var(--space-3);min-height:44px;border-radius:var(--radius-md);color:var(--gray-600);font-size:var(--font-size-sm);font-weight:500;transition:background var(--transition-fast),color var(--transition-fast);position:relative;overflow:hidden;white-space:nowrap}
 .nav-item:hover{background:var(--brown-50);color:var(--brown-700)}
-.nav-item.active{background:linear-gradient(135deg,var(--brown-50) 0%,rgba(192,139,66,.12) 100%);color:var(--brown-700);font-weight:600}
+.nav-item.active{background:linear-gradient(135deg,var(--brown-50) 0%,var(--brown-100) 100%);color:var(--brown-800);font-weight:600}
 .nav-item.active .nav-icon{color:var(--brown-600)}
+.collapsed .nav-item{justify-content:center;padding:11px}
 .nav-icon{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:color var(--transition-fast)}
 .nav-label{white-space:nowrap}
 .nav-active-dot{position:absolute;right:12px;width:6px;height:6px;border-radius:50%;background:var(--brown-500)}
@@ -177,8 +369,9 @@ function handleLogout() {
 .user-name{font-size:var(--font-size-sm);font-weight:600;color:var(--black)}
 .user-role{font-size:var(--font-size-xs);color:var(--gray-500)}
 
-.logout-btn{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);border-radius:var(--radius-md);color:var(--gray-500);font-size:var(--font-size-sm);transition:all var(--transition-fast);white-space:nowrap;overflow:hidden}
-.logout-btn:hover{background:#fef2f2;color:var(--danger)}
+.logout-btn{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);min-height:44px;border-radius:var(--radius-md);color:var(--gray-500);font-size:var(--font-size-sm);transition:all var(--transition-fast);white-space:nowrap;overflow:hidden}
+.logout-btn:hover{background:var(--danger-bg);color:var(--danger)}
+.collapsed .logout-btn{justify-content:center}
 
 /* Text transitions */
 .fade-text-enter-active{transition:opacity var(--transition-base) .05s}
@@ -189,35 +382,99 @@ function handleLogout() {
 .main-content{flex:1;min-width:0;margin-left:var(--sidebar-width);transition:margin-left var(--transition-base);display:flex;flex-direction:column;min-height:100vh}
 .collapsed .main-content{margin-left:var(--sidebar-collapsed-width)}
 
-.top-header{height:var(--header-height);padding:0 var(--space-8);display:flex;align-items:center;justify-content:space-between;background:var(--white);border-bottom:1px solid var(--gray-200);position:sticky;top:0;z-index:50}
-.header-left{display:flex;align-items:center;gap:var(--space-4)}
-.mobile-menu-btn{display:none;width:36px;height:36px;align-items:center;justify-content:center;border-radius:var(--radius-sm);color:var(--gray-600);transition:all var(--transition-fast)}
-.mobile-menu-btn:hover{background:var(--gray-100)}
-.page-title{font-size:var(--font-size-lg);font-weight:700;color:var(--black)}
-.header-greeting{font-size:var(--font-size-sm);color:var(--gray-600)}
+.top-header{height:var(--header-height);padding:0 var(--space-8);display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.header-left{display:flex;align-items:center;gap:var(--space-4);min-width:0}
+.mobile-menu-btn{display:none;width:40px;height:40px;flex-shrink:0;align-items:center;justify-content:center;border-radius:var(--radius-sm);color:var(--gray-600);transition:all var(--transition-fast)}
+.mobile-menu-btn:hover{background:var(--gray-100);color:var(--brown-700)}
+.page-title{font-size:var(--font-size-lg);font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.header-greeting{font-size:var(--font-size-sm);color:var(--gray-600);white-space:nowrap}
 .header-greeting strong{color:var(--brown-700);font-weight:600}
+
+/* ---- Theme switcher ---- */
+.header-right{display:flex;align-items:center;gap:var(--space-4)}
+.theme-switch{position:relative}
+.theme-btn{display:flex;align-items:center;gap:var(--space-2);height:38px;padding:0 var(--space-3);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--gray-600);background:var(--surface);transition:all var(--transition-fast)}
+.theme-btn:hover,.theme-btn.open{border-color:var(--brown-300);color:var(--brown-700);background:var(--brown-50)}
+.theme-swatch{display:inline-flex;border-radius:var(--radius-full);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+.theme-swatch i{width:8px;height:16px;display:block}
+.theme-overlay{position:fixed;inset:0;z-index:80}
+.theme-menu{position:absolute;top:calc(100% + 8px);right:0;z-index:81;width:248px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:var(--space-2);animation:theme-pop .14s ease}
+@keyframes theme-pop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.theme-menu-title{font-size:var(--font-size-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);padding:var(--space-2) var(--space-3) var(--space-1)}
+.theme-menu-divider{height:1px;background:var(--gray-100);margin:var(--space-2) var(--space-1)}
+.theme-list{display:flex;flex-direction:column;gap:2px;max-height:240px;overflow-y:auto}
+.theme-opt{display:flex;align-items:center;gap:var(--space-3);width:100%;padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);text-align:left;color:var(--text);cursor:pointer;transition:background var(--transition-fast)}
+.theme-opt:hover{background:var(--brown-50)}
+.theme-opt.active{background:var(--brown-50)}
+.theme-opt .theme-swatch i{height:20px}
+.theme-opt-text{display:flex;flex-direction:column;min-width:0}
+.theme-opt-name{font-size:var(--font-size-sm);font-weight:600;white-space:nowrap}
+.theme-opt-sub{font-size:var(--font-size-xs);color:var(--text-subtle);white-space:nowrap}
+.theme-opt--auto .theme-opt-name{flex:0}
+.theme-opt .theme-check{margin-left:auto;color:var(--brown-600);flex-shrink:0}
+.theme-del{margin-left:auto;width:22px;height:22px;border-radius:var(--radius-sm);color:var(--gray-400);display:flex;align-items:center;justify-content:center;flex-shrink:0;opacity:0;transition:all var(--transition-fast)}
+.theme-opt:hover .theme-del{opacity:1}
+.theme-del:hover{background:var(--danger-bg);color:var(--danger)}
+.theme-opt .theme-check + .theme-del{margin-left:6px}
+.theme-create-btn{display:flex;align-items:center;gap:var(--space-2);width:100%;padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);font-size:var(--font-size-sm);font-weight:600;color:var(--brown-700);transition:background var(--transition-fast)}
+.theme-create-btn:hover{background:var(--brown-50)}
+
+/* ---- Modal tạo màu tuỳ chỉnh ---- */
+.tc-overlay{position:fixed;inset:0;z-index:200;background:rgba(28,24,18,.5);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:var(--space-4);animation:tc-fade .15s ease}
+@keyframes tc-fade{from{opacity:0}to{opacity:1}}
+.tc-modal{width:100%;max-width:440px;background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-xl);overflow:hidden;animation:theme-pop .18s ease}
+.tc-head{display:flex;align-items:center;justify-content:space-between;padding:var(--space-5) var(--space-6);border-bottom:1px solid var(--gray-100)}
+.tc-head h3{font-size:var(--font-size-md);font-weight:700;color:var(--text)}
+.tc-close{width:32px;height:32px;border-radius:var(--radius-sm);font-size:22px;line-height:1;color:var(--gray-500);display:flex;align-items:center;justify-content:center}
+.tc-close:hover{background:var(--gray-100);color:var(--text)}
+.tc-body{padding:var(--space-6);display:flex;flex-direction:column;gap:var(--space-5)}
+.tc-field{display:flex;flex-direction:column;gap:var(--space-2)}
+.tc-label{font-size:var(--font-size-sm);font-weight:600;color:var(--text-muted)}
+.tc-input{height:40px;padding:0 var(--space-3);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text);background:var(--surface);font-size:var(--font-size-sm)}
+.tc-input:focus{outline:none;border-color:var(--brown-400);box-shadow:var(--focus-ring)}
+.tc-color-row{display:flex;gap:var(--space-3);align-items:center}
+.tc-color{width:54px;height:40px;padding:2px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);cursor:pointer;flex-shrink:0}
+.tc-hex{flex:1;text-transform:uppercase}
+.tc-hint{font-size:var(--font-size-xs);color:var(--text-subtle)}
+.tc-preview{display:flex;flex-direction:column;gap:var(--space-3)}
+.tc-ramp{display:flex;height:34px;border-radius:var(--radius-md);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+.tc-ramp i{flex:1;display:block}
+.tc-mock{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+.tc-mock-hero{width:48px;height:48px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0}
+.tc-mock-btn{height:38px;padding:0 var(--space-4);border-radius:var(--radius-md);color:#fff;font-size:var(--font-size-sm);font-weight:600}
+.tc-mock-chip{padding:4px 12px;border-radius:var(--radius-full);font-size:var(--font-size-xs);font-weight:600}
+.tc-foot{display:flex;justify-content:flex-end;gap:var(--space-3);padding:var(--space-4) var(--space-6);border-top:1px solid var(--gray-100);background:var(--surface-2)}
+.tc-btn{height:40px;padding:0 var(--space-5);border-radius:var(--radius-md);font-size:var(--font-size-sm);font-weight:600;transition:all var(--transition-fast)}
+.tc-btn--ghost{color:var(--text-muted);border:1px solid var(--border)}
+.tc-btn--ghost:hover{background:var(--gray-100)}
+.tc-btn--primary{color:#fff}
+.tc-btn--primary:hover{filter:brightness(.94)}
 
 .content-area{flex:1;padding:var(--space-8);min-width:0}
 
-/* Responsive */
-@media(max-width:1100px){
+/* ============ Responsive ============ */
+@media(max-width:1280px){
   .content-area{padding:var(--space-6)}
 }
-@media(max-width:900px){
+@media(max-width:1024px){
+  /* Drawer mode: sidebar trượt từ trái, có backdrop */
+  .sidebar{transform:translateX(-100%);width:var(--sidebar-width) !important;box-shadow:var(--shadow-xl)}
+  .mobile-open .sidebar{transform:translateX(0)}
+  .mobile-open .sidebar-backdrop{opacity:1;visibility:visible}
+  .main-content,.collapsed .main-content{margin-left:0}
+  /* Ở drawer luôn hiển thị label đầy đủ kể cả khi cờ collapsed bật */
+  .collapsed .nav-item{justify-content:flex-start;padding:11px var(--space-3)}
+  .mobile-menu-btn{display:flex}
   .content-area{padding:var(--space-5)}
-  .header-greeting{display:none}
 }
 @media(max-width:768px){
-  .sidebar{transform:translateX(-100%);width:var(--sidebar-width) !important;box-shadow:var(--shadow-xl)}
-  .collapsed .sidebar{transform:translateX(0)}
-  .main-content,.collapsed .main-content{margin-left:0}
-  .mobile-menu-btn{display:flex}
   .top-header{padding:0 var(--space-4)}
+  .header-greeting{display:none}
   .content-area{padding:var(--space-4)}
 }
 @media(max-width:480px){
-  .content-area{padding:var(--space-3)}
   .top-header{padding:0 var(--space-3)}
   .page-title{font-size:var(--font-size-md)}
+  .content-area{padding:var(--space-3)}
 }
 </style>

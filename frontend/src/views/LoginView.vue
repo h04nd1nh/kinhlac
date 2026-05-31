@@ -123,8 +123,8 @@ async function handleLogin() {
 .form-header{margin-bottom:var(--space-8)}
 .form-title{font-size:var(--font-size-2xl);font-weight:700;color:var(--black);margin-bottom:var(--space-2)}
 .form-description{font-size:var(--font-size-sm);color:var(--gray-600)}
-.error-alert{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:#fef2f2;border:1px solid #fecaca;border-radius:var(--radius-md);color:var(--danger);font-size:var(--font-size-sm);margin-bottom:var(--space-6);cursor:pointer;transition:background var(--transition-fast)}
-.error-alert:hover{background:#fee2e2}
+.error-alert{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:var(--danger-bg);border:1px solid var(--danger-border);border-radius:var(--radius-md);color:var(--danger);font-size:var(--font-size-sm);margin-bottom:var(--space-6);cursor:pointer;transition:background var(--transition-fast)}
+.error-alert:hover{background:var(--danger-bg)}
 .login-form{display:flex;flex-direction:column;gap:var(--space-5)}
 .form-group{display:flex;flex-direction:column;gap:var(--space-2)}
 .form-label{font-size:var(--font-size-sm);font-weight:600;color:var(--gray-700)}
@@ -133,7 +133,7 @@ async function handleLogin() {
 .form-input{width:100%;padding:12px 14px 12px 44px;border:1.5px solid var(--gray-300);border-radius:var(--radius-md);font-size:var(--font-size-base);color:var(--black);background:var(--white);transition:border-color var(--transition-fast),box-shadow var(--transition-fast);outline:none}
 .form-input::placeholder{color:var(--gray-400)}
 .form-input:hover{border-color:var(--gray-400)}
-.form-input:focus{border-color:var(--brown-400);box-shadow:0 0 0 3px rgba(192,139,66,.15)}
+.form-input:focus{border-color:var(--brown-400);box-shadow:var(--focus-ring)}
 .input-wrapper:focus-within .input-icon{color:var(--brown-500)}
 .password-toggle{position:absolute;right:12px;color:var(--gray-400);padding:var(--space-1);border-radius:var(--radius-sm);transition:color var(--transition-fast),background var(--transition-fast);display:flex;align-items:center;justify-content:center}
 .password-toggle:hover{color:var(--brown-500);background:var(--brown-50)}

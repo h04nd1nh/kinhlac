@@ -1325,7 +1325,7 @@ async function handleDelete() {
   text-align: center;
   color: var(--gray-500);
   font-size: var(--font-size-md);
-  background: linear-gradient(180deg, #fff 0%, #fdfbf9 100%);
+  background: linear-gradient(180deg, #fff 0%, var(--surface-2) 100%);
 }
 
 .disease-grid {
@@ -1333,7 +1333,7 @@ async function handleDelete() {
   grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
-  background: #fdfbf9;
+  background: var(--surface-2);
 }
 
 .disease-card {
@@ -1666,12 +1666,12 @@ async function handleDelete() {
   background: var(--brown-100);
 }
 .btn-delete {
-  background: #fef2f2;
+  background: var(--danger-bg);
   color: var(--danger);
-  border-color: #fecaca;
+  border-color: var(--danger-border);
 }
 .btn-delete:hover {
-  background: #fee2e2;
+  background: var(--danger-bg);
 }
 
 .pagination {
@@ -1730,8 +1730,8 @@ async function handleDelete() {
   letter-spacing: 0.5px;
 }
 .badge-info {
-  background: #e0f2fe;
-  color: #0369a1;
+  background: var(--info-bg);
+  color: var(--info-fg);
 }
 
 .text-center {
@@ -1787,7 +1787,7 @@ async function handleDelete() {
   text-align: center;
   padding: var(--space-8);
   color: var(--danger);
-  background: #fef2f2;
+  background: var(--danger-bg);
   border-radius: var(--radius-lg);
 }
 
@@ -1967,29 +1967,29 @@ async function handleDelete() {
   border: 1px solid transparent;
 }
 .chip-phap {
-  background: #fef3c7;
-  color: #92400e;
-  border-color: #fcd34d;
+  background: var(--chip-method-bg);
+  color: var(--chip-method-fg);
+  border-color: var(--chip-method-border);
 }
 .chip-the {
-  background: #ecfdf5;
-  color: #047857;
-  border-color: #a7f3d0;
+  background: var(--chip-pattern-bg);
+  color: var(--chip-pattern-fg);
+  border-color: var(--chip-pattern-border);
 }
 .chip-huyet {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border-color: #bfdbfe;
+  background: var(--chip-pulse-bg);
+  color: var(--chip-pulse-fg);
+  border-color: var(--chip-pulse-border);
 }
 .chip-trieu {
-  background: #f5f3ff;
-  color: #6d28d9;
-  border-color: #ddd6fe;
+  background: var(--chip-symptom-bg);
+  color: var(--chip-symptom-fg);
+  border-color: var(--chip-symptom-border);
 }
 .chip-bai {
-  background: #fef3c7;
-  color: #92400e;
-  border-color: #fcd34d;
+  background: var(--chip-herb-bg);
+  color: var(--chip-herb-fg);
+  border-color: var(--chip-herb-border);
 }
 .chip-link,
 .chip-link-the,
@@ -1998,9 +1998,9 @@ async function handleDelete() {
   cursor: pointer;
   transition: background-color 0.15s, border-color 0.15s, transform 0.05s;
 }
-.chip-link:hover { background: #fde68a; border-color: #f59e0b; }
-.chip-link-phap:hover { background: #fde68a; border-color: #f59e0b; }
-.chip-link-the:hover { background: #d1fae5; border-color: #34d399; }
+.chip-link:hover { background: var(--chip-herb-border); border-color: var(--chip-herb-fg); }
+.chip-link-phap:hover { background: var(--chip-method-border); border-color: var(--chip-method-fg); }
+.chip-link-the:hover { background: var(--chip-pattern-border); border-color: var(--chip-pattern-fg); }
 .chip-link:active,
 .chip-link-the:active,
 .chip-link-phap:active { transform: translateY(1px); }

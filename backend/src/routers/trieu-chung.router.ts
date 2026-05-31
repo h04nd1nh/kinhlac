@@ -22,9 +22,23 @@ export class TrieuChungRouter {
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('stats') stats?: string,
+    @Query('category') category?: string,
+    @Query('tangPhu') tangPhu?: string,
+    @Query('tonThuong') tonThuong?: string,
   ) {
     if (stats === '1' || stats === 'true') {
-      return this.service.findAllWithStats();
+      return this.service.findAllWithStats({
+        category: category === 'dong-y' || category === 'tay-y' ? category : 'all',
+        tangPhuIds: (tangPhu ?? '')
+          .split(',')
+          .map((x) => parseInt(x, 10))
+          .filter((x) => Number.isFinite(x) && x > 0),
+        // Tên Tổn Thương ngăn cách bằng '||' (tránh đụng dấu phẩy trong tên).
+        tonThuong: (tonThuong ?? '')
+          .split('||')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      });
     }
     const pageNum = page ? parseInt(page, 10) : 0;
     const limitNum = limit ? parseInt(limit, 10) : 0;
