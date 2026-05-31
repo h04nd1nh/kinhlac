@@ -11,3 +11,15 @@ APP CU/
 
 # Cấu hình cá nhân của Claude Code (mỗi máy mỗi khác)
 .claude/settings.local.json
+
+# backend/tmp = thư mục nháp (scratch): KHÔNG đẩy file mới ở đây lên GitHub.
+# Chống lộ dữ liệu bệnh nhân (backup .json/.csv) & chống phình repo (.mdb…).
+# Các script công cụ đã commit trước đó (migrate.ts, seed-pg.ts, test-*.ts…) vẫn được giữ.
+# Nếu sau này THẬT SỰ muốn commit 1 file trong tmp: dùng  git add -f <file>
+backend/tmp/*
+
+# File backup tạm của trình soạn thảo (nano …)
+*.save
+
+# Caddyfile tham khảo (HTTPS trên VPS đã cấu hình sẵn) — không cần đẩy
+Caddyfile
