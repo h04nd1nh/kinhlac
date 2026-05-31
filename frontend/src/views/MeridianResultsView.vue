@@ -1659,7 +1659,7 @@ function footerDiffClassMerged() {
       <div class="ptm-modal" role="dialog" aria-modal="true">
         <div class="ptm-head">
           <div class="ptm-head__title">
-            <h3>Danh sách Pháp trị</h3>
+            <h3>Danh Sách Pháp Trị</h3>
             <span v-if="phapTriModalContext" class="ptm-context">Mô hình: {{ phapTriModalContext }}</span>
           </div>
           <button type="button" class="ptm-close" aria-label="Đóng" @click="closePhapTriModal">✕</button>

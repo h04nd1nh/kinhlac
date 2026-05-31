@@ -142,7 +142,7 @@ const pageNumbers = computed(() => {
     <!-- Header -->
     <div class="page-header">
       <div>
-        <h2 class="page-heading">Danh sách bệnh nhân</h2>
+        <h2 class="page-heading">Danh Sách Bệnh Nhân</h2>
         <p class="page-description">Quản lý thông tin bệnh nhân của phòng khám</p>
       </div>
       <button class="btn-primary" @click="openCreateModal">

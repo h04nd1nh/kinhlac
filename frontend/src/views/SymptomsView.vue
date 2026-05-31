@@ -342,7 +342,7 @@ const unexplainedSymptoms = computed<DiagnosisMatchedSymptom[]>(() => {
     <div v-else-if="activeTab === 'list'" class="content-body">
       <div class="data-card">
         <div class="card-header">
-          <h3>Danh sách Triệu Chứng</h3>
+          <h3>Danh Sách Triệu Chứng</h3>
           <div class="picker-search list-search">
             <svg class="search-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2" />

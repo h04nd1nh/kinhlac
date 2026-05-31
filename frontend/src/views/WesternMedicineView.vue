@@ -637,7 +637,7 @@ async function doDelete() {
 
         <div class="data-card">
           <div class="card-header">
-            <h3>Danh sách Chủng Bệnh</h3>
+            <h3>Danh Sách Chủng Bệnh</h3>
             <span class="badge badge-info">{{ chungBenhList.length }} bản ghi</span>
           </div>
 
@@ -735,7 +735,7 @@ async function doDelete() {
         <div class="data-card" :class="{ 'data-card--loading': btyPageLoading }">
           <div v-if="btyPageLoading" class="loading-bar" aria-hidden="true"></div>
           <div class="card-header">
-            <h3>Danh sách Bệnh Tây Y</h3>
+            <h3>Danh Sách Bệnh Tây Y</h3>
             <span class="badge badge-success">{{ benhTayYTotal }} bản ghi</span>
           </div>
 

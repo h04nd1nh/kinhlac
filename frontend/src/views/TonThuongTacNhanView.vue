@@ -162,7 +162,7 @@ async function handleDelete() {
   <div class="management-page">
     <div class="page-header">
       <div class="header-content">
-        <h1 class="page-title">Quản Lý Tổn thương - Tác nhân</h1>
+        <h1 class="page-title">Quản Lý Tổn Thương - Tác Nhân</h1>
         <p class="page-subtitle">
           Danh mục các giá trị "Tổn thương - Tác nhân" dùng cho pháp trị (Thái Dương, Dương Minh, Vệ Phận…)
         </p>
@@ -197,7 +197,7 @@ async function handleDelete() {
 
       <div class="data-card">
         <div class="card-header">
-          <h3>Danh sách Tổn thương - Tác nhân</h3>
+          <h3>Danh Sách Tổn Thương - Tác Nhân</h3>
           <span class="badge badge-success">{{ filteredList.length }} bản ghi</span>
         </div>
         <div class="table-responsive">

@@ -533,7 +533,7 @@ async function handleDelete() {
   <div class="management-page">
     <div class="page-header">
       <div class="header-content">
-        <h1 class="page-title">Quản Lý Bệnh Kinh lạc</h1>
+        <h1 class="page-title">Quản Lý Bệnh Kinh Lạc</h1>
         <p class="page-subtitle">
           Danh mục bệnh chẩn theo kinh lạc, liên kết với thể bệnh / pháp trị tương ứng
         </p>
@@ -840,7 +840,7 @@ async function handleDelete() {
       <div class="data-card" :class="{ 'data-card--loading': pageLoading }">
         <div v-if="pageLoading" class="loading-bar" aria-hidden="true"></div>
         <div class="card-header">
-          <h3>Bệnh Kinh lạc</h3>
+          <h3>Bệnh Kinh Lạc</h3>
           <span class="badge badge-info">{{ dataTotal }} bản ghi</span>
         </div>
 

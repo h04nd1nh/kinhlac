@@ -226,7 +226,7 @@ async function handleDelete() {
       <div class="data-card" :class="{ 'data-card--loading': pageLoading }">
         <div v-if="pageLoading" class="loading-bar" aria-hidden="true"></div>
         <div class="card-header">
-          <h3>Danh sách Kinh Mạch</h3>
+          <h3>Danh Sách Kinh Mạch</h3>
           <span class="badge badge-success">{{ filteredList.length }} bản ghi</span>
         </div>
         <div class="table-responsive">

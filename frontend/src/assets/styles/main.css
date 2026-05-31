@@ -189,3 +189,62 @@ img {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--gray-500);
 }
+
+/* ============================================
+   Viết hoa chữ cái đầu (Title Case) cho toàn UI
+   --------------------------------------------
+   Áp dụng cho vùng nội dung chính (mọi trang + modal render trong
+   .content-area). Viết hoa chữ cái đầu mỗi từ ở các TÊN/nhãn/tiêu đề
+   hiển thị (kể cả tên dữ liệu động lấy từ DB như thể bệnh, thuốc,
+   triệu chứng, kinh mạch, huyệt…). KHÔNG đổi dữ liệu gốc — chỉ là hiển thị.
+   Sidebar/header nằm ngoài .content-area nên không bị ảnh hưởng.
+   ============================================ */
+.content-area {
+  text-transform: capitalize;
+}
+
+/* --- Loại trừ: GIỮ NGUYÊN dạng gốc (không viết hoa tự động) --- */
+
+/* Ô nhập liệu: không can thiệp chữ người dùng gõ / placeholder */
+.content-area input,
+.content-area textarea,
+.content-area select,
+.content-area option,
+.content-area ::placeholder,
+/* Mã / code / công thức / cell reference (Excel, SQL, logic) */
+.content-area .mono,
+.content-area code,
+.content-area pre,
+.content-area .inline-code,
+.content-area .readonly-input,
+.content-area .readonly-panel,
+.content-area .xref,
+.content-area .xref-inline,
+.content-area .xref-formula,
+.content-area .excel-map-panel,
+.content-area .cell-tag,
+.content-area .cell-id,
+.content-area [class$="__id"],
+/* Số đếm / badge / phân trang */
+.content-area .badge,
+.content-area [class*="count"],
+.content-area [class*="-pill"],
+.content-area .pill-count,
+.content-area .page-info,
+.content-area .page-btn,
+.content-area .pho-bien,
+/* Câu mô tả / trạng thái (giữ dạng câu, không Title Case) */
+.content-area .page-subtitle,
+.content-area .page-description,
+.content-area .modal-subtitle,
+.content-area .empty-state,
+.content-area .empty-state-sm,
+.content-area .empty-cell,
+.content-area .loading-state,
+.content-area .disease-empty,
+.content-area .selected-empty,
+.content-area .form-error,
+.content-area .muted,
+.content-area p {
+  text-transform: none;
+}

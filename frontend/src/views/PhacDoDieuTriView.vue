@@ -426,7 +426,7 @@ async function handleDelete() {
 
       <div class="data-card">
         <div class="card-header">
-          <h3>Danh sách Phương Huyệt</h3>
+          <h3>Danh Sách Phương Huyệt</h3>
           <span class="badge badge-success">{{ filteredList.length }} bệnh · {{ dataList.length }} liên kết</span>
         </div>
         <div v-if="pagedList.length === 0" class="empty-state">

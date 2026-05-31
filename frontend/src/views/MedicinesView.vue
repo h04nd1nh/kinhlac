@@ -2501,7 +2501,7 @@ async function suggestViThuocAi() {
           <div v-if="baiThuocPageLoading" class="loading-bar" aria-hidden="true"></div>
           <div class="card-header">
             <div class="card-header-left">
-              <h3>Danh sách Bài Thuốc</h3>
+              <h3>Danh Sách Bài Thuốc</h3>
               <span class="badge badge-info">{{ filteredBaiThuoc.length }} bài thuốc</span>
             </div>
             <div class="header-actions">
@@ -2739,7 +2739,7 @@ async function suggestViThuocAi() {
           <div v-if="viThuocPageLoading" class="loading-bar" aria-hidden="true"></div>
           <div class="card-header">
             <div class="card-header-left">
-              <h3>Danh sách Vị Thuốc</h3>
+              <h3>Danh Sách Vị Thuốc</h3>
               <span class="badge badge-success">{{ filteredViThuoc.length }} vị thuốc</span>
             </div>
             <button type="button" class="btn-primary" @click="openCreateViThuoc">+ Thêm vị thuốc</button>

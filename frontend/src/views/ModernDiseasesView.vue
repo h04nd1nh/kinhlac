@@ -251,7 +251,7 @@ async function handleDelete() {
   <div class="management-page">
     <div class="page-header">
       <div class="header-content">
-        <h1 class="page-title">Bệnh Đông Y Hiện đại</h1>
+        <h1 class="page-title">Bệnh Đông Y Hiện Đại</h1>
         <p class="page-subtitle">
           Danh mục quy tắc chẩn đoán độc lập, cùng cấu trúc với Bệnh Đông Y Excel nhưng không liên kết tới bảng nào khác.
         </p>
@@ -414,7 +414,7 @@ async function handleDelete() {
 
       <div class="data-card">
         <div class="card-header">
-          <h3>Bệnh Đông Y Hiện đại</h3>
+          <h3>Bệnh Đông Y Hiện Đại</h3>
           <span class="badge badge-info">{{ dataList.length }} bản ghi</span>
         </div>
         <div v-if="pagedList.length === 0" class="empty-state">

@@ -743,7 +743,7 @@ async function handleDelete() {
       <div class="data-card" :class="{ 'data-card--loading': pageLoading }">
         <div v-if="pageLoading" class="loading-bar" aria-hidden="true"></div>
         <div class="card-header">
-          <h3>Danh sách Pháp Trị</h3>
+          <h3>Danh Sách Pháp Trị</h3>
           <span class="badge badge-success">{{ filteredList.length }} bản ghi</span>
         </div>
         <div v-if="pagedList.length === 0" class="empty-state">Chưa có dữ liệu</div>
