@@ -13,6 +13,8 @@ export interface Patient {
   phone: string | null
   medicalHistory: string | null
   notes: string | null
+  treatmentTarget?: number | null
+  treatmentCourseStart?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -35,6 +37,8 @@ export interface CreatePatientDto {
   phone?: string
   medicalHistory?: string
   notes?: string
+  treatmentTarget?: number | null
+  treatmentCourseStart?: string | null
 }
 
 export type UpdatePatientDto = Partial<CreatePatientDto>

@@ -8,6 +8,8 @@ export class CreatePatientDto {
   phone?: string;
   medicalHistory?: string;
   notes?: string;
+  treatmentTarget?: number | null;
+  treatmentCourseStart?: string | null;
 }
 
 export class UpdatePatientDto {
@@ -20,4 +22,6 @@ export class UpdatePatientDto {
   phone?: string;
   medicalHistory?: string;
   notes?: string;
+  treatmentTarget?: number | null;
+  treatmentCourseStart?: string | null;
 }

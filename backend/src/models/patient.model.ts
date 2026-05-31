@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn
 } from 'typeorm';
+import { ymdDateTransformer } from './_date-transformer';
 
 @Entity('patients')
 export class Patient {
@@ -43,6 +44,15 @@ export class Patient {
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;
+
+  // Liệu trình hiện tại: số buổi mục tiêu + ngày bắt đầu.
+  // Số buổi "đã trị" được đếm động từ appointment_slots (COMPLETED), không lưu ở đây.
+  @Column({ type: 'int', nullable: true })
+  treatmentTarget: number | null;
+
+  // transformer giữ ngày dạng 'YYYY-MM-DD' (giống slotDate), tránh bị serialize thành ISO/UTC.
+  @Column({ type: 'date', nullable: true, transformer: ymdDateTransformer })
+  treatmentCourseStart: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

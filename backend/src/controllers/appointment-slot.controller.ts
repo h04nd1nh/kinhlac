@@ -56,6 +56,15 @@ export class AppointmentSlotsService {
     });
   }
 
+  // Admin: lấy toàn bộ vé của 1 bệnh nhân bất kỳ (mới nhất trước).
+  // Dùng cho hồ sơ bệnh nhân để đếm số buổi trị liệu + liệt kê lịch sử.
+  async findByPatient(patientId: number): Promise<AppointmentSlot[]> {
+    return this.slotRepo.find({
+      where: { patientId },
+      order: { slotDate: 'DESC', slotTime: 'DESC' },
+    });
+  }
+
   async findOne(id: number): Promise<AppointmentSlot> {
     const slot = await this.slotRepo.findOneBy({ id });
     if (!slot) throw new NotFoundException(`Vé #${id} không tồn tại`);

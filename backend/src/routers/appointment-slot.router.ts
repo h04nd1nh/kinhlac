@@ -87,6 +87,13 @@ export class AppointmentSlotsRouter {
     return this.service.summaryByDate(from, to);
   }
 
+  // Lấy toàn bộ vé của 1 bệnh nhân (cho hồ sơ bệnh nhân).
+  // Khai báo TRƯỚC @Get(':id') để Nest không nhầm "patient" là một id.
+  @Get('patient/:id')
+  findByPatient(@Param('id', ParseIntPipe) id: number) {
+    return this.service.findByPatient(id);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);

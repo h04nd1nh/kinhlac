@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { api } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import type { Patient } from '@/stores/patient'
+import CosmicWheel from '@/components/CosmicWheel.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -196,13 +197,8 @@ onMounted(loadDashboard)
           <span class="hero-chip"><b>{{ todayCounts.OPEN }}</b> chỗ trống</span>
         </div>
       </div>
-      <div class="hero-art" aria-hidden="true">
-        <svg width="128" height="128" viewBox="0 0 120 120" fill="none">
-          <circle cx="60" cy="60" r="55" stroke="rgba(255,255,255,.2)" stroke-width="2" />
-          <circle cx="60" cy="60" r="40" stroke="rgba(255,255,255,.15)" stroke-width="1.5" />
-          <path d="M60 20C60 20 40 40 40 60C40 71.046 48.954 80 60 80C71.046 80 80 71.046 80 60C80 40 60 20 60 20Z" fill="rgba(255,255,255,.25)" />
-          <circle cx="60" cy="60" r="6" fill="rgba(255,255,255,.5)" />
-        </svg>
+      <div class="hero-art">
+        <CosmicWheel />
       </div>
     </section>
 
@@ -389,8 +385,19 @@ onMounted(loadDashboard)
 .hero-chips { display: flex; flex-wrap: wrap; gap: var(--space-3) }
 .hero-chip { font-size: var(--font-size-sm); color: rgba(255, 255, 255, .85); background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .14); padding: 6px 14px; border-radius: var(--radius-full) }
 .hero-chip b { color: var(--white); font-weight: 700 }
-.hero-art { position: relative; z-index: 1; opacity: .85; flex-shrink: 0; animation: pulse-glow 4s ease-in-out infinite }
-@keyframes pulse-glow { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.04) } }
+.hero-art { position: relative; z-index: 1; flex-shrink: 0; width: clamp(212px, 23vw, 300px) }
+/* Vầng sáng ấm + "ổ" tối phía sau bánh xe, để medallion như được gắn chìm vào hero (không dùng ảnh) */
+.hero-art::before {
+  content: '';
+  position: absolute;
+  inset: -16% -14%;
+  z-index: -1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(250, 243, 228, .14) 0%, rgba(250, 243, 228, .06) 40%, rgba(250, 243, 228, 0) 70%),
+    radial-gradient(circle at 50% 54%, rgba(20, 11, 4, .30) 58%, rgba(20, 11, 4, 0) 78%);
+  pointer-events: none;
+}
 
 /* ---------- Block headers ---------- */
 .block { display: flex; flex-direction: column; gap: var(--space-5) }

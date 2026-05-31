@@ -13,13 +13,13 @@ const examinations = ref<any[]>([])
 const isLoading = ref(true)
 const isLoadingExams = ref(true)
 const error = ref<string | null>(null)
-const activeTab = ref<'info' | 'history'>('info')
+const activeTab = ref<'info' | 'history' | 'treatment'>('info')
 
 const patientId = computed(() => Number(route.params.id))
 
 onMounted(async () => {
   await loadPatient()
-  await loadExaminations()
+  await Promise.all([loadExaminations(), loadSlots()])
 })
 
 async function loadPatient() {
@@ -41,6 +41,193 @@ async function loadExaminations() {
     console.error('Failed to load examinations:', err)
   } finally {
     isLoadingExams.value = false
+  }
+}
+
+// ---- Lịch trị liệu (appointment slots) của bệnh nhân này ----
+type SlotStatus = 'OPEN' | 'CLOSED' | 'BOOKED' | 'COMPLETED' | 'CANCELLED'
+interface AppointmentSlot {
+  id: number
+  slotDate: string
+  slotTime: string
+  status: SlotStatus
+  patientId: number | null
+  reason: string | null
+  notes: string | null
+}
+
+const slots = ref<AppointmentSlot[]>([])
+const isLoadingSlots = ref(true)
+
+async function loadSlots() {
+  isLoadingSlots.value = true
+  try {
+    const res = await api.get<AppointmentSlot[]>(`/appointment-slots/patient/${patientId.value}`)
+    slots.value = (res || []).map((s) => ({ ...s, slotTime: (s.slotTime || '').slice(0, 5) }))
+  } catch (err: any) {
+    console.error('Failed to load slots:', err)
+  } finally {
+    isLoadingSlots.value = false
+  }
+}
+
+// "Hôm nay" theo giờ Việt Nam (Asia/Ho_Chi_Minh) — tránh lệch ngày khi máy/trình duyệt ở timezone khác.
+function todayYMD(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+// --- Liệu trình hiện tại ---
+// Chuẩn hoá ngày về 'YYYY-MM-DD' (cắt phần giờ nếu API lỡ trả ISO) để so sánh chuỗi luôn đúng.
+function ymd(d: string | null | undefined): string {
+  return (d || '').slice(0, 10)
+}
+
+const courseStart = computed(() => ymd(patient.value?.treatmentCourseStart) || null)
+const courseTarget = computed(() => patient.value?.treatmentTarget ?? null)
+const hasCourse = computed(() => courseTarget.value != null && courseTarget.value > 0)
+
+// Số buổi ĐÃ TRỊ = vé COMPLETED có ngày >= ngày bắt đầu liệu trình (so sánh chuỗi 'YYYY-MM-DD').
+const completedCount = computed(
+  () =>
+    slots.value.filter(
+      (s) =>
+        s.status === 'COMPLETED' &&
+        (!courseStart.value || ymd(s.slotDate) >= courseStart.value),
+    ).length,
+)
+const upcomingCount = computed(
+  () => slots.value.filter((s) => s.status === 'BOOKED' && ymd(s.slotDate) >= todayYMD()).length,
+)
+const overdueCount = computed(
+  () => slots.value.filter((s) => s.status === 'BOOKED' && ymd(s.slotDate) < todayYMD()).length,
+)
+const remainingCount = computed(() =>
+  courseTarget.value != null ? Math.max(0, courseTarget.value - completedCount.value) : null,
+)
+const progressPercent = computed(() => {
+  if (!courseTarget.value || courseTarget.value <= 0) return 0
+  return Math.min(100, Math.round((completedCount.value / courseTarget.value) * 100))
+})
+
+// Danh sách cho tab, tách nhóm theo trạng thái
+const upcomingSlots = computed(() =>
+  slots.value
+    .filter((s) => s.status === 'BOOKED' && ymd(s.slotDate) >= todayYMD())
+    .slice()
+    .sort((a, b) => (a.slotDate + a.slotTime).localeCompare(b.slotDate + b.slotTime)),
+)
+// Vé đã đặt nhưng đã qua ngày mà chưa "Hoàn thành"/"Huỷ" — nhắc bác sĩ xử lý (mới nhất trước).
+const overdueSlots = computed(() =>
+  slots.value
+    .filter((s) => s.status === 'BOOKED' && ymd(s.slotDate) < todayYMD())
+    .slice()
+    .sort((a, b) => (b.slotDate + b.slotTime).localeCompare(a.slotDate + a.slotTime)),
+)
+// "Đã hoàn thành" trong liệu trình hiện tại — KHỚP với con số ở thẻ tóm tắt.
+const completedSlots = computed(() =>
+  slots.value.filter(
+    (s) =>
+      s.status === 'COMPLETED' && (!courseStart.value || ymd(s.slotDate) >= courseStart.value),
+  ),
+)
+// Buổi đã trị TRƯỚC khi bắt đầu liệu trình hiện tại (chỉ để xem lại, không tính vào tiến độ).
+const earlierCompletedSlots = computed(() =>
+  courseStart.value
+    ? slots.value.filter(
+        (s) => s.status === 'COMPLETED' && ymd(s.slotDate) < courseStart.value!,
+      )
+    : [],
+)
+const cancelledSlots = computed(() => slots.value.filter((s) => s.status === 'CANCELLED'))
+
+function slotStatusLabel(s: SlotStatus) {
+  switch (s) {
+    case 'OPEN':
+      return 'Trống'
+    case 'CLOSED':
+      return 'Đóng'
+    case 'BOOKED':
+      return 'Đã Đặt'
+    case 'COMPLETED':
+      return 'Hoàn Thành'
+    case 'CANCELLED':
+      return 'Đã Huỷ'
+  }
+}
+
+function formatSlotDate(dateStr: string | null) {
+  const s = ymd(dateStr)
+  if (!s) return '—'
+  const [y, m, d] = s.split('-').map((x) => parseInt(x, 10))
+  const date = new Date(y || 1970, (m || 1) - 1, d || 1)
+  return date.toLocaleDateString('vi-VN', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+}
+
+function goToAppointments() {
+  router.push({ name: 'appointments' })
+}
+
+// ---- Modal: bắt đầu / cập nhật liệu trình ----
+const showCourseModal = ref(false)
+const courseTargetInput = ref<number | null>(null)
+const courseSaving = ref(false)
+
+function openCourseModal() {
+  courseTargetInput.value = courseTarget.value ?? 10
+  showCourseModal.value = true
+}
+
+function closeCourseModal() {
+  showCourseModal.value = false
+}
+
+async function saveCourse() {
+  const n = Number(courseTargetInput.value)
+  if (!n || n <= 0) {
+    alert('Nhập số buổi mục tiêu lớn hơn 0')
+    return
+  }
+  // Chỉ đặt ngày bắt đầu khi BẮT ĐẦU liệu trình mới; sửa mục tiêu giữa chừng thì giữ nguyên ngày cũ.
+  const isNew = !hasCourse.value
+  courseSaving.value = true
+  try {
+    const payload: { treatmentTarget: number; treatmentCourseStart?: string } = {
+      treatmentTarget: n,
+    }
+    if (isNew) payload.treatmentCourseStart = todayYMD()
+    await api.put(`/patients/${patientId.value}`, payload)
+    await loadPatient()
+    showCourseModal.value = false
+  } catch (err: any) {
+    alert('Lỗi: ' + err.message)
+  } finally {
+    courseSaving.value = false
+  }
+}
+
+async function endCourse() {
+  if (!confirm('Kết thúc liệu trình hiện tại? Số buổi sẽ ngừng đếm cho liệu trình này.')) return
+  courseSaving.value = true
+  try {
+    await api.put(`/patients/${patientId.value}`, {
+      treatmentTarget: null,
+      treatmentCourseStart: null,
+    })
+    await loadPatient()
+  } catch (err: any) {
+    alert('Lỗi: ' + err.message)
+  } finally {
+    courseSaving.value = false
   }
 }
 
@@ -166,6 +353,42 @@ function getAge(dob: string | null) {
         </div>
       </div>
 
+      <!-- Thẻ tóm tắt liệu trình -->
+      <div class="course-card">
+        <div class="course-head">
+          <h3 class="course-title">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+            Liệu Trình Trị Liệu
+          </h3>
+          <div class="course-actions">
+            <template v-if="hasCourse">
+              <button class="btn-course-ghost" :disabled="courseSaving" @click="openCourseModal">Cập Nhật Mục Tiêu</button>
+              <button class="btn-course-ghost" :disabled="courseSaving" @click="endCourse">Kết Thúc</button>
+            </template>
+            <button v-else class="btn-course-primary" :disabled="courseSaving" @click="openCourseModal">
+              + Bắt Đầu Liệu Trình
+            </button>
+          </div>
+        </div>
+
+        <template v-if="hasCourse">
+          <div class="course-progress-row">
+            <span class="course-progress-text">Đã trị <strong>{{ completedCount }}</strong> / {{ courseTarget }} buổi</span>
+            <span class="course-progress-pct">{{ progressPercent }}%</span>
+          </div>
+          <div class="course-bar"><div class="course-bar-fill" :style="{ width: progressPercent + '%' }"></div></div>
+          <div class="course-meta">
+            <span class="course-chip chip-remaining">Còn lại {{ remainingCount }} buổi</span>
+            <span class="course-chip chip-upcoming">Sắp tới {{ upcomingCount }} buổi đã đặt</span>
+            <span v-if="overdueCount" class="course-chip chip-overdue">Quá hạn {{ overdueCount }} buổi chưa xử lý</span>
+            <span v-if="courseStart" class="course-chip chip-date">Bắt đầu {{ formatSlotDate(courseStart) }}</span>
+          </div>
+        </template>
+        <p v-else class="course-empty">
+          Chưa thiết lập liệu trình. Tổng đã trị: <strong>{{ completedCount }}</strong> buổi · Sắp tới: <strong>{{ upcomingCount }}</strong> buổi đã đặt.
+        </p>
+      </div>
+
       <!-- Tabs -->
       <div class="tabs">
         <button class="tab" :class="{ active: activeTab === 'info' }" @click="activeTab = 'info'">
@@ -176,6 +399,11 @@ function getAge(dob: string | null) {
           <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
           Lịch Sử Khám
           <span v-if="examinations.length" class="tab-badge">{{ examinations.length }}</span>
+        </button>
+        <button class="tab" :class="{ active: activeTab === 'treatment' }" @click="activeTab = 'treatment'">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
+          Lịch Trị Liệu
+          <span v-if="slots.length" class="tab-badge">{{ slots.length }}</span>
         </button>
       </div>
 
@@ -250,6 +478,120 @@ function getAge(dob: string | null) {
             <button v-for="pn in getPageNumbers()" :key="pn" class="page-btn" :class="{ active: pn === examPage }" @click.stop="examPage = pn">{{ pn }}</button>
             <button class="page-btn" :disabled="examPage >= totalPages" @click.stop="examPage++">›</button>
             <span class="page-info">Trang {{ examPage }} / {{ totalPages }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Lịch trị liệu -->
+      <div v-if="activeTab === 'treatment'" class="tab-content">
+        <div class="treatment-toolbar">
+          <button class="btn-primary" @click="goToAppointments">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+            Đặt Lịch Mới
+          </button>
+        </div>
+
+        <div v-if="isLoadingSlots" class="loading-state loading-state--sm">
+          <div class="spinner"></div>
+        </div>
+        <div v-else-if="slots.length === 0" class="empty-state-sm">
+          <svg width="40" height="40" viewBox="0 0 20 20" fill="currentColor" class="empty-icon-sm"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
+          <p>Chưa có buổi trị liệu nào</p>
+          <button class="btn-primary" @click="goToAppointments">Đặt Lịch Trị Liệu</button>
+        </div>
+        <template v-else>
+          <!-- Quá hạn chưa xử lý -->
+          <div v-if="overdueSlots.length" class="slot-group">
+            <h4 class="slot-group-title slot-group-title--warn">Quá Hạn Chưa Xử Lý ({{ overdueSlots.length }})</h4>
+            <div class="treat-list">
+              <div v-for="s in overdueSlots" :key="s.id" class="treat-row treat-overdue">
+                <div class="treat-when">
+                  <span class="treat-date">{{ formatSlotDate(s.slotDate) }}</span>
+                  <span class="treat-time">{{ s.slotTime }}</span>
+                </div>
+                <span class="treat-status st-overdue">Quá Hạn</span>
+                <span v-if="s.reason" class="treat-reason">{{ s.reason }}</span>
+              </div>
+            </div>
+          </div>
+          <!-- Sắp tới -->
+          <div v-if="upcomingSlots.length" class="slot-group">
+            <h4 class="slot-group-title">Sắp Tới ({{ upcomingSlots.length }})</h4>
+            <div class="treat-list">
+              <div v-for="s in upcomingSlots" :key="s.id" class="treat-row treat-booked">
+                <div class="treat-when">
+                  <span class="treat-date">{{ formatSlotDate(s.slotDate) }}</span>
+                  <span class="treat-time">{{ s.slotTime }}</span>
+                </div>
+                <span class="treat-status st-booked">{{ slotStatusLabel(s.status) }}</span>
+                <span v-if="s.reason" class="treat-reason">{{ s.reason }}</span>
+              </div>
+            </div>
+          </div>
+          <!-- Đã hoàn thành (trong liệu trình hiện tại) -->
+          <div v-if="completedSlots.length" class="slot-group">
+            <h4 class="slot-group-title">
+              {{ hasCourse ? 'Đã Hoàn Thành (Liệu Trình Này)' : 'Đã Hoàn Thành' }} ({{ completedSlots.length }})
+            </h4>
+            <div class="treat-list">
+              <div v-for="(s, i) in completedSlots" :key="s.id" class="treat-row treat-completed">
+                <div class="treat-when">
+                  <span class="treat-index">#{{ completedSlots.length - i }}</span>
+                  <span class="treat-date">{{ formatSlotDate(s.slotDate) }}</span>
+                  <span class="treat-time">{{ s.slotTime }}</span>
+                </div>
+                <span class="treat-status st-completed">{{ slotStatusLabel(s.status) }}</span>
+                <span v-if="s.reason" class="treat-reason">{{ s.reason }}</span>
+              </div>
+            </div>
+          </div>
+          <!-- Đã trị trước liệu trình hiện tại (chỉ xem lại) -->
+          <div v-if="earlierCompletedSlots.length" class="slot-group">
+            <h4 class="slot-group-title">Đã Trị Trước Đó ({{ earlierCompletedSlots.length }})</h4>
+            <div class="treat-list">
+              <div v-for="s in earlierCompletedSlots" :key="s.id" class="treat-row treat-completed treat-earlier">
+                <div class="treat-when">
+                  <span class="treat-date">{{ formatSlotDate(s.slotDate) }}</span>
+                  <span class="treat-time">{{ s.slotTime }}</span>
+                </div>
+                <span class="treat-status st-completed">{{ slotStatusLabel(s.status) }}</span>
+                <span v-if="s.reason" class="treat-reason">{{ s.reason }}</span>
+              </div>
+            </div>
+          </div>
+          <!-- Đã huỷ -->
+          <div v-if="cancelledSlots.length" class="slot-group">
+            <h4 class="slot-group-title">Đã Huỷ ({{ cancelledSlots.length }})</h4>
+            <div class="treat-list">
+              <div v-for="s in cancelledSlots" :key="s.id" class="treat-row treat-cancelled">
+                <div class="treat-when">
+                  <span class="treat-date">{{ formatSlotDate(s.slotDate) }}</span>
+                  <span class="treat-time">{{ s.slotTime }}</span>
+                </div>
+                <span class="treat-status st-cancelled">{{ slotStatusLabel(s.status) }}</span>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Modal: bắt đầu / cập nhật liệu trình -->
+      <div v-if="showCourseModal" class="modal-overlay" @click.self="closeCourseModal">
+        <div class="modal-box">
+          <h3 class="modal-title">{{ hasCourse ? 'Cập Nhật Liệu Trình' : 'Bắt Đầu Liệu Trình Mới' }}</h3>
+          <p class="modal-desc">
+            <template v-if="hasCourse">Cập nhật số buổi mục tiêu. Giữ nguyên ngày bắt đầu &amp; số buổi đã trị hiện tại của liệu trình.</template>
+            <template v-else>Nhập số buổi mục tiêu. Ngày bắt đầu được đặt là hôm nay ({{ formatSlotDate(todayYMD()) }}); số buổi đã trị sẽ đếm từ ngày này.</template>
+          </p>
+          <div class="form-group">
+            <label>Số buổi mục tiêu</label>
+            <input v-model.number="courseTargetInput" type="number" min="1" class="input" />
+          </div>
+          <div class="modal-actions">
+            <button class="btn-secondary" @click="closeCourseModal">Huỷ</button>
+            <button class="btn-primary" :disabled="courseSaving" @click="saveCourse">
+              {{ courseSaving ? 'Đang lưu...' : hasCourse ? 'Lưu' : 'Bắt Đầu' }}
+            </button>
           </div>
         </div>
       </div>
@@ -338,9 +680,71 @@ function getAge(dob: string | null) {
 .header-actions{display:flex;gap:var(--space-3);margin-left:auto;}
 .ml-auto{margin-left:auto;}
 
+/* Course summary card */
+.course-card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-lg);padding:var(--space-5) var(--space-6);margin-bottom:var(--space-6)}
+.course-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-4)}
+.course-title{display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--font-size-md);font-weight:700;color:var(--brown-800)}
+.course-title svg{color:var(--brown-500)}
+.course-actions{display:flex;gap:var(--space-2);flex-wrap:wrap}
+.btn-course-primary{padding:8px 16px;background:var(--brown-600);color:var(--white);font-size:var(--font-size-sm);font-weight:600;border-radius:var(--radius-md);border:none;cursor:pointer;transition:all var(--transition-fast)}
+.btn-course-primary:hover:not(:disabled){background:var(--brown-700)}
+.btn-course-ghost{padding:6px 14px;background:var(--white);color:var(--brown-700);font-size:var(--font-size-sm);font-weight:600;border-radius:var(--radius-md);border:1px solid var(--brown-200);cursor:pointer;transition:all var(--transition-fast)}
+.btn-course-ghost:hover:not(:disabled){background:var(--brown-50);border-color:var(--brown-300)}
+.btn-course-primary:disabled,.btn-course-ghost:disabled{opacity:.6;cursor:not-allowed}
+.course-progress-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--space-2)}
+.course-progress-text{font-size:var(--font-size-md);color:var(--gray-700)}
+.course-progress-text strong{font-size:var(--font-size-lg);color:var(--brown-800)}
+.course-progress-pct{font-size:var(--font-size-sm);font-weight:700;color:var(--brown-600)}
+.course-bar{height:10px;background:var(--gray-100);border-radius:var(--radius-full);overflow:hidden;margin-bottom:var(--space-3)}
+.course-bar-fill{height:100%;background:linear-gradient(90deg,var(--brown-400),var(--brown-600));border-radius:var(--radius-full);transition:width .4s ease}
+.course-meta{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.course-chip{padding:3px 10px;border-radius:var(--radius-full);font-size:var(--font-size-xs);font-weight:600}
+.chip-remaining{background:var(--info-bg);color:var(--info-fg)}
+.chip-upcoming{background:var(--warning-bg);color:var(--warning-fg)}
+.chip-date{background:var(--gray-100);color:var(--gray-600)}
+.course-empty{font-size:var(--font-size-sm);color:var(--gray-600)}
+.course-empty strong{color:var(--brown-700)}
+
+/* Treatment list */
+.treatment-toolbar{display:flex;justify-content:flex-end;margin-bottom:var(--space-4)}
+.empty-state-sm .btn-primary{margin-top:var(--space-3)}
+.slot-group{margin-bottom:var(--space-5)}
+.slot-group-title{font-size:var(--font-size-sm);font-weight:700;color:var(--brown-700);text-transform:uppercase;letter-spacing:.04em;margin-bottom:var(--space-3)}
+.treat-list{display:flex;flex-direction:column;gap:var(--space-2)}
+.treat-row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;padding:var(--space-3) var(--space-4);background:var(--white);border:1px solid var(--gray-200);border-left-width:3px;border-radius:var(--radius-md)}
+.treat-booked{border-left-color:var(--warning-border,#d9a441)}
+.treat-completed{border-left-color:var(--success,#3f9b56)}
+.treat-cancelled{border-left-color:var(--danger,#c0533f);opacity:.75}
+.treat-when{display:inline-flex;align-items:center;gap:var(--space-2);min-width:200px}
+.treat-index{font-size:var(--font-size-xs);font-weight:700;color:var(--gray-400)}
+.treat-date{font-size:var(--font-size-sm);font-weight:600;color:var(--black);text-transform:capitalize}
+.treat-time{font-size:var(--font-size-sm);font-weight:700;color:var(--brown-700)}
+.treat-status{padding:2px 10px;border-radius:var(--radius-full);font-size:var(--font-size-xs);font-weight:700}
+.st-booked{background:var(--warning-bg);color:var(--warning-fg)}
+.st-completed{background:var(--success-bg);color:var(--success-fg)}
+.st-cancelled{background:var(--danger-bg);color:var(--danger-fg)}
+.treat-reason{font-size:var(--font-size-sm);color:var(--gray-600)}
+.treat-earlier{opacity:.65}
+.treat-overdue{border-left-color:var(--danger,#c0533f)}
+.st-overdue{background:var(--danger-bg);color:var(--danger-fg)}
+.chip-overdue{background:var(--danger-bg);color:var(--danger-fg)}
+.slot-group-title--warn{color:var(--danger-fg)}
+
+/* Course modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:200}
+.modal-box{background:var(--white);border-radius:var(--radius-xl);padding:var(--space-6);width:420px;max-width:90vw;box-shadow:var(--shadow-xl)}
+.modal-title{font-size:var(--font-size-lg);font-weight:700;color:var(--brown-800);margin-bottom:var(--space-3)}
+.modal-desc{font-size:var(--font-size-sm);color:var(--gray-600);line-height:1.5;margin-bottom:var(--space-4)}
+.form-group{display:flex;flex-direction:column;gap:var(--space-2);margin-bottom:var(--space-4)}
+.form-group label{font-size:var(--font-size-sm);font-weight:600;color:var(--gray-700)}
+.input{padding:10px 12px;border:1px solid var(--gray-300);border-radius:var(--radius-md);font:inherit}
+.input:focus{outline:none;border-color:var(--brown-500)}
+.modal-actions{display:flex;justify-content:flex-end;gap:var(--space-2)}
+
 @media(max-width:768px){
   .patient-header-card{flex-direction:column;text-align:center;padding:var(--space-5)}
   .patient-meta{justify-content:center}
   .info-grid{grid-template-columns:1fr}
+  .treat-when{min-width:0}
 }
 </style>
