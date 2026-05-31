@@ -651,7 +651,7 @@ async function handleDelete() {
           :aria-selected="phapTriCategory === 'all'"
           @click="phapTriCategory = 'all'"
         >
-          Tất cả
+          Tất Cả
           <span class="sub-tab__count">{{ phapTriCategoryCounts['all'] }}</span>
         </button>
       </div>
@@ -722,7 +722,7 @@ async function handleDelete() {
           :aria-selected="selectedTayYChungBenhId === null"
           @click="selectedTayYChungBenhId = null"
         >
-          Tất cả
+          Tất Cả
           <span class="sub-sub-tab__count">{{ phapTriCategoryCounts['tay-y'] }}</span>
         </button>
         <button

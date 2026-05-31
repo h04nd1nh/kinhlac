@@ -2411,7 +2411,7 @@ async function suggestViThuocAi() {
             :aria-selected="baiThuocCategory === 'all'"
             @click="baiThuocCategory = 'all'"
           >
-            Tất cả
+            Tất Cả
             <span class="sub-tab__count">{{ baiThuocCategoryCounts['all'] }}</span>
           </button>
         </div>
@@ -2429,7 +2429,7 @@ async function suggestViThuocAi() {
             :aria-selected="selectedChungBenhId === null"
             @click="selectedChungBenhId = null"
           >
-            Tất cả
+            Tất Cả
             <span class="sub-sub-tab__count">{{ baiThuocCategoryCounts['tay-y'] }}</span>
           </button>
           <button

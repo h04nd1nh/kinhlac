@@ -314,7 +314,7 @@ const unexplainedSymptoms = computed<DiagnosisMatchedSymptom[]>(() => {
         :aria-selected="activeTab === 'list'"
         @click="activeTab = 'list'"
       >
-        Danh sách
+        Danh Sách
       </button>
       <button
         type="button"
@@ -324,7 +324,7 @@ const unexplainedSymptoms = computed<DiagnosisMatchedSymptom[]>(() => {
         :aria-selected="activeTab === 'diagnose'"
         @click="activeTab = 'diagnose'"
       >
-        Chẩn đoán
+        Chẩn Đoán
       </button>
     </div>
 

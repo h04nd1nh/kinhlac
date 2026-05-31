@@ -714,7 +714,7 @@ async function doDelete() {
             :aria-selected="selectedBtyChungBenhId === null"
             @click="selectedBtyChungBenhId = null"
           >
-            Tất cả
+            Tất Cả
             <span class="sub-sub-tab__count">{{ benhTayYList.length }}</span>
           </button>
           <button
