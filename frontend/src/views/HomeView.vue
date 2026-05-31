@@ -97,7 +97,7 @@ const kbCards = computed(() => [
 
 const quickActions = [
   { label: 'Thêm Bệnh Nhân', desc: 'Tạo hồ sơ mới', route: 'patients', icon: 'user-plus' },
-  { label: 'Lịch Khám', desc: 'Quản lý lịch hẹn', route: 'appointments', icon: 'calendar' },
+  { label: 'Lịch Trị Liệu', desc: 'Quản lý lịch hẹn', route: 'appointments', icon: 'calendar' },
   { label: 'Tra Cứu Bài Thuốc', desc: 'Kho bài thuốc & vị thuốc', route: 'medicines', icon: 'flask' },
   { label: 'Chẩn Đoán Triệu Chứng', desc: 'Suy luận pháp trị', route: 'symptoms', icon: 'clipboard' },
 ]
@@ -210,7 +210,7 @@ onMounted(loadDashboard)
     <section class="block">
       <div class="block-head">
         <h3 class="block-title">Hoạt Động Hôm Nay</h3>
-        <button class="link-btn" @click="go('appointments')">Mở lịch khám →</button>
+        <button class="link-btn" @click="go('appointments')">Mở lịch trị liệu →</button>
       </div>
       <div class="today-grid">
         <div class="today-card tone-amber" @click="go('appointments')">
@@ -316,7 +316,7 @@ onMounted(loadDashboard)
         <div v-else class="empty-state">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
           <p>Hôm nay chưa có lịch hẹn nào.</p>
-          <button class="btn-ghost" @click="go('appointments')">Mở lịch khám</button>
+          <button class="btn-ghost" @click="go('appointments')">Mở lịch trị liệu</button>
         </div>
       </div>
 
