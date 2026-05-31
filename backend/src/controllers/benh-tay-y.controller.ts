@@ -53,6 +53,7 @@ export class BenhTayYService {
     limit?: number;
     q?: string;
     idChungBenh?: number | null;
+    focusId?: number | null;
   }): Promise<{
     data: BenhTayY[];
     total: number;
@@ -60,18 +61,28 @@ export class BenhTayYService {
     limit: number;
     countsByChungBenh: Record<number, number>;
   }> {
-    const page = Math.max(1, Math.floor(opts.page ?? 1));
+    let page = Math.max(1, Math.floor(opts.page ?? 1));
     const limit = Math.max(1, Math.min(200, Math.floor(opts.limit ?? 12)));
     const q = (opts.q ?? '').trim();
     const idChungBenh = Number.isFinite(opts.idChungBenh as number) ? Number(opts.idChungBenh) : null;
+    const focusId = Number.isFinite(opts.focusId as number) ? Number(opts.focusId) : null;
 
-    const qb = this.repo.createQueryBuilder('bty');
-    if (q) {
-      qb.andWhere('bty.ten_benh ILIKE :term', { term: `%${q}%` });
+    const applyFilters = (qb: ReturnType<Repository<BenhTayY>['createQueryBuilder']>) => {
+      if (q) qb.andWhere('bty.ten_benh ILIKE :term', { term: `%${q}%` });
+      if (idChungBenh != null) qb.andWhere('bty.id_chung_benh = :cbId', { cbId: idChungBenh });
+      return qb;
+    };
+
+    // Nếu có focusId, tính trang chứa bản ghi đó (thứ hạng theo id ASC dưới cùng bộ lọc)
+    // để client có thể nhảy thẳng tới đúng trang và focus.
+    if (focusId != null) {
+      const rank = await applyFilters(this.repo.createQueryBuilder('bty'))
+        .andWhere('bty.id <= :focusId', { focusId })
+        .getCount();
+      if (rank > 0) page = Math.ceil(rank / limit);
     }
-    if (idChungBenh != null) {
-      qb.andWhere('bty.id_chung_benh = :cbId', { cbId: idChungBenh });
-    }
+
+    const qb = applyFilters(this.repo.createQueryBuilder('bty'));
     const [items, total] = await qb
       .orderBy('bty.id', 'ASC')
       .skip((page - 1) * limit)

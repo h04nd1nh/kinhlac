@@ -139,7 +139,10 @@ onMounted(async () => {
   if (Number.isFinite(btyId)) {
     activeTab.value = 'benh-tay-y'
     btySearch.value = ''
+    selectedBtyChungBenhId.value = null
     highlightBtyId.value = btyId
+    // Nạp đúng trang chứa bệnh cần focus (danh sách phân trang phía server).
+    await loadBenhTayYPage(btyId)
     await nextTick()
     const el = document.querySelector(`[data-bty-id="${btyId}"]`) as HTMLElement | null
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -183,7 +186,7 @@ function buildQuery(params: Record<string, unknown>): string {
   return s ? `?${s}` : ''
 }
 
-async function loadBenhTayYPage() {
+async function loadBenhTayYPage(focusId?: number | null) {
   btyPageLoading.value = true
   try {
     const qs = buildQuery({
@@ -191,11 +194,14 @@ async function loadBenhTayYPage() {
       limit: pageSize,
       q: btySearch.value.trim(),
       idChungBenh: selectedBtyChungBenhId.value,
+      focusId: focusId ?? null,
     })
     const res: any = await api.get(`/benh-tay-y/lite${qs}`)
     benhTayYList.value = res?.data ?? []
     benhTayYTotal.value = Number(res?.total ?? 0)
     benhTayYCountsByChungBenh.value = res?.countsByChungBenh ?? {}
+    // Server có thể trả về trang khác (trang chứa focusId) — đồng bộ lại UI phân trang.
+    if (res?.page != null) btyPage.value = Number(res.page)
   } finally {
     btyPageLoading.value = false
   }

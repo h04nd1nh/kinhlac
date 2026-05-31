@@ -28,12 +28,14 @@ export class BenhTayYRouter {
     @Query('limit') limit?: string,
     @Query('q') q?: string,
     @Query('idChungBenh') idChungBenh?: string,
+    @Query('focusId') focusId?: string,
   ) {
     return this.service.findLite({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       q: q ?? undefined,
       idChungBenh: idChungBenh != null && idChungBenh !== '' ? Number(idChungBenh) : null,
+      focusId: focusId != null && focusId !== '' ? Number(focusId) : null,
     });
   }
 
