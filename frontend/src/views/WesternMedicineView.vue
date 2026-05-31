@@ -1312,7 +1312,7 @@ async function doDelete() {
   align-items: flex-start;
   gap: 6px;
   padding: 8px 10px;
-  background: var(--chip-method-bg);
+  background: var(--chip-method-surface);
   border: 1px solid var(--chip-method-border);
   border-left: 3px solid var(--chip-method-fg);
   border-radius: var(--radius-md);

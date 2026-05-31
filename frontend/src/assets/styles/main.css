@@ -70,13 +70,16 @@
   --warning-bg:  #f8eed8;  --warning-border: #ead2a1;  --warning-fg: #8a5a1c;
   --info-bg:     #e6f0f4;  --info-border:    #c3dbe5;  --info-fg:    #245c77;
 
-  /* ---- Chip palette (muted, earthy — replaces bright "rainbow") ---- */
-  --chip-brand-bg:   var(--brown-100); --chip-brand-fg:   var(--brown-800); --chip-brand-border:   var(--brown-200);
-  --chip-herb-bg:    #f4e7c7;          --chip-herb-fg:    #7a531b;          --chip-herb-border:    #e6cf9b; /* bài thuốc */
-  --chip-method-bg:  #f6e2cf;          --chip-method-fg:  #8a4a20;          --chip-method-border:  #ecc8a6; /* pháp trị */
-  --chip-pattern-bg: #e6efe3;          --chip-pattern-fg: #3c6647;          --chip-pattern-border: #cadfc7; /* thể bệnh / thiệt chẩn */
-  --chip-symptom-bg: #ece6f0;          --chip-symptom-fg: #574569;          --chip-symptom-border: #d8cce0; /* triệu chứng */
-  --chip-pulse-bg:   #e4ecf2;          --chip-pulse-fg:   #345a73;          --chip-pulse-border:   #c6d8e4; /* mạch chẩn */
+  /* ---- Chip palette (Ngũ Hành dịu — mỗi nhóm một Hành, đã giảm độ rực & hài hoà) ----
+     Mộc 木 thể bệnh · Hỏa 火 pháp trị · Thổ 土 bài thuốc · Kim 金 triệu chứng · Thủy 水 mạch.
+     Chỉ còn 1 nhóm màu lạnh (Thủy) và rất nhạt → không bị "cầu vồng". */
+  --chip-brand-bg:   var(--brown-100); --chip-brand-fg:   var(--brown-800); --chip-brand-border:   var(--brown-200); /* chứng bệnh (theo theme) */
+  --chip-herb-bg:    #ecd9ad;          --chip-herb-fg:    #6d4f12;          --chip-herb-border:    #ddc483; /* Thổ — bài thuốc (hoàng thổ) */
+  --chip-method-bg:  #f1d8c6;          --chip-method-fg:  #8a4527;          --chip-method-border:  #e2b89e; /* Hỏa — pháp trị (đất nung) */
+  --chip-method-surface: #f9ece4;      /* nền NHẠT cho KHỐI pháp trị (không phải chip) */
+  --chip-pattern-bg: #dde9d4;          --chip-pattern-fg: #3f6140;          --chip-pattern-border: #c2d6b5; /* Mộc — thể bệnh / thiệt chẩn (xanh mộc) */
+  --chip-symptom-bg: #ece5d2;          --chip-symptom-fg: #5c5440;          --chip-symptom-border: #d5cbb4; /* Kim — triệu chứng (kim nhạt, champagne) */
+  --chip-pulse-bg:   #d9e3e7;          --chip-pulse-fg:   #355a68;          --chip-pulse-border:   #bccdd4; /* Thủy — mạch chẩn (thủy lam dịu) */
 
   /* ---- AI accent (softened indigo/plum — still "special", harmonised) ---- */
   --ai-bg:      #efeaf4;
