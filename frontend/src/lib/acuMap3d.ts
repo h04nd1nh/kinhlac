@@ -109,6 +109,11 @@ export function ensureBooted(): Promise<void> {
   bootPromise = (async () => {
     // map3d.js đọc window.ACU_MAP_BASE để dựng đường dẫn model .glb cho đúng trong SPA.
     ;(window as unknown as { ACU_MAP_BASE?: string }).ACU_MAP_BASE = BASE
+    // Địa chỉ API backend cho tính năng "Chấm Tay" (lưu/tải chốt). Khớp với api.ts:
+    //   dev  → http://localhost:3001 (gọi thẳng backend)
+    //   prod → /api  (nginx VPS chuyển /api/* sang backend, cắt prefix /api)
+    ;(window as unknown as { ACU_API_BASE?: string }).ACU_API_BASE =
+      import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
     ensureCss()
     ensureModelPreload() // bắt đầu tải model NGAY, song song với đám script bên dưới

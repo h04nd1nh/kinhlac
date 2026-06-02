@@ -3,6 +3,11 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
-    "deleteOutDir": true
+    "deleteOutDir": true,
+    "assets": [
+      { "include": "acu-solver/**/*.cjs", "outDir": "dist" },
+      { "include": "acu-solver/**/*.json", "outDir": "dist" }
+    ],
+    "watchAssets": true
   }
 }
