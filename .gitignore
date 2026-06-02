@@ -23,3 +23,5 @@ backend/tmp/*
 
 # Caddyfile tham khảo (HTTPS trên VPS đã cấu hình sẵn) — không cần đẩy
 Caddyfile
+
+kinhmach_demo

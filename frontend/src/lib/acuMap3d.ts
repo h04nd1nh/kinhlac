@@ -1,0 +1,142 @@
+/**
+ * acuMap3d.ts — Bộ quản lý "Đồ Hình Kinh Lạc 3D" (engine vanilla map3d.js + Three.js).
+ *
+ * Engine gốc (public/kinhmach3d/map3d.js) là IIFE: chạy MỘT lần khi tải, bám DOM theo id
+ * (#mapStage, #mapReset…) và biến toàn cục (window.ACUPOINTS…). Để dùng trong SPA Vue mà
+ * KHÔNG phải viết lại 64KB engine, ta:
+ *   1) Nạp script + dữ liệu MỘT lần (boot), dựng sẵn khối DOM (#acu3dRoot) cho engine bám vào.
+ *   2) Khi vào trang  → di chuyển khối DOM đó vào khung của component (mount).
+ *   3) Khi rời trang  → trả khối DOM về chỗ ẩn (unmount) — GIỮ NGUYÊN 1 WebGL context,
+ *      không tạo mới mỗi lần điều hướng (tránh rò rỉ context, trình duyệt chỉ cho ~16 context).
+ *
+ * Render-on-demand của engine tự dừng khi document.body.dataset.view != 'meridian', nên khi
+ * ẩn đi gần như không tốn CPU/GPU.
+ */
+
+// Đường dẫn gốc tới thư mục asset trong public/ (tôn trọng BASE_URL khi deploy dưới sub-path).
+const BASE = `${import.meta.env.BASE_URL || '/'}kinhmach3d/`
+
+// Thứ tự nạp BẮT BUỘC: three → bộ mở rộng THREE → dữ liệu → engine. Mỗi script đợi script trước.
+const SCRIPTS: string[] = [
+  'vendor/three.min.js',
+  'vendor/OrbitControls.js',
+  'vendor/GLTFLoader.js',
+  'vendor/meshopt_decoder.js',
+  'data/acupoints.js',
+  'data/acu-index.js',
+  'data/acu-coords3d.js',
+  'data/meridians.js',
+  'data/spacing.js',
+  'data/handfoot-bones.js',
+  'map3d.js',
+  'hand-foot-inset.js',
+]
+
+// Khối DOM mà engine bám vào — TRÙNG cấu trúc #meridian-map trong index.html của webapp gốc.
+const HOST_HTML = `
+  <div class="map-toolbar">
+    <button id="mapReset" class="mv-btn active">↻ Đặt Lại Góc Nhìn</button>
+    <button id="mapFlow" class="mv-btn" title="Bật/tắt dòng kinh khí chạy (tắt cho nhẹ)">✦ Dòng Chảy</button>
+    <button id="mapMirror" class="mv-btn active" title="Hiện huyệt & đường kinh đối xứng cả hai bên">⇋ Hai Bên</button>
+    <button id="mapInsetBtn" class="mv-btn" title="Phóng to bàn tay / bàn chân để xem từng huyệt móng, đốt, lòng bàn">✋ Bàn Tay/Chân</button>
+    <button id="mapEdit" class="mv-btn" title="Chế độ Chấm tay: chọn 1 huyệt rồi bấm lên cơ thể để đặt/dời đúng vị trí">✎ Chấm Tay</button>
+    <div class="map-layers" id="mapLayers" title="Trượt để bóc tách lớp giải phẫu (Da · Cơ · Xương)"></div>
+    <div class="map-search">
+      <input id="mapSearch" type="search" placeholder="Tìm huyệt / mã (CV4, Quan Nguyên)…" autocomplete="off" />
+      <span id="mapCount" class="count dark"></span>
+    </div>
+    <div class="map-legend" id="mapLegend"></div>
+  </div>
+  <div class="map-body">
+    <div class="map-stage" id="mapStage">
+      <span class="map-credit">Mô hình giải phẫu: BodyParts3D © DBCLS — CC-BY-SA 2.1 JP</span>
+      <div class="hf-inset" id="hfInset"></div>
+    </div>
+    <aside class="map-drawer" id="mapDrawer"></aside>
+  </div>
+`
+
+let bootPromise: Promise<void> | null = null
+let hostEl: HTMLElement | null = null
+let parkingEl: HTMLElement | null = null
+
+/** Nạp 1 script (đợi onload) và gắn vào <head>. */
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const el = document.createElement('script')
+    el.src = src
+    el.async = false // giữ đúng thứ tự thực thi
+    el.onload = () => resolve()
+    el.onerror = () => reject(new Error(`Không tải được script: ${src}`))
+    document.head.appendChild(el)
+  })
+}
+
+/** Nạp file CSS của viewer (1 lần). */
+function ensureCss(): void {
+  if (document.getElementById('acu3d-css')) return
+  const link = document.createElement('link')
+  link.id = 'acu3d-css'
+  link.rel = 'stylesheet'
+  link.href = `${BASE}map.css`
+  document.head.appendChild(link)
+}
+
+/**
+ * Khởi động engine MỘT lần: đặt base path, nạp CSS, dựng khối DOM (ẩn), nạp script tuần tự.
+ * Trả Promise dùng lại cho mọi lần gọi sau.
+ */
+export function ensureBooted(): Promise<void> {
+  if (bootPromise) return bootPromise
+
+  bootPromise = (async () => {
+    // map3d.js đọc window.ACU_MAP_BASE để dựng đường dẫn model .glb cho đúng trong SPA.
+    ;(window as unknown as { ACU_MAP_BASE?: string }).ACU_MAP_BASE = BASE
+
+    ensureCss()
+
+    // Chỗ "đỗ" ẩn để giữ khối DOM khi không hiển thị (vẫn nằm trong document → getElementById thấy).
+    parkingEl = document.createElement('div')
+    parkingEl.id = 'acu3dParking'
+    parkingEl.style.display = 'none'
+
+    hostEl = document.createElement('div')
+    hostEl.id = 'acu3dRoot'
+    hostEl.className = 'acu3d'
+    hostEl.innerHTML = HOST_HTML
+
+    parkingEl.appendChild(hostEl)
+    document.body.appendChild(parkingEl)
+
+    // Nạp tuần tự để đảm bảo phụ thuộc (THREE trước, dữ liệu trước engine).
+    for (const s of SCRIPTS) {
+      await loadScript(`${BASE}${s}`)
+    }
+  })()
+
+  return bootPromise
+}
+
+/**
+ * Gắn đồ hình vào khung của component (trang Kinh Mạch 3D vừa mở).
+ * Engine tự initScene khi #mapStage có kích thước (ResizeObserver nội bộ).
+ */
+export async function mountAcuMap(container: HTMLElement): Promise<void> {
+  await ensureBooted()
+  if (!hostEl) return
+  container.appendChild(hostEl)
+  // Bật render-on-demand của engine (vòng animate chỉ vẽ khi 2 cờ này đúng).
+  document.body.dataset.view = 'meridian'
+  document.body.dataset.msub = 'map'
+}
+
+/**
+ * Tháo đồ hình khi rời trang: tắt render trước, rồi trả khối DOM về chỗ đỗ ẩn.
+ * KHÔNG huỷ engine/WebGL context — lần sau mở lại tức thì.
+ */
+export function unmountAcuMap(): void {
+  // Tắt render TRƯỚC để engine không vẽ lúc khung đang bị thu về size 0.
+  if (document.body.dataset.view === 'meridian') delete document.body.dataset.view
+  if (document.body.dataset.msub === 'map') delete document.body.dataset.msub
+  if (hostEl && parkingEl) parkingEl.appendChild(hostEl)
+}

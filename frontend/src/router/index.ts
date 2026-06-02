@@ -14,6 +14,7 @@ const MeridianDiseasesTabsView = () => import('@/views/MeridianDiseasesTabsView.
 const MedicinesView = () => import('@/views/MedicinesView.vue')
 const SymptomsView = () => import('@/views/SymptomsView.vue')
 const TreatmentsView = () => import('@/views/TreatmentsView.vue')
+const KinhMach3DView = () => import('@/views/KinhMach3DView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -75,6 +76,11 @@ const router = createRouter({
           path: 'treatments',
           name: 'treatments',
           component: TreatmentsView,
+        },
+        {
+          path: 'kinh-mach-3d',
+          name: 'kinh-mach-3d',
+          component: KinhMach3DView,
         },
         {
           path: 'patients/:id',

@@ -68,6 +68,7 @@ const navItems = [
   { name: 'Lịch Trị Liệu', routeName: 'appointments', icon: 'calendar' },
   { name: 'Bệnh Tây Y', routeName: 'western-medicine', icon: 'stethoscope' },
   { name: 'Bệnh Đo Kinh Lạc', routeName: 'meridian-diseases', icon: 'rules' },
+  { name: 'Kinh Mạch 3D', routeName: 'kinh-mach-3d', icon: 'activity' },
   { name: 'Quản Lý Thuốc', routeName: 'medicines', icon: 'pill' },
   { name: 'Triệu Chứng', routeName: 'symptoms', icon: 'clipboard' },
   { name: 'Pháp Trị', routeName: 'treatments', icon: 'shield' },
