@@ -83,6 +83,23 @@ function ensureCss(): void {
 }
 
 /**
+ * Tải SẴN model .glb song song với đám script (1 lần).
+ * Bình thường GLTFLoader chỉ bắt đầu tải model SAU khi map3d.js chạy — mà map3d.js phải đợi
+ * acupoints.js (2.6MB) tải xong trước. Preload cho model tải CHỒNG lên lúc tải JS nên khi
+ * map3d.js cần thì model đã sẵn → hiện model nhanh hơn rõ rệt.
+ */
+function ensureModelPreload(): void {
+  if (document.getElementById('acu3d-model-preload')) return
+  const link = document.createElement('link')
+  link.id = 'acu3d-model-preload'
+  link.rel = 'preload'
+  link.as = 'fetch'
+  link.href = `${BASE}models/body-layers.glb`
+  // KHÔNG đặt crossOrigin: GLTFLoader tải bằng XHR same-origin → để khớp request (tránh tải 2 lần).
+  document.head.appendChild(link)
+}
+
+/**
  * Khởi động engine MỘT lần: đặt base path, nạp CSS, dựng khối DOM (ẩn), nạp script tuần tự.
  * Trả Promise dùng lại cho mọi lần gọi sau.
  */
@@ -94,6 +111,7 @@ export function ensureBooted(): Promise<void> {
     ;(window as unknown as { ACU_MAP_BASE?: string }).ACU_MAP_BASE = BASE
 
     ensureCss()
+    ensureModelPreload() // bắt đầu tải model NGAY, song song với đám script bên dưới
 
     // Chỗ "đỗ" ẩn để giữ khối DOM khi không hiển thị (vẫn nằm trong document → getElementById thấy).
     parkingEl = document.createElement('div')
@@ -108,10 +126,10 @@ export function ensureBooted(): Promise<void> {
     parkingEl.appendChild(hostEl)
     document.body.appendChild(parkingEl)
 
-    // Nạp tuần tự để đảm bảo phụ thuộc (THREE trước, dữ liệu trước engine).
-    for (const s of SCRIPTS) {
-      await loadScript(`${BASE}${s}`)
-    }
+    // Nạp SONG SONG: gọi loadScript cho tất cả → mỗi <script> được chèn ngay (tải đồng thời).
+    // el.async=false giữ ĐÚNG thứ tự THỰC THI (THREE trước, dữ liệu trước engine) dù tải song song.
+    // → tổng thời gian ≈ file lớn nhất, thay vì cộng dồn như nạp tuần tự.
+    await Promise.all(SCRIPTS.map((s) => loadScript(`${BASE}${s}`)))
   })()
 
   return bootPromise
