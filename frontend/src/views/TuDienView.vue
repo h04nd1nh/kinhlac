@@ -1,16 +1,17 @@
 <script setup lang="ts">
 /**
  * TuDienView — Tab "Từ Điển" với 2 tab con:
- *   1) Huyệt Vị · Châm Cứu     → tra cứu 1058 huyệt (vị trí, chủ trị, châm cứu, giải phẫu…)
- *   2) Lý Thuyết · Tra Cứu Kinh → 12 chính kinh + 8 mạch + Kỳ Huyệt (đường kinh chính/cân/biệt/lạc,
- *      chủ trị, danh sách huyệt) kèm ĐỒ HÌNH GIẢI PHẪU 2D bấm được (→ bay tới đồ hình 3D).
+ *   1) Huyệt Vị · Châm Cứu      → tra cứu 1058 huyệt (vị trí, chủ trị, châm cứu, giải phẫu…)
+ *   2) Lý Thuyết · Tra Cứu Kinh → 12 chính kinh + 8 mạch + Kỳ Huyệt, trình bày theo TAB-TRONG
+ *      (Tổng Quan · Đường Vận Hành · Đồ Hình Tổng Quát · Chủ Trị · Các Huyệt) — mỗi lần xem 1 mục
+ *      cho gọn mắt, kèm sơ đồ tương ứng (giống bố cục phần mềm cũ).
  *
- * Dữ liệu lấy từ các file tĩnh trong public/kinhmach3d/data/* (window.ACUPOINTS / MERIDIANS / ACU_COORDS3D),
- * nạp qua ensureDictData() — KHÔNG kéo theo Three.js nên trang này nhẹ. Phần CHI TIẾT dựng bằng chuỗi HTML
- * (port nguyên logic bản gốc) rồi gắn qua v-html; danh sách & tìm kiếm dùng template Vue cho phản ứng nhanh.
+ * Dữ liệu lấy từ file tĩnh public/kinhmach3d/data/* (window.ACUPOINTS / MERIDIANS / ACU_COORDS3D) qua
+ * ensureDictData() — KHÔNG kéo Three.js. Chi tiết HUYỆT VỊ dựng bằng chuỗi HTML (v-html); chi tiết
+ * KINH MẠCH dựng bằng template Vue (tab-trong) để bố cục rõ ràng, phân cấp theo mắt nhìn.
  */
-import { ref, computed, onMounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ensureDictData, BASE } from '@/lib/acuMap3d'
 
 // ───────────────────────── kiểu dữ liệu ─────────────────────────
@@ -29,6 +30,8 @@ interface AcuRecord {
   _dacTinh?: string
   _exCode?: string
   _s?: string
+  _name?: string   // norm(tên) — cho xếp hạng tìm kiếm
+  _code?: string   // norm(mã huyệt: LU9, EX-…) — cho tìm/xếp hạng theo mã
 }
 interface MerPoint { n?: number; ten: string; code?: string; id?: number }
 interface Meridian {
@@ -47,7 +50,10 @@ interface Meridian {
   _ky?: boolean
 }
 
+type MerSection = 'tong-quan' | 'van-hanh' | 'chu-tri' | 'do-hinh' | 'huyet'
+
 const router = useRouter()
+const route = useRoute()
 
 // ───────────────────────── trạng thái ─────────────────────────
 const loading = ref(true)
@@ -66,15 +72,20 @@ const acuListEl = ref<HTMLElement | null>(null)
 const merList = ref<Meridian[]>([])
 const kinhSearch = ref('')
 const activeMerI = ref<number | null>(null)
+const merSection = ref<MerSection>('tong-quan')
+const merVanhanhSub = ref<string>('chinh')
 const kyOnlyCoded = ref(false)
 const merMainEl = ref<HTMLElement | null>(null)
+const flashAcuId = ref<number | null>(null)   // huyệt vừa nhảy tới ở "Các Huyệt" → tô sáng tạm
 
 // dữ liệu phụ trợ (gán 1 lần sau khi nạp xong)
 let acuByName = new Map<string, number>()
+let acuById = new Map<number, AcuRecord>()    // id → record, để lấy TÊN CHUẨN cho chip huyệt ở "Các Huyệt"
+let acuCodeToId = new Map<string, number>()   // mã WHO (LI20, GB11…) → id huyệt — vá khi tên trong kinh ≠ tên huyệt vị
 let acuIdToCode = new Map<number, string>()
-let labels: Record<string, string> = {}
+let acuIdToMer = new Map<number, { i: number; code?: string }>()   // id huyệt → đường kinh chứa nó
 let imageLabels: Record<string, string> = {}
-let coords: { meridians: Record<string, { color?: string }>; points: Record<string, any> } = {
+let coords: { meridians: Record<string, { color?: string }>; points: Record<string, unknown> } = {
   meridians: {},
   points: {},
 }
@@ -82,8 +93,24 @@ let coords: { meridians: Record<string, { color?: string }>; points: Record<stri
 // ───────────────────────── tiện ích ─────────────────────────
 const norm = (s?: string) =>
   (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase()
-const fold = (s?: string) =>
-  norm(s).replace(/[^a-z0-9]+/g, ' ').trim()
+const fold = (s?: string) => norm(s).replace(/[^a-z0-9]+/g, ' ').trim()
+// tách truy vấn thành các từ khoá (đã chuẩn hoá) — khớp mọi từ, không cần đúng thứ tự
+const tokenize = (q: string) => q.split(/\s+/).filter(Boolean)
+/**
+ * Điểm độ-liên-quan của 1 mục với truy vấn: trả -1 nếu KHÔNG khớp (thiếu 1 từ khoá);
+ * càng cao càng sát. Dùng để sắp xếp: trùng mã/tên → đứng đầu, chỉ khớp mô tả → cuối.
+ * name/code/blob phải cùng kiểu chuẩn hoá với q (norm cho huyệt, fold cho kinh).
+ */
+function relScore(q: string, tokens: string[], name: string, code: string, blob: string): number {
+  for (const t of tokens) if (!blob.includes(t)) return -1
+  if (code && code === q) return 100 // trùng mã (LU9)
+  if (name === q) return 95 // trùng tên đầy đủ
+  if (code && code.startsWith(q)) return 85 // mã bắt đầu bằng q
+  if (name.startsWith(q)) return 75 // tên bắt đầu bằng q
+  if ((' ' + name).includes(' ' + q)) return 60 // q là đầu một từ trong tên
+  if (name.includes(q)) return 45 // q nằm giữa tên
+  return 10 // chỉ khớp ở phần mô tả / tên khác / phối huyệt
+}
 const esc = (s?: string) =>
   (s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string)
 const styleSrc = (t: string) => t.replace(/(\([^()]+\))(\.?)$/u, '<span class="src">$1$2</span>')
@@ -91,26 +118,61 @@ const secOf = (r: AcuRecord, h: string) => (r.sections || []).find((s) => s.h ==
 const assetUrl = (p?: string | null) =>
   !p ? '' : /^(https?:)?\/\//.test(p) || p.startsWith('/') ? p : BASE + p
 
-/** Định dạng đoạn text nhiều dòng: gạch đầu dòng, mục đánh số 1./2., mục con a)/b). */
-function formatBody(raw?: string): string {
-  const lines = esc(raw).split('\n').map((l) => l.trim()).filter(Boolean)
-  if (!lines.length) return ''
-  const items = lines.map((t) => {
-    if (/^\d+[.)]\s/.test(t)) return { k: 'num', html: styleSrc(t) }
-    if (/^[\p{L}][.)]\s/u.test(t)) return { k: 'sub', html: styleSrc(t) }
-    return { k: 'p', html: styleSrc(t) }
-  })
-  if (items.length === 1 && items[0].k === 'p') return `<p class="f-p">${items[0].html}</p>`
-  return (
-    '<ul class="f-list">' +
-    items
-      .map(
-        (it) =>
-          `<li${it.k === 'sub' ? ' class="f-sub-item"' : it.k === 'num' ? ' class="f-num"' : ''}>${it.html}</li>`,
-      )
-      .join('') +
-    '</ul>'
+// 1 dòng VIẾT HOA TOÀN BỘ (vd "TRIỆU CHỨNG") → coi như tiêu đề con trong nội dung.
+const isHeading = (t: string) => t.length <= 34 && /\p{Lu}/u.test(t) && !/\p{Ll}/u.test(t) && !/^\d/.test(t)
+
+// Tô điểm 1 dòng: in đậm TÊN HUYỆT (sau "huyệt"/"h."), in đậm NHÃN đầu dòng ("Kinh bệnh:"…),
+// làm nhạt NGUỒN trích cuối dòng "(…)". Trả HTML đã escape.
+function decorate(t: string): string {
+  let s = esc(t)
+  s = s.replace(
+    /((?:huyệt|Huyệt|h\.)\s+)([A-ZÀ-Ỹ][\p{Ll}]+(?:\s+[\p{Ll}]+){0,2})/gu,
+    '$1<b class="f-acu">$2</b>',
   )
+  s = styleSrc(s)
+  s = s.replace(/^([^:<.;!?]{1,40}):(?=\s|$)/u, (full, label) =>
+    /\p{L}/u.test(label) ? `<b class="f-lead">${label}:</b>` : full,
+  )
+  return s
+}
+
+/**
+ * Định dạng đoạn text nhiều dòng → HTML có PHÂN CẤP (giống bài viết):
+ *  · dòng VIẾT HOA → tiêu đề con (.f-h)
+ *  · "Nhãn: …" → in đậm nhãn (.f-lead) · tên huyệt → .f-acu · nguồn "(…)" → .src (nhạt)
+ *  · mục 1./2. → .f-num · mục a)/b) → .f-sub-item
+ */
+function formatBody(raw?: string): string {
+  const lines = (raw || '').split('\n').map((l) => l.trim()).filter(Boolean)
+  if (!lines.length) return ''
+  // 1 đoạn văn đơn (không tiêu đề, không đánh số) → thẻ <p> cho thoáng
+  if (lines.length === 1) {
+    const only = lines[0]!
+    if (!isHeading(only) && !/^[\p{L}\d][.)]\s/u.test(only)) return `<p class="f-p">${decorate(only)}</p>`
+  }
+  let out = ''
+  let inList = false
+  const closeList = () => {
+    if (inList) {
+      out += '</ul>'
+      inList = false
+    }
+  }
+  for (const t of lines) {
+    if (isHeading(t)) {
+      closeList()
+      out += `<h4 class="f-h">${esc(t)}</h4>`
+      continue
+    }
+    if (!inList) {
+      out += '<ul class="f-list">'
+      inList = true
+    }
+    const cls = /^\d+[.)]\s/.test(t) ? ' class="f-num"' : /^[\p{L}][.)]\s/u.test(t) ? ' class="f-sub-item"' : ''
+    out += `<li${cls}>${decorate(t)}</li>`
+  }
+  closeList()
+  return out
 }
 
 // ───────────────────────── nạp dữ liệu ─────────────────────────
@@ -123,8 +185,12 @@ onMounted(async () => {
     if (!A || !M) throw new Error('Thiếu dữ liệu huyệt vị / kinh mạch.')
     coords = W.ACU_COORDS3D || { meridians: {}, points: {} }
     const KY_CODES: Record<number, string> = W.KY_CODES || {}
-    labels = M.labels || {}
     imageLabels = M.imageLabels || {}
+    // bảng tra mã WHO → id huyệt (acu-index.js): khớp huyệt khi tên ghi trong đường kinh khác tên
+    // trong danh sách huyệt vị (vd LI20 "Nghinh hương" ↔ "Nghênh Hương", GB11 "Khiếu âm" ↔ "Đầu Khiếu Âm").
+    acuCodeToId = new Map()
+    for (const [code, id] of Object.entries((W.ACU_INDEX && W.ACU_INDEX.codeToId) || {}))
+      acuCodeToId.set(code.toUpperCase(), id as number)
 
     // —— Huyệt vị ——
     A.forEach((r) => {
@@ -136,18 +202,21 @@ onMounted(async () => {
     })
     acuRecords.value = A
     acuByName = new Map()
+    acuById = new Map()
     for (const r of A) {
+      acuById.set(r.id, r)
       const k = fold(r.ten)
       if (!acuByName.has(k)) acuByName.set(k, r.id)
     }
-    acuLetters.value = [...new Set(A.map((r) => norm(r.ten)[0]?.toUpperCase()).filter(Boolean))].sort()
+    acuLetters.value = [
+      ...new Set(A.map((r) => norm(r.ten)[0]?.toUpperCase()).filter((c): c is string => !!c)),
+    ].sort()
 
     // —— Kinh mạch: 12 chính kinh + mạch có huyệt + Kỳ Huyệt + mạch không huyệt riêng ——
     const merWithPts = (M.circuits || []).filter((c: Meridian) => c.points && c.points.length)
     const merNoPts = (M.circuits || []).filter((c: Meridian) => !(c.points && c.points.length))
     const list: Meridian[] = [...(M.kinh || []), ...merWithPts]
 
-    // Kỳ Huyệt = huyệt có ĐẶC TÍNH "Kỳ Huyệt" (suy ra trực tiếp từ dữ liệu huyệt vị)
     const kyPoints = A.filter((r) => /kỳ huyệt/iu.test((r._dacTinh || '').normalize('NFC')))
       .map((r) => ({ ten: r.ten, id: r.id, code: KY_CODES[r.id] || '' }))
       .sort((a, b) => fold(a.ten).localeCompare(fold(b.ten)))
@@ -156,15 +225,20 @@ onMounted(async () => {
     }
     list.push(...merNoPts)
 
-    // map tên huyệt → mã quốc tế (để mở đồ hình 3D từ chi tiết huyệt vị)
     acuIdToCode = new Map()
     for (const m of [...(M.kinh || []), ...(M.circuits || [])]) {
       for (const p of m.points || []) {
         if (!p.code) continue
-        const id = acuByName.get(fold(p.ten))
+        const id = acuIdOf(p)
         if (id != null && !acuIdToCode.has(id)) acuIdToCode.set(id, p.code)
       }
     }
+    // chỉ mục tìm kiếm huyệt: tên + mã (LU9 / EX-…) cho xếp hạng; mã cũng đưa vào _s để tìm được.
+    A.forEach((r) => {
+      r._name = norm(r.ten)
+      r._code = norm(acuIdToCode.get(r.id) || r._exCode || '')
+      if (r._code) r._s = (r._s || '') + ' ' + r._code
+    })
 
     list.forEach((m, i) => {
       m._i = i
@@ -172,10 +246,19 @@ onMounted(async () => {
     })
     merList.value = list
 
+    // id huyệt → đường kinh chứa nó (kinh chính đứng trước Kỳ Huyệt nên "ai có trước thắng").
+    acuIdToMer = new Map()
+    for (const m of list) {
+      for (const p of m.points || []) {
+        const id = p.id ?? acuIdOf(p)
+        if (id != null && !acuIdToMer.has(id)) acuIdToMer.set(id, { i: m._i, code: p.code })
+      }
+    }
+
     ready.value = true
-    // chọn sẵn để trang không trống
-    if (A.length) activeAcuId.value = A[0].id
+    if (A.length) activeAcuId.value = A[0]!.id
     if (list.length) selectMer(0)
+    applyRouteQuery()
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -187,7 +270,15 @@ onMounted(async () => {
 const acuFiltered = computed<AcuRecord[]>(() => {
   if (!ready.value) return []
   const q = norm(huyetSearch.value.trim())
-  return q ? acuRecords.value.filter((r) => r._s!.includes(q)) : acuRecords.value
+  if (!q) return acuRecords.value
+  const tokens = tokenize(q)
+  const hits: { r: AcuRecord; s: number }[] = []
+  for (const r of acuRecords.value) {
+    const s = relScore(q, tokens, r._name || '', r._code || '', r._s || '')
+    if (s >= 0) hits.push({ r, s })
+  }
+  hits.sort((a, b) => b.s - a.s || (a.r._name || '').localeCompare(b.r._name || ''))
+  return hits.map((h) => h.r)
 })
 const acuActive = computed<AcuRecord | null>(
   () => acuRecords.value.find((r) => r.id === activeAcuId.value) || null,
@@ -199,6 +290,14 @@ const ACU_EXTRA: [keyof AcuRecord, string][] = [
   ['ghiChu', 'Ghi Chú'],
   ['thamKhao', 'Tham Khảo'],
 ]
+// icon nhỏ cho mỗi mục → dễ quét bằng mắt khi nhiều chữ (khớp cả tên hoa lẫn tên thường)
+const SECTION_ICONS: Record<string, string> = {
+  'TÊN HUYỆT': '🏷️', 'TÊN KHÁC': '🏷️', 'XUẤT XỨ': '📜', 'VỊ TRÍ': '📍', 'GIẢI PHẪU': '🦴',
+  'ĐẶC TÍNH': '⭐', 'TÁC DỤNG': '✨', 'CHỦ TRỊ': '🎯', 'CHÂM CỨU': '📌', 'THAM KHẢO': '📚',
+  'PHỐI HUYỆT': '🔗', 'Ý NGHĨA': '💡', 'CHÚ Ý': '⚠️', 'PHỐI HUYỆT ': '🔗', 'GHI CHÚ': '📝',
+}
+const secIcon = (h: string) => SECTION_ICONS[h.toUpperCase().trim()] || '•'
+const fieldH = (h: string) => `<h3><span class="fi">${secIcon(h)}</span><span class="ft">${esc(h)}</span></h3>`
 
 const acuDetailHtml = computed<string>(() => {
   const r = acuActive.value
@@ -208,14 +307,18 @@ const acuDetailHtml = computed<string>(() => {
   const meta =
     metaRow('Tên Khác', r._tenKhac) +
     metaRow('Xuất Xứ', r._xuatXu) +
-    metaRow('Đặc Tính', r._dacTinh) +
-    metaRow('Mã Quốc Tế (WHO)', r._exCode, 'exc')
+    metaRow('Đặc Tính', r._dacTinh)
 
   const code3d = acuIdToCode.get(r.id)
   const has3d = code3d && coords.points[code3d]
   const open3d = has3d
     ? `<button class="td-3dbtn" data-map-code="${esc(code3d)}" type="button">🧭 Xem Vị Trí Trên Đồ Hình 3D</button>`
     : ''
+  const merInfo = acuIdToMer.get(r.id)
+  const openMer = merInfo
+    ? `<button class="td-merbtn" data-mer-i="${merInfo.i}" type="button">📖 Xem Trên Đường Kinh</button>`
+    : ''
+  const actions = open3d || openMer ? `<div class="detail-actions">${open3d}${openMer}</div>` : ''
 
   const photo = r.image
     ? `<img class="photo" src="${esc(assetUrl(r.image))}" alt="${esc(r.ten)}" onerror="this.style.display='none'">`
@@ -223,19 +326,23 @@ const acuDetailHtml = computed<string>(() => {
 
   const sectionCards = (r.sections || [])
     .filter((s) => s.h && !ACU_META_HEADERS.includes(s.h) && s.body)
-    .map((s) => `<section class="field"><h3>${esc(s.h)}</h3><div class="body">${formatBody(s.body)}</div></section>`)
+    .map((s) => `<section class="field">${fieldH(s.h)}<div class="body">${formatBody(s.body)}</div></section>`)
     .join('')
   const extraCards = ACU_EXTRA.filter(([k]) => r[k])
-    .map(([k, label]) => `<section class="field"><h3>${label}</h3><div class="body">${formatBody(r[k] as string)}</div></section>`)
+    .map(([k, label]) => `<section class="field">${fieldH(label)}<div class="body">${formatBody(r[k] as string)}</div></section>`)
     .join('')
+
+  const codeChip = code3d ? `<span class="ah-code">${esc(code3d)}</span>` : ''
+  const exChip = r._exCode ? `<span class="ah-code ah-code--ex">${esc(r._exCode)}</span>` : ''
 
   return `<article class="detail">
       <div class="detail-head">
         ${photo}
         <div class="titles">
+          ${codeChip || exChip ? `<div class="ah-badges">${codeChip}${exChip}</div>` : ''}
           <h2>${esc(r.ten)}</h2>
           ${meta ? `<dl class="meta">${meta}</dl>` : ''}
-          ${open3d}
+          ${actions}
         </div>
       </div>
       ${sectionCards + extraCards || '<p class="empty-note">Chưa có nội dung chi tiết cho huyệt này.</p>'}
@@ -247,303 +354,137 @@ function selectAcu(id: number) {
 }
 function jumpAcuLetter(l: string) {
   const target = acuFiltered.value.find((r) => norm(r.ten)[0]?.toUpperCase() === l)
-  if (target) {
-    document
-      .getElementById('td-acu-' + target.id)
-      ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
-  }
+  if (target) document.getElementById('td-acu-' + target.id)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
 }
-// nút "Xem trên đồ hình 3D" trong chi tiết huyệt vị
+// các nút trong chi tiết huyệt vị (v-html → dùng delegation)
 function onAcuDetailClick(e: MouseEvent) {
-  const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-map-code]')
-  if (btn) gotoMap(btn.dataset.mapCode!)
+  const map3d = (e.target as HTMLElement).closest<HTMLElement>('[data-map-code]')
+  if (map3d) {
+    gotoMap(map3d.dataset.mapCode!)
+    return
+  }
+  const merBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-mer-i]')
+  if (merBtn) openMerForAcu(Number(merBtn.dataset.merI), activeAcuId.value)
 }
-// ảnh thumbnail 404 → ẩn hẳn (giữ chỗ trống, không hiện icon ảnh vỡ)
+// ảnh thumbnail / sơ đồ 404 → ẩn (không hiện icon ảnh vỡ)
 function onThumbError(e: Event) {
-  const img = e.target as HTMLImageElement
-  img.style.visibility = 'hidden'
+  ;(e.target as HTMLElement).style.visibility = 'hidden'
+}
+function onFigError(e: Event) {
+  const fig = (e.target as HTMLElement).closest('figure')
+  if (fig) (fig as HTMLElement).style.display = 'none'
 }
 
 // ═══════════════════════ KINH MẠCH ═══════════════════════
 const merFiltered = computed<Meridian[]>(() => {
   if (!ready.value) return []
   const q = fold(kinhSearch.value.trim())
-  return q ? merList.value.filter((m) => m._s.includes(q)) : merList.value
+  if (!q) return merList.value
+  const tokens = tokenize(q)
+  const hits: { m: Meridian; s: number }[] = []
+  for (const m of merList.value) {
+    const s = relScore(q, tokens, fold(m.ten), fold(m.code), m._s)
+    if (s >= 0) hits.push({ m, s })
+  }
+  hits.sort((a, b) => b.s - a.s || a.m._i - b.m._i) // cùng điểm → giữ thứ tự kinh gốc
+  return hits.map((h) => h.m)
 })
 const merActive = computed<Meridian | null>(() =>
   activeMerI.value == null ? null : merList.value[activeMerI.value] || null,
 )
 
-const KINH_FIELDS: (keyof Meridian)[] = ['desc', 'chinh', 'can', 'biet', 'doc', 'ngang', 'chuTri']
-const MACH_FIELDS: (keyof Meridian)[] = ['dacTinh', 'vanHanh', 'trieuChung', 'dieuTri', 'nameAlt']
 const KY_NOTE =
   'Kỳ huyệt (huyệt ngoài kinh) là những huyệt nằm ngoài hệ 12 chính kinh và 8 mạch, có vị trí và chủ trị riêng. Bấm vào tên huyệt để xem chi tiết bên mục Huyệt Vị · Châm Cứu. Huyệt có mã EX-… đã được WHO chuẩn hoá danh pháp quốc tế.'
 
-// ---- Đồ hình giải phẫu 2D: chiếu toạ độ đo-từ-mesh xuống hình người mặt trước / mặt sau ----
-const FIG = { S: 360, CX: 112, TOP: 16, W: 240, H: 398 }
-const sx = (nx: number) => FIG.CX + nx * FIG.S
-const sy = (ny: number) => FIG.TOP + (1 - ny) * FIG.S
-
-function projOf(code: string) {
-  const p = coords.points[code]
-  if (!p) return null
-  if (p.x !== undefined || p.z !== undefined)
-    return { nx: +p.x || 0, ny: +p.y || 0, view: (+p.z || 0) < -0.0005 ? 'back' : 'front', q: p.q, bilateral: true }
-  return { nx: 0, ny: +p.h || 0, view: p.az === 180 ? 'back' : 'front', q: p.q, bilateral: false }
-}
-function buildFigState(m: Meridian) {
-  const color = (coords.meridians[m.code || ''] || {}).color || '#8a5e28'
-  const pts: any[] = []
-  for (const p of m.points || []) {
-    const pr = p.code && projOf(p.code)
-    if (!pr) continue
-    pts.push({ code: p.code, ten: p.ten, num: +((p.code!.match(/\d+/) || ['0'])[0]), ...pr })
-  }
-  if (!pts.length) return null
-  const front = pts.filter((p) => p.view === 'front').length
-  return { color, pts, view: pts.length - front > front ? 'back' : 'front', counts: { front, back: pts.length - front } }
-}
-function silhouette(view: string) {
-  const P = (nx: number, ny: number) => `${sx(nx).toFixed(1)} ${sy(ny).toFixed(1)}`
-  const torso = `M ${P(-0.118, 0.815)} L ${P(-0.1, 0.775)} L ${P(-0.082, 0.62)} L ${P(-0.108, 0.505)} L ${P(-0.03, 0.475)} L ${P(0.03, 0.475)} L ${P(0.108, 0.505)} L ${P(0.082, 0.62)} L ${P(0.1, 0.775)} L ${P(0.118, 0.815)} Z`
-  const arm = (s: number) => `M ${P(s * 0.108, 0.8)} L ${P(s * 0.14, 0.64)} L ${P(s * 0.172, 0.505)} L ${P(s * 0.178, 0.452)}`
-  const leg = (s: number) => `M ${P(s * 0.058, 0.5)} L ${P(s * 0.052, 0.3)} L ${P(s * 0.05, 0.1)}`
-  const hand = (s: number) => `<ellipse class="fbfill" cx="${sx(s * 0.178).toFixed(1)}" cy="${sy(0.44).toFixed(1)}" rx="9.5" ry="12.5"/>`
-  const foot = (s: number) => `<ellipse class="fbfill" cx="${sx(s * 0.058).toFixed(1)}" cy="${sy(0.03).toFixed(1)}" rx="13" ry="8"/>`
-  return `<g>
-      <path class="fbz leg" d="${leg(1)}"/><path class="fbz leg" d="${leg(-1)}"/>
-      <path class="fbz arm" d="${arm(1)}"/><path class="fbz arm" d="${arm(-1)}"/>
-      <path class="fbfill" d="${torso}"/>
-      <rect class="fbfill" x="${sx(-0.028).toFixed(1)}" y="${sy(0.86).toFixed(1)}" width="${(0.056 * FIG.S).toFixed(1)}" height="${(0.03 * FIG.S).toFixed(1)}"/>
-      <ellipse class="fbfill" cx="${sx(0).toFixed(1)}" cy="${sy(0.925).toFixed(1)}" rx="${(0.052 * FIG.S).toFixed(1)}" ry="${(0.075 * FIG.S).toFixed(1)}"/>
-      ${hand(1)}${hand(-1)}${foot(1)}${foot(-1)}
-      ${view === 'back' ? `<line class="fspine" x1="${sx(0).toFixed(1)}" y1="${sy(0.82).toFixed(1)}" x2="${sx(0).toFixed(1)}" y2="${sy(0.5).toFixed(1)}"/>` : ''}
-    </g>`
-}
-function figLines(shown: any[], color: string) {
-  const seg = (arr: any[], sgn: number) => {
-    if (arr.length < 2) return ''
-    arr = arr.slice().sort((a, b) => a.num - b.num)
-    let out = ''
-    let run: any[] = []
-    const flush = () => {
-      if (run.length > 1)
-        out += `<path class="fline" d="${run.map((q, i) => (i ? 'L' : 'M') + sx(sgn * q.nx).toFixed(1) + ' ' + sy(q.ny).toFixed(1)).join(' ')}" style="--c:${color}"/>`
-      run = []
-    }
-    for (const q of arr) {
-      if (run.length && q.num - run[run.length - 1].num > 2) flush()
-      run.push(q)
-    }
-    flush()
-    return out
-  }
-  const bil = shown.filter((p) => p.bilateral)
-  const mid = shown.filter((p) => !p.bilateral)
-  return seg(bil, 1) + seg(bil, -1) + seg(mid, 0)
-}
-function figDots(shown: any[], color: string) {
-  let out = ''
-  for (const p of shown)
-    for (const s of p.bilateral ? [1, -1] : [0]) {
-      out +=
-        `<g class="fdot${p.q === 'approx' ? ' approx' : ''}" data-code="${esc(p.code)}" transform="translate(${sx(s * p.nx).toFixed(1)} ${sy(p.ny).toFixed(1)})">` +
-        `<circle class="fhit" r="9"/><circle class="fpt" r="4.3" style="--c:${color}"/>` +
-        `${s >= 0 ? `<text class="flbl" x="7" y="3.2">${esc(p.code)}</text>` : ''}</g>`
-    }
-  return out
-}
-function figStageHTML(figState: any, view: string) {
-  const shown = figState.pts.filter((p: any) => p.view === view)
-  return (
-    `<svg class="figsvg" viewBox="0 0 ${FIG.W} ${FIG.H}" preserveAspectRatio="xMidYMid meet">` +
-    `${silhouette(view)}<g class="flines">${figLines(shown, figState.color)}</g><g class="fdots">${figDots(shown, figState.color)}</g></svg>`
-  )
-}
-
-const merDetailHtml = computed<string>(() => {
+// Các tab-trong của 1 kinh/mạch (chỉ hiện tab có nội dung)
+const merTabs = computed(() => {
   const m = merActive.value
-  if (!m) return ''
-  return m.type === 'ky' ? buildKyHtml(m) : buildMerHtml(m)
+  if (!m || m.type === 'ky') return [] as { key: MerSection; label: string }[]
+  const isMach = m.type === 'mach'
+  const imgs = m.images || {}
+  const tabs: { key: MerSection; label: string }[] = []
+  if (isMach ? m.dacTinh || m.nameAlt : m.desc) tabs.push({ key: 'tong-quan', label: isMach ? 'Đặc Tính' : 'Tổng Quan' })
+  if (isMach ? m.vanHanh : m.chinh || m.ngang || m.doc || m.biet || m.can || imgs.chinh || imgs.ngang || imgs.doc || imgs.biet || imgs.can)
+    tabs.push({ key: 'van-hanh', label: isMach ? 'Vận Hành' : 'Đường Vận Hành' })
+  if (isMach ? m.trieuChung || m.dieuTri : m.chuTri) tabs.push({ key: 'chu-tri', label: isMach ? 'Triệu Chứng · Điều Trị' : 'Chủ Trị' })
+  if (imgs.gen || imgs.sodo) tabs.push({ key: 'do-hinh', label: 'Đồ Hình Tổng Quát' })
+  if (m.points.length) tabs.push({ key: 'huyet', label: 'Các Huyệt' })
+  return tabs
 })
 
-function buildMerHtml(m: Meridian): string {
-  const figState = buildFigState(m)
-  const fields = (m.type === 'mach' ? MACH_FIELDS : KINH_FIELDS).filter((f) => m[f])
-
-  const points = m.points.length
-    ? `<section class="field">
-        <h3>Các Huyệt${m.pointSummary ? ` <span class="lz">${esc(m.pointSummary)}</span>` : ''}</h3>
-        <div class="mer-points">
-          ${m.points
-            .map((p) => {
-              const id = acuByName.get(fold(p.ten))
-              const dc = p.code ? ` data-code="${esc(p.code)}"` : ''
-              const inner = `<b>${esc(p.code || String(p.n || ''))}</b> ${esc(p.ten)}`
-              return id != null
-                ? `<a class="pt link" data-acu-id="${id}"${dc} role="button" title="Xem chi tiết huyệt">${inner}</a>`
-                : `<span class="pt"${dc}>${inner}</span>`
-            })
-            .join('')}
-        </div>
-      </section>`
-    : ''
-
-  const textCards = fields
-    .map((f) => `<section class="field"><h3>${esc(labels[f as string] || (f as string))}</h3><div class="body">${formatBody(m[f] as string)}</div></section>`)
-    .join('')
-
-  return `<article class="detail mer-detail">
-      <div class="detail-head">
-        <div class="titles">
-          <h2>${esc(m.ten)}</h2>
-          <div class="mer-badges">
-            ${m.code ? `<span class="badge">${esc(m.code)}</span>` : ''}
-            <span class="badge sec">${m.type === 'mach' ? 'Kỳ Kinh / Mạch' : 'Chính Kinh'}</span>
-            ${m.points.length ? `<span class="badge">${m.points.length} huyệt</span>` : ''}
-          </div>
-        </div>
-      </div>
-      <div class="mer-grid">
-        <div class="mer-main">
-          ${points}
-          ${textCards || (points ? '' : '<p class="empty-note">Chưa có nội dung chi tiết.</p>')}
-          ${diagramGallery(m)}
-        </div>
-        ${figureAside(figState)}
-      </div>
-    </article>`
-}
-
-// đồ hình sơ đồ (ảnh quét) của kinh — hiện nếu có file ảnh tương ứng
-function diagramGallery(m: Meridian): string {
+interface VhSub { key: string; label: string; text: string; img: string; imgLabel: string }
+// 5 nhánh "đường vận hành" của chính kinh (mỗi nhánh kèm sơ đồ riêng)
+const vanhanhSubs = computed<VhSub[]>(() => {
+  const m = merActive.value
+  if (!m || m.type !== 'kinh') return []
   const imgs = m.images || {}
-  const order = ['chinh', 'can', 'biet', 'doc', 'ngang', 'gen', 'sodo', 'pic']
-  const cards = order
-    .filter((k) => imgs[k])
-    .map(
-      (k) =>
-        `<figure class="dg-item"><img loading="lazy" src="${esc(assetUrl(imgs[k]))}" alt="${esc(imageLabels[k] || k)}" onerror="this.closest('figure').style.display='none'"><figcaption>${esc(imageLabels[k] || k)}</figcaption></figure>`,
-    )
-    .join('')
-  return cards ? `<section class="field"><h3>Sơ Đồ Đường Kinh</h3><div class="dg-grid">${cards}</div></section>` : ''
-}
+  const defs: [keyof Meridian, string][] = [
+    ['chinh', 'Kinh Chính'], ['ngang', 'Lạc Ngang'], ['doc', 'Lạc Dọc'], ['biet', 'Kinh Biệt'], ['can', 'Kinh Cân'],
+  ]
+  return defs
+    .filter(([k]) => m[k] || imgs[k as string])
+    .map(([k, label]) => ({
+      key: k as string,
+      label,
+      text: (m[k] as string) || '',
+      img: imgs[k as string] ? assetUrl(imgs[k as string]) : '',
+      imgLabel: imageLabels[k as string] || 'Sơ đồ',
+    }))
+})
+const activeVanhanh = computed<VhSub | null>(
+  () => vanhanhSubs.value.find((s) => s.key === merVanhanhSub.value) || vanhanhSubs.value[0] || null,
+)
 
-function figureAside(figState: any): string {
-  if (!figState)
-    return `<aside class="mer-figure"><h3 class="fig-title">Vị Trí Giải Phẫu</h3><div class="fig-empty">Đường kinh này chưa có toạ độ trên đồ hình.<br>Xem trực quan ở tab <b>“Kinh Mạch 3D”</b>.</div></aside>`
-  // mặt mặc định của kinh (đa số huyệt ở mặt nào); nút Mặt Trước/Sau đổi trực tiếp SVG trong onMerClick
-  const view = figState.view
-  const { counts, color } = figState
-  const btn = (v: 'front' | 'back', lab: string) =>
-    `<button class="fig-view${v === view ? ' on' : ''}" data-v="${v}"${counts[v] ? '' : ' disabled'} style="--c:${color}">${lab} <small>${counts[v] || 0}</small></button>`
-  return `<aside class="mer-figure">
-      <h3 class="fig-title">Vị Trí Giải Phẫu <span class="fig-3dhint">🧭 bấm huyệt → mở đồ hình 3D</span></h3>
-      <div class="fig-toggle">${btn('front', 'Mặt Trước')}${btn('back', 'Mặt Sau')}</div>
-      <div class="fig-stage" id="merFigStage">${figStageHTML(figState, view)}</div>
-      <p class="fig-cap" id="merFigCap">Di chuột xem tên · <b>bấm chấm huyệt để bay tới đúng vị trí trên đồ hình 3D</b>.</p>
-    </aside>`
-}
+// Ảnh "Đồ hình tổng quát"
+const merOverview = computed<{ url: string; label: string }[]>(() => {
+  const m = merActive.value
+  if (!m) return []
+  const imgs = m.images || {}
+  const out: { url: string; label: string }[] = []
+  if (imgs.gen) out.push({ url: assetUrl(imgs.gen), label: imageLabels.gen || 'Sơ đồ tổng quát' })
+  if (imgs.sodo && imgs.sodo !== imgs.gen) out.push({ url: assetUrl(imgs.sodo), label: imageLabels.sodo || 'Sơ đồ' })
+  return out
+})
 
-function buildKyHtml(m: Meridian): string {
+// Kỳ Huyệt: gom theo chữ cái đầu
+const kyView = computed(() => {
+  const m = merActive.value
+  if (!m || m.type !== 'ky') return null
   const coded = m.points.filter((p) => p.code)
   const pts = kyOnlyCoded.value ? coded : m.points
-  const groups = new Map<string, MerPoint[]>()
+  const map = new Map<string, MerPoint[]>()
   for (const p of pts) {
-    const L0 = (fold(p.ten)[0] || '#').toUpperCase()
-    if (!groups.has(L0)) groups.set(L0, [])
-    groups.get(L0)!.push(p)
+    const L = (fold(p.ten)[0] || '#').toUpperCase()
+    if (!map.has(L)) map.set(L, [])
+    map.get(L)!.push(p)
   }
-  const letters = [...groups.keys()].sort()
-  const alpha = `<div class="ky-alpha">${letters.map((L0) => `<button data-l="${L0}">${L0}</button>`).join('')}</div>`
-  const body = letters
-    .map(
-      (L0) => `<div class="ky-group" id="ky-${L0}">
-        <h4 class="ky-letter">${L0} <span class="lz">${groups.get(L0)!.length}</span></h4>
-        <div class="mer-points">
-          ${groups
-            .get(L0)!
-            .map(
-              (p) =>
-                `<a class="pt link${p.code ? ' has-ex' : ''}" data-acu-id="${p.id}" role="button" title="Xem chi tiết huyệt">${p.code ? `<b>${esc(p.code)}</b> ` : ''}${esc(p.ten)}</a>`,
-            )
-            .join('')}
-        </div>
-      </div>`,
-    )
-    .join('')
-  return `<article class="detail">
-      <div class="detail-head">
-        <div class="titles">
-          <h2>${esc(m.ten)}</h2>
-          <div class="mer-badges">
-            <span class="badge sec">Huyệt Ngoài Kinh</span>
-            <span class="badge">${m.points.length} huyệt</span>
-            ${coded.length ? `<button class="ky-toggle${kyOnlyCoded.value ? ' on' : ''}" id="kyToggle">${kyOnlyCoded.value ? '✓ ' : ''}Có Mã Quốc Tế (${coded.length})</button>` : ''}
-          </div>
-        </div>
-      </div>
-      <p class="ky-note">${esc(KY_NOTE)}</p>
-      ${alpha}
-      <div class="ky-groups">${body}</div>
-    </article>`
+  const groups = [...map.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([letter, points]) => ({ letter, points }))
+  return { groups, coded: coded.length, total: m.points.length }
+})
+
+// id huyệt cho 1 điểm trên đường kinh: ưu tiên khớp TÊN, nếu không khớp thì tra theo MÃ WHO
+// (vá huyệt lệch tên: LI20, GB11, GB15, CV21, GB33…). GB33 đã có record (id 1059) qua acuCodeToId.
+const acuIdOf = (p: MerPoint) =>
+  acuByName.get(fold(p.ten)) ?? (p.code ? acuCodeToId.get(p.code.toUpperCase()) : undefined)
+// TÊN hiển thị của điểm-kinh: ưu tiên TÊN CHUẨN trong Từ Điển (đồng nhất với 3D, sửa tên kinh sai/lệch
+// hoa-thường như KI17, GB24/25/27, GV7…); thiếu record mới dùng tên ghi trong đường kinh.
+const ptName = (p: MerPoint) => {
+  const id = acuIdOf(p)
+  return (id != null && acuById.get(id)?.ten) || p.ten
 }
 
 function selectMer(i: number) {
   activeMerI.value = i
+  merSection.value = (merTabs.value[0]?.key as typeof merSection.value) || 'tong-quan'
+  merVanhanhSub.value = vanhanhSubs.value[0]?.key || 'chinh'
 }
-
-// ---- tương tác trong vùng chi tiết kinh (port event-delegation bản gốc) ----
-function onMerClick(e: MouseEvent) {
-  const t = e.target as HTMLElement
-  if (t.closest('#kyToggle')) {
-    kyOnlyCoded.value = !kyOnlyCoded.value
-    return
-  }
-  const ab = t.closest<HTMLElement>('.ky-alpha button')
-  if (ab) {
-    merMainEl.value?.querySelector('#ky-' + ab.dataset.l)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
-    return
-  }
-  const vb = t.closest<HTMLButtonElement>('.fig-view')
-  if (vb && !vb.disabled) {
-    // đổi mặt trước/sau: chỉ thay SVG + trạng thái nút (giữ vị trí cuộn, không dựng lại cả trang)
-    const v = vb.dataset.v as 'front' | 'back'
-    const m = merActive.value
-    const fs = m ? buildFigState(m) : null
-    if (fs && (fs.counts as Record<string, number>)[v]) {
-      const stage = merMainEl.value?.querySelector('#merFigStage')
-      if (stage) stage.innerHTML = figStageHTML(fs, v)
-      merMainEl.value
-        ?.querySelectorAll<HTMLElement>('.fig-view')
-        .forEach((b) => b.classList.toggle('on', b.dataset.v === v))
-    }
-    return
-  }
-  const dot = t.closest<HTMLElement>('.fdot')
-  if (dot) {
-    gotoMap(dot.dataset.code!)
-    return
-  }
-  const pt = t.closest<HTMLElement>('.pt.link[data-acu-id]')
-  if (pt) openAcu(+pt.dataset.acuId!)
-}
-// làm nổi đồng thời chấm trên hình ⇄ nhãn huyệt trong danh sách
-function figCrossHi(code: string, on: boolean) {
-  const root = merMainEl.value
-  if (!root) return
-  root.querySelectorAll(`.fdot[data-code="${code}"]`).forEach((d) => d.classList.toggle('hot', on))
-  root.querySelectorAll(`.mer-main .pt[data-code="${code}"]`).forEach((c) => c.classList.toggle('hot', on))
-}
-function onMerHover(e: MouseEvent, on: boolean) {
-  const t = (e.target as HTMLElement).closest<HTMLElement>('.fdot, .mer-main .pt[data-code]')
-  if (!t) return
-  const code = t.dataset.code
-  if (code) figCrossHi(code, on)
+function scrollToKy(letter: string) {
+  merMainEl.value?.querySelector('#tdky-' + letter)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
 }
 
 // ───────────────────────── điều hướng chéo ─────────────────────────
-function openAcu(id: number) {
+function openAcu(id?: number) {
+  if (id == null) return
   subtab.value = 'huyet'
   activeAcuId.value = id
   nextTick(() => {
@@ -555,6 +496,45 @@ function openAcu(id: number) {
 function gotoMap(code: string) {
   router.push({ name: 'kinh-mach-3d', query: { focus: code } })
 }
+// từ chi tiết huyệt → tab "Lý Thuyết · Tra Cứu Kinh": chọn đúng đường kinh, mở "Các Huyệt",
+// cuộn tới + tô sáng huyệt vừa xem (Kỳ Huyệt thì hiện thẳng danh sách kỳ huyệt).
+function openMerForAcu(i: number, acuId: number | null) {
+  if (Number.isNaN(i)) return
+  subtab.value = 'kinh'
+  selectMer(i)
+  const m = merList.value[i]
+  if (m && m.type !== 'ky' && m.points.length) merSection.value = 'huyet'
+  flashAcuId.value = acuId
+  nextTick(() => {
+    if (acuId != null) {
+      document.getElementById('tdpt-' + acuId)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }
+    window.setTimeout(() => {
+      if (flashAcuId.value === acuId) flashAcuId.value = null
+    }, 2400)
+  })
+}
+
+// ───────────────────────── deep-link (?acu= / ?mer=) ─────────────────────────
+function applyRouteQuery() {
+  if (!ready.value) return
+  const acuQ = Array.isArray(route.query.acu) ? route.query.acu[0] : route.query.acu
+  const merQ = Array.isArray(route.query.mer) ? route.query.mer[0] : route.query.mer
+  if (acuQ) {
+    const id = Number(acuQ)
+    if (acuRecords.value.some((r) => r.id === id)) openAcu(id)
+  } else if (merQ) {
+    const code = String(merQ).toUpperCase()
+    const m = merList.value.find((mm) => (mm.code || '').toUpperCase() === code)
+    if (m) {
+      subtab.value = 'kinh'
+      selectMer(m._i)
+      nextTick(() => merMainEl.value?.scrollIntoView?.({ block: 'nearest' }))
+    }
+  }
+}
+// điều hướng /tu-dien?acu=… lần nữa khi component được tái dùng (không remount)
+watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
 </script>
 
 <template>
@@ -587,7 +567,7 @@ function gotoMap(code: string) {
             v-model="huyetSearch"
             type="search"
             class="td-input"
-            placeholder="Tìm huyệt / tên khác / phối huyệt / mã EX…"
+            placeholder="Tìm huyệt / mã (LU9, EX…) / tên khác / phối huyệt…"
             autocomplete="off"
           />
           <span class="td-count">{{ acuFiltered.length }} / {{ acuRecords.length }}</span>
@@ -603,16 +583,9 @@ function gotoMap(code: string) {
             :class="{ active: r.id === activeAcuId }"
             @click="selectAcu(r.id)"
           >
-            <img
-              v-if="r.image"
-              class="thumb"
-              loading="lazy"
-              :src="assetUrl(r.image)"
-              alt=""
-              @error="onThumbError"
-            />
+            <img v-if="r.image" class="thumb" loading="lazy" :src="assetUrl(r.image)" alt="" @error="onThumbError" />
             <span v-else class="thumb no-thumb">◉</span>
-            <span class="nm">{{ r.ten }}<small v-if="r._tenKhac">{{ r._tenKhac.split('\n')[0].slice(0, 60) }}</small></span>
+            <span class="nm">{{ r.ten }}<small v-if="r._tenKhac">{{ r._tenKhac.split('\n')[0]?.slice(0, 60) }}</small></span>
           </li>
           <li v-if="!acuFiltered.length" class="td-empty">Không khớp huyệt nào.</li>
         </ul>
@@ -647,27 +620,159 @@ function gotoMap(code: string) {
           <li v-if="!merFiltered.length" class="td-empty">Không khớp kinh nào.</li>
         </ul>
       </aside>
-      <!-- eslint-disable-next-line vue/no-v-html -->
-      <div
-        ref="merMainEl"
-        class="td-main"
-        @click="onMerClick"
-        @mouseover="(e) => onMerHover(e, true)"
-        @mouseout="(e) => onMerHover(e, false)"
-        v-html="merDetailHtml"
-      ></div>
+
+      <div ref="merMainEl" class="td-main">
+        <div v-if="!merActive" class="mer-welcome">
+          <h3>Tra Cứu Kinh Mạch</h3>
+          <p>Chọn một đường kinh ở danh sách bên trái để xem lý thuyết đầy đủ.</p>
+        </div>
+
+        <template v-else>
+          <header class="mer-head">
+            <h2>{{ merActive.ten }}</h2>
+            <div class="mer-badges">
+              <span v-if="merActive.code" class="badge">{{ merActive.code }}</span>
+              <span class="badge sec">{{ merActive.type === 'mach' ? 'Kỳ Kinh / Mạch' : merActive.type === 'ky' ? 'Huyệt Ngoài Kinh' : 'Chính Kinh' }}</span>
+              <span v-if="merActive.points.length" class="badge">{{ merActive.points.length }} huyệt</span>
+            </div>
+          </header>
+
+          <!-- ── Kỳ Huyệt ── -->
+          <div v-if="merActive.type === 'ky' && kyView" class="mer-ky">
+            <p class="ky-note">{{ KY_NOTE }}</p>
+            <div class="ky-bar">
+              <div class="ky-alpha">
+                <button v-for="g in kyView.groups" :key="g.letter" type="button" @click="scrollToKy(g.letter)">{{ g.letter }}</button>
+              </div>
+              <button v-if="kyView.coded" class="ky-toggle" :class="{ on: kyOnlyCoded }" @click="kyOnlyCoded = !kyOnlyCoded">
+                {{ kyOnlyCoded ? '✓ ' : '' }}Có Mã Quốc Tế ({{ kyView.coded }})
+              </button>
+            </div>
+            <div v-for="g in kyView.groups" :id="'tdky-' + g.letter" :key="g.letter" class="ky-group">
+              <h4 class="ky-letter">{{ g.letter }} <span class="lz">{{ g.points.length }}</span></h4>
+              <div class="mer-points">
+                <a v-for="p in g.points" :id="'tdpt-' + p.id" :key="p.id" class="pt link" :class="{ 'has-ex': p.code, flash: p.id === flashAcuId }" role="button" @click="openAcu(p.id)">
+                  <b v-if="p.code">{{ p.code }}</b> {{ p.ten }}
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Kinh / Mạch: tab-trong ── -->
+          <template v-else>
+            <nav class="mer-nav">
+              <button
+                v-for="t in merTabs"
+                :key="t.key"
+                class="mer-nav-btn"
+                :class="{ active: merSection === t.key }"
+                @click="merSection = t.key"
+              >
+                {{ t.label }}
+              </button>
+            </nav>
+
+            <div class="mer-pane">
+              <!-- Tổng Quan / Đặc Tính -->
+              <div v-if="merSection === 'tong-quan'">
+                <!-- eslint-disable-next-line vue/no-v-html -->
+                <div class="body" v-html="formatBody(merActive.type === 'mach' ? merActive.dacTinh : merActive.desc)"></div>
+                <template v-if="merActive.type === 'mach' && merActive.nameAlt">
+                  <h4 class="mer-subhead">Tên Khác</h4>
+                  <!-- eslint-disable-next-line vue/no-v-html -->
+                  <div class="body" v-html="formatBody(merActive.nameAlt)"></div>
+                </template>
+              </div>
+
+              <!-- Đường Vận Hành -->
+              <div v-else-if="merSection === 'van-hanh'">
+                <template v-if="merActive.type === 'kinh'">
+                  <div class="vh-subnav">
+                    <button
+                      v-for="s in vanhanhSubs"
+                      :key="s.key"
+                      class="vh-sub-btn"
+                      :class="{ active: activeVanhanh?.key === s.key }"
+                      @click="merVanhanhSub = s.key"
+                    >
+                      {{ s.label }}
+                    </button>
+                  </div>
+                  <div v-if="activeVanhanh" class="vh-illu">
+                    <!-- eslint-disable-next-line vue/no-v-html -->
+                    <div v-if="activeVanhanh.text" class="body vh-lead" v-html="formatBody(activeVanhanh.text)"></div>
+                    <p v-else class="empty-note">— Không có mô tả trong tài liệu gốc.</p>
+                    <figure v-if="activeVanhanh.img" class="vh-fig">
+                      <a :href="activeVanhanh.img" target="_blank" rel="noopener">
+                        <img class="mer-img" loading="lazy" :src="activeVanhanh.img" :alt="activeVanhanh.imgLabel" @error="onFigError" />
+                      </a>
+                      <figcaption>{{ activeVanhanh.imgLabel }} <span class="zoom-hint">· bấm để phóng to</span></figcaption>
+                    </figure>
+                  </div>
+                </template>
+                <!-- eslint-disable-next-line vue/no-v-html -->
+                <div v-else class="body" v-html="formatBody(merActive.vanHanh)"></div>
+              </div>
+
+              <!-- Đồ Hình Tổng Quát -->
+              <div v-else-if="merSection === 'do-hinh'" class="mer-illu">
+                <figure v-for="img in merOverview" :key="img.url" class="mer-fig mer-fig--big">
+                  <a :href="img.url" target="_blank" rel="noopener">
+                    <img class="mer-img" loading="lazy" :src="img.url" :alt="img.label" @error="onFigError" />
+                  </a>
+                  <figcaption>{{ img.label }} <span class="zoom-hint">· bấm để phóng to</span></figcaption>
+                </figure>
+              </div>
+
+              <!-- Chủ Trị / Triệu Chứng · Điều Trị -->
+              <div v-else-if="merSection === 'chu-tri'">
+                <template v-if="merActive.type === 'mach'">
+                  <template v-if="merActive.trieuChung">
+                    <h4 class="mer-subhead">Triệu Chứng</h4>
+                    <!-- eslint-disable-next-line vue/no-v-html -->
+                    <div class="body" v-html="formatBody(merActive.trieuChung)"></div>
+                  </template>
+                  <template v-if="merActive.dieuTri">
+                    <h4 class="mer-subhead">Điều Trị</h4>
+                    <!-- eslint-disable-next-line vue/no-v-html -->
+                    <div class="body" v-html="formatBody(merActive.dieuTri)"></div>
+                  </template>
+                </template>
+                <!-- eslint-disable-next-line vue/no-v-html -->
+                <div v-else class="body" v-html="formatBody(merActive.chuTri)"></div>
+              </div>
+
+              <!-- Các Huyệt -->
+              <div v-else-if="merSection === 'huyet'">
+                <p v-if="merActive.pointSummary" class="mer-ptsum">{{ merActive.pointSummary }}</p>
+                <div class="mer-points">
+                  <template v-for="p in merActive.points" :key="p.code || p.ten">
+                    <a
+                      v-if="acuIdOf(p) != null"
+                      :id="'tdpt-' + acuIdOf(p)"
+                      class="pt link"
+                      :class="{ flash: acuIdOf(p) === flashAcuId }"
+                      role="button"
+                      @click="openAcu(acuIdOf(p))"
+                    >
+                      <b>{{ p.code || p.n }}</b> {{ ptName(p) }}
+                    </a>
+                    <span v-else class="pt"><b>{{ p.code || p.n }}</b> {{ ptName(p) }}</span>
+                  </template>
+                </div>
+                <p class="mer-pthint">Bấm một huyệt để mở chi tiết bên mục <b>Huyệt Vị · Châm Cứu</b>.</p>
+              </div>
+            </div>
+          </template>
+        </template>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Đóng khung theme NÂU/KEM của app; KHÔNG để .content-area viết-hoa-tự-động làm hỏng text y học. */
+/* Đóng khung theme NÂU/KEM; tắt viết-hoa-tự-động của .content-area để text y học giữ đúng. */
 .tudien-page {
-  --c-line: var(--border);
-  --c-brand: var(--brown-600);
-  --c-brand-dark: var(--brown-800);
-  --c-brand-soft: var(--brown-50);
-  --c-accent: var(--brown-500);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -733,118 +838,141 @@ function gotoMap(code: string) {
 .td-list .nm { font-weight: 600; min-width: 0; }
 .td-list .nm small { display: block; color: var(--gray-500); font-weight: 400; font-size: 11.5px; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .td-list .mer-code { flex: none; min-width: 36px; height: 24px; padding: 0 7px; border-radius: var(--radius-sm); background: var(--brown-100); color: var(--brown-800); font-size: 11.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; letter-spacing: 0.3px; }
-.td-list .mer-code.mach { background: #f0e3d2; color: var(--brown-700); }
+.td-list .mer-code.mach, .td-list .mer-code.ky { background: #f0e3d2; color: var(--brown-700); }
 .td-list li.active .mer-code { background: rgba(255, 255, 255, 0.25); color: #fff; }
 .td-empty { color: var(--gray-500); font-style: italic; justify-content: center; cursor: default; }
 .td-empty:hover { background: none; }
 
-.td-main { flex: 1; min-width: 0; overflow-y: auto; padding: var(--space-6) var(--space-7); }
+.td-main { flex: 1; min-width: 0; overflow-y: auto; padding: var(--space-7) var(--space-8); }
 
-/* ── chi tiết (port từ bản gốc, đổi sang token nâu) ── */
-.td-main :deep(.detail) { max-width: 880px; margin: 0 auto; }
-.td-main :deep(.mer-detail) { max-width: 1180px; }
-.td-main :deep(.detail-head) { display: flex; gap: 24px; align-items: flex-start; margin-bottom: 8px; flex-wrap: wrap; }
-.td-main :deep(.detail-head .photo) { width: 220px; border-radius: 12px; box-shadow: var(--shadow-sm); background: #fff; border: 1px solid var(--border); }
+/* ═══ CHI TIẾT HUYỆT VỊ (v-html) ═══ */
+.td-main :deep(.detail) { max-width: 820px; margin: 0 auto; }
+/* Header dạng "hero": ảnh bo tròn + mã (chip) + tên lớn + meta gọn */
+.td-main :deep(.detail-head) { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; padding-bottom: 18px; margin-bottom: 6px; border-bottom: 1px solid var(--brown-100); }
+.td-main :deep(.detail-head .photo) { width: 196px; border-radius: 16px; box-shadow: 0 6px 18px rgba(58, 39, 21, 0.12); background: #fff; border: 1px solid var(--border); }
 .td-main :deep(.detail-head .titles) { flex: 1; min-width: 240px; }
-.td-main :deep(.detail-head h2) { color: var(--brown-800); font-size: 28px; margin: 0 0 10px; }
+.td-main :deep(.ah-badges) { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 9px; }
+.td-main :deep(.ah-code) { display: inline-flex; align-items: center; background: var(--brown-600); color: #fff; font-family: ui-monospace, "Cascadia Code", monospace; font-weight: 800; font-size: 12.5px; letter-spacing: 0.5px; padding: 3px 11px; border-radius: 999px; }
+.td-main :deep(.ah-code--ex) { background: var(--brown-100); color: var(--brown-800); }
+.td-main :deep(.detail-head h2) { color: var(--brown-900, var(--brown-800)); font-size: 30px; font-weight: 800; line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.2px; }
+.td-main :deep(.meta) { margin: 0; display: grid; gap: 7px; }
+.td-main :deep(.meta .m-row) { display: flex; gap: 14px; align-items: baseline; }
+.td-main :deep(.meta dt) { flex: 0 0 92px; color: var(--gray-500); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.6; }
+.td-main :deep(.meta dd) { margin: 0; font-size: 14.5px; color: var(--text); line-height: 1.55; }
+.td-main :deep(.detail-actions) { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.td-main :deep(.td-3dbtn), .td-main :deep(.td-merbtn) { display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px; border: 1px solid var(--brown-300); background: var(--brown-50); color: var(--brown-800); border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all var(--transition-fast); }
+.td-main :deep(.td-3dbtn):hover, .td-main :deep(.td-merbtn):hover { background: var(--brown-600); color: #fff; border-color: var(--brown-600); transform: translateY(-1px); }
 
-.td-main :deep(.meta) { margin: 0; display: grid; gap: 5px; }
-.td-main :deep(.meta .m-row) { display: flex; gap: 12px; align-items: baseline; }
-.td-main :deep(.meta dt) { flex: 0 0 132px; color: var(--gray-500); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; line-height: 1.45; }
-.td-main :deep(.meta dd) { margin: 0; font-size: 14.5px; color: var(--text); }
-.td-main :deep(.meta .exc) { font-weight: 800; color: var(--brown-700); letter-spacing: 0.3px; }
+/* Thẻ mục: nhẹ nhàng, tiêu đề có icon-chip + nhãn in hoa */
+.td-main :deep(.field) { background: var(--surface); border: 1px solid var(--brown-100); border-radius: 14px; padding: 16px 22px 14px; margin: 16px 0; }
+.td-main :deep(.field:hover) { border-color: var(--brown-200); }
+.td-main :deep(.field h3) { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--brown-700); }
+.td-main :deep(.fi) { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 9px; background: var(--brown-50); font-size: 15px; line-height: 1; }
+.td-main :deep(.field h3 .ft) { padding-top: 1px; }
 
-.td-3dbtn { margin-top: 12px; padding: 7px 14px; border: 1px solid var(--brown-500); background: var(--brown-50); color: var(--brown-800); border-radius: var(--radius-md); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
-.td-3dbtn:hover { background: var(--brown-600); color: #fff; }
+/* ═══ Typography nội dung (dùng chung 2 tab; .body bọc HTML từ formatBody) ═══ */
+.td-main :deep(.field .body) { font-size: 15.5px; line-height: 1.85; color: var(--gray-800); }
+.body { font-size: 15.5px; line-height: 1.85; color: var(--gray-800); }
+.body :deep(.f-p), .td-main :deep(.f-p) { margin: 0 0 11px; }
+.body :deep(.f-list), .td-main :deep(.f-list) { margin: 0 0 12px; padding-left: 1.3em; }
+.body :deep(.f-list > li), .td-main :deep(.f-list > li) { margin: 0 0 9px; padding-left: 5px; }
+.body :deep(.f-list > li::marker), .td-main :deep(.f-list > li::marker) { color: var(--brown-500); }
+.body :deep(.f-list > li.f-sub-item), .td-main :deep(.f-list > li.f-sub-item) { margin-left: 1.3em; list-style-type: '–'; }
+.body :deep(.f-list > li.f-num), .td-main :deep(.f-list > li.f-num) { list-style: none; margin-left: 0.2em; padding-left: 1.6em; text-indent: -1.6em; }
+.body :deep(.src), .td-main :deep(.src) { color: var(--brown-500); font-style: italic; font-size: 0.9em; }
+.body > :first-child { margin-top: 0; }
+.body > :last-child { margin-bottom: 0; }
+.empty-note, .td-main :deep(.empty-note) { color: var(--gray-500); font-style: italic; }
 
-.td-main :deep(.field) { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px; margin: 14px 0; box-shadow: var(--shadow-sm); }
-.td-main :deep(.field h3) { margin: 0 0 10px; font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--brown-700); border-bottom: 2px solid var(--brown-100); padding-bottom: 6px; }
-.td-main :deep(.field h3 .lz) { color: var(--brown-500); font-weight: 600; font-size: 12.5px; margin-left: 4px; text-transform: none; letter-spacing: 0; }
-.td-main :deep(.field .body) { font-size: 15px; color: var(--gray-800); }
-.td-main :deep(.field .body > :first-child) { margin-top: 0; }
-.td-main :deep(.field .body > :last-child) { margin-bottom: 0; }
-.td-main :deep(.f-p) { margin: 0 0 10px; }
-.td-main :deep(.f-list) { margin: 0 0 12px; padding-left: 1.4em; }
-.td-main :deep(.f-list > li) { margin: 0 0 7px; padding-left: 4px; }
-.td-main :deep(.f-list > li::marker) { color: var(--brown-600); }
-.td-main :deep(.f-list > li.f-sub-item) { margin-left: 1.3em; list-style-type: '–'; }
-.td-main :deep(.f-list > li.f-num) { list-style: none; margin-left: 0.2em; padding-left: 1.6em; text-indent: -1.6em; }
-.td-main :deep(.src) { color: var(--brown-600); }
-.td-main :deep(.empty-note) { color: var(--gray-500); font-style: italic; }
+/* phân cấp kiểu bài viết: tiêu đề con (pill) · nhãn đầu dòng · tên huyệt */
+.body :deep(.f-h), .td-main :deep(.f-h) {
+  display: inline-block; margin: 18px 0 10px; padding: 5px 12px; font-size: 12px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.7px; color: var(--brown-700); line-height: 1.3;
+  background: var(--brown-50); border-radius: 8px; border-left: 3px solid var(--brown-400);
+}
+.body :deep(.f-h:first-child), .td-main :deep(.f-h:first-child) { margin-top: 0; }
+.body :deep(.f-lead), .td-main :deep(.f-lead) { font-weight: 700; color: var(--brown-800); }
+.body :deep(.f-acu), .td-main :deep(.f-acu) { font-weight: 600; color: var(--brown-700); }
 
-.td-main :deep(.badge) { background: var(--brown-100); color: var(--brown-800); font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 12px; }
-.td-main :deep(.badge.sec) { background: #f0e3d2; color: var(--brown-700); }
-.td-main :deep(.mer-badges) { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; align-items: center; }
+/* ═══ CHI TIẾT KINH MẠCH (template, tab-trong) ═══ */
+.mer-welcome { max-width: 460px; margin: 8% auto 0; text-align: center; color: var(--gray-500); }
+.mer-welcome h3 { color: var(--brown-800); margin: 0 0 6px; }
 
-/* lưới 2 cột: nội dung | đồ hình giải phẫu */
-.td-main :deep(.mer-grid) { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
-.td-main :deep(.mer-main) { min-width: 0; }
-.td-main :deep(.mer-points) { display: flex; flex-wrap: wrap; gap: 6px; }
-.td-main :deep(.mer-points .pt) { font-size: 13px; padding: 4px 9px; border-radius: 14px; background: var(--brown-50); color: var(--text); border: 1px solid transparent; white-space: nowrap; }
-.td-main :deep(.mer-points .pt b) { color: var(--brown-700); font-weight: 800; margin-right: 2px; }
-.td-main :deep(.mer-points a.pt.link) { text-decoration: none; cursor: pointer; }
-.td-main :deep(.mer-points a.pt.link:hover) { background: var(--brown-600); color: #fff; border-color: var(--brown-700); }
-.td-main :deep(.mer-points a.pt.link:hover b) { color: #fff; }
-.td-main :deep(.mer-points .pt.hot) { background: var(--brown-600); color: #fff; border-color: var(--brown-700); }
-.td-main :deep(.mer-points .pt.hot b) { color: #fff; }
-.td-main :deep(.mer-points .pt.has-ex) { border-color: var(--brown-500); background: #f3ece1; }
+.mer-head { padding-bottom: 14px; border-bottom: 1px solid var(--brown-100); }
+.mer-head h2 { margin: 0 0 10px; color: var(--brown-900, var(--brown-800)); font-size: 28px; font-weight: 800; line-height: 1.18; letter-spacing: -0.2px; }
+.mer-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.badge { background: var(--brown-100); color: var(--brown-800); font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 12px; }
+.badge.sec { background: #f0e3d2; color: var(--brown-700); }
 
-/* đồ hình giải phẫu 2D */
-.td-main :deep(.mer-figure) { position: sticky; top: 0; align-self: start; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 14px 10px; box-shadow: var(--shadow-sm); }
-.td-main :deep(.fig-title) { margin: 0 0 10px; font-size: 14px; font-weight: 800; color: var(--brown-800); }
-.td-main :deep(.fig-3dhint) { font-size: 11px; font-weight: 500; color: var(--brown-600); margin-left: 8px; }
-.td-main :deep(.fig-toggle) { display: flex; gap: 8px; margin-bottom: 8px; }
-.td-main :deep(.fig-view) { flex: 1; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; background: var(--surface-2); color: var(--brown-800); border: 1px solid var(--border); padding: 6px 8px; border-radius: 10px; }
-.td-main :deep(.fig-view small) { font-weight: 700; opacity: 0.65; }
-.td-main :deep(.fig-view.on) { background: var(--c, var(--brown-600)); border-color: var(--c, var(--brown-700)); color: #fff; }
-.td-main :deep(.fig-view:disabled) { opacity: 0.4; cursor: default; }
-.td-main :deep(.fig-stage) { background: linear-gradient(#fbfaf7, #f1ece4); border: 1px solid var(--border); border-radius: 12px; padding: 6px; }
-.td-main :deep(.figsvg) { display: block; width: 100%; height: auto; }
-.td-main :deep(.fig-cap) { min-height: 32px; margin: 8px 2px 2px; font-size: 12px; line-height: 1.45; color: var(--gray-500); }
-.td-main :deep(.fig-empty) { font-size: 13px; line-height: 1.55; color: var(--gray-500); padding: 10px 4px; }
-.td-main :deep(.fbfill) { fill: #ece4d8; stroke: #ddd2c2; stroke-width: 1; }
-.td-main :deep(.fbz) { fill: none; stroke: #ece4d8; stroke-linecap: round; stroke-linejoin: round; }
-.td-main :deep(.fbz.leg) { stroke-width: 27; }
-.td-main :deep(.fbz.arm) { stroke-width: 18; }
-.td-main :deep(.fspine) { stroke: #cdbfa8; stroke-width: 1.4; stroke-dasharray: 3 3; }
-.td-main :deep(.fline) { fill: none; stroke: var(--c, var(--brown-600)); stroke-width: 2; stroke-opacity: 0.55; stroke-linecap: round; stroke-linejoin: round; }
-.td-main :deep(.fdot) { cursor: pointer; }
-.td-main :deep(.fdot .fhit) { fill: transparent; }
-.td-main :deep(.fdot .fpt) { fill: var(--c, var(--brown-600)); stroke: #fff; stroke-width: 1.4; transition: r 0.08s; }
-.td-main :deep(.fdot.approx .fpt) { fill-opacity: 0.65; stroke-dasharray: 2 1.5; }
-.td-main :deep(.fdot .flbl) { font-size: 8.5px; font-weight: 700; fill: #4a3a28; paint-order: stroke; stroke: #fff; stroke-width: 2.4px; stroke-linejoin: round; pointer-events: none; }
-.td-main :deep(.fdot:hover .fpt), .td-main :deep(.fdot.hot .fpt) { r: 6.6; stroke: var(--brown-800); stroke-width: 2; stroke-dasharray: none; }
-.td-main :deep(.fdot:hover .flbl), .td-main :deep(.fdot.hot .flbl) { fill: var(--brown-800); }
+/* thanh tab-trong (segmented) — dính trên khi cuộn */
+.mer-nav { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 0 12px; position: sticky; top: 0; z-index: 3; background: var(--surface); }
+.mer-nav-btn { padding: 7px 15px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font-size: 13.5px; font-weight: 600; border-radius: 999px; cursor: pointer; transition: all var(--transition-fast); }
+.mer-nav-btn:hover { border-color: var(--brown-300); color: var(--brown-700); background: var(--brown-50); }
+.mer-nav-btn.active { background: var(--brown-600); border-color: var(--brown-600); color: #fff; }
 
-/* sơ đồ đường kinh (ảnh) */
-.td-main :deep(.dg-grid) { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-.td-main :deep(.dg-item) { margin: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface-2); }
-.td-main :deep(.dg-item img) { width: 100%; display: block; background: #fff; }
-.td-main :deep(.dg-item figcaption) { padding: 5px 8px; font-size: 12px; color: var(--gray-600); text-align: center; border-top: 1px solid var(--border); }
+.mer-pane { padding: 8px 2px 10px; animation: tdFade 0.22s ease; }
+.mer-subhead { display: inline-block; margin: 18px 0 10px; padding: 5px 12px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.7px; color: var(--brown-700); background: var(--brown-50); border-radius: 8px; border-left: 3px solid var(--brown-400); }
+.mer-subhead:first-child { margin-top: 0; }
+
+/* sub-nav của "Đường vận hành" */
+.vh-subnav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.vh-sub-btn { padding: 5px 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--brown-800); font-size: 12.5px; font-weight: 700; border-radius: 8px; cursor: pointer; transition: all var(--transition-fast); }
+.vh-sub-btn:hover { border-color: var(--brown-400); }
+.vh-sub-btn.active { background: var(--brown-700); border-color: var(--brown-700); color: #fff; }
+
+/* Đường vận hành: ẢNH là trung tâm — chữ đọc phía trên (rộng vừa phải), ảnh lớn căn giữa bên dưới */
+.vh-illu { display: flex; flex-direction: column; align-items: center; }
+.vh-lead { width: 100%; max-width: 720px; margin-bottom: 18px; }
+.vh-fig { margin: 0; width: 360px; max-width: 100%; }
+
+/* ảnh sơ đồ (dùng chung cho đường vận hành + đồ hình tổng quát) */
+.mer-img { width: 100%; border: 1px solid var(--border); border-radius: 12px; background: #fff; display: block; cursor: zoom-in; box-shadow: var(--shadow-sm); transition: box-shadow var(--transition-fast); }
+.mer-img:hover { box-shadow: 0 6px 18px rgba(58, 39, 21, 0.14); }
+.vh-fig figcaption, .mer-fig figcaption { font-size: 12px; color: var(--gray-500); text-align: center; margin-top: 7px; }
+.zoom-hint { color: var(--brown-400); }
+.mer-illu { display: flex; flex-wrap: wrap; gap: 22px; justify-content: center; }
+.mer-fig { margin: 0; width: 300px; max-width: 100%; }
+.mer-fig--big { width: 460px; max-width: 100%; }
+
+/* danh sách huyệt (chip) */
+.mer-ptsum { font-size: 13.5px; color: var(--brown-700); font-weight: 600; margin: 0 0 12px; }
+.mer-points { display: flex; flex-wrap: wrap; gap: 7px; }
+.mer-points .pt { font-size: 13px; padding: 5px 10px; border-radius: 14px; background: var(--brown-50); color: var(--text); border: 1px solid transparent; white-space: nowrap; scroll-margin-top: 64px; }
+.mer-points .pt b { color: var(--brown-700); font-weight: 800; margin-right: 3px; }
+.mer-points a.pt.link { text-decoration: none; cursor: pointer; }
+.mer-points a.pt.link:hover { background: var(--brown-600); color: #fff; border-color: var(--brown-700); }
+.mer-points a.pt.link:hover b { color: #fff; }
+.mer-points .pt.has-ex { border-color: var(--brown-500); background: #f3ece1; }
+/* huyệt vừa nhảy tới từ chi tiết → nhấp nháy để dễ nhận ra */
+.mer-points .pt.flash { background: var(--brown-600); color: #fff; border-color: var(--brown-700); animation: ptFlash 2.4s ease; }
+.mer-points .pt.flash b { color: #fff; }
+@keyframes ptFlash {
+  0%, 60% { box-shadow: 0 0 0 3px var(--brown-200); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.mer-pthint { margin: 14px 0 0; font-size: 12.5px; color: var(--gray-500); font-style: italic; }
 
 /* Kỳ Huyệt */
-.td-main :deep(.mer-code.ky) { background: #ece0f0; color: #6a4aa6; }
-.td-main :deep(.ky-note) { color: var(--gray-500); font-size: 13.5px; line-height: 1.55; margin: 2px 0 12px; }
-.td-main :deep(.ky-alpha) { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 0; margin-bottom: 6px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.td-main :deep(.ky-alpha button) { min-width: 26px; height: 26px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--brown-800); font-weight: 700; font-size: 12.5px; cursor: pointer; }
-.td-main :deep(.ky-alpha button:hover) { background: var(--brown-600); color: #fff; border-color: var(--brown-700); }
-.td-main :deep(.ky-group) { margin: 0 0 16px; scroll-margin-top: 44px; }
-.td-main :deep(.ky-letter) { margin: 0 0 8px; font-size: 13px; font-weight: 800; color: var(--brown-800); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
-.td-main :deep(.ky-letter .lz) { color: var(--gray-500); font-weight: 600; font-size: 12px; margin-left: 4px; }
-.td-main :deep(.ky-toggle) { font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; background: var(--surface); color: var(--brown-800); border: 1px solid var(--brown-500); padding: 3px 10px; border-radius: 12px; }
-.td-main :deep(.ky-toggle.on) { background: var(--brown-600); color: #fff; }
+.ky-note { color: var(--gray-500); font-size: 13.5px; line-height: 1.55; margin: 14px 0 12px; }
+.ky-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; position: sticky; top: 0; z-index: 3; background: var(--surface); padding: 6px 0; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+.ky-alpha { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
+.ky-alpha button { min-width: 26px; height: 26px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--brown-800); font-weight: 700; font-size: 12.5px; cursor: pointer; }
+.ky-alpha button:hover { background: var(--brown-600); color: #fff; border-color: var(--brown-700); }
+.ky-toggle { font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; background: var(--surface); color: var(--brown-800); border: 1px solid var(--brown-500); padding: 4px 11px; border-radius: 12px; white-space: nowrap; }
+.ky-toggle.on { background: var(--brown-600); color: #fff; }
+.ky-group { margin: 0 0 16px; scroll-margin-top: 52px; }
+.ky-letter { margin: 0 0 8px; font-size: 13px; font-weight: 800; color: var(--brown-800); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.ky-letter .lz { color: var(--gray-500); font-weight: 600; font-size: 12px; margin-left: 4px; }
 
 /* ── thu hẹp ── */
 @media (max-width: 1024px) {
-  .td-main :deep(.mer-grid) { grid-template-columns: 1fr; }
-  .td-main :deep(.mer-figure) { position: static; order: -1; }
-  .td-main :deep(.fig-stage) { max-width: 320px; margin: 0 auto; }
+  .mer-fig, .mer-fig--big, .vh-fig { width: 100%; }
 }
 @media (max-width: 860px) {
   .td-shell { flex-direction: column; height: auto; }
   .td-aside { width: auto; border-right: 0; border-bottom: 1px solid var(--border); }
   .td-list { max-height: 280px; }
-  .td-main { max-height: 70vh; }
+  .td-main { max-height: 72vh; }
 }
 @media (max-width: 768px) {
   .td-shell { min-height: 0; }

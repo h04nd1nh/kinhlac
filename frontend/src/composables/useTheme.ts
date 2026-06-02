@@ -106,7 +106,7 @@ const SAT_SCALE: Record<Step, number> = { '50': 0.5, '100': 0.66, '200': 0.8, '3
 function normalizeHex(hex: string): string | null {
   const m = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec((hex || '').trim())
   if (!m) return null
-  let h = m[1]
+  let h = m[1]! // group 1 luôn có khi regex khớp
   if (h.length === 3) h = h.split('').map((c) => c + c).join('')
   return '#' + h.toLowerCase()
 }
@@ -203,14 +203,14 @@ function clinicEpochDay(): number {
     day: '2-digit',
   }).format(new Date())
   const [y, m, d] = ymd.split('-').map((x) => parseInt(x, 10))
-  return Math.floor(Date.UTC(y, (m || 1) - 1, d || 1) / 86400000)
+  return Math.floor(Date.UTC(y ?? 1970, (m || 1) - 1, d || 1) / 86400000)
 }
 
 /** Bảng màu của hôm nay (xoay vòng qua mọi theme đang có). */
 export function dailyTheme(): Theme {
   const list = allThemes.value
   const idx = ((clinicEpochDay() % list.length) + list.length) % list.length
-  return list[idx]
+  return list[idx]! // list luôn có ≥1 theme dựng sẵn
 }
 
 // 'auto' = đổi theo ngày; hoặc một theme.id cố định do người dùng ghim.

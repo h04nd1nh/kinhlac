@@ -1,16 +1,33 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { mountAcuMap, unmountAcuMap } from '@/lib/acuMap3d'
 
 const route = useRoute()
+const router = useRouter()
 const mountPoint = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 
+/**
+ * Cầu nối engine → SPA: drawer 3D có sẵn 2 link "Xem thêm" (href #acu/<id>) và "Lý thuyết kinh
+ * đầy đủ" (href #meridian/<mã>) — di sản từ webapp gốc, không tự điều hướng trong SPA. Bắt sự kiện
+ * hashchange để đẩy sang trang "Từ Điển" đúng mục huyệt / đúng đường kinh.
+ */
+function onHashNav() {
+  const h = location.hash
+  let m: RegExpExecArray | null
+  if ((m = /^#acu\/(\d+)/.exec(h))) {
+    router.push({ name: 'tu-dien', query: { acu: m[1] } })
+  } else if ((m = /^#meridian\/([A-Za-z]+)/.exec(h))) {
+    router.push({ name: 'tu-dien', query: { mer: m[1] } })
+  }
+}
+
 onMounted(async () => {
   try {
     if (mountPoint.value) await mountAcuMap(mountPoint.value)
+    window.addEventListener('hashchange', onHashNav)
     // Mở từ "Từ Điển" với ?focus=<mã huyệt> → bay tới huyệt đó (engine đã sẵn sàng sau mountAcuMap).
     const focus = route.query.focus
     const code = Array.isArray(focus) ? focus[0] : focus
@@ -23,6 +40,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('hashchange', onHashNav)
   unmountAcuMap()
 })
 </script>

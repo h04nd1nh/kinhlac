@@ -57,6 +57,18 @@ export class KinhMach3dService {
              updated_at  timestamptz NOT NULL DEFAULT now()
            )`,
         )
+        .then(() =>
+          // Bảng HƯỚNG KIM tự chỉnh (Chấm Tay): mỗi dòng = 1 huyệt + vector trục kim (x,y,z, world chuẩn-hoá).
+          this.dataSource.query(
+            `CREATE TABLE IF NOT EXISTS kinh_mach_3d_needle (
+               code        varchar(16) PRIMARY KEY,
+               x           double precision NOT NULL,
+               y           double precision NOT NULL,
+               z           double precision NOT NULL,
+               updated_at  timestamptz NOT NULL DEFAULT now()
+             )`,
+          ),
+        )
         .then(() => undefined)
         .catch((err) => {
           // Tạo bảng lỗi (vd thiếu quyền) → cho thử lại lần sau, đừng nuốt mãi.
@@ -68,14 +80,20 @@ export class KinhMach3dService {
   }
 
   /** GET: trả về { points: { mã -> {x,y,z} } } đúng định dạng engine cần. */
-  async getAnchors(): Promise<{ points: AnchorMap }> {
+  async getAnchors(): Promise<{ points: AnchorMap; needles: AnchorMap }> {
     await this.ensureTable();
     const rows = await this.repo.find();
     const points: AnchorMap = {};
     for (const r of rows) {
       points[r.code] = { x: r.x, y: r.y, z: r.z };
     }
-    return { points };
+    const nRows: Array<{ code: string; x: number; y: number; z: number }> =
+      await this.dataSource.query('SELECT code, x, y, z FROM kinh_mach_3d_needle');
+    const needles: AnchorMap = {};
+    for (const r of nRows) {
+      needles[r.code] = { x: +r.x, y: +r.y, z: +r.z };
+    }
+    return { points, needles };
   }
 
   /** Lọc input { mã: {x,y,z} } thành AnchorMap sạch (bỏ điểm hỏng). Dùng chung save + recompute. */
@@ -116,15 +134,17 @@ export class KinhMach3dService {
    * "căn theo" (chạy solver) — trả luôn toạ độ gold để frontend vẽ lại ngay.
    * Frontend luôn gửi đầy đủ userPlaced, kể cả khi "Xoá tất cả" (gửi {} → xoá sạch).
    */
-  async saveAnchors(points: unknown): Promise<{
+  async saveAnchors(body: { points?: unknown; needles?: unknown }): Promise<{
     ok: true;
     n: number;
+    needlesN: number;
     recomputed: boolean;
     points: Record<string, EnginePoint>;
     mers: string[];
   }> {
     await this.ensureTable();
-    const anchors = this.normalize(points);
+    const anchors = this.normalize(body?.points ?? {});
+    const needles = this.normalize(body?.needles ?? {}); // hướng kim tự chỉnh — cùng dạng {x,y,z} (vector trục)
     const rows = Object.entries(anchors).map(([code, p]) => {
       const row = new KinhMach3dAnchor();
       row.code = code;
@@ -134,16 +154,29 @@ export class KinhMach3dService {
       return row;
     });
 
-    // Thay-toàn-bộ trong 1 transaction: xoá hết rồi chèn lại → không còn chốt "mồ côi".
+    // Thay-toàn-bộ trong 1 transaction (chốt + hướng kim) → không còn bản ghi "mồ côi".
     await this.dataSource.transaction(async (m) => {
       await m.createQueryBuilder().delete().from(KinhMach3dAnchor).execute();
       if (rows.length) await m.insert(KinhMach3dAnchor, rows);
+      await m.query('DELETE FROM kinh_mach_3d_needle');
+      const nEnt = Object.entries(needles);
+      if (nEnt.length) {
+        const vals: string[] = [];
+        const params: unknown[] = [];
+        nEnt.forEach(([code, v], i) => {
+          const b = i * 4;
+          vals.push(`($${b + 1},$${b + 2},$${b + 3},$${b + 4})`);
+          params.push(code, v.x, v.y, v.z);
+        });
+        await m.query(`INSERT INTO kinh_mach_3d_needle(code,x,y,z) VALUES ${vals.join(',')}`, params);
+      }
     });
 
     const solved = this.runSolver(anchors);
     return {
       ok: true,
       n: rows.length,
+      needlesN: Object.keys(needles).length,
       recomputed: !!solved,
       points: solved ? solved.points : {},
       mers: solved ? solved.mers : [],

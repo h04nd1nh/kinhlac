@@ -161,7 +161,7 @@ async function loadDashboard() {
   if (missing.length) {
     const res = await Promise.allSettled(missing.map((id) => api.get<Patient>(`/patients/${id}`)))
     res.forEach((r, i) => {
-      if (r.status === 'fulfilled') nameMap.set(missing[i], r.value?.fullName || '')
+      if (r.status === 'fulfilled') nameMap.set(missing[i]!, r.value?.fullName || '')
     })
   }
   todayAppointments.value = withPatient

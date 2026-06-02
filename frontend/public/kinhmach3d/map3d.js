@@ -30,6 +30,7 @@
 
   // ---- CHẤM TAY: điểm CHỐT do người dùng tự đặt (ưu tiên tuyệt đối, chuẩn-vàng) ----
   const userPlaced = {};                        // code -> { x, y, z }  (chuẩn-hoá theo bodyHeight)
+  const userNeedle = {};                        // code -> { x, y, z }  HƯỚNG KIM tự chỉnh (vector trục, ra ngoài da)
   const derived = {};                           // code -> { x, y, z }  TẦNG 2 tự rải giữa các chốt
   const SPACING = window.ACU_SPACING || {};     // tỉ lệ thốn dọc mỗi kinh → rải theo tỉ lệ
   let editMode = false, editSel = null;
@@ -75,7 +76,17 @@
     merTotal[g.code] = (g.points || []).length;
     (g.points || []).forEach(p => { if (p.code) merName[p.code] = p.ten; });
   });
-  const nameOf = code => merName[code] || (recById.get(INDEX.codeToId[code]) || {}).ten || code;
+  // Tra record huyệt từ mã. acu-index.js (codeToId) còn SÓT ~31 huyệt (GV9 Chí Dương, GV14 Đại Chùy,
+  // LU1 Trung Phủ, LU5 Xích Trạch…) → khi thiếu mã, khớp theo TÊN trong kinh (merName, giống acuByName).
+  const foldName = s => norm(s).replace(/[^a-z0-9]+/g, ' ').trim();
+  const nameToId = {};
+  ACU.records.forEach(r => { const k = foldName(r.ten); if (k && nameToId[k] == null) nameToId[k] = r.id; });
+  const idOf = code => { const id = INDEX.codeToId[code]; return id != null ? id : nameToId[foldName(merName[code] || code)]; };
+  const recOf = code => recById.get(idOf(code));
+  // TÊN hiển thị: ưu tiên tên CHUẨN trong Từ Điển (đúng huyệt + Title Case, đã rà soát khớp mã 100%);
+  // thiếu record mới dùng tên trong kinh. Nhờ vậy nhãn 3D đồng nhất với Từ Điển, sửa luôn ~8 tên kinh sai
+  // (KI17, GB24/25/27, GV7/20, CV3, BL36) và ~290 chỗ lệch hoa/thường — KHÔNG phải sửa rải rác trong meridians.js.
+  const nameOf = code => { const r = recOf(code); return (r && r.ten) || merName[code] || code; };
 
   // ===== HƯỚNG CHÂM: đọc trường CHÂM CỨU → góc châm + độ sâu + hướng mũi kim =====
   // Kim KHÔNG còn cứng nhắc ⟂ da: chỉ NGẢ khi sách ghi rõ hướng (luồn/xiên về phía X);
@@ -113,7 +124,7 @@
   const _needleCache = {};
   function needleSpec(code) {
     if (code in _needleCache) return _needleCache[code];
-    const rec = recById.get(INDEX.codeToId[code]);
+    const rec = recOf(code);
     const raw = rec ? sec(rec, 'cham cuu') : '';
     const t = norm(raw), primary = t.split('.')[0];        // câu đầu = thủ pháp CHÍNH
     let angle = null;
@@ -311,7 +322,7 @@
       resetView();
       drawerWelcome();
       updateCount();
-      if (pendingFocus) { const c = pendingFocus; pendingFocus = null; setTimeout(() => focusPoint(c), 120); }
+      if (pendingFocus) { const c = pendingFocus, o = pendingOpts; pendingFocus = pendingOpts = null; setTimeout(() => focusPoint(c, o), 120); }
       buildLinesDeferred();              // dựng đường kinh TỪNG KINH mỗi khung → model hiện tức thì, đường rải dần
     }, undefined, err => {
       drawer.innerHTML = '<p class="empty-note">Không tải được mô hình 3D (' + esc(String(err && err.message || err)) + ').</p>';
@@ -569,14 +580,19 @@
     const bh = bodyHeight, L = NEEDLE.len * bh, hl = NEEDLE.handle * bh;
     const spec = needleSpec(dot.userData.code);
     const n = _Nn.copy(dot.userData.normal).normalize();   // pháp tuyến da (ra ngoài)
-    _axis.copy(n);                                          // mặc định: ⟂ da như cũ
-    let aimv = spec.tilt > 1e-4 ? aimWorld(spec.aim, dot) : null;
-    if (spec.tilt > 1e-4 && !aimv) aimv = meridianTangent(dot);   // xiên/luồn không rõ hướng → ngả DỌC đường kinh
-    if (aimv) {
-      _tan.copy(aimv).addScaledVector(n, -aimv.dot(n));     // chiếu hướng lên mặt phẳng TIẾP TUYẾN da
-      if (_tan.lengthSq() > 1e-9) {                         // ngả trục: cán ngả ngược, mũi kim chếch THEO hướng vào dưới da
-        _tan.normalize();
-        _axis.copy(n).multiplyScalar(Math.cos(spec.tilt)).addScaledVector(_tan, -Math.sin(spec.tilt)).normalize();
+    _axis.copy(n);                                          // mặc định: ⟂ da
+    const un = userNeedle[dot.userData.code];               // HƯỚNG TỰ CHỈNH (Chấm Tay) → ưu tiên tuyệt đối
+    if (un) {
+      _axis.set(un.x, un.y, un.z).normalize();
+    } else {
+      let aimv = spec.tilt > 1e-4 ? aimWorld(spec.aim, dot) : null;
+      if (spec.tilt > 1e-4 && !aimv) aimv = meridianTangent(dot);   // xiên/luồn không rõ hướng → ngả DỌC đường kinh
+      if (aimv) {
+        _tan.copy(aimv).addScaledVector(n, -aimv.dot(n));     // chiếu hướng lên mặt phẳng TIẾP TUYẾN da
+        if (_tan.lengthSq() > 1e-9) {                         // ngả trục: cán ngả ngược, mũi kim chếch THEO hướng vào dưới da
+          _tan.normalize();
+          _axis.copy(n).multiplyScalar(Math.cos(spec.tilt)).addScaledVector(_tan, -Math.sin(spec.tilt)).normalize();
+        }
       }
     }
     // độ cắm vào da theo "sâu N thốn" (1 thốn ≈ chiều cao thân /70); kẹp để luôn còn thân + cán nhô ra ngoài
@@ -599,6 +615,71 @@
     _Noff.copy(needleA.n).multiplyScalar(off);
     needleShaft.position.copy(needleA.shaftC).add(_Noff);
     needleHandle.position.copy(needleA.handleC).add(_Noff);
+  }
+
+  // ===== XOAY HƯỚNG KIM (Chấm Tay): kéo CÁN kim trên 3D → đổi trục kim, lưu vào userNeedle =====
+  let rotDot = null, rotMoved = false;
+  const _rv1 = new THREE.Vector3(), _rv2 = new THREE.Vector3(), _rv3 = new THREE.Vector3(), _rv4 = new THREE.Vector3();
+  const _ROT_COSMAX = Math.cos(85 * Math.PI / 180);        // kim không ngả quá 85° (cán luôn nhô ra ngoài da)
+  function _needleIns(code, bh, L) {
+    const d = needleSpec(code).depth;
+    return d != null ? Math.max(0.12 * L, Math.min(0.6 * L, d * bh / 70)) : NEEDLE.insert * bh;
+  }
+  // trục kim (ra ngoài) suy từ vị trí con trỏ: cán kim "bám" theo con trỏ, tâm xoay tại huyệt.
+  function dirFromCursor(ev, pivot, radius) {
+    const r = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
+    mouse.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const O = raycaster.ray.origin, D = raycaster.ray.direction;
+    const OP = _rv1.copy(pivot).sub(O), tca = OP.dot(D), d2 = OP.lengthSq() - tca * tca, r2 = radius * radius;
+    let t = tca;
+    if (d2 <= r2) t = tca - Math.sqrt(r2 - d2);            // con trỏ trúng mặt cầu bán kính `radius` → giao gần
+    const H = _rv2.copy(O).addScaledVector(D, t);
+    return _rv3.copy(H).sub(pivot).normalize();
+  }
+  // kẹp trục: cán luôn nhô ra ngoài (≤ 85° so với pháp tuyến da)
+  function clampNeedleAxis(axis, n) {
+    const dn = axis.dot(n);
+    if (dn >= _ROT_COSMAX) return axis;
+    const tan = _rv4.copy(axis).addScaledVector(n, -dn);
+    if (tan.lengthSq() > 1e-9) { tan.normalize(); axis.copy(n).multiplyScalar(_ROT_COSMAX).addScaledVector(tan, Math.sqrt(1 - _ROT_COSMAX * _ROT_COSMAX)).normalize(); }
+    else axis.copy(n);
+    return axis;
+  }
+  // đặt kim theo 1 trục cho trước, KHÔNG hoạt cảnh trượt — dùng khi đang xoay.
+  function orientNeedle(dot, axis) {
+    ensureNeedle();
+    const bh = bodyHeight, L = NEEDLE.len * bh, hl = NEEDLE.handle * bh, ins = _needleIns(dot.userData.code, bh, L);
+    needleA.n.copy(axis);
+    needleA.q.setFromUnitVectors(_NUP, axis);
+    needleA.shaftC.copy(dot.position).addScaledVector(axis, L / 2 - ins);
+    needleA.handleC.copy(dot.position).addScaledVector(axis, L - ins + hl / 2);
+    needleShaft.quaternion.copy(needleA.q); needleHandle.quaternion.copy(needleA.q);
+    needleA.active = false; needleA.done = true; needleGroup.visible = true;
+    updateNeedle(1); wake();
+  }
+  // con trỏ có đang GẦN cán kim không (bắt thao tác xoay) — rộng tay hơn bề ngang kim cho dễ trúng.
+  function nearNeedleHandle(ev) {
+    if (!needleHandle || !needleGroup.visible) return false;
+    const r = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
+    mouse.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const O = raycaster.ray.origin, D = raycaster.ray.direction;
+    const t = _rv1.copy(needleHandle.position).sub(O).dot(D);
+    return _rv2.copy(O).addScaledVector(D, t).distanceTo(needleHandle.position) < 0.024 * bodyHeight;
+  }
+  // xoay kim của huyệt đang chọn theo con trỏ + lưu hướng (tạm) vào userNeedle.
+  function rotateNeedleTo(ev) {
+    if (!rotDot) return;
+    rotMoved = true;
+    const code = rotDot.userData.code, bh = bodyHeight, L = NEEDLE.len * bh, hl = NEEDLE.handle * bh;
+    const axis = dirFromCursor(ev, rotDot.position, L - _needleIns(code, bh, L) + hl / 2);
+    clampNeedleAxis(axis, _Nn.copy(rotDot.userData.normal).normalize());
+    orientNeedle(rotDot, axis);
+    userNeedle[code] = { x: +axis.x.toFixed(4), y: +axis.y.toFixed(4), z: +axis.z.toFixed(4) };
+    setEditStatus('Xoay kim ' + code + '… thả & 💾 Lưu để giữ (↺ Auto để bỏ).');
   }
 
   function applyVisibility() {
@@ -642,6 +723,7 @@
   }
   function setDotScale(m, k) { m.scale.setScalar((m.userData.baseScale || 1) * k); if (m.userData.halo) m.userData.halo.scale.setScalar(m.userData.baseHalo * k); }
   function onMove(ev) {
+    if (rotDot) { rotateNeedleTo(ev); return; }     // đang XOAY hướng kim
     if (dragDot) { _dragEV = ev; return; }          // đang kéo → xử lý 1 lần/khung (trong animate) cho nhẹ
     const hit = pick(ev);
     const obj = hit ? hit.object : null;
@@ -671,10 +753,18 @@
   }
   function onEditDown(ev) {
     if (!editMode) return;
+    // bấm trúng CÁN KIM (đang chọn 1 huyệt) → vào chế độ XOAY hướng kim (không dời huyệt)
+    if (editSel && nearNeedleHandle(ev)) {
+      rotDot = dotByCode[editSel]; rotMoved = false;
+      controls.enabled = false;
+      renderer.domElement.setPointerCapture && renderer.domElement.setPointerCapture(ev.pointerId);
+      setEditStatus('Kéo để xoay hướng kim ' + editSel + '…');
+      return;
+    }
     const hit = pick(ev);
     if (!hit) return;
     dragDot = hit.object; dragMoved = false;
-    selectEdit(dragDot.userData.code);
+    selectEdit(dragDot.userData.code);             // chọn + hiện kim (để có thể XOAY); kéo chấm = dời vị trí
     controls.enabled = false;                      // khoá xoay khi đang kéo huyệt
     renderer.domElement.setPointerCapture && renderer.domElement.setPointerCapture(ev.pointerId);
   }
@@ -688,6 +778,11 @@
     setEditStatus('Thả để đặt ' + dragDot.userData.code + ' tại đây…');
   }
   function onEditUp(ev) {
+    if (rotDot) {                                  // vừa XOAY hướng kim xong
+      const code = rotDot.userData.code;
+      if (rotMoved) setEditStatus('✓ Đã chỉnh hướng kim ' + code + '. 💾 Lưu để giữ · ↺ Auto để bỏ.');
+      controls.enabled = true; rotDot = null; updateEditPanel(); return;
+    }
     if (!dragDot) return;
     const code = dragDot.userData.code;
     if (dragMoved) {
@@ -697,6 +792,7 @@
       userPlaced[code] = nm;
       deriveMeridian(merOf(code));             // TẦNG 2: tự rải các huyệt giữa các chốt theo tỉ lệ thốn
       refreshMeridian(merOf(code));            // cập nhật cả kinh + đường kinh (live, không treo)
+      if (dotByCode[code]) placeNeedle(dotByCode[code]);   // kim bám theo huyệt vừa dời (để còn xoay)
       const nc = Object.keys(userPlaced).filter(c => merOf(c) === merOf(code)).length;
       setEditStatus(`✓ Đặt ${code}. Kinh ${merOf(code)} có ${nc} chốt → các huyệt giữa TỰ rải. 💾 Lưu · ↶ Hoàn tác.`);
     }
@@ -732,7 +828,7 @@
   }
   function selectEdit(code) {
     editSel = code;
-    const m = dotByCode[code]; if (m) { highlight(code); setDotScale(m, 2.1); }
+    const m = dotByCode[code]; if (m) { highlight(code); setDotScale(m, 2.1); placeNeedle(m); }   // hiện kim để XOAY
     updateEditPanel();
   }
 
@@ -742,7 +838,7 @@
     if (editPanel) return;
     editPanel = document.createElement('div'); editPanel.className = 'map-edit-panel'; editPanel.style.display = 'none';
     editPanel.innerHTML =
-      '<div class="mep-title">✎ Chấm tay — chấm vài CHỐT, engine tự rải phần giữa</div>' +
+      '<div class="mep-title">✎ Chấm tay — kéo CHẤM để dời huyệt · kéo CÁN KIM để xoay hướng</div>' +
       '<div class="mep-status" id="mepStatus">Kéo-thả huyệt CHỐT (đầu/cuối + chỗ gập). 2 chốt trở lên → các huyệt giữa TỰ rải theo tỉ lệ thốn.</div>' +
       '<div class="mep-row">' +
         '<button class="mv-btn" id="mepDerive" title="Rải lại TẤT CẢ kinh theo các chốt đã chấm">⚙ Căn tổng thể</button>' +
@@ -753,7 +849,8 @@
         '<button class="mv-btn" id="mepDownload">⬇ Tải JSON</button>' +
       '</div>' +
       '<div class="mep-row">' +
-        '<button class="mv-btn" id="mepClear">✖ Xoá tất cả chấm tay</button>' +
+        '<button class="mv-btn" id="mepNeedleAuto" title="Trả hướng kim của huyệt đang chọn về tự động (đọc từ sách)">↺ Auto hướng kim</button>' +
+        '<button class="mv-btn" id="mepClear">✖ Xoá tất cả</button>' +
       '</div>' +
       '<div class="mep-count" id="mepCount"></div>';
     // Dock panel Chấm Tay vào ĐẦU sidebar phải (không nổi đè lên mô hình 3D nữa).
@@ -771,7 +868,13 @@
         updateEditPanel();
       });
     };
-    editPanel.querySelector('#mepClear').onclick = () => { if (confirm('Xoá TẤT CẢ điểm chấm tay? (các điểm đúng cũng mất)')) { undoStack.length = 0; for (const k in userPlaced) delete userPlaced[k]; for (const k in derived) delete derived[k]; rebuild(); updateEditPanel(); } };
+    editPanel.querySelector('#mepClear').onclick = () => { if (confirm('Xoá TẤT CẢ chấm tay (vị trí + hướng kim)? Các điểm đúng cũng mất.')) { undoStack.length = 0; for (const k in userPlaced) delete userPlaced[k]; for (const k in userNeedle) delete userNeedle[k]; for (const k in derived) delete derived[k]; rebuild(); updateEditPanel(); } };
+    editPanel.querySelector('#mepNeedleAuto').onclick = () => {
+      if (!editSel) { setEditStatus('Chọn 1 huyệt trước (bấm vào chấm) rồi mới đặt lại hướng kim.'); return; }
+      delete userNeedle[editSel];
+      const m = dotByCode[editSel]; if (m) placeNeedle(m);    // vẽ lại kim theo hướng tự động (sách)
+      setEditStatus('↺ Hướng kim ' + editSel + ' về tự động (theo sách). 💾 Lưu để cập nhật.');
+    };
   }
   function setEditStatus(t) { if (editStatusEl && t != null) editStatusEl.textContent = t; }
   function updateEditPanel() {
@@ -785,8 +888,8 @@
     $('mapEdit') && $('mapEdit').classList.toggle('active', editMode);
     editPanel.style.display = editMode ? 'block' : 'none';
     if (renderer) renderer.domElement.style.cursor = editMode ? 'crosshair' : 'grab';
-    if (!editMode) { editSel = null; dragDot = null; controls.enabled = true; }   // KHÔNG dựng lại đường (tránh treo); đường sẽ tươi sau recompute + tải lại
-    setEditStatus(editMode ? 'Kéo-thả 1 huyệt đến đúng chỗ rồi 💾 Lưu.' : '');
+    if (!editMode) { editSel = null; dragDot = null; rotDot = null; controls.enabled = true; clearNeedle(); }   // KHÔNG dựng lại đường (tránh treo); đường sẽ tươi sau recompute + tải lại
+    setEditStatus(editMode ? 'Bấm 1 huyệt để chọn → kéo CHẤM dời vị trí, kéo CÁN KIM xoay hướng. Xong bấm 💾 Lưu.' : '');
     updateEditPanel();
   }
   // Hoàn tác BƯỚC vừa chấm (giữ nguyên các điểm đúng trước đó)
@@ -834,7 +937,7 @@
     fetch(apiBase() + '/kinh-mach-3d/anchors', {
       method: 'POST',
       headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
-      body: JSON.stringify({ points: userPlaced })
+      body: JSON.stringify({ points: userPlaced, needles: userNeedle })
     })
       .then(r => {
         if (r.status === 401) throw new Error('cần đăng nhập lại');
@@ -849,7 +952,7 @@
       .catch(e => setEditStatus('Không lưu được lên server (' + ((e && e.message) || 'lỗi mạng') + '). Có thể bấm ⬇ Tải JSON để giữ tạm.'));
   }
   function downloadUser() {
-    const blob = new Blob([JSON.stringify({ points: userPlaced }, null, 1)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ points: userPlaced, needles: userNeedle }, null, 1)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'user-anchors.json'; a.click();
     setEditStatus('Đã tải user-anchors.json (bản sao lưu tạm). Bình thường chỉ cần bấm 💾 Lưu để đồng bộ lên server.');
   }
@@ -857,6 +960,8 @@
     fetch(apiBase() + '/kinh-mach-3d/anchors').then(r => r.json()).then(j => {
       const pts = (j && j.points) || j || {};
       let n = 0; for (const k in pts) { if (pts[k] && typeof pts[k].x === 'number') { userPlaced[k] = pts[k]; n++; } }
+      const nd = (j && j.needles) || {};              // HƯỚNG KIM tự chỉnh đã lưu → áp khi chọn huyệt
+      for (const k in nd) { const v = nd[k]; if (v && typeof v.x === 'number') userNeedle[k] = { x: v.x, y: v.y, z: v.z }; }
       if (!n) return;                                 // chưa có chốt → giữ toạ độ gold mặc định sẵn có
       // căn theo chốt bằng solver (gold) như bản gốc; lỗi (mạng/đăng nhập) → fallback nội suy thô
       recomputeGold((ok) => { if (!ok) { deriveAll(); if (inited && modelRoot && dotMeshes.length) rebuild(); } });
@@ -875,7 +980,7 @@
 
   // HTML chi tiết 1 huyệt (đặt vào #drDetail, KHÔNG thay cả ngăn)
   function pointDetailHTML(code) {
-    const r = recById.get(INDEX.codeToId[code]), m = COORDS.meridians[merOf(code)], p = placed[code];
+    const r = recOf(code), m = COORDS.meridians[merOf(code)], p = placed[code];
     const c = m ? m.color : '#888';
     const row = (label, body) => body ? `<div class="dr-row"><h4>${label}</h4><p>${esc(trunc(body, 280))}</p></div>` : '';
     const ns = needleSpec(code);
@@ -893,12 +998,12 @@
         <span class="dr-code" style="--c:${c}">${esc(code)}</span>
         <h3>${esc(nameOf(code))}</h3>
         <div class="dr-mer" style="color:${c}">${m ? esc(m.name) : ''}</div>
+        ${r ? `<a class="dr-more" href="#acu/${r.id}">📖 Xem Thêm</a>` : ''}
       </div>
       ${p && p.anchor ? `<div class="dr-note" style="border-color:#2563eb"><b>🔵 MỐC HUYỆT</b> — định vị ngay tại mốc giải phẫu.</div>`
         : p && p.conf ? `<div class="dr-note" style="border-color:${p.q === 'exact' ? '#16a34a' : '#d97706'}">⚙︎ độ tin: <b>${esc(p.conf)}</b> · nguồn: ${esc(p.src || '?')}</div>` : ''}
       ${needleNote}
       ${r ? row('Vị trí', sec(r, 'vi tri')) + row('Chủ trị', sec(r, 'chu tri')) + row('Châm cứu', sec(r, 'cham cuu'))
-            + `<a class="dr-full" href="#acu/${r.id}">Xem chi tiết đầy đủ →</a>`
           : '<p class="empty-note">Chi tiết huyệt này đang được số hoá.</p>'}`;
   }
 
@@ -907,7 +1012,12 @@
     const m = COORDS.meridians[mer]; if (!m) return;
     const codes = Object.keys(placed).filter(c => merOf(c) === mer).sort((a, b) => numOf(a) - numOf(b));
     const tot = merTotal[mer] ? '/' + merTotal[mer] : '';
-    const list = codes.map(c => `<button class="dr-pt${c === activeCode ? ' active' : ''}" data-code="${esc(c)}" style="--c:${m.color}"><b>${esc(c)}</b> ${esc(nameOf(c))}</button>`).join('');
+    // mỗi dòng = nút bay-tới-huyệt + nút "Xem Thêm" (📖) sang chi tiết huyệt trong Từ Điển
+    const list = codes.map(c => {
+      const rid = recOf(c);
+      const more = rid ? `<a class="dr-pt-more" href="#acu/${rid.id}" title="Xem ${esc(nameOf(c))} trong Từ Điển" aria-label="Xem trong Từ Điển">📖</a>` : '';
+      return `<div class="dr-pt-row"><button class="dr-pt${c === activeCode ? ' active' : ''}" data-code="${esc(c)}" style="--c:${m.color}"><b>${esc(c)}</b> ${esc(nameOf(c))}</button>${more}</div>`;
+    }).join('');
     drawer.innerHTML = `
       <div class="dr-head">
         <span class="dr-code" style="--c:${m.color}">${mer}</span>
@@ -978,23 +1088,37 @@
   }
 
   // ---- CAMERA BAY tới 1 huyệt (cho "Vị trí giải phẫu" load đến đúng chỗ trên 3D) ----
-  let camAnim = null, pendingFocus = null, _lastInput = 0;   // _lastInput: mốc thời gian thao tác gần nhất (render theo nhu cầu)
+  let camAnim = null, pendingFocus = null, pendingOpts = null, _lastInput = 0;   // _lastInput: mốc thời gian thao tác gần nhất (render theo nhu cầu)
+  const UP = new THREE.Vector3(0, 1, 0);                      // trục dọc — tính góc camera 3/4 cho showcase
   function wake() { _lastInput = clock(); }                  // "đánh thức" render khi cảnh thay đổi
   function focusPoint(code, opts) {
     opts = opts || {};
     const m = dotByCode[code];
-    if (!m) { pendingFocus = code; return false; }     // chưa init/chưa có chấm → đợi sau khi tải model
+    if (!m) { pendingFocus = code; pendingOpts = opts; return false; }   // chưa init/chưa có chấm → đợi sau khi tải model
     const mer = merOf(code);
     hidden.delete(mer);
-    if (focusMer && focusMer !== mer) focusMer = null;  // đang lọc kinh khác → bỏ lọc để huyệt hiện
+    // showcase (mở từ Từ Điển): CHỈ hiện riêng đường kinh này + bật dòng chảy. Mặc định: bỏ lọc để huyệt hiện.
+    if (opts.solo) focusMer = mer;
+    else if (focusMer && focusMer !== mer) focusMer = null;
+    if (opts.flow && !flowOn) { flowOn = true; $('mapFlow')?.classList.add('active'); }
     applyVisibility();                                  // đảm bảo huyệt đích hiện
     const p = m.position.clone();
     const n = (m.userData.normal || new THREE.Vector3(0, 0, 1)).clone().normalize();
-    const dist = (opts.dist || 0.26) * bodyHeight;     // khoảng cách cận cảnh
-    camAnim = { fromPos: camera.position.clone(), toPos: p.clone().addScaledVector(n, dist),
+    // góc quan sát: showcase nghiêng 3/4 (lệch ngang + hơi cao) cho thấy độ cong cơ thể & đường kinh;
+    // bình thường nhìn thẳng vuông góc da cho cận cảnh.
+    let dir = n;
+    if (opts.showcase) {
+      let side = new THREE.Vector3().crossVectors(n, UP);
+      if (side.lengthSq() < 1e-4) side = new THREE.Vector3(1, 0, 0);   // huyệt trên/dưới trục dọc → tránh suy biến
+      side.normalize();
+      dir = n.clone().multiplyScalar(0.82).addScaledVector(side, 0.42).addScaledVector(UP, 0.20).normalize();
+    }
+    const dist = (opts.dist || (opts.showcase ? 0.34 : 0.26)) * bodyHeight;   // showcase lùi ra chút để thấy bối cảnh
+    camAnim = { fromPos: camera.position.clone(), toPos: p.clone().addScaledVector(dir, dist),
       fromTgt: controls.target.clone(), toTgt: p.clone(), t0: clock(), dur: 0.7 };
     selectedCode = code;
     openDrawer(code, m);                               // chi tiết + cắm kim
+    wake();
     return true;
   }
 
@@ -1100,7 +1224,10 @@
       setMSub('map');                                   // chuyển sang đồ hình 3D (tự init nếu cần)
       history.replaceState(null, '', '#map/' + code);
       initScene();
-      if (!focusPoint(code)) pendingFocus = code;       // chưa có chấm → đợi model tải xong
+      // bảo đảm "Hai Bên" đang bật (mặc định bật; nếu user tắt → bật lại + dựng đối xứng)
+      if (!mirrorOn) { mirrorOn = true; $('mapMirror')?.classList.add('active'); if (inited && modelRoot) rebuild(); }
+      // showcase: chỉ hiện riêng đường kinh chứa huyệt + bật dòng chảy + góc nhìn 3/4 đẹp.
+      focusPoint(code, { solo: true, flow: true, showcase: true });
       requestAnimationFrame(onResize);
     },
     ready() { return !!modelRoot; },

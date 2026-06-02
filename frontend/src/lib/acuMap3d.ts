@@ -17,13 +17,15 @@
 export const BASE = `${import.meta.env.BASE_URL || '/'}kinhmach3d/`
 
 // ── DỮ LIỆU THUẦN (không cần Three.js) ──
-// Bốn file này chỉ gán window.ACUPOINTS / ACU_INDEX / ACU_COORDS3D / MERIDIANS. Trang "Từ Điển"
-// (tra cứu huyệt + lý thuyết kinh) chỉ cần chừng này → nạp riêng cho NHẸ, không kéo theo 3D engine.
+// Các file này chỉ gán window.ACUPOINTS / ACU_INDEX / ACU_COORDS3D / MERIDIANS / DICT_FACETS. Trang "Từ Điển"
+// (tra cứu huyệt + lý thuyết kinh + tra theo Nguồn/Đặc Tính) chỉ cần chừng này → nạp riêng cho NHẸ, không kéo 3D.
+// dict-facets.js (index tra ngược Nguồn↔Huyệt, Đặc Tính↔Huyệt) do _build-dict.cjs sinh ra — xem README-tu-dien-facets.md.
 const DATA_SCRIPTS: string[] = [
   'data/acupoints.js',
   'data/acu-index.js',
   'data/acu-coords3d.js',
   'data/meridians.js',
+  'data/dict-facets.js',
 ]
 
 // ── ENGINE 3D ── (Three + bộ mở rộng + dữ liệu riêng của 3D + map3d). Nạp SAU phần dữ liệu thuần.

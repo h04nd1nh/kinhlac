@@ -15,3 +15,13 @@ CREATE TABLE IF NOT EXISTS kinh_mach_3d_anchor (
   z           double precision NOT NULL,
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
+
+-- Bảng HƯỚNG KIM tự chỉnh ("Chấm Tay" → kéo cán kim để xoay). Mỗi dòng = 1 huyệt +
+-- vector TRỤC kim (x,y,z, world chuẩn-hoá, ra ngoài da). Cũng tự tạo trong backend.
+CREATE TABLE IF NOT EXISTS kinh_mach_3d_needle (
+  code        varchar(16) PRIMARY KEY,            -- mã huyệt, vd 'LU2', 'CV4'
+  x           double precision NOT NULL,
+  y           double precision NOT NULL,
+  z           double precision NOT NULL,
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);

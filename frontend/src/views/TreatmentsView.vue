@@ -602,7 +602,7 @@ async function handleDelete() {
 
     <div v-else-if="error" class="error-state">
       <p>{{ error }}</p>
-      <button class="btn-secondary mt-4" @click="fetchData">Thử lại</button>
+      <button class="btn-secondary mt-4" @click="fetchData()">Thử lại</button>
     </div>
 
     <div v-else class="content-body">

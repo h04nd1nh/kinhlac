@@ -23,8 +23,8 @@ export class KinhMach3dRouter {
   /** Lưu (thay toàn bộ) bộ chốt + căn theo — yêu cầu đăng nhập. Trả luôn toạ độ gold. */
   @UseGuards(JwtAuthGuard)
   @Post('anchors')
-  saveAnchors(@Body() body: { points?: unknown }) {
-    return this.service.saveAnchors(body?.points ?? {});
+  saveAnchors(@Body() body: { points?: unknown; needles?: unknown }) {
+    return this.service.saveAnchors(body ?? {});
   }
 
   /** ⚙ Căn Tổng Thể: chạy solver trên các chốt gửi lên, KHÔNG lưu — yêu cầu đăng nhập. */
