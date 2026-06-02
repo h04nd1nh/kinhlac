@@ -11,7 +11,15 @@
  * của theme, nhưng làm sáng/phát quang hơn để nổi trên nền nâu của hero.
  *
  * Toàn bộ toạ độ tính trong khung viewBox 0 0 400 400, tâm tại (200, 200).
+ *
+ * GIỮA vòng: phủ một "hình người kinh lạc 3D" nhẹ (HeroMeridianFigure). Khi cảnh 3D sẵn sàng
+ * (figureReady) thì làm mờ Thái Cực SVG đi cho hình người chiếm tâm; nếu 3D không tải được /
+ * không có WebGL thì Thái Cực vẫn hiển thị như cũ (rơi-về an toàn).
  */
+import { ref } from 'vue'
+import HeroMeridianFigure from './HeroMeridianFigure.vue'
+
+const figureReady = ref(false)
 
 const CX = 200
 const CY = 200
@@ -207,8 +215,8 @@ const dot = R / 5
         </g>
       </g>
 
-      <!-- ====== Thái Cực / Âm Dương ở giữa ====== -->
-      <g class="core spin-d">
+      <!-- ====== Thái Cực / Âm Dương ở giữa (mờ đi khi hình người 3D sẵn sàng) ====== -->
+      <g class="core spin-d" :class="{ 'core--dim': figureReady }">
         <circle :cx="CX" :cy="CY" :r="R" :fill="yang" stroke="rgba(247,239,222,.6)" stroke-width="1" />
         <path :d="taiji" :fill="yin" />
         <circle :cx="CX" :cy="CY - R / 2" :r="dot" :fill="yang" />
@@ -230,6 +238,11 @@ const dot = R / 5
         </g>
       </g>
     </svg>
+
+    <!-- Hình người kinh lạc 3D phủ chính giữa (tải trễ, cảnh nhẹ riêng) -->
+    <div class="wheel-core3d" :class="{ 'is-ready': figureReady }">
+      <HeroMeridianFigure @ready="figureReady = true" />
+    </div>
   </div>
 </template>
 
@@ -239,6 +252,33 @@ const dot = R / 5
   align-items: center;
   justify-content: center;
   width: 100%;
+  position: relative; /* mốc định vị cho lớp hình người 3D ở tâm */
+}
+
+/* ---- Hình người kinh lạc 3D phủ giữa vòng ---- */
+/* --fig-size = bề rộng khung 3D so với cả vòng tròn (chỉnh ở đây nếu muốn to/nhỏ hơn). */
+.wheel-core3d {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--fig-size, 50%);
+  aspect-ratio: 1 / 1.2; /* cao hơn rộng — dáng người đứng */
+  transform: translate(-50%, -50%);
+  pointer-events: none; /* để chuột vẫn xuyên qua, không chắn hero */
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+.wheel-core3d.is-ready {
+  opacity: 1;
+}
+
+/* Thái Cực: làm mờ (không ẩn hẳn) khi đã có hình người 3D — giữ chút "bệ" sáng phía sau */
+.core {
+  transition: opacity 0.9s ease;
+}
+.core--dim {
+  opacity: 0.18;
 }
 .wheel {
   width: 100%;

@@ -13,7 +13,6 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ensureDictData, BASE } from '@/lib/acuMap3d'
-import { api } from '@/services/api'
 
 // ───────────────────────── kiểu dữ liệu ─────────────────────────
 interface AcuSection { h: string; body: string }
@@ -62,16 +61,6 @@ interface FacetSource {
 }
 interface FacetTrait { ten: string; nhom: string; moTa?: string; count: number; huyetIds: number[] }
 
-// ── kiểu dữ liệu GỢI Ý AI cho HUYỆT (khớp backend POST /ai-suggest/huyet) ──
-interface AiHuyetInfo {
-  ten_khac: string; vi_tri: string; giai_phau: string; dac_tinh: string
-  chu_tri: string; cham_cuu: string; phoi_huyet: string
-}
-interface AiHuyetImage { url: string; thumb: string; title: string; source: string; width?: number; height?: number }
-interface AiHuyetResp { info: AiHuyetInfo; info_error?: string; images: AiHuyetImage[]; images_error?: string }
-// 1 bản nháp đã duyệt (lưu localStorage; xuất JSON rồi build vào acupoints.js)
-interface AcuDraft { info: AiHuyetInfo; image: string; ten: string; ts: number }
-
 const router = useRouter()
 const route = useRoute()
 
@@ -119,39 +108,6 @@ const sourceSearch = ref('')
 const activeSourceId = ref<string | null>(null)
 const traitSearch = ref('')
 const activeTraitId = ref<string | null>(null)
-
-// ── GỢI Ý AI cho huyệt: bản nháp đã duyệt (localStorage) + trạng thái bảng duyệt ──
-const AI_DRAFT_KEY = 'tudien.acuDrafts.v1'
-const acuDrafts = ref<Record<number, AcuDraft>>({})
-const aiOpen = ref(false)            // mở bảng duyệt?
-const aiLoading = ref(false)
-const aiError = ref<string | null>(null)
-const aiForId = ref<number | null>(null)   // đang gợi ý cho huyệt nào
-const aiForTen = ref('')
-const aiInfo = ref<AiHuyetInfo>(emptyAiInfo())
-const aiInfoError = ref('')
-const aiImages = ref<AiHuyetImage[]>([])
-const aiImagesError = ref('')
-const aiSelectedImage = ref('')      // url ảnh đang chọn ('' = không ảnh)
-const aiDraftCount = computed(() => Object.keys(acuDrafts.value).length)
-// có trường text AI nào không-rỗng để hiện khối "đối chiếu" hay không
-const aiInfoHasContent = computed(() => Object.values(aiInfo.value).some((v) => v && v.trim()))
-// các trường AI để đối chiếu (read-only), bỏ ô rỗng
-const aiCompareRows = computed<{ label: string; text: string }[]>(() =>
-  (
-    [
-      ['Tên Khác', aiInfo.value.ten_khac],
-      ['Vị Trí', aiInfo.value.vi_tri],
-      ['Giải Phẫu', aiInfo.value.giai_phau],
-      ['Đặc Tính', aiInfo.value.dac_tinh],
-      ['Chủ Trị', aiInfo.value.chu_tri],
-      ['Châm Cứu', aiInfo.value.cham_cuu],
-      ['Phối Huyệt', aiInfo.value.phoi_huyet],
-    ] as [string, string][]
-  )
-    .filter(([, v]) => v && v.trim())
-    .map(([label, text]) => ({ label, text })),
-)
 
 // ───────────────────────── tiện ích ─────────────────────────
 const norm = (s?: string) =>
@@ -403,7 +359,6 @@ onMounted(async () => {
       facetsReady.value = true
     }
 
-    loadDrafts()
     ready.value = true
     if (A.length) activeAcuId.value = A[0]!.id
     if (list.length) selectMer(0)
@@ -477,12 +432,9 @@ const acuDetailHtml = computed<string>(() => {
   const openMer = merInfo
     ? `<button class="td-merbtn" data-mer-i="${merInfo.i}" type="button">📖 Xem Trên Đường Kinh</button>`
     : ''
-  const draft = acuDrafts.value[r.id]
-  const aiBtn = `<button class="td-aibtn" data-ai-suggest type="button">✨ Gợi Ý AI ${draft ? '(Sửa Nháp)' : '(Bổ Sung + Ảnh)'}</button>`
-  const actions = `<div class="detail-actions">${open3d}${openMer}${aiBtn}</div>`
+  const actions = open3d || openMer ? `<div class="detail-actions">${open3d}${openMer}</div>` : ''
 
-  // ảnh ưu tiên bản nháp AI (URL từ web) → thấy ngay; chưa có nháp mới dùng ảnh tĩnh
-  const imgSrc = draft?.image || r.image
+  const imgSrc = r.image
   const photo = imgSrc
     ? `<img class="photo" src="${esc(assetUrl(imgSrc))}" alt="${esc(r.ten)}" onerror="this.style.display='none'">`
     : ''
@@ -509,29 +461,8 @@ const acuDetailHtml = computed<string>(() => {
         </div>
       </div>
       ${sectionCards + extraCards || '<p class="empty-note">Chưa có nội dung chi tiết cho huyệt này.</p>'}
-      ${aiDraftFieldsHtml(draft)}
     </article>`
 })
-
-// Khối "Bổ Sung Bởi AI (bản nháp)" trong chi tiết huyệt: chỉ hiện các trường có nội dung.
-function aiDraftFieldsHtml(draft?: AcuDraft): string {
-  if (!draft) return ''
-  const rows: [string, string][] = [
-    ['Tên Khác', draft.info.ten_khac],
-    ['Vị Trí', draft.info.vi_tri],
-    ['Giải Phẫu', draft.info.giai_phau],
-    ['Đặc Tính', draft.info.dac_tinh],
-    ['Chủ Trị', draft.info.chu_tri],
-    ['Châm Cứu', draft.info.cham_cuu],
-    ['Phối Huyệt', draft.info.phoi_huyet],
-  ]
-  const cards = rows
-    .filter(([, v]) => v && v.trim())
-    .map(([label, v]) => `<section class="field">${fieldH(label)}<div class="body">${formatBody(v)}</div></section>`)
-    .join('')
-  if (!cards) return ''
-  return `<div class="ai-draft-block"><div class="ai-draft-flag">✨ Bổ Sung Bởi AI — Bản Nháp (chưa xuất ra file)</div>${cards}</div>`
-}
 
 function selectAcu(id: number) {
   activeAcuId.value = id
@@ -542,11 +473,6 @@ function jumpAcuLetter(l: string) {
 }
 // các nút trong chi tiết huyệt vị (v-html → dùng delegation)
 function onAcuDetailClick(e: MouseEvent) {
-  const aiBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-ai-suggest]')
-  if (aiBtn) {
-    openAiPanel()
-    return
-  }
   const map3d = (e.target as HTMLElement).closest<HTMLElement>('[data-map-code]')
   if (map3d) {
     gotoMap(map3d.dataset.mapCode!)
@@ -572,123 +498,6 @@ function onThumbError(e: Event) {
 function onFigError(e: Event) {
   const fig = (e.target as HTMLElement).closest('figure')
   if (fig) (fig as HTMLElement).style.display = 'none'
-}
-
-// ═══════════════════════ GỢI Ý AI CHO HUYỆT ═══════════════════════
-function emptyAiInfo(): AiHuyetInfo {
-  return { ten_khac: '', vi_tri: '', giai_phau: '', dac_tinh: '', chu_tri: '', cham_cuu: '', phoi_huyet: '' }
-}
-function loadDrafts() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(AI_DRAFT_KEY) || '{}')
-    acuDrafts.value = raw && typeof raw === 'object' ? raw : {}
-  } catch {
-    acuDrafts.value = {}
-  }
-}
-const persistDrafts = () => localStorage.setItem(AI_DRAFT_KEY, JSON.stringify(acuDrafts.value))
-
-// Mã quốc tế (LU9, EX-…) + đường kinh của huyệt → gửi kèm để AI & tìm ảnh chính xác hơn.
-function acuContext(id: number): { ma: string; kinh: string } {
-  const ma = acuIdToCode.get(id) || acuById.get(id)?._exCode || ''
-  const merInfo = acuIdToMer.get(id)
-  const kinh = merInfo ? merList.value[merInfo.i]?.ten || '' : ''
-  return { ma, kinh }
-}
-
-function openAiPanel() {
-  const r = acuActive.value
-  if (!r) return
-  aiForId.value = r.id
-  aiForTen.value = r.ten
-  aiOpen.value = true
-  aiError.value = null
-  // chủ yếu lấy ẢNH: nạp lại ảnh đã chọn (nếu có nháp); chữ chỉ để đối chiếu nên luôn lấy mới
-  aiSelectedImage.value = acuDrafts.value[r.id]?.image || ''
-  aiInfo.value = emptyAiInfo()
-  aiImages.value = []
-  aiImagesError.value = ''
-  aiInfoError.value = ''
-  runAiSuggest()
-}
-
-async function runAiSuggest() {
-  const id = aiForId.value
-  if (id == null || aiLoading.value) return
-  aiLoading.value = true
-  aiError.value = null
-  try {
-    const { ma, kinh } = acuContext(id)
-    const res = await api.post<{ success: boolean; data: AiHuyetResp }>('/ai-suggest/huyet', {
-      ten_huyet: aiForTen.value,
-      ma_huyet: ma,
-      kinh_mach: kinh,
-    })
-    const d = res.data
-    aiInfoError.value = d.info_error || ''
-    aiImagesError.value = d.images_error || ''
-    aiImages.value = Array.isArray(d.images) ? d.images : []
-    // chữ AI chỉ để ĐỐI CHIẾU với Từ Điển (không sửa, không lưu) → hiển thị nguyên trạng
-    aiInfo.value = { ...emptyAiInfo(), ...(d.info || {}) }
-  } catch (e: any) {
-    aiError.value = 'Gọi AI thất bại: ' + (e?.message ?? e)
-  } finally {
-    aiLoading.value = false
-  }
-}
-
-function pickAiImage(url: string) {
-  aiSelectedImage.value = aiSelectedImage.value === url ? '' : url
-}
-// bấm thường = chọn ảnh; Ctrl/⌘/chuột-giữa = để trình duyệt mở ảnh gốc ở tab mới
-function onAiImgClick(e: MouseEvent, url: string) {
-  if (e.ctrlKey || e.metaKey || e.button === 1) return
-  e.preventDefault()
-  pickAiImage(url)
-}
-
-function saveAiDraft() {
-  const id = aiForId.value
-  if (id == null) return
-  acuDrafts.value = {
-    ...acuDrafts.value,
-    [id]: { info: emptyAiInfo(), image: aiSelectedImage.value, ten: aiForTen.value, ts: Date.now() },
-  }
-  persistDrafts()
-  aiOpen.value = false
-}
-
-function deleteAiDraft(id: number | null) {
-  if (id == null || !acuDrafts.value[id]) return
-  const next = { ...acuDrafts.value }
-  delete next[id]
-  acuDrafts.value = next
-  persistDrafts()
-  aiOpen.value = false
-}
-
-function closeAiPanel() {
-  aiOpen.value = false
-}
-
-// Xuất tất cả bản nháp → tải acu-drafts.json; bỏ vào data/ rồi chạy script tải ảnh + vá acupoints.js
-function exportAiDrafts() {
-  const drafts: Record<string, unknown> = {}
-  for (const [id, d] of Object.entries(acuDrafts.value)) {
-    drafts[id] = { ten: d.ten, image: d.image, info: d.info }
-  }
-  const out = {
-    _doc:
-      'BẢN NHÁP AI cho huyệt (đã duyệt qua UI). Bỏ file này vào frontend/public/kinhmach3d/data/ rồi chạy: ' +
-      'node _build-acu-ai.cjs để tải ảnh về images/acupoints/ và vá acupoints.js.',
-    count: Object.keys(drafts).length,
-    drafts,
-  }
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2) + '\n'], { type: 'application/json' }))
-  a.download = 'acu-drafts.json'
-  a.click()
-  URL.revokeObjectURL(a.href)
 }
 
 // ═══════════════════════ KINH MẠCH ═══════════════════════
@@ -719,11 +528,11 @@ const merTabs = computed(() => {
   const isMach = m.type === 'mach'
   const imgs = m.images || {}
   const tabs: { key: MerSection; label: string }[] = []
+  if (imgs.gen || imgs.sodo) tabs.push({ key: 'do-hinh', label: 'Đồ Hình Tổng Quát' })
   if (isMach ? m.dacTinh || m.nameAlt : m.desc) tabs.push({ key: 'tong-quan', label: isMach ? 'Đặc Tính' : 'Tổng Quan' })
   if (isMach ? m.vanHanh : m.chinh || m.ngang || m.doc || m.biet || m.can || imgs.chinh || imgs.ngang || imgs.doc || imgs.biet || imgs.can)
     tabs.push({ key: 'van-hanh', label: isMach ? 'Vận Hành' : 'Đường Vận Hành' })
   if (isMach ? m.trieuChung || m.dieuTri : m.chuTri) tabs.push({ key: 'chu-tri', label: isMach ? 'Triệu Chứng · Điều Trị' : 'Chủ Trị' })
-  if (imgs.gen || imgs.sodo) tabs.push({ key: 'do-hinh', label: 'Đồ Hình Tổng Quát' })
   if (m.points.length) tabs.push({ key: 'huyet', label: 'Các Huyệt' })
   return tabs
 })
@@ -894,9 +703,6 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
           />
           <span class="td-count">{{ acuFiltered.length }} / {{ acuRecords.length }}</span>
         </div>
-        <button v-if="aiDraftCount" class="ai-export-bar" type="button" @click="exportAiDrafts">
-          ⬇ Xuất {{ aiDraftCount }} Bản Nháp AI (acu-drafts.json)
-        </button>
         <div class="td-alpha">
           <button v-for="l in acuLetters" :key="l" type="button" @click="jumpAcuLetter(l)">{{ l }}</button>
         </div>
@@ -908,9 +714,9 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
             :class="{ active: r.id === activeAcuId }"
             @click="selectAcu(r.id)"
           >
-            <img v-if="acuDrafts[r.id]?.image || r.image" class="thumb" loading="lazy" :src="assetUrl(acuDrafts[r.id]?.image || r.image)" alt="" @error="onThumbError" />
+            <img v-if="r.image" class="thumb" loading="lazy" :src="assetUrl(r.image)" alt="" @error="onThumbError" />
             <span v-else class="thumb no-thumb">◉</span>
-            <span class="nm">{{ r.ten }}<i v-if="acuDrafts[r.id]" class="draft-dot" title="Có bản nháp AI">✨</i><small v-if="r._tenKhac">{{ r._tenKhac.split('\n')[0]?.slice(0, 60) }}</small></span>
+            <span class="nm">{{ r.ten }}<small v-if="r._tenKhac">{{ r._tenKhac.split('\n')[0]?.slice(0, 60) }}</small></span>
           </li>
           <li v-if="!acuFiltered.length" class="td-empty">Không khớp huyệt nào.</li>
         </ul>
@@ -1200,69 +1006,6 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
       </div>
     </div>
 
-    <!-- ═════ BẢNG DUYỆT GỢI Ý AI (HUYỆT) ═════ -->
-    <div v-if="aiOpen" class="ai-modal-backdrop" @click.self="closeAiPanel">
-      <div class="ai-modal">
-        <header class="ai-modal-head">
-          <h3>✨ Gợi Ý AI — {{ aiForTen }}</h3>
-          <button class="ai-x" type="button" @click="closeAiPanel">×</button>
-        </header>
-
-        <div class="ai-modal-body">
-          <p v-if="aiError" class="ai-err">{{ aiError }}</p>
-          <div v-if="aiLoading" class="ai-loading">
-            <div class="td-spinner" aria-hidden="true"></div>
-            <span>AI đang soạn thông tin &amp; tìm ảnh…</span>
-          </div>
-
-          <!-- ẢNH: phần chính — bấm chọn đúng 1 tấm rồi Lưu -->
-          <h4 class="ai-sec-h">Chọn ảnh cho huyệt — bấm 1 tấm</h4>
-          <p v-if="aiImagesError" class="ai-warn">⚠ {{ aiImagesError }}</p>
-          <div v-if="aiImages.length" class="ai-img-grid">
-            <a
-              v-for="im in aiImages"
-              :key="im.url"
-              class="ai-img"
-              :class="{ on: aiSelectedImage === im.url }"
-              :title="(im.title || '') + '\n' + im.source + '\n(bấm: chọn · Ctrl/⌘+bấm: mở ảnh gốc)'"
-              :href="im.url"
-              target="_blank"
-              rel="noopener"
-              @click="onAiImgClick($event, im.url)"
-            >
-              <img :src="im.thumb || im.url" :alt="im.title" loading="lazy" @error="onThumbError" />
-              <span v-if="aiSelectedImage === im.url" class="ai-img-check">✓</span>
-            </a>
-          </div>
-          <p v-else-if="!aiLoading && !aiImagesError" class="empty-note">Không tìm thấy ảnh phù hợp.</p>
-
-          <!-- ĐỐI CHIẾU: chữ AI chỉ để tham khảo so với Từ Điển, KHÔNG lưu, KHÔNG sửa ở đây -->
-          <details v-if="aiInfoHasContent" class="ai-compare">
-            <summary>🔎 Đối chiếu thông tin AI với Từ Điển <span class="ai-cmp-note">(chỉ tham khảo · không lưu)</span></summary>
-            <p v-if="aiInfoError" class="ai-warn">⚠ {{ aiInfoError }}</p>
-            <dl class="ai-cmp-list">
-              <div v-for="row in aiCompareRows" :key="row.label" class="ai-cmp-row">
-                <dt>{{ row.label }}</dt>
-                <dd>{{ row.text }}</dd>
-              </div>
-            </dl>
-          </details>
-        </div>
-
-        <footer class="ai-modal-foot">
-          <button class="src-tool" type="button" :disabled="aiLoading" @click="runAiSuggest">🔄 Tìm Lại</button>
-          <span class="ai-foot-spacer"></span>
-          <button
-            v-if="aiForId != null && acuDrafts[aiForId]"
-            class="src-tool danger"
-            type="button"
-            @click="deleteAiDraft(aiForId)"
-          >🗑 Xoá Ảnh</button>
-          <button class="rv-skip" type="button" @click="closeAiPanel">Đóng</button>
-          <button class="rv-merge" type="button" :disabled="aiLoading || !aiSelectedImage" @click="saveAiDraft">💾 Lưu Ảnh</button>
-        </footer>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -1426,9 +1169,9 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
 .mer-img:hover { box-shadow: 0 6px 18px rgba(58, 39, 21, 0.14); }
 .vh-fig figcaption, .mer-fig figcaption { font-size: 12px; color: var(--gray-500); text-align: center; margin-top: 7px; }
 .zoom-hint { color: var(--brown-400); }
-.mer-illu { display: flex; flex-wrap: wrap; gap: 22px; justify-content: center; }
+.mer-illu { display: flex; flex-direction: column; align-items: center; gap: 30px; }
 .mer-fig { margin: 0; width: 300px; max-width: 100%; }
-.mer-fig--big { width: 460px; max-width: 100%; }
+.mer-fig--big { width: 100%; max-width: 900px; }
 
 /* danh sách huyệt (chip) */
 .mer-ptsum { font-size: 13.5px; color: var(--brown-700); font-weight: 600; margin: 0 0 12px; }
@@ -1514,62 +1257,4 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
   .td-shell { min-height: 0; }
 }
 
-/* ═══ GỢI Ý AI cho huyệt ═══ */
-/* nút trong chi tiết (v-html) */
-.td-main :deep(.td-aibtn) {
-  display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px;
-  border: 1px solid var(--brown-600); background: var(--brown-600); color: #fff;
-  border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
-  transition: all var(--transition-fast);
-}
-.td-main :deep(.td-aibtn):hover { background: var(--brown-700); border-color: var(--brown-700); transform: translateY(-1px); }
-/* khối "Bổ sung bởi AI (nháp)" trong chi tiết */
-.td-main :deep(.ai-draft-block) { border: 1px dashed var(--brown-400); border-radius: 14px; padding: 4px 18px 14px; margin: 18px 0; background: var(--brown-50); }
-.td-main :deep(.ai-draft-flag) { font-size: 12px; font-weight: 800; color: var(--brown-700); text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 0 2px; }
-.td-main :deep(.ai-draft-block .field) { background: #fff; }
-
-/* nút xuất nháp + dấu ✨ ở cột trái */
-.ai-export-bar { margin: 8px; padding: 9px 12px; border: 1px solid var(--brown-500); background: var(--brown-50); color: var(--brown-800); border-radius: var(--radius-md); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; text-align: left; }
-.ai-export-bar:hover { background: var(--brown-600); color: #fff; border-color: var(--brown-600); }
-.td-list .draft-dot { font-style: normal; margin-left: 5px; font-size: 11px; }
-
-/* modal duyệt */
-.ai-modal-backdrop { position: fixed; inset: 0; background: rgba(40, 26, 13, 0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; animation: tdFade 0.18s ease; }
-.ai-modal { background: var(--surface); border-radius: var(--radius-lg); width: 720px; max-width: 100%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 18px 50px rgba(40, 26, 13, 0.35); overflow: hidden; }
-.ai-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); }
-.ai-modal-head h3 { margin: 0; font-size: 18px; color: var(--brown-800); font-weight: 800; }
-.ai-x { border: 0; background: none; font-size: 26px; line-height: 1; color: var(--gray-500); cursor: pointer; padding: 0 4px; }
-.ai-x:hover { color: var(--brown-800); }
-.ai-modal-body { padding: 16px 20px; overflow-y: auto; }
-.ai-err { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin: 0 0 10px; }
-.ai-loading { display: flex; align-items: center; gap: 12px; color: var(--brown-600); padding: 6px 0 14px; }
-.ai-loading .td-spinner { width: 24px; height: 24px; border-width: 3px; }
-.ai-warn { background: var(--brown-50); border: 1px solid var(--brown-200); color: var(--brown-800); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin: 6px 0; }
-.ai-fields { display: grid; gap: 10px; }
-.ai-field { display: grid; gap: 4px; }
-.ai-field > span { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); }
-.ai-field textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; color: var(--text); box-sizing: border-box; }
-.ai-field textarea:focus { outline: none; border-color: var(--brown-500); box-shadow: var(--focus-ring); }
-.ai-sec-h { margin: 20px 0 8px; font-size: 13px; font-weight: 800; color: var(--brown-700); text-transform: uppercase; letter-spacing: 0.5px; }
-.ai-img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
-.ai-img { position: relative; padding: 0; border: 2px solid var(--border); border-radius: 10px; background: #fff; cursor: pointer; overflow: hidden; aspect-ratio: 1; }
-.ai-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.ai-img:hover { border-color: var(--brown-400); }
-.ai-img.on { border-color: var(--brown-600); box-shadow: 0 0 0 2px var(--brown-300); }
-.ai-img-check { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; background: var(--brown-600); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; font-size: 13px; }
-
-/* khối ĐỐI CHIẾU chữ AI (read-only, gập) */
-.ai-compare { margin-top: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2, var(--brown-50)); }
-.ai-compare > summary { cursor: pointer; padding: 10px 14px; font-size: 13px; font-weight: 700; color: var(--brown-700); list-style: none; }
-.ai-compare > summary::-webkit-details-marker { display: none; }
-.ai-compare > summary::before { content: '▸'; margin-right: 8px; color: var(--brown-500); }
-.ai-compare[open] > summary::before { content: '▾'; }
-.ai-cmp-note { font-weight: 600; color: var(--gray-500); font-size: 12px; }
-.ai-cmp-list { margin: 0; padding: 4px 14px 12px; display: grid; gap: 8px; }
-.ai-cmp-row { display: grid; grid-template-columns: 92px 1fr; gap: 12px; align-items: baseline; }
-.ai-cmp-row dt { margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--gray-500); }
-.ai-cmp-row dd { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text); }
-
-.ai-modal-foot { display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); }
-.ai-foot-spacer { flex: 1; }
 </style>
