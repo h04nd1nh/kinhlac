@@ -1,31 +1,48 @@
 <script setup lang="ts">
 /**
- * HeroMeridianFigure — "Đồ hình kinh lạc phát sáng" 3D NHẸ cho tâm vòng tròn trang chủ.
+ * HeroMeridianFigure — Hình người kinh lạc 3D cho banner trang chủ.
  *
- * Một thân người cách điệu (mờ ảo như cơ thể ánh sáng) + các đường kinh chính phát sáng chạy dọc
- * theo tay/chân/thân, mỗi đường có một "đốm khí" trôi dọc (hiệu ứng kinh khí vận hành). Cả khối
- * tự xoay chậm. KHÔNG dùng mô hình giải phẫu nặng — chỉ Three.js lõi (tải trễ qua heroThree.ts),
- * nên trang chủ vẫn nhẹ. Cảnh tự huỷ (giải phóng WebGL) khi rời trang.
+ * Dùng MÔ HÌNH THẬT (body-layers.glb — đúng file trang Kinh Mạch 3D) tô trong suốt phát sáng,
+ * + các đường kinh chính phát sáng "chạy" dọc cơ thể (đốm khí trôi). Đường kinh được rải lên ĐÚNG
+ * bề mặt mô hình bằng raycast — port gọn từ engine map3d.js (surfacePoint / limbPoint), nhưng đây là
+ * cảnh RIÊNG, read-only, không toolbar/drawer, không kéo 2.6MB dữ liệu chi tiết huyệt.
  *
- * Toạ độ quy ước: x = trái/phải, y = dưới→trên, z = sau(−)/trước(+). Thân cao ~2 đơn vị, tâm ở gốc.
+ * Toàn bộ tải TRỄ qua heroThree.ts; chỉ chạy khi banner thật sự hiện ra. Tự huỷ (giải phóng WebGL)
+ * khi rời trang. Không có WebGL / lỗi tải → im lặng (banner có lớp rơi-về riêng).
  */
 import { onMounted, onBeforeUnmount, ref } from 'vue'
-import { ensureThree, hasWebGL } from '@/lib/heroThree'
-
-const emit = defineEmits<{ ready: [] }>()
+import { ensureModelDeps, hasWebGL } from '@/lib/heroThree'
 
 const host = ref<HTMLDivElement | null>(null)
+
+/** Hiện canvas (mờ vào) — gọi khi ĐÃ đủ thân + đường kinh, để cả khối hiện cùng lúc. */
+function revealCanvas() {
+  if (renderer?.domElement) renderer.domElement.style.opacity = '1'
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
 
+const MODEL_URL = `${import.meta.env.BASE_URL || '/'}kinhmach3d/models/body-layers.glb`
+const BODY_H = 1.7 // chuẩn hoá chiều cao thân về 1.7 đơn vị (giống engine)
+
+let T: Any = null // window.THREE
 let raf = 0
 let renderer: Any = null
 let scene: Any = null
 let camera: Any = null
-let figure: Any = null // Group cha (xoay)
-let flows: { curve: Any; dot: Any; speed: number; phase: number }[] = []
-const disposables: Any[] = [] // geometry + material để dọn khi unmount
+let figure: Any = null // Group cha: mô hình + đường kinh (xoay cùng nhau)
+let flows: { tex: Any; speed: number; phase: number }[] = [] // dải sáng "kinh khí" chạy dọc mỗi đường
+const disposables: Any[] = []
+let flowCanvas: HTMLCanvasElement | null = null
+
+// Khung raycast (đặt sau khi nạp mô hình)
+let raycaster: Any = null
+let modelRoot: Any = null
+let targets: Any[] = [] // mesh để bắn tia (mô hình 1-mesh → lấy hits[0] = mặt da ngoài)
+let bodyMinY = 0
+let bodyHeight = BODY_H
+
 let ro: ResizeObserver | null = null
 let io: IntersectionObserver | null = null
 let bootIo: IntersectionObserver | null = null
@@ -34,263 +51,330 @@ let alive = true
 let visible = true
 let inView = true
 let reduceMotion = false
-let startMs = 0 // mốc thời gian (đặt ở frame đầu, tránh new Date() lúc khởi tạo)
+let linesReady = false // dựng xong đường kinh → mới cho xoay (tránh raycast lệch khung khi đang xoay)
+let rotStartMs = 0
 
-// ── Bảng màu đường kinh (sáng, nổi trên nền nâu tối ở tâm medallion) ──
-const C_CV = 0xffd98a // Mạch Nhâm — vàng kim ấm (giữa thân trước)
-const C_GV = 0x86c5f2 // Mạch Đốc — lam trời (giữa lưng, vòng qua đầu)
-const C_ARM_YIN = 0xff7283 // 3 kinh Âm ở tay (mặt trong) — hồng đỏ
-const C_ARM_YANG = 0xffb072 // 3 kinh Dương ở tay (mặt ngoài) — cam
-const C_LEG_YANG = 0xffe07a // 3 kinh Dương ở chân (trước/ngoài) — vàng
-const C_LEG_YIN = 0x9fe089 // 3 kinh Âm ở chân (trong) — lục
+// ── Dữ liệu toạ độ (acu-coords3d.js → window.ACU_COORDS3D) ──
+const COORDS = () => (window as unknown as { ACU_COORDS3D?: Any }).ACU_COORDS3D
+const merOf = (code: string) => code.replace(/\d+$/, '')
+const numOf = (code: string) => +code.replace(/\D/g, '')
+const isBilateral = (mer: string) => mer !== 'CV' && mer !== 'GV'
 
-type P = [number, number, number]
-
-/** Lật toạ độ sang bên phải cơ thể (đổi dấu x) để vẽ đối xứng. */
-function mirror(pts: P[]): P[] {
-  return pts.map(([x, y, z]) => [-x, y, z] as P)
+// ── Raycast: đặt huyệt THÂN/ĐẦU theo (h, az, dir) lên bề mặt (port từ engine surfacePoint) ──
+function surfacePoint(h: number, az: number, dir?: string): Any | null {
+  const y = bodyMinY + h * bodyHeight
+  const azr = (az * Math.PI) / 180
+  const o = new T.Vector3()
+  const t = new T.Vector3()
+  if (dir === 'top') {
+    o.set(Math.sin(azr) * 0.04 * bodyHeight, bodyMinY + bodyHeight * 1.25, Math.cos(azr) * 0.06 * bodyHeight)
+    t.set(0, y, Math.cos(azr) * 0.04 * bodyHeight)
+  } else {
+    const R = bodyHeight
+    o.set(Math.sin(azr) * R, y, Math.cos(azr) * R)
+    t.set(0, y, 0)
+  }
+  raycaster.set(o, t.clone().sub(o).normalize())
+  const hits = raycaster.intersectObjects(targets, true)
+  if (!hits.length) return null
+  const p = hits[0].point.clone()
+  const out = dir === 'top' ? new T.Vector3(0, 1, 0) : new T.Vector3(p.x, 0, p.z).normalize()
+  return p.add(out.multiplyScalar(0.01 * bodyHeight))
 }
 
-/** Ống phát sáng đi qua các điểm (đường kinh). Trả về mesh + đường cong (để cho đốm khí trôi). */
-function glowTube(THREE: Any, pts: P[], radius: number, color: number) {
-  const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(p[0], p[1], p[2])))
-  const geo = new THREE.TubeGeometry(curve, 80, radius, 6, false)
-  const mat = new THREE.MeshBasicMaterial({
+// ── Raycast: đặt huyệt trên CHI theo (x, y, z) chuẩn-hoá, "dán" vào da gần nhất (port limbPoint) ──
+const SNAP_DIRS = [
+  [1, 0, 0],
+  [-1, 0, 0],
+  [0, 1, 0],
+  [0, -1, 0],
+  [0, 0, 1],
+  [0, 0, -1],
+]
+function limbPoint(p: Any): Any | null {
+  const lp = new T.Vector3((p.x || 0) * bodyHeight, bodyMinY + (p.y || 0) * bodyHeight, (p.z || 0) * bodyHeight)
+  if (p.snap === false) return lp // không dán da → giữ nguyên điểm trục chi
+  const R = 0.45 * bodyHeight
+  const dirs = p.snapDir === 'front' ? [[0, 0, 1]] : p.snapDir === 'back' ? [[0, 0, -1]] : SNAP_DIRS
+  let best: Any = null
+  let bestD = Infinity
+  for (const d of dirs) {
+    const o = new T.Vector3(lp.x + d[0] * R, lp.y + d[1] * R, lp.z + d[2] * R)
+    raycaster.set(o, lp.clone().sub(o).normalize())
+    const hits = raycaster.intersectObjects(targets, true)
+    if (hits.length) {
+      const dd = hits[0].point.distanceTo(lp)
+      if (dd < bestD) {
+        bestD = dd
+        best = hits[0].point.clone()
+      }
+    }
+  }
+  if (!best) return lp
+  const out = new T.Vector3(best.x, 0, best.z)
+  return best.add((out.lengthSq() > 1e-9 ? out.normalize() : new T.Vector3(0, 0, 1)).multiplyScalar(0.01 * bodyHeight))
+}
+
+/** Toạ độ 3D của 1 huyệt; mirror=true để lấy bản đối xứng (bên phải). */
+function pointOf(p: Any, mirror: boolean): Any | null {
+  if (p.x !== undefined || p.y !== undefined || p.z !== undefined) {
+    return limbPoint(mirror ? { ...p, x: -(p.x || 0) } : p)
+  }
+  if (mirror) {
+    if (p.az % 180 === 0) return null // điểm giữa (trước/sau) không có bản gương
+    return surfacePoint(p.h, (360 - p.az) % 360, p.dir)
+  }
+  return surfacePoint(p.h, p.az, p.dir)
+}
+
+/**
+ * Texture "kinh khí": 1 dải dọc — nền sáng yếu (đường kinh luôn thấy) + 1 vạch sáng mạnh.
+ * Lặp dọc ống + trượt offset mỗi khung → các vạch sáng CHẠY dọc đường kinh (dòng chảy).
+ */
+function getFlowCanvas(): HTMLCanvasElement {
+  if (flowCanvas) return flowCanvas
+  const c = document.createElement('canvas')
+  c.width = 64
+  c.height = 1
+  const ctx = c.getContext('2d') as CanvasRenderingContext2D
+  const g = ctx.createLinearGradient(0, 0, 64, 0)
+  g.addColorStop(0.0, 'rgba(255,255,255,0.1)')
+  g.addColorStop(0.42, 'rgba(255,255,255,0.1)')
+  g.addColorStop(0.5, 'rgba(255,255,255,0.95)')
+  g.addColorStop(0.58, 'rgba(255,255,255,0.1)')
+  g.addColorStop(1.0, 'rgba(255,255,255,0.1)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, 64, 1)
+  flowCanvas = c
+  return c
+}
+
+/** Ống đường kinh phát sáng + dòng chảy (vạch sáng trôi dọc). */
+function addGlowLine(pts: Any[], color: Any, phase: number, speed: number) {
+  const curve = new T.CatmullRomCurve3(pts)
+  const tubeR = 0.0072 * bodyHeight // mảnh vừa — rõ nét, không thành mảng loá
+  const geo = new T.TubeGeometry(curve, Math.max(28, pts.length * 7), tubeR, 8, false)
+  const tex = new T.CanvasTexture(getFlowCanvas())
+  tex.wrapS = tex.wrapT = T.RepeatWrapping
+  const len = curve.getLength()
+  tex.repeat.set(Math.max(1, Math.round(len / (0.22 * bodyHeight))), 1) // số "vạch" dọc ống ~ đều nhau
+  tex.offset.x = phase
+  const mat = new T.MeshBasicMaterial({
+    map: tex,
     color,
     transparent: true,
-    opacity: 0.92,
-    blending: THREE.AdditiveBlending,
+    opacity: 1,
+    blending: T.AdditiveBlending,
     depthWrite: false,
+    depthTest: true, // TÔN TRỌNG chiều sâu → chỉ thấy đường kinh MẶT TRƯỚC (mặt sau bị thân che) → rõ khối, bớt loá
   })
-  disposables.push(geo, mat)
-  return { mesh: new THREE.Mesh(geo, mat), curve }
+  disposables.push(geo, mat, tex)
+  const mesh = new T.Mesh(geo, mat)
+  mesh.renderOrder = 2 // sau thân (thân ghi độ sâu trước) để depthTest che đúng
+  figure.add(mesh)
+  flows.push({ tex, speed, phase })
 }
 
-/** "Đốm khí" sáng trôi dọc một đường kinh. */
-function makeDot(THREE: Any, radius: number, color: number) {
-  const geo = new THREE.SphereGeometry(radius * 2.6, 10, 10)
-  const mat = new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.95,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  })
-  disposables.push(geo, mat)
-  return new THREE.Mesh(geo, mat)
-}
-
-/** Khối thân người mờ ảo (đầu, cổ, thân, 2 tay, 2 chân, bàn tay/chân). */
-function buildBody(THREE: Any): Any {
-  const g = new THREE.Group()
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: 0xf3e3c4,
-    emissive: 0x6b4a25,
-    emissiveIntensity: 0.5,
-    roughness: 1,
-    metalness: 0,
-    transparent: true,
-    opacity: 0.16,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  })
-  disposables.push(bodyMat)
-
-  const addMesh = (geo: Any) => {
-    disposables.push(geo)
-    g.add(new THREE.Mesh(geo, bodyMat))
+/**
+ * Rải đường kinh lên bề mặt mô hình — RẢI DẦN qua nhiều khung hình:
+ * raycast ~360 huyệt theo từng lô (BATCH huyệt/khung) để không khựng; xong mới dựng ống + hiện ra.
+ * GIỮ figure đứng yên (rotation 0) trong lúc raycast để mọi điểm cùng một hệ toạ độ.
+ */
+function buildMeridiansDeferred() {
+  const C = COORDS()
+  if (!C || !C.points) {
+    console.warn('[HeroFigure] window.ACU_COORDS3D chưa có → không vẽ được đường kinh', C)
+    linesReady = true
+    revealCanvas() // vẫn hiện thân người dù thiếu đường kinh
+    return
   }
+  const placed = C.points
+  const codes = Object.keys(placed)
+  const groups: Record<string, { mer: string; num: number; pos: Any }[]> = {}
+  let idx = 0
+  const BATCH = 90 // dựng nhanh hơn (ít khung hơn) — vẫn chia lô để không khựng hẳn
 
-  // Đầu + cổ
-  const head = new THREE.SphereGeometry(0.15, 24, 24)
-  head.translate(0, 0.8, 0)
-  addMesh(head)
-  const neck = new THREE.CylinderGeometry(0.05, 0.06, 0.1, 16)
-  neck.translate(0, 0.62, 0)
-  addMesh(neck)
-
-  // Thân: tiện tròn (LatheGeometry) theo mặt cắt (bán kính, cao)
-  const profile: P[] = [
-    [0.02, 0.62, 0],
-    [0.115, 0.55, 0],
-    [0.135, 0.42, 0],
-    [0.115, 0.22, 0],
-    [0.1, 0.05, 0],
-    [0.135, -0.05, 0],
-    [0.11, -0.12, 0],
-    [0.02, -0.16, 0],
-  ]
-  const lathe = new THREE.LatheGeometry(
-    profile.map((p) => new THREE.Vector2(p[0], p[1])),
-    28,
-  )
-  addMesh(lathe)
-
-  // Chi (tay/chân): ống bám theo đường cong, bán kính cố định
-  const limb = (pts: P[], r: number) => {
-    const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(p[0], p[1], p[2])))
-    addMesh(new THREE.TubeGeometry(curve, 40, r, 10, false))
+  const step = () => {
+    if (!alive || !renderer) return
+    try {
+      const end = Math.min(idx + BATCH, codes.length)
+      for (; idx < end; idx++) {
+        const code = codes[idx]
+        const p = placed[code]
+        const mer = merOf(code)
+        const num = numOf(code)
+        const left = pointOf(p, false)
+        if (left) (groups[mer + '|L'] = groups[mer + '|L'] || []).push({ mer, num, pos: left })
+        if (isBilateral(mer)) {
+          const right = pointOf(p, true)
+          if (right) (groups[mer + '|R'] = groups[mer + '|R'] || []).push({ mer, num, pos: right })
+        }
+      }
+    } catch (e) {
+      console.error('[HeroFigure] lỗi dựng đường kinh:', e)
+      linesReady = true // lỗi → vẫn hiện + cho người tự xoay
+      revealCanvas()
+      return
+    }
+    if (idx < codes.length) {
+      requestAnimationFrame(step)
+      return
+    }
+    try {
+      finalizeLines(C, groups)
+    } catch (e) {
+      console.error('[HeroFigure] lỗi hoàn tất đường kinh:', e)
+    } finally {
+      linesReady = true
+      revealCanvas() // ĐỦ thân + đường kinh → mới hiện cả khối ra
+    }
   }
-  const armL: P[] = [
-    [-0.155, 0.55, 0],
-    [-0.27, 0.33, 0.0],
-    [-0.3, 0.18, 0.02],
-    [-0.34, -0.02, 0.04],
-    [-0.36, -0.16, 0.05],
-  ]
-  const legL: P[] = [
-    [-0.085, -0.1, 0],
-    [-0.115, -0.4, 0.02],
-    [-0.12, -0.52, 0.03],
-    [-0.11, -0.78, 0.03],
-    [-0.105, -0.97, 0.04],
-  ]
-  limb(armL, 0.048)
-  limb(mirror(armL), 0.048)
-  limb(legL, 0.06)
-  limb(mirror(legL), 0.06)
-
-  // Bàn tay / bàn chân
-  const blob = (x: number, y: number, z: number, r: number) => {
-    const s = new THREE.SphereGeometry(r, 12, 12)
-    s.translate(x, y, z)
-    addMesh(s)
-  }
-  blob(-0.37, -0.2, 0.05, 0.05)
-  blob(0.37, -0.2, 0.05, 0.05)
-  blob(-0.105, -0.99, 0.1, 0.05)
-  blob(0.105, -0.99, 0.1, 0.05)
-
-  return g
+  requestAnimationFrame(step)
 }
 
-/** Toàn bộ đường kinh phát sáng + đốm khí trôi. */
-function buildMeridians(THREE: Any): Any {
-  const g = new THREE.Group()
-  const TR = 0.013 // bán kính ống đường kinh
+/** Dựng ống phát sáng từ các điểm đã raycast (gom theo kinh|bên, cắt đoạn theo khoảng cách). */
+function finalizeLines(C: Any, groups: Record<string, { mer: string; num: number; pos: Any }[]>) {
+  const SPLIT = 0.16 * bodyHeight // nhảy không gian lớn (vd BL lưng↔chân) → cắt đoạn
+  let i = 0
+  for (const key in groups) {
+    const all = groups[key].sort((a, b) => a.num - b.num)
+    const mer = all[0].mer
+    const color = new T.Color(C.meridians[mer]?.color || '#ffd98a')
+    const runs: Any[][] = []
+    let cur: Any[] = [all[0].pos]
+    for (let j = 1; j < all.length; j++) {
+      if (all[j].pos.distanceTo(all[j - 1].pos) > SPLIT) {
+        runs.push(cur)
+        cur = []
+      }
+      cur.push(all[j].pos)
+    }
+    runs.push(cur)
+    for (const run of runs) {
+      if (run.length < 2) continue
+      addGlowLine(run, color, (i * 0.137) % 1, 0.13 + (i % 4) * 0.03)
+      i++
+    }
+  }
+  linesReady = true
+}
 
-  // Mỗi kênh: điểm + màu. Tay/chân định nghĩa bên TRÁI rồi soi gương sang phải.
-  const armYin: P[] = [
-    [-0.1, 0.5, 0.12],
-    [-0.18, 0.5, 0.08],
-    [-0.27, 0.34, 0.05],
-    [-0.31, 0.18, 0.06],
-    [-0.345, -0.02, 0.07],
-    [-0.37, -0.18, 0.06],
-  ]
-  const armYang: P[] = [
-    [-0.05, 0.6, -0.02],
-    [-0.16, 0.56, -0.04],
-    [-0.27, 0.34, -0.05],
-    [-0.31, 0.18, -0.04],
-    [-0.35, -0.02, -0.02],
-    [-0.37, -0.18, 0.0],
-  ]
-  const legYang: P[] = [
-    [-0.1, -0.06, 0.13],
-    [-0.12, -0.3, 0.12],
-    [-0.13, -0.52, 0.11],
-    [-0.115, -0.78, 0.1],
-    [-0.11, -0.96, 0.13],
-  ]
-  const legYin: P[] = [
-    [-0.05, -0.12, 0.08],
-    [-0.085, -0.34, 0.07],
-    [-0.1, -0.52, 0.06],
-    [-0.1, -0.78, 0.06],
-    [-0.1, -0.95, 0.07],
-  ]
-  // Mạch giữa (không soi gương)
-  const ren: P[] = [
-    [0, -0.12, 0.13],
-    [0, 0.05, 0.15],
-    [0, 0.25, 0.155],
-    [0, 0.42, 0.15],
-    [0, 0.55, 0.11],
-    [0, 0.63, 0.07],
-  ]
-  const du: P[] = [
-    [0, -0.12, -0.12],
-    [0, 0.1, -0.15],
-    [0, 0.35, -0.155],
-    [0, 0.55, -0.13],
-    [0, 0.7, -0.08],
-    [0, 0.82, 0.0],
-    [0, 0.9, 0.09],
-  ]
+/** Nạp + chuẩn hoá mô hình (hướng, tỉ lệ, canh tâm). Trả Promise. */
+function loadModel(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const loader = new T.GLTFLoader()
+    const w = window as unknown as { MeshoptDecoder?: Any }
+    if (w.MeshoptDecoder) loader.setMeshoptDecoder(w.MeshoptDecoder)
+    loader.load(
+      MODEL_URL,
+      (gltf: Any) => {
+        modelRoot = gltf.scene
+        modelRoot.updateMatrixWorld(true)
+        // Hướng: nếu Y là trục NHỎ NHẤT (Y = độ dày) thì model nằm → xoay cho đứng.
+        let raw = new T.Box3().setFromObject(modelRoot)
+        const rs = new T.Vector3()
+        raw.getSize(rs)
+        const min = Math.min(rs.x, rs.y, rs.z)
+        if (rs.y === min) modelRoot.rotation.x = -Math.PI / 2
+        modelRoot.updateMatrixWorld(true)
 
-  const channels: { pts: P[]; color: number }[] = [
-    { pts: ren, color: C_CV },
-    { pts: du, color: C_GV },
-    { pts: armYin, color: C_ARM_YIN },
-    { pts: mirror(armYin), color: C_ARM_YIN },
-    { pts: armYang, color: C_ARM_YANG },
-    { pts: mirror(armYang), color: C_ARM_YANG },
-    { pts: legYang, color: C_LEG_YANG },
-    { pts: mirror(legYang), color: C_LEG_YANG },
-    { pts: legYin, color: C_LEG_YIN },
-    { pts: mirror(legYin), color: C_LEG_YIN },
-  ]
+        // Thân = khối ngọc-đồng ấm, ĐỦ ĐẶC để thấy rõ hình khối + GHI ĐỘ SÂU (che đường kinh mặt sau).
+        const bodyMat = new T.MeshStandardMaterial({
+          color: 0x8a5d33,
+          emissive: 0x241408,
+          emissiveIntensity: 0.22,
+          roughness: 0.72,
+          metalness: 0,
+          transparent: true,
+          opacity: 0.55,
+          depthWrite: true, // che đường kinh mặt sau → thấy chiều sâu, bớt loá (vẫn ghi bề mặt gần nhất dù DoubleSide)
+          side: T.DoubleSide, // 2 mặt → raycast luôn bắt được bề mặt (an toàn cho việc dựng đường kinh)
+        })
+        disposables.push(bodyMat)
+        targets = []
+        modelRoot.traverse((o: Any) => {
+          if (o.isSkinnedMesh && o.skeleton) o.skeleton.pose() // về tư thế bind cho raycast khớp
+          if (o.isMesh) {
+            o.material = bodyMat
+            if (o.geometry && !o.geometry.attributes.normal) o.geometry.computeVertexNormals()
+            o.frustumCulled = false
+            targets.push(o)
+          }
+        })
 
-  channels.forEach((ch, i) => {
-    const { mesh, curve } = glowTube(THREE, ch.pts, TR, ch.color)
-    g.add(mesh)
-    const dot = makeDot(THREE, TR, 0xffffff)
-    dot.material.color.set(ch.color)
-    g.add(dot)
-    flows.push({ curve, dot, speed: 0.1 + (i % 3) * 0.022, phase: (i * 0.137) % 1 })
+        // Tỉ lệ + canh tâm (đặt tâm thân về gốc toạ độ để xoay đẹp).
+        let box = new T.Box3().setFromObject(modelRoot)
+        const size = new T.Vector3()
+        box.getSize(size)
+        modelRoot.scale.setScalar(BODY_H / size.y)
+        modelRoot.updateMatrixWorld(true)
+        box = new T.Box3().setFromObject(modelRoot)
+        const ctr = new T.Vector3()
+        box.getCenter(ctr)
+        modelRoot.position.sub(ctr)
+        modelRoot.updateMatrixWorld(true)
+        box = new T.Box3().setFromObject(modelRoot)
+        bodyMinY = box.min.y
+        bodyHeight = box.max.y - box.min.y
+
+        figure.add(modelRoot)
+        figure.updateMatrixWorld(true) // để raycast (thực hiện ở world-space) đúng
+        resolve()
+      },
+      undefined,
+      (err: Any) => reject(err instanceof Error ? err : new Error(String(err))),
+    )
   })
-
-  return g
 }
 
-function init(THREE: Any) {
+async function init() {
   const el = host.value
   if (!el) return
   const w = Math.max(1, el.clientWidth)
   const h = Math.max(1, el.clientHeight)
 
-  scene = new THREE.Scene()
-  camera = new THREE.PerspectiveCamera(32, w / h, 0.1, 50)
-  camera.position.set(0, 0.04, 3.9)
+  scene = new T.Scene()
+  camera = new T.PerspectiveCamera(30, w / h, 0.1, 50)
+  camera.position.set(0, 0, 3.6) // nhìn thẳng vào tâm → người to & căn giữa khung
   camera.lookAt(0, 0, 0)
 
-  renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
+  renderer = new T.WebGLRenderer({ alpha: true, antialias: true })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
   renderer.setSize(w, h)
   renderer.setClearColor(0x000000, 0)
-  if (THREE.sRGBEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding
+  if (T.sRGBEncoding !== undefined) renderer.outputEncoding = T.sRGBEncoding
   el.appendChild(renderer.domElement)
   renderer.domElement.style.display = 'block'
+  renderer.domElement.style.opacity = '0' // ẩn tới khi đủ thân + đường kinh → hiện cả khối cùng lúc
+  renderer.domElement.style.transition = 'opacity 0.7s ease'
 
-  // Ánh sáng dịu để thân có khối (đường kinh dùng MeshBasic nên không phụ thuộc đèn → vẫn rực).
-  scene.add(new THREE.AmbientLight(0xffffff, 0.7))
-  const key = new THREE.PointLight(0xffe9c4, 1.1)
-  key.position.set(1.4, 1.6, 2.2)
+  // Ánh sáng nền thấp + đèn chính chếch → thân có MẢNG SÁNG-TỐI (rõ hình khối, không bẹt/loá).
+  scene.add(new T.AmbientLight(0xffffff, 0.42))
+  const key = new T.PointLight(0xffe9c4, 1.35)
+  key.position.set(1.8, 2.0, 2.6)
   scene.add(key)
 
-  figure = new THREE.Group()
-  figure.add(buildBody(THREE))
-  figure.add(buildMeridians(THREE))
-  figure.scale.setScalar(0.95)
-  figure.rotation.x = -0.12 // nghiêng nhẹ để thấy chiều sâu
+  figure = new T.Group()
   scene.add(figure)
+  raycaster = new T.Raycaster()
 
-  // Theo dõi kích thước khung (overlay co theo vòng tròn).
+  await loadModel()
+  if (!alive) return
+
   ro = new ResizeObserver(onResize)
   ro.observe(el)
-  // Tạm dừng khi cuộn khỏi tầm nhìn (tiết kiệm GPU); cuộn lại thì chạy tiếp.
   io = new IntersectionObserver((ents) => {
     inView = ents[0]?.isIntersecting ?? true
     if (inView && visible && alive && !raf) raf = requestAnimationFrame(loop)
   })
   io.observe(el)
   document.addEventListener('visibilitychange', onVisibility)
-
   reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
-  emit('ready')
+  // Render ngầm (canvas còn opacity 0) trong lúc dựng; revealCanvas() chỉ mờ-hiện khi ĐÃ đủ
+  // thân + đường kinh → cả khối hiện cùng lúc (không "thân trước, đường kinh sau").
   raf = requestAnimationFrame(loop)
+  buildMeridiansDeferred()
 }
 
 function onResize() {
@@ -311,22 +395,18 @@ function onVisibility() {
 function loop(ms: number) {
   raf = 0
   if (!alive) return
-  if (!startMs) startMs = ms
-  const t = (ms - startMs) / 1000
 
-  if (!reduceMotion) {
-    figure.rotation.y = t * 0.28 // xoay chậm, thiền định
-    for (const f of flows) {
-      const u = (t * f.speed + f.phase) % 1
-      f.dot.position.copy(f.curve.getPointAt(u))
-      // nhấp nháy nhẹ độ sáng đốm khí
-      f.dot.material.opacity = 0.55 + 0.4 * Math.sin((u + f.phase) * Math.PI * 2)
-    }
+  // Chỉ xoay + chạy dòng chảy SAU khi đường kinh đã dựng xong (lúc raycast giữ figure đứng yên).
+  if (!reduceMotion && linesReady) {
+    if (!rotStartMs) rotStartMs = ms
+    const t = (ms - rotStartMs) / 1000
+    figure.rotation.y = t * 0.45 // xoay quanh TRỤC DỌC (~14s/vòng — thấy rõ nhưng không chóng mặt)
+    for (const f of flows) f.tex.offset.x = f.phase - t * f.speed // vạch sáng chạy dọc đường kinh
   }
 
   renderer.render(scene, camera)
-  if (reduceMotion) return // tĩnh: vẽ 1 khung là đủ, không lặp
-  // Chỉ chạy vòng lặp khi đang hiển thị + trong tầm nhìn.
+  // reduceMotion: chạy tới khi đường kinh dựng xong thì vẽ nốt 1 khung rồi dừng.
+  if (reduceMotion && linesReady) return
   if (visible && inView) raf = requestAnimationFrame(loop)
 }
 
@@ -334,20 +414,19 @@ async function boot() {
   if (booted || !alive) return
   booted = true
   try {
-    const THREE = await ensureThree()
+    T = await ensureModelDeps()
     if (!alive) return
-    init(THREE)
+    await init()
   } catch {
-    // Tải/Khởi tạo lỗi → im lặng, vòng tròn vẫn hiển thị Thái Cực như cũ.
+    // Lỗi tải/khởi tạo → im lặng; banner dùng lớp rơi-về.
   }
 }
 
 onMounted(() => {
-  if (!hasWebGL()) return // không có WebGL → giữ hình Thái Cực SVG làm nền (không emit ready)
+  if (!hasWebGL()) return
   const el = host.value
   if (!el) return
-  // Chỉ tải Three.js + dựng cảnh khi vòng tròn THỰC SỰ hiện ra (bỏ qua khi ẩn trên mobile,
-  // hoãn cho tới khi cuộn tới) → trang chủ nhẹ, không tốn 600KB cho phần không nhìn thấy.
+  // Chỉ tải Three/mô hình khi banner THỰC SỰ hiện (bỏ qua khi ẩn trên mobile, hoãn tới khi cuộn tới).
   bootIo = new IntersectionObserver((ents) => {
     if (ents.some((e) => e.isIntersecting)) {
       bootIo?.disconnect()
@@ -367,7 +446,10 @@ onBeforeUnmount(() => {
   io?.disconnect()
   for (const d of disposables) d.dispose?.()
   disposables.length = 0
+  // Dọn geometry của mô hình (vật liệu đã nằm trong disposables).
+  modelRoot?.traverse?.((o: Any) => o.geometry?.dispose?.())
   flows = []
+  targets = []
   if (renderer) {
     renderer.dispose()
     renderer.forceContextLoss?.()
@@ -377,6 +459,8 @@ onBeforeUnmount(() => {
   scene = null
   camera = null
   figure = null
+  modelRoot = null
+  raycaster = null
 })
 </script>
 
@@ -388,11 +472,11 @@ onBeforeUnmount(() => {
 .hero-figure {
   width: 100%;
   height: 100%;
-  /* Toả sáng nhẹ ra ngoài để hình người "phát quang" hoà vào tâm medallion */
-  filter: drop-shadow(0 0 10px rgba(255, 224, 170, 0.25));
+  filter: drop-shadow(0 0 14px rgba(255, 224, 170, 0.28));
 }
 .hero-figure :deep(canvas) {
   width: 100% !important;
   height: 100% !important;
+  display: block;
 }
 </style>

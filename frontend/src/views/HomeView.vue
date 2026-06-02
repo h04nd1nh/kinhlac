@@ -5,6 +5,7 @@ import { api } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import type { Patient } from '@/stores/patient'
 import CosmicWheel from '@/components/CosmicWheel.vue'
+import HeroMeridianFigure from '@/components/HeroMeridianFigure.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -197,6 +198,11 @@ onMounted(loadDashboard)
           <span class="hero-chip"><b>{{ todayCounts.OPEN }}</b> chỗ trống</span>
         </div>
       </div>
+      <!-- Hình người kinh lạc 3D — đứng GIỮA banner (tách rời vòng xoay) -->
+      <div class="hero-person">
+        <HeroMeridianFigure />
+      </div>
+      <!-- Vòng Lục Kinh / Ngũ Hành / Tứ Khí — giữ ở GÓC PHẢI như cũ -->
       <div class="hero-art">
         <CosmicWheel />
       </div>
@@ -375,7 +381,8 @@ onMounted(loadDashboard)
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
 
 /* ---------- Hero ---------- */
-.hero { background: linear-gradient(135deg, var(--brown-600) 0%, var(--brown-800) 100%); border-radius: var(--radius-lg); padding: var(--space-8) var(--space-10); display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); color: var(--white); position: relative; overflow: hidden }
+/* Lưới 3 cột: chữ (trái) · khối người+vòng (GIỮA banner) · cột đệm cân đối (phải) */
+.hero { background: linear-gradient(135deg, var(--brown-600) 0%, var(--brown-800) 100%); border-radius: var(--radius-lg); padding: var(--space-8) var(--space-10); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-6); color: var(--white); position: relative; overflow: hidden }
 .hero::before { content: ''; position: absolute; top: -55%; right: -10%; width: 420px; height: 420px; border-radius: 50%; background: rgba(255, 255, 255, .05) }
 .hero-main { position: relative; z-index: 1; min-width: 0 }
 .hero-date { display: inline-block; font-size: var(--font-size-xs); font-weight: 600; letter-spacing: .02em; color: var(--brown-100); background: rgba(255, 255, 255, .12); padding: 4px 12px; border-radius: var(--radius-full); margin-bottom: var(--space-3) }
@@ -385,7 +392,13 @@ onMounted(loadDashboard)
 .hero-chips { display: flex; flex-wrap: wrap; gap: var(--space-3) }
 .hero-chip { font-size: var(--font-size-sm); color: rgba(255, 255, 255, .85); background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .14); padding: 6px 14px; border-radius: var(--radius-full) }
 .hero-chip b { color: var(--white); font-weight: 700 }
-.hero-art { position: relative; z-index: 1; flex-shrink: 0; width: clamp(212px, 23vw, 300px) }
+/* Hình người 3D — cột GIỮA banner (tách rời vòng). Chiều cao CỐ ĐỊNH (không dùng aspect-ratio
+   để tránh bị tóp về 0 trong lưới → canvas có kích thước thật, mô hình mới tải). */
+.hero-person { position: relative; z-index: 1; width: clamp(250px, 27vw, 360px); height: clamp(330px, 36vw, 480px); pointer-events: none }
+/* Nền tối ấm sau lưng người → hình nổi rõ mà không cần sáng gắt */
+.hero-person::before { content: ''; position: absolute; inset: -8% -16%; z-index: -1; border-radius: 50%; background: radial-gradient(circle at 50% 46%, rgba(16, 9, 3, .55) 0%, rgba(16, 9, 3, .26) 46%, rgba(16, 9, 3, 0) 72%); pointer-events: none }
+/* Vòng Lục Kinh / Ngũ Hành / Tứ Khí — GÓC PHẢI như cũ */
+.hero-art { position: relative; z-index: 1; width: clamp(200px, 22vw, 300px); justify-self: end }
 /* Vầng sáng ấm + "ổ" tối phía sau bánh xe, để medallion như được gắn chìm vào hero (không dùng ảnh) */
 .hero-art::before {
   content: '';
@@ -496,7 +509,7 @@ onMounted(loadDashboard)
   .lower-grid { grid-template-columns: 1fr }
 }
 @media (max-width: 768px) {
-  .hero { flex-direction: column; text-align: center; padding: var(--space-6) }
+  .hero { grid-template-columns: 1fr; text-align: center; padding: var(--space-6) }
   .hero-chips { justify-content: center }
   .hero-art { display: none }
 }
