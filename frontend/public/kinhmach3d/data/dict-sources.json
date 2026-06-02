@@ -2,214 +2,36 @@
   "_doc": "THƯ MỤC NGUỒN (Xuất Xứ). Mỗi nguồn = 1 bản ghi: gom mọi biến thể vào alias[], điền tacGia/nienDai/link để ĐỐI CHIẾU. Sửa tay rồi chạy lại \"node _build-dict.cjs\": script GIỮ tên/alias/link bạn đã sửa, chỉ làm mới count & huyetIds. _seed:true = nguồn script vừa tự tạo, bạn nên xem lại & bổ sung link. _reviewQueue = cặp NGHI trùng — nếu đúng là một, hãy gộp tay: thêm tên nguồn kia vào alias[] của nguồn giữ lại, rồi xoá bản ghi kia, rồi chạy lại.",
   "_reviewQueue": [
     {
-      "a": "giap-at-kinh",
-      "b": "giap-at",
-      "tenA": "Giáp Ất Kinh",
-      "tenB": "Giáp Ất",
-      "soHuyet": [
-        200,
-        2
-      ],
-      "lyDo": "\"Giáp Ất Kinh\" = \"Giáp Ất\" + «kinh»"
-    },
-    {
-      "a": "cham-cuu-du-huyet-do-pho",
-      "b": "cham-cuu-du-huyet-do",
-      "tenA": "Châm Cứu Du Huyệt Đồ Phổ",
-      "tenB": "Châm cứu Du Huyệt Đồ",
-      "soHuyet": [
-        67,
-        43
-      ],
-      "lyDo": "\"Châm Cứu Du Huyệt Đồ Phổ\" = \"Châm cứu Du Huyệt Đồ\" + «pho»"
-    },
-    {
-      "a": "thien-kim-phuong",
-      "b": "thien-kim-yeu-phuong",
-      "tenA": "Thiên Kim Phương",
-      "tenB": "Thiên Kim Yếu Phương",
-      "soHuyet": [
-        81,
-        5
-      ],
-      "lyDo": "\"Thiên Kim Yếu Phương\" = \"Thiên Kim Phương\" + «yeu»"
-    },
-    {
-      "a": "thien-kim-phuong",
-      "b": "thien-kim-duc-phuong",
-      "tenA": "Thiên Kim Phương",
-      "tenB": "Thiên Kim Dực Phương",
-      "soHuyet": [
-        81,
-        4
-      ],
-      "lyDo": "\"Thiên Kim Dực Phương\" = \"Thiên Kim Phương\" + «duc»"
-    },
-    {
-      "a": "thien-ban-du-linh-khu-2",
-      "b": "thien-ban-du-linh-khu",
-      "tenA": "Thiên 'Bản Du' (Linh Khu 2)",
-      "tenB": "Thiên 'Bản Du' (Linh Khu",
-      "soHuyet": [
-        69,
-        2
-      ],
-      "lyDo": "\"Thiên 'Bản Du' (Linh Khu 2)\" = \"Thiên 'Bản Du' (Linh Khu\" + «2»"
-    },
-    {
       "a": "cham-cuu-du-huyet-do",
       "b": "cham-cuu-du-huyet-hoc",
-      "tenA": "Châm cứu Du Huyệt Đồ",
+      "tenA": "Châm Cứu Du Huyệt Đồ",
       "tenB": "Châm Cứu Du Huyệt Học",
       "soHuyet": [
-        43,
+        110,
         1
       ],
-      "lyDo": "gần giống (sai chính tả?): \"Châm cứu Du Huyệt Đồ\" ~ \"Châm Cứu Du Huyệt Học\""
+      "lyDo": "gần giống (sai chính tả?): \"Châm Cứu Du Huyệt Đồ\" ~ \"Châm Cứu Du Huyệt Học\""
     },
     {
-      "a": "thien-kinh-mach-linh-khu-10",
-      "b": "thien-kinh-mach-linh-khu",
-      "tenA": "Thiên 'Kinh Mạch' (Linh Khu 10)",
-      "tenB": "Thiên 'Kinh Mạch' (Linh Khu",
-      "soHuyet": [
-        24,
-        2
-      ],
-      "lyDo": "\"Thiên 'Kinh Mạch' (Linh Khu 10)\" = \"Thiên 'Kinh Mạch' (Linh Khu\" + «10»"
-    },
-    {
-      "a": "cham-cuu-tap-thanh",
+      "a": "cham-cuu-hoc-tap-thanh",
       "b": "cham-cuu-dai-thanh",
       "tenA": "Châm Cứu Tập Thành",
       "tenB": "Châm Cứu Đại Thành",
       "soHuyet": [
-        11,
+        12,
         6
       ],
       "lyDo": "gần giống (sai chính tả?): \"Châm Cứu Tập Thành\" ~ \"Châm Cứu Đại Thành\""
-    },
-    {
-      "a": "thien-kim-duc",
-      "b": "thien-kim-duc-phuong",
-      "tenA": "Thiên Kim Dực",
-      "tenB": "Thiên Kim Dực Phương",
-      "soHuyet": [
-        10,
-        4
-      ],
-      "lyDo": "\"Thiên Kim Dực Phương\" = \"Thiên Kim Dực\" + «phuong»"
-    },
-    {
-      "a": "cham-cuu-tap-thanh",
-      "b": "cham-cuu-hoc-tap-thanh",
-      "tenA": "Châm Cứu Tập Thành",
-      "tenB": "Châm Cứu Học Tập Thành",
-      "soHuyet": [
-        11,
-        1
-      ],
-      "lyDo": "\"Châm Cứu Học Tập Thành\" = \"Châm Cứu Tập Thành\" + «hoc»"
-    },
-    {
-      "a": "kinh-ngoai-ky-huyet-tri-lieu-quyet",
-      "b": "kinh-ngoai-ky-huyet-tri-lieu-yeu-quyet",
-      "tenA": "Kinh Ngoại Kỳ Huyệt Trị Liệu Quyết",
-      "tenB": "Kinh Ngoại Kỳ Huyệt Trị Liệu Yếu Quyết",
-      "soHuyet": [
-        9,
-        1
-      ],
-      "lyDo": "\"Kinh Ngoại Kỳ Huyệt Trị Liệu Yếu Quyết\" = \"Kinh Ngoại Kỳ Huyệt Trị Liệu Quyết\" + «yeu»"
-    },
-    {
-      "a": "cham-cuu-kinh-ngoai-ky-huyet-do-pho",
-      "b": "cham-cuu-kinh-huyet-ky-ngoai-do-pho",
-      "tenA": "Châm Cứu Kinh Ngoại Kỳ Huyệt Đồ Phổ",
-      "tenB": "Châm cứu Kinh Huyệt Kỳ Ngoại Đồ Phổ",
-      "soHuyet": [
-        8,
-        1
-      ],
-      "lyDo": "\"Châm cứu Kinh Huyệt Kỳ Ngoại Đồ Phổ\" = \"Châm Cứu Kinh Ngoại Kỳ Huyệt Đồ Phổ\" + «»"
-    },
-    {
-      "a": "mach-kinh",
-      "b": "sach-mach-kinh",
-      "tenA": "Mạch Kinh",
-      "tenB": "Sách Mạch Kinh",
-      "soHuyet": [
-        4,
-        3
-      ],
-      "lyDo": "\"Sách Mạch Kinh\" = \"Mạch Kinh\" + «sach»"
-    },
-    {
-      "a": "cham-cuu-hoc-hongkong",
-      "b": "cham-cuu-hoc-hong-kong",
-      "tenA": "Châm Cứu Học HongKong",
-      "tenB": "Châm cứu Học Hong Kong",
-      "soHuyet": [
-        5,
-        1
-      ],
-      "lyDo": "gần giống (sai chính tả?): \"Châm Cứu Học HongKong\" ~ \"Châm cứu Học Hong Kong\""
-    },
-    {
-      "a": "thich-lieu-tiep-phap",
-      "b": "cham-thich-lieu-tiep-phap",
-      "tenA": "Thích Liệu Tiệp Pháp",
-      "tenB": "Châm Thích Liệu Tiệp Pháp",
-      "soHuyet": [
-        4,
-        1
-      ],
-      "lyDo": "\"Châm Thích Liệu Tiệp Pháp\" = \"Thích Liệu Tiệp Pháp\" + «cham»"
-    },
-    {
-      "a": "cham-thich-lieu-tiep-phap",
-      "b": "cham-lieu-tiep-phap",
-      "tenA": "Châm Thích Liệu Tiệp Pháp",
-      "tenB": "Châm Liệu Tiệp Pháp",
-      "soHuyet": [
-        1,
-        1
-      ],
-      "lyDo": "\"Châm Thích Liệu Tiệp Pháp\" = \"Châm Liệu Tiệp Pháp\" + «thich»"
-    },
-    {
-      "a": "thien-u-tu-thoi-khi-linh-khu-19",
-      "b": "thien-tu-thoi-khi-linh-khu-19",
-      "tenA": "Thiên 'Ù Tứ Thời Khí' (Linh Khu 19)",
-      "tenB": "Thiên 'Tứ Thời Khí' (Linh Khu 19)",
-      "soHuyet": [
-        1,
-        1
-      ],
-      "lyDo": "\"Thiên 'Ù Tứ Thời Khí' (Linh Khu 19)\" = \"Thiên 'Tứ Thời Khí' (Linh Khu 19)\" + «u»"
-    },
-    {
-      "a": "thien-nhiet-benh-linh-khu",
-      "b": "thien-nhiet-benh-linh-khu-23",
-      "tenA": "Thiên 'Nhiệt Bệnh' (Linh Khu",
-      "tenB": "Thiên 'Nhiệt Bệnh' (Linh Khu 23)",
-      "soHuyet": [
-        1,
-        1
-      ],
-      "lyDo": "\"Thiên 'Nhiệt Bệnh' (Linh Khu 23)\" = \"Thiên 'Nhiệt Bệnh' (Linh Khu\" + «23»"
     }
   ],
   "sources": {
     "cham-cuu-hoc-thuong-hai": {
       "ten": "Châm Cứu Học Thượng Hải",
-      "alias": [
-        "Châm cứu Học Thượng Hải"
-      ],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
+      "alias": [],
+      "tacGia": "Thượng Hải Trung Y Học Viện (上海中医学院) biên",
+      "nienDai": "1974",
+      "link": "https://zh.wikipedia.org/wiki/上海中医药大学",
+      "ghiChu": "Sách 《针灸学》 do 上海中医学院 (nay là 上海中医药大学) chủ biên, Nhân Dân Vệ Sinh XBX, 1974. Link: trang Wikipedia của học viện biên soạn.",
       "parent": "",
       "chapter": null,
       "thien": "",
@@ -424,14 +246,14 @@
     "giap-at-kinh": {
       "ten": "Giáp Ất Kinh",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Hoàng Phủ Mật (皇甫謐)",
+      "nienDai": "~256–282 (Tây Tấn)",
+      "link": "https://zh.wikipedia.org/wiki/針灸甲乙經",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
       "thien": "",
-      "count": 200,
+      "count": 202,
       "huyetIds": [
         12,
         16,
@@ -606,6 +428,7 @@
         860,
         862,
         869,
+        876,
         879,
         891,
         911,
@@ -629,6 +452,7 @@
         1007,
         1008,
         1020,
+        1027,
         1038,
         1044,
         1047,
@@ -638,15 +462,15 @@
     "linh-khu": {
       "ten": "Linh Khu (Hoàng Đế Nội Kinh)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
       "thien": "",
       "isParent": true,
-      "count": 117,
+      "count": 122,
       "huyetIds": [
         14,
         21,
@@ -712,8 +536,13 @@
         615,
         624,
         637,
+        639,
         642,
+        646,
+        649,
+        652,
         662,
+        663,
         669,
         673,
         674,
@@ -767,11 +596,9 @@
         1043
       ]
     },
-    "thien-kim-phuong": {
-      "ten": "Thiên Kim Phương",
-      "alias": [
-        "Thiên Kim Phường"
-      ],
+    "cham-cuu-du-huyet-do": {
+      "ten": "Châm Cứu Du Huyệt Đồ",
+      "alias": [],
       "tacGia": "",
       "nienDai": "",
       "link": "",
@@ -779,8 +606,133 @@
       "parent": "",
       "chapter": null,
       "thien": "",
-      "count": 81,
+      "count": 110,
       "huyetIds": [
+        15,
+        17,
+        26,
+        46,
+        47,
+        53,
+        71,
+        74,
+        75,
+        79,
+        80,
+        84,
+        95,
+        100,
+        102,
+        117,
+        121,
+        142,
+        143,
+        145,
+        161,
+        181,
+        187,
+        188,
+        197,
+        203,
+        218,
+        231,
+        238,
+        239,
+        246,
+        254,
+        256,
+        266,
+        268,
+        275,
+        279,
+        291,
+        297,
+        310,
+        312,
+        321,
+        331,
+        335,
+        341,
+        371,
+        377,
+        390,
+        394,
+        397,
+        403,
+        406,
+        420,
+        428,
+        439,
+        463,
+        474,
+        479,
+        485,
+        499,
+        501,
+        502,
+        503,
+        507,
+        513,
+        520,
+        524,
+        534,
+        553,
+        554,
+        559,
+        560,
+        563,
+        572,
+        574,
+        577,
+        582,
+        592,
+        604,
+        609,
+        616,
+        617,
+        621,
+        628,
+        636,
+        660,
+        672,
+        677,
+        685,
+        691,
+        697,
+        705,
+        720,
+        727,
+        841,
+        866,
+        885,
+        886,
+        896,
+        897,
+        900,
+        901,
+        902,
+        915,
+        921,
+        931,
+        955,
+        959,
+        1004,
+        1006
+      ]
+    },
+    "thien-kim-phuong": {
+      "ten": "Thiên Kim Phương",
+      "alias": [],
+      "tacGia": "Tôn Tư Mạc (孫思邈)",
+      "nienDai": "~652 (Đường)",
+      "link": "https://zh.wikipedia.org/wiki/备急千金要方",
+      "ghiChu": "",
+      "parent": "",
+      "chapter": null,
+      "thien": "",
+      "count": 88,
+      "huyetIds": [
+        1,
         24,
         87,
         109,
@@ -802,6 +754,7 @@
         223,
         227,
         233,
+        240,
         241,
         247,
         257,
@@ -811,6 +764,7 @@
         283,
         294,
         304,
+        329,
         344,
         349,
         355,
@@ -822,11 +776,13 @@
         475,
         477,
         530,
+        536,
         548,
         550,
         579,
         580,
         585,
+        595,
         607,
         611,
         650,
@@ -842,6 +798,7 @@
         756,
         760,
         763,
+        784,
         792,
         814,
         815,
@@ -856,6 +813,7 @@
         894,
         895,
         982,
+        986,
         989,
         1000,
         1002,
@@ -867,14 +825,14 @@
     "thien-ban-du-linh-khu-2": {
       "ten": "Thiên 'Bản Du' (Linh Khu 2)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "linh-khu",
       "chapter": 2,
       "thien": "Bản Du",
-      "count": 69,
+      "count": 71,
       "huyetIds": [
         14,
         21,
@@ -913,6 +871,8 @@
         590,
         596,
         615,
+        646,
+        652,
         662,
         673,
         704,
@@ -947,105 +907,17 @@
         1043
       ]
     },
-    "cham-cuu-du-huyet-do-pho": {
-      "ten": "Châm Cứu Du Huyệt Đồ Phổ",
-      "alias": [
-        "Châm Cứu Du Huyệt Đồ Phổ Phổ",
-        "Châm cứu Du Huyệt Đồ Phổ",
-        "Châm cứu Du Huyệt Đồ Phổ Phổ",
-        "Châm Cứu du Huyệt Đồ Phổ"
-      ],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 67,
-      "huyetIds": [
-        15,
-        17,
-        79,
-        80,
-        117,
-        121,
-        142,
-        143,
-        246,
-        266,
-        268,
-        275,
-        279,
-        310,
-        312,
-        331,
-        335,
-        341,
-        377,
-        390,
-        394,
-        403,
-        406,
-        420,
-        428,
-        439,
-        463,
-        474,
-        479,
-        485,
-        499,
-        501,
-        502,
-        503,
-        507,
-        513,
-        520,
-        524,
-        534,
-        553,
-        554,
-        560,
-        563,
-        572,
-        577,
-        582,
-        592,
-        604,
-        609,
-        616,
-        617,
-        621,
-        628,
-        660,
-        691,
-        705,
-        720,
-        727,
-        841,
-        866,
-        885,
-        886,
-        900,
-        901,
-        915,
-        921,
-        955
-      ]
-    },
     "cham-cuu-khong-huyet-cap-ky-lieu-phap-tien-lam": {
       "ten": "Châm Cứu Khổng Huyệt Cập Kỳ Liệu Pháp Tiện Lãm",
-      "alias": [
-        "Châm cứu Khổng Huyệt Cập Kỳ Liệu Pháp Tiện Lãm"
-      ],
-      "tacGia": "",
-      "nienDai": "",
+      "alias": [],
+      "tacGia": "Vương Tuyết Đài (王雪苔)",
+      "nienDai": "1956",
       "link": "",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
       "thien": "",
-      "count": 51,
+      "count": 53,
       "huyetIds": [
         52,
         185,
@@ -1061,8 +933,10 @@
         408,
         442,
         455,
+        460,
         462,
         497,
+        504,
         573,
         594,
         597,
@@ -1100,78 +974,17 @@
         1046
       ]
     },
-    "cham-cuu-du-huyet-do": {
-      "ten": "Châm cứu Du Huyệt Đồ",
-      "alias": [
-        "Châm Cứu Du Huyệt Đồ"
-      ],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 43,
-      "huyetIds": [
-        26,
-        46,
-        47,
-        53,
-        71,
-        74,
-        75,
-        84,
-        95,
-        100,
-        102,
-        145,
-        161,
-        181,
-        187,
-        188,
-        197,
-        203,
-        218,
-        231,
-        238,
-        239,
-        254,
-        256,
-        291,
-        297,
-        321,
-        371,
-        397,
-        559,
-        574,
-        636,
-        672,
-        677,
-        685,
-        697,
-        896,
-        897,
-        902,
-        931,
-        959,
-        1004,
-        1006
-      ]
-    },
     "thien-kinh-mach-linh-khu-10": {
       "ten": "Thiên 'Kinh Mạch' (Linh Khu 10)",
-      "alias": [
-        "Thiên 'Kinh Mạch'(Linh Khu 10)"
-      ],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "alias": [],
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "linh-khu",
       "chapter": 10,
       "thien": "Kinh Mạch",
-      "count": 24,
+      "count": 26,
       "huyetIds": [
         64,
         97,
@@ -1188,7 +1001,9 @@
         544,
         576,
         624,
+        639,
         642,
+        663,
         674,
         778,
         807,
@@ -1202,9 +1017,9 @@
     "to-van": {
       "ten": "Tố Vấn (Hoàng Đế Nội Kinh)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
@@ -1233,12 +1048,42 @@
         1051
       ]
     },
+    "cham-cuu-kinh-ngoai-ky-huyet-do-pho": {
+      "ten": "Châm Cứu Kinh Ngoại Kỳ Huyệt Đồ Phổ",
+      "alias": [],
+      "tacGia": "Hác Kim Khải (郝金凱)",
+      "nienDai": "1963",
+      "link": "",
+      "ghiChu": "",
+      "parent": "",
+      "chapter": null,
+      "thien": "",
+      "count": 16,
+      "huyetIds": [
+        41,
+        59,
+        93,
+        113,
+        157,
+        216,
+        263,
+        721,
+        723,
+        810,
+        811,
+        812,
+        813,
+        905,
+        961,
+        1013
+      ]
+    },
     "thanh-hue-phuong": {
       "ten": "Thánh Huệ Phương",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Vương Hoài Ẩn (王懷隱) chủ biên",
+      "nienDai": "992 (Bắc Tống)",
+      "link": "https://zh.wikisource.org/wiki/太平聖惠方",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
@@ -1263,14 +1108,40 @@
         1032
       ]
     },
+    "thien-kim-duc": {
+      "ten": "Thiên Kim Dực",
+      "alias": [],
+      "tacGia": "Tôn Tư Mạc (孫思邈)",
+      "nienDai": "~682 (Đường)",
+      "link": "https://zh.wikipedia.org/wiki/千金翼方",
+      "ghiChu": "",
+      "parent": "",
+      "chapter": null,
+      "thien": "",
+      "count": 14,
+      "huyetIds": [
+        132,
+        205,
+        221,
+        456,
+        515,
+        583,
+        764,
+        824,
+        827,
+        857,
+        871,
+        938,
+        987,
+        1015
+      ]
+    },
     "ngoai-dai-bi-yeu": {
       "ten": "Ngoại Đài Bí Yếu",
-      "alias": [
-        "Ngoại đài bí yếu"
-      ],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "alias": [],
+      "tacGia": "Vương Đảo (王燾)",
+      "nienDai": "752 (Đường)",
+      "link": "https://zh.wikisource.org/wiki/外臺秘要",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
@@ -1291,19 +1162,20 @@
         994
       ]
     },
-    "cham-cuu-tap-thanh": {
+    "cham-cuu-hoc-tap-thanh": {
       "ten": "Châm Cứu Tập Thành",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Liêu Nhuận Hồng (廖潤鴻)",
+      "nienDai": "1874 (Thanh)",
+      "link": "https://zh.wikisource.org/wiki/鍼灸集成",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
       "thien": "",
-      "count": 11,
+      "count": 12,
       "huyetIds": [
         269,
+        296,
         437,
         454,
         620,
@@ -1316,12 +1188,36 @@
         1031
       ]
     },
-    "truu-hau-phuong": {
-      "ten": "Trửu Hậu Phương",
+    "kinh-ngoai-ky-huyet-tri-lieu-yeu-quyet": {
+      "ten": "Kinh Ngoại Kỳ Huyệt Trị Liệu Yếu Quyết",
       "alias": [],
       "tacGia": "",
       "nienDai": "",
       "link": "",
+      "ghiChu": "",
+      "parent": "",
+      "chapter": null,
+      "thien": "",
+      "count": 10,
+      "huyetIds": [
+        55,
+        481,
+        486,
+        614,
+        665,
+        696,
+        875,
+        888,
+        937,
+        1017
+      ]
+    },
+    "truu-hau-phuong": {
+      "ten": "Trửu Hậu Phương",
+      "alias": [],
+      "tacGia": "Cát Hồng (葛洪)",
+      "nienDai": "~340 (Đông Tấn)",
+      "link": "https://zh.wikipedia.org/wiki/肘後方",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
@@ -1340,58 +1236,11 @@
         1055
       ]
     },
-    "thien-kim-duc": {
-      "ten": "Thiên Kim Dực",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 10,
-      "huyetIds": [
-        132,
-        205,
-        221,
-        515,
-        583,
-        827,
-        857,
-        871,
-        987,
-        1015
-      ]
-    },
-    "kinh-ngoai-ky-huyet-tri-lieu-quyet": {
-      "ten": "Kinh Ngoại Kỳ Huyệt Trị Liệu Quyết",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 9,
-      "huyetIds": [
-        55,
-        481,
-        486,
-        614,
-        665,
-        875,
-        888,
-        937,
-        1017
-      ]
-    },
     "ky-hieu-luong-phuong": {
       "ten": "Kỳ Hiệu Lương Phương",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
+      "tacGia": "Đổng Túc (董宿) · Phương Hiền (方賢) bổ",
+      "nienDai": "Đời Minh",
       "link": "",
       "ghiChu": "",
       "parent": "",
@@ -1413,10 +1262,10 @@
     "trung-quoc-cham-cuu-hoc": {
       "ten": "Trung Quốc Châm Cứu Học",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
+      "tacGia": "Thừa Đạm An (承淡安)",
+      "nienDai": "Thế kỷ 20",
+      "link": "https://zh.wikipedia.org/wiki/承淡安",
+      "ghiChu": "Trứ tác 《中国针灸学》. Link: Wikipedia tác giả Thừa Đạm An (1899–1957), tổ phái châm cứu Trừng Giang.",
       "parent": "",
       "chapter": null,
       "thien": "",
@@ -1433,36 +1282,12 @@
         999
       ]
     },
-    "cham-cuu-kinh-ngoai-ky-huyet-do-pho": {
-      "ten": "Châm Cứu Kinh Ngoại Kỳ Huyệt Đồ Phổ",
-      "alias": [
-        "Châm cứu Kinh Ngoại Kỳ Huyệt Đồ Phổ"
-      ],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 8,
-      "huyetIds": [
-        41,
-        93,
-        113,
-        263,
-        810,
-        811,
-        812,
-        813
-      ]
-    },
     "thien-khi-phu-luan-to-van-59": {
       "ten": "Thiên 'Khí Phủ Luận' (Tố Vấn 59)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "to-van",
       "chapter": 59,
@@ -1482,10 +1307,10 @@
     "ngoc-long-kinh": {
       "ten": "Ngọc Long Kinh",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
+      "tacGia": "Vương Quốc Thụy (王國瑞)",
+      "nienDai": "1329 (Nguyên)",
+      "link": "https://zh.wikipedia.org/wiki/王国瑞",
+      "ghiChu": "Tên đầy đủ 《扁鹊神应针灸玉龙经》 (1329). Link: Wikipedia tác giả Vương Quốc Thụy.",
       "parent": "",
       "chapter": null,
       "thien": "",
@@ -1500,12 +1325,33 @@
         946
       ]
     },
+    "sach-mach-kinh": {
+      "ten": "Sách Mạch Kinh",
+      "alias": [],
+      "tacGia": "Vương Thúc Hòa (王叔和)",
+      "nienDai": "~280 (Tây Tấn)",
+      "link": "https://zh.wikisource.org/wiki/脈經",
+      "ghiChu": "",
+      "parent": "",
+      "chapter": null,
+      "thien": "",
+      "count": 7,
+      "huyetIds": [
+        50,
+        112,
+        208,
+        332,
+        598,
+        908,
+        1005
+      ]
+    },
     "loai-kinh-do-duc": {
       "ten": "Loại Kinh Đồ Dực",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Trương Giới Tân (張介賓, hiệu Cảnh Nhạc)",
+      "nienDai": "1624 (Minh)",
+      "link": "https://zh.wikipedia.org/wiki/類經",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
@@ -1519,27 +1365,6 @@
         588,
         793,
         1048
-      ]
-    },
-    "kinh-ngoai-ky-huyet-do-pho": {
-      "ten": "Kinh Ngoại Kỳ Huyệt Đồ Phổ",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 7,
-      "huyetIds": [
-        157,
-        216,
-        721,
-        723,
-        905,
-        961,
-        1013
       ]
     },
     "kinh-ngoai-ky-huyet-hoi-bien": {
@@ -1566,9 +1391,9 @@
     "thien-boi-du-linh-khu-51": {
       "ten": "Thiên 'Bối Du' (Linh Khu 51)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "linh-khu",
       "chapter": 51,
@@ -1585,12 +1410,10 @@
     },
     "cham-cuu-dai-thanh": {
       "ten": "Châm Cứu Đại Thành",
-      "alias": [
-        "Châm cứu Đại Thành"
-      ],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "alias": [],
+      "tacGia": "Dương Kế Châu (楊繼洲)",
+      "nienDai": "1601 (Minh)",
+      "link": "https://zh.wikisource.org/wiki/針灸大成",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
@@ -1605,14 +1428,52 @@
         972
       ]
     },
-    "thien-khi-huyet-luan-to-van-58": {
-      "ten": "Thiên 'Khí Huyệt Luận' (Tố Vấn 58)",
-      "alias": [
-        "Thiên 'Khí Huyết Luận' (Tố Vấn 58)"
-      ],
+    "cham-cuu-hoc-hong-kong": {
+      "ten": "Châm Cứu Học Hong Kong",
+      "alias": [],
       "tacGia": "",
       "nienDai": "",
       "link": "",
+      "ghiChu": "",
+      "parent": "",
+      "chapter": null,
+      "thien": "",
+      "count": 6,
+      "huyetIds": [
+        89,
+        90,
+        110,
+        483,
+        491,
+        593
+      ]
+    },
+    "thich-lieu-tiep-phap": {
+      "ten": "Thích Liệu Tiệp Pháp",
+      "alias": [],
+      "tacGia": "",
+      "nienDai": "",
+      "link": "",
+      "ghiChu": "",
+      "parent": "",
+      "chapter": null,
+      "thien": "",
+      "count": 6,
+      "huyetIds": [
+        225,
+        584,
+        690,
+        710,
+        882,
+        1016
+      ]
+    },
+    "thien-khi-huyet-luan-to-van-58": {
+      "ten": "Thiên 'Khí Huyệt Luận' (Tố Vấn 58)",
+      "alias": [],
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "to-van",
       "chapter": 58,
@@ -1629,8 +1490,8 @@
     "thuong-dung-tan-y-lieu-phap-thu-sach": {
       "ten": "Thường Dụng Tân Y Liệu Pháp Thủ Sách",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
+      "tacGia": "(biên soạn tập thể)",
+      "nienDai": "~1970",
       "link": "",
       "ghiChu": "",
       "parent": "",
@@ -1647,9 +1508,7 @@
     },
     "cham-cuu-tiep-hieu-dien-ca": {
       "ten": "Châm Cứu Tiệp Hiệu Diễn Ca",
-      "alias": [
-        "Châm cứu Tiệp Hiệu Diễn Ca"
-      ],
+      "alias": [],
       "tacGia": "",
       "nienDai": "",
       "link": "",
@@ -1666,71 +1525,11 @@
         676
       ]
     },
-    "cham-cuu-hoc-hongkong": {
-      "ten": "Châm Cứu Học HongKong",
-      "alias": [
-        "Châm cứu Học HongKong"
-      ],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 5,
-      "huyetIds": [
-        90,
-        110,
-        483,
-        491,
-        593
-      ]
-    },
-    "thien-kim-yeu-phuong": {
-      "ten": "Thiên Kim Yếu Phương",
-      "alias": [
-        "Thiên kim yếu phương"
-      ],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 5,
-      "huyetIds": [
-        240,
-        329,
-        536,
-        595,
-        986
-      ]
-    },
-    "mach-kinh": {
-      "ten": "Mạch Kinh",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 4,
-      "huyetIds": [
-        50,
-        208,
-        598,
-        1005
-      ]
-    },
     "y-kinh-tieu-hoc": {
       "ten": "Y Kinh Tiểu Học",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
+      "tacGia": "Lưu Thuần (劉純)",
+      "nienDai": "~1388 (Minh)",
       "link": "",
       "ghiChu": "",
       "parent": "",
@@ -1747,10 +1546,10 @@
     "y-hoc-nhap-mon": {
       "ten": "Y Học Nhập Môn",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
+      "tacGia": "Lý Diên (李梴)",
+      "nienDai": "1575 (Minh)",
+      "link": "https://zh.wikipedia.org/wiki/李梴",
+      "ghiChu": "Link: Wikipedia tác giả Lý Diên (李梴).",
       "parent": "",
       "chapter": null,
       "thien": "",
@@ -1765,9 +1564,9 @@
     "thien-han-nhiet-benh-linh-khu-21": {
       "ten": "Thiên 'Hàn Nhiệt Bệnh' (Linh Khu 21)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "linh-khu",
       "chapter": 21,
@@ -1778,42 +1577,6 @@
         261,
         358,
         669
-      ]
-    },
-    "thien-kim-duc-phuong": {
-      "ten": "Thiên Kim Dực Phương",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 4,
-      "huyetIds": [
-        456,
-        764,
-        824,
-        938
-      ]
-    },
-    "thich-lieu-tiep-phap": {
-      "ten": "Thích Liệu Tiệp Pháp",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 4,
-      "huyetIds": [
-        584,
-        710,
-        882,
-        1016
       ]
     },
     "cham-cuu-hoc-tu-dien": {
@@ -1834,31 +1597,12 @@
         771
       ]
     },
-    "sach-mach-kinh": {
-      "ten": "Sách Mạch Kinh",
-      "alias": [
-        "Sách 'Mạch Kinh'"
-      ],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 3,
-      "huyetIds": [
-        112,
-        332,
-        908
-      ]
-    },
     "thien-thich-tiet-chan-ta-linh-khu-75": {
       "ten": "Thiên 'Thích Tiết Chân Tà' (Linh Khu 75)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "linh-khu",
       "chapter": 75,
@@ -1873,9 +1617,9 @@
     "tu-sinh-kinh": {
       "ten": "Tư Sinh Kinh",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Vương Chấp Trung (王執中)",
+      "nienDai": "1220 (Tống)",
+      "link": "https://zh.wikisource.org/wiki/針灸資生經",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
@@ -1889,12 +1633,10 @@
     },
     "cham-cuu-tu-anh": {
       "ten": "Châm Cứu Tụ Anh",
-      "alias": [
-        "Châm cứu Tụ Anh"
-      ],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "alias": [],
+      "tacGia": "Cao Vũ (高武)",
+      "nienDai": "1529 (Minh)",
+      "link": "https://zh.wikisource.org/wiki/鍼灸聚英",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
@@ -1923,6 +1665,23 @@
         991
       ]
     },
+    "tieu-nhi-thoi-na-phuong-mach-hoat-anh-bi-chi": {
+      "ten": "Tiểu Nhi Thôi Nã Phương Mạch Hoạt Anh Bí Chỉ",
+      "alias": [],
+      "tacGia": "",
+      "nienDai": "",
+      "link": "",
+      "ghiChu": "",
+      "parent": "",
+      "chapter": null,
+      "thien": "",
+      "count": 3,
+      "huyetIds": [
+        538,
+        910,
+        1021
+      ]
+    },
     "cham-cuu-hoc-giang-to": {
       "ten": "Châm Cứu Học Giang Tô",
       "alias": [],
@@ -1943,9 +1702,9 @@
     "thien-cot-khong-luan-to-van-60": {
       "ten": "Thiên 'Cốt Không Luận' (Tố Vấn 60)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "to-van",
       "chapter": 60,
@@ -1955,22 +1714,6 @@
         942,
         1045,
         1051
-      ]
-    },
-    "bi-cap-thien-kim-yeu-phuong": {
-      "ten": "Bị Cấp Thiên Kim Yếu Phương",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 2,
-      "huyetIds": [
-        1,
-        784
       ]
     },
     "tan-y-lieu-phap-hoi-bien": {
@@ -1990,7 +1733,7 @@
       ]
     },
     "cham-cuu-kinh-huyet-do-pho": {
-      "ten": "Châm cứu Kinh Huyệt Đồ Phổ",
+      "ten": "Châm Cứu Kinh Huyệt Đồ Phổ",
       "alias": [],
       "tacGia": "",
       "nienDai": "",
@@ -2008,9 +1751,9 @@
     "thien-can-ket-linh-khu-5": {
       "ten": "Thiên 'Căn Kết' (Linh Khu 5)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "linh-khu",
       "chapter": 5,
@@ -2021,11 +1764,27 @@
         795
       ]
     },
+    "thien-tu-thoi-khi-linh-khu-19": {
+      "ten": "Thiên 'Tứ Thời Khí' (Linh Khu 19)",
+      "alias": [],
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
+      "ghiChu": "",
+      "parent": "linh-khu",
+      "chapter": 19,
+      "thien": "Tứ Thời Khí",
+      "count": 2,
+      "huyetIds": [
+        378,
+        868
+      ]
+    },
     "ngoai-khoa-dai-thanh": {
       "ten": "Ngoại Khoa Đại Thành",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
+      "tacGia": "Kỳ Khôn (祁坤)",
+      "nienDai": "1665 (Thanh)",
       "link": "",
       "ghiChu": "",
       "parent": "",
@@ -2040,9 +1799,9 @@
     "bi-cap-cuu-phap": {
       "ten": "Bị Cấp Cứu Pháp",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Văn Nhân Kỳ Niên (聞人耆年)",
+      "nienDai": "1226 (Nam Tống)",
+      "link": "https://zh.wikisource.org/wiki/备急灸法",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
@@ -2056,9 +1815,9 @@
     "au-au-tan-thu": {
       "ten": "Ấu Ấu Tân Thư",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Lưu Phưởng (劉昉)",
+      "nienDai": "1150 (Tống)",
+      "link": "https://zh.wikipedia.org/wiki/幼幼新书",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
@@ -2072,9 +1831,9 @@
     "ngan-hai-tinh-vi": {
       "ten": "Ngân Hải Tinh Vi",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Tôn Tư Mạc)",
+      "nienDai": "Đời Minh",
+      "link": "https://zh.wikisource.org/wiki/銀海精微",
       "ghiChu": "",
       "parent": "",
       "chapter": null,
@@ -2101,72 +1860,24 @@
         758
       ]
     },
-    "thien-kinh-mach-linh-khu": {
-      "ten": "Thiên 'Kinh Mạch' (Linh Khu",
+    "thien-nhiet-benh-linh-khu-23": {
+      "ten": "Thiên 'Nhiệt Bệnh' (Linh Khu 23)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
+      "parent": "linh-khu",
+      "chapter": 23,
+      "thien": "Nhiệt Bệnh",
       "count": 2,
       "huyetIds": [
-        639,
-        663
-      ]
-    },
-    "thien-ban-du-linh-khu": {
-      "ten": "Thiên 'Bản Du' (Linh Khu",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 2,
-      "huyetIds": [
-        646,
-        652
-      ]
-    },
-    "giap-at": {
-      "ten": "Giáp Ất",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 2,
-      "huyetIds": [
-        876,
-        1027
-      ]
-    },
-    "tieu-nhi-thoi-na-phuong-mach-hoat-anh-bi-chi": {
-      "ten": "Tiểu Nhi Thôi Nã Phương Mạch Hoạt Anh Bí Chỉ",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 2,
-      "huyetIds": [
-        910,
-        1021
+        649,
+        909
       ]
     },
     "bach-benh-cham-cuu-tri-nghiem-phuong": {
-      "ten": "Bách Bệnh Châm cứu Trị Nghiệm Phương",
+      "ten": "Bách Bệnh Châm Cứu Trị Nghiệm Phương",
       "alias": [],
       "tacGia": "",
       "nienDai": "",
@@ -2180,42 +1891,12 @@
         11
       ]
     },
-    "cham-cuu-kinh-huyet-ky-ngoai-do-pho": {
-      "ten": "Châm cứu Kinh Huyệt Kỳ Ngoại Đồ Phổ",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 1,
-      "huyetIds": [
-        59
-      ]
-    },
-    "cham-cuu-hoc-hong-kong": {
-      "ten": "Châm cứu Học Hong Kong",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 1,
-      "huyetIds": [
-        89
-      ]
-    },
     "thien-cuu-cham-thap-nhi-nguyen-linh-khu-1": {
       "ten": "Thiên 'Cửu Châm Thập Nhị Nguyên' (Linh Khu 1)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "linh-khu",
       "chapter": 1,
@@ -2226,7 +1907,7 @@
       ]
     },
     "lang-thi-dien-chuong-cham-cuu-toan-thu": {
-      "ten": "Lăng Thị Diễn Chương Châm cứu Toàn Thư",
+      "ten": "Lăng Thị Diễn Chương Châm Cứu Toàn Thư",
       "alias": [],
       "tacGia": "",
       "nienDai": "",
@@ -2243,9 +1924,9 @@
     "thien-ta-khi-tang-phu-benh-hinh-linh-khu-4": {
       "ten": "Thiên 'Tà Khí Tạng Phủ Bệnh Hình' (Linh Khu 4)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "linh-khu",
       "chapter": 4,
@@ -2258,9 +1939,9 @@
     "thien-dien-cuong-linh-khu-22": {
       "ten": "Thiên 'Điên Cuồng' (Linh Khu 22)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "linh-khu",
       "chapter": 22,
@@ -2268,21 +1949,6 @@
       "count": 1,
       "huyetIds": [
         183
-      ]
-    },
-    "cham-thich-lieu-tiep-phap": {
-      "ten": "Châm Thích Liệu Tiệp Pháp",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 1,
-      "huyetIds": [
-        225
       ]
     },
     "phu-san-khoa-hoc-trung-y-hoc-vien-thi-dung-giao-": {
@@ -2330,21 +1996,6 @@
         272
       ]
     },
-    "cham-cuu-hoc-tap-thanh": {
-      "ten": "Châm Cứu Học Tập Thành",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 1,
-      "huyetIds": [
-        296
-      ]
-    },
     "y-thuyet": {
       "ten": "Y Thuyết",
       "alias": [],
@@ -2358,21 +2009,6 @@
       "count": 1,
       "huyetIds": [
         311
-      ]
-    },
-    "thien-u-tu-thoi-khi-linh-khu-19": {
-      "ten": "Thiên 'Ù Tứ Thời Khí' (Linh Khu 19)",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "linh-khu",
-      "chapter": 19,
-      "thien": "Ù Tứ Thời Khí",
-      "count": 1,
-      "huyetIds": [
-        378
       ]
     },
     "du-huyet-hoc-khai-yeu": {
@@ -2450,21 +2086,6 @@
         452
       ]
     },
-    "cham-cuu-du-huyet-cap-ky-lieu-phap-tien-lam": {
-      "ten": "Châm Cứu Du Huyệt Cập Kỳ Liệu Pháp Tiện Lãm",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 1,
-      "huyetIds": [
-        460
-      ]
-    },
     "bien-thuoc-tam-thu": {
       "ten": "Biển Thước Tâm Thư",
       "alias": [],
@@ -2480,27 +2101,12 @@
         500
       ]
     },
-    "cham-cuu-khong-huyet-cap-ky-lieu-tri-tien-lam": {
-      "ten": "Châm Cứu Khổng Huyệt Cập Kỳ Liệu Trị Tiện Lãm",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 1,
-      "huyetIds": [
-        504
-      ]
-    },
     "thien-thich-cam-luan-to-van-52": {
       "ten": "Thiên 'Thích Cấm Luận' (Tố Vấn 52)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "to-van",
       "chapter": 52,
@@ -2508,21 +2114,6 @@
       "count": 1,
       "huyetIds": [
         521
-      ]
-    },
-    "tieu-nhi-quai-na-phuong-mach-hoat-anh-bi-chi-toa": {
-      "ten": "Tiểu Nhi Quái Nã Phương Mạch Hoạt Anh Bí Chỉ Toàn Thư",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 1,
-      "huyetIds": [
-        538
       ]
     },
     "nan-31-nan-kinh": {
@@ -2600,21 +2191,6 @@
         644
       ]
     },
-    "thien-nhiet-benh-linh-khu": {
-      "ten": "Thiên 'Nhiệt Bệnh' (Linh Khu",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 1,
-      "huyetIds": [
-        649
-      ]
-    },
     "the-y-dac-hieu-phuong": {
       "ten": "Thế Y Đắc Hiệu Phương",
       "alias": [],
@@ -2628,21 +2204,6 @@
       "count": 1,
       "huyetIds": [
         689
-      ]
-    },
-    "cham-lieu-tiep-phap": {
-      "ten": "Châm Liệu Tiệp Pháp",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 1,
-      "huyetIds": [
-        690
       ]
     },
     "dong-y-bao-giam": {
@@ -2673,21 +2234,6 @@
       "count": 1,
       "huyetIds": [
         695
-      ]
-    },
-    "kinh-ngoai-ky-huyet-tri-lieu-yeu-quyet": {
-      "ten": "Kinh Ngoại Kỳ Huyệt Trị Liệu Yếu Quyết",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "",
-      "chapter": null,
-      "thien": "",
-      "count": 1,
-      "huyetIds": [
-        696
       ]
     },
     "tang-phu-do-diem-huyet-phap": {
@@ -2753,9 +2299,9 @@
     "thien-cot-do-linh-khu-14": {
       "ten": "Thiên 'Cốt Độ' (Linh Khu 14)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "linh-khu",
       "chapter": 14,
@@ -2768,9 +2314,9 @@
     "thien-ve-khi-linh-khu-52": {
       "ten": "Thiên 'Vệ Khí' (Linh Khu 52)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "linh-khu",
       "chapter": 52,
@@ -2778,36 +2324,6 @@
       "count": 1,
       "huyetIds": [
         845
-      ]
-    },
-    "thien-tu-thoi-khi-linh-khu-19": {
-      "ten": "Thiên 'Tứ Thời Khí' (Linh Khu 19)",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "linh-khu",
-      "chapter": 19,
-      "thien": "Tứ Thời Khí",
-      "count": 1,
-      "huyetIds": [
-        868
-      ]
-    },
-    "thien-nhiet-benh-linh-khu-23": {
-      "ten": "Thiên 'Nhiệt Bệnh' (Linh Khu 23)",
-      "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
-      "ghiChu": "",
-      "parent": "linh-khu",
-      "chapter": 23,
-      "thien": "Nhiệt Bệnh",
-      "count": 1,
-      "huyetIds": [
-        909
       ]
     },
     "cham-cuu-hoc-nhat-ban": {
@@ -2933,9 +2449,9 @@
     "thien-ung-thu-linh-khu-81": {
       "ten": "Thiên 'Ung Thư' (Linh Khu 81)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "linh-khu",
       "chapter": 81,
@@ -2948,9 +2464,9 @@
     "thien-thuy-nhiet-huyet-to-van-61": {
       "ten": "Thiên 'Thủy Nhiệt Huyệt' (Tố Vấn 61)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "to-van",
       "chapter": 61,
@@ -2963,9 +2479,9 @@
     "thien-mau-thich-luan-to-van-63": {
       "ten": "Thiên 'Mậu Thích Luận' (Tố Vấn 63)",
       "alias": [],
-      "tacGia": "",
-      "nienDai": "",
-      "link": "",
+      "tacGia": "Khuyết danh (thác danh Hoàng Đế)",
+      "nienDai": "Chiến Quốc – Tần Hán",
+      "link": "https://zh.wikipedia.org/wiki/黃帝內經",
       "ghiChu": "",
       "parent": "to-van",
       "chapter": 63,

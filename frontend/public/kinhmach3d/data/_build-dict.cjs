@@ -119,8 +119,12 @@ for (const g of [...groups.values()].sort((a, b) => b.huyetIds.size - a.huyetIds
   if (!id) id = uniqSlug(slugify(variantsByFreq[0]));
   else usedIds.add(id);
 
-  const ten = (old && old.ten) || variantsByFreq[0];            // tên người đã đặt > biến thể phổ biến nhất
-  const alias = [...new Set([...(old?.alias || []), ...variantsByFreq.filter((v) => v !== ten)])];
+  // CỘNG DỒN: nhiều nhóm biến-thể (khác safeKey) có thể cùng trỏ về 1 nguồn chuẩn qua alias
+  // → gộp huyetIds & alias thay vì ghi đè (vd "Thiên Kim Phương" + "…Yếu Phương" + "Bị Cấp…").
+  const prev = sources[id];
+  const ten = (old && old.ten) || prev?.ten || variantsByFreq[0]; // tên người đã đặt > biến thể phổ biến nhất
+  const huyetIds = [...new Set([...(prev?.huyetIds || []), ...g.huyetIds])].sort((a, b) => a - b);
+  const alias = [...new Set([...(prev?.alias || []), ...(old?.alias || []), ...variantsByFreq])].filter((v) => v !== ten);
   sources[id] = {
     ten,
     alias,
@@ -130,12 +134,12 @@ for (const g of [...groups.values()].sort((a, b) => b.huyetIds.size - a.huyetIds
     link: old?.link ?? '',
     ghiChu: old?.ghiChu ?? '',
     // tự động
-    parent: (old && 'parent' in old ? old.parent : g.canon?.parent.id) || '',
-    chapter: (old && 'chapter' in old ? old.chapter : g.canon?.chapter) || null,
-    thien: (old && 'thien' in old ? old.thien : g.canon?.thien) || '',
-    count: g.huyetIds.size,
-    huyetIds: [...g.huyetIds].sort((a, b) => a - b),
-    _seed: old ? undefined : true, // nguồn MỚI script tự tạo → người nên xem & điền link
+    parent: prev?.parent || (old && 'parent' in old ? old.parent : g.canon?.parent.id) || '',
+    chapter: prev?.chapter ?? (old && 'chapter' in old ? old.chapter : g.canon?.chapter) ?? null,
+    thien: prev?.thien || (old && 'thien' in old ? old.thien : g.canon?.thien) || '',
+    count: huyetIds.length,
+    huyetIds,
+    _seed: prev ? prev._seed : old ? undefined : true, // nguồn MỚI script tự tạo → người nên xem & điền link
   };
   // gom thêm khoá để cặp dưới-đây tra được
   keyToId.set(g.key, id);
@@ -145,9 +149,10 @@ for (const g of [...groups.values()].sort((a, b) => b.huyetIds.size - a.huyetIds
 for (const id of new Set(Object.values(sources).map((s) => s.parent).filter(Boolean))) {
   if (sources[id]) continue;
   const kids = Object.values(sources).filter((s) => s.parent === id);
+  const pa = priorSources[id] || {};
   sources[id] = {
-    ten: id === 'linh-khu' ? 'Linh Khu (Hoàng Đế Nội Kinh)' : id === 'to-van' ? 'Tố Vấn (Hoàng Đế Nội Kinh)' : id,
-    alias: [], tacGia: '', nienDai: '', link: priorSources[id]?.link ?? '', ghiChu: priorSources[id]?.ghiChu ?? '',
+    ten: pa.ten || (id === 'linh-khu' ? 'Linh Khu (Hoàng Đế Nội Kinh)' : id === 'to-van' ? 'Tố Vấn (Hoàng Đế Nội Kinh)' : id),
+    alias: [], tacGia: pa.tacGia ?? '', nienDai: pa.nienDai ?? '', link: pa.link ?? '', ghiChu: pa.ghiChu ?? '',
     parent: '', chapter: null, thien: '', isParent: true,
     count: kids.reduce((n, s) => n + s.count, 0),
     huyetIds: [...new Set(kids.flatMap((s) => s.huyetIds))].sort((a, b) => a - b),
@@ -215,7 +220,6 @@ const facets = {
   huyet,
   sources: sortedSources,
   traits,
-  reviewQueue, // gợi ý gộp nguồn cho UI (người duyệt bằng nút Gộp/Bỏ qua)
 };
 // strip trường nội bộ khỏi bản frontend
 for (const s of Object.values(facets.sources)) delete s._seed;

@@ -42,6 +42,43 @@ export interface ViThuocClassification {
   ly_do?: string;
 }
 
+/** Thông tin văn bản AI gợi ý cho 1 huyệt (các trường có thể rỗng nếu AI không chắc). */
+export interface HuyetAiInfo {
+  ten_khac: string;
+  vi_tri: string;
+  giai_phau: string;
+  dac_tinh: string;
+  chu_tri: string;
+  cham_cuu: string;
+  phoi_huyet: string;
+}
+
+/** 1 ảnh ứng viên trả về từ Google Custom Search (searchType=image). */
+export interface HuyetImageResult {
+  url: string;
+  thumb: string;
+  title: string;
+  /** Trang web chứa ảnh (để người duyệt kiểm chứng nguồn). */
+  source: string;
+  width?: number;
+  height?: number;
+}
+
+export interface HuyetAiSuggestion {
+  info: HuyetAiInfo;
+  /** Lỗi khi gọi AI text (nếu có) — ảnh vẫn trả độc lập. */
+  info_error?: string;
+  images: HuyetImageResult[];
+  /** Lỗi/khuyết khi tìm ảnh (vd chưa cấu hình key) — text vẫn trả độc lập. */
+  images_error?: string;
+}
+
+export interface SuggestHuyetInput {
+  ten_huyet: string;
+  ma_huyet?: string;
+  kinh_mach?: string;
+}
+
 const YESCALE_DEFAULT_BASE_URL = 'https://api.yescale.vip/v1';
 const YESCALE_DEFAULT_MODEL = 'deepseek-v3.2';
 
@@ -54,6 +91,20 @@ QUY TẮC:
 - Chỉ trả về JSON thuần, KHÔNG kèm văn bản, KHÔNG markdown, KHÔNG \`\`\`.
 - Nếu không chắc chắn về vị thuốc, vẫn cố gắng đưa giá trị phổ biến nhất trong y văn cổ truyền Việt Nam.
 - Dùng tiếng Việt có dấu, viết hoa chữ cái đầu.`;
+
+const HUYET_SYSTEM_PROMPT = `Bạn là chuyên gia Y học Cổ truyền (Đông Y) và Châm cứu Việt Nam. Khi nhận tên một HUYỆT (có thể kèm mã quốc tế và tên đường kinh), hãy trả về CHÍNH XÁC một JSON object với các trường:
+- "ten_khac": các tên gọi khác của huyệt, cách nhau dấu phẩy. Để "" nếu không có.
+- "vi_tri": cách xác định / vị trí giải phẫu của huyệt (mô tả lấy huyệt).
+- "giai_phau": giải phẫu cục bộ (cơ, gân, thần kinh, mạch máu liên quan).
+- "dac_tinh": đặc tính / loại huyệt (vd Hợp huyệt, Du huyệt, Nguyên huyệt, Lạc huyệt, Hội huyệt, Mộ huyệt, Khích huyệt, Kỳ huyệt…).
+- "chu_tri": tác dụng chủ trị chính của huyệt.
+- "cham_cuu": cách châm cứu (hướng kim, độ sâu thốn, số tráng cứu / phút).
+- "phoi_huyet": các huyệt thường phối hợp. Để "" nếu không rõ.
+
+QUY TẮC:
+- Chỉ trả về JSON thuần, KHÔNG kèm văn bản, KHÔNG markdown, KHÔNG \`\`\`.
+- Dùng tiếng Việt có dấu, thuật ngữ Đông Y chuẩn, viết hoa chữ cái đầu.
+- Nếu KHÔNG chắc chắn về một trường, để chuỗi rỗng "" cho trường đó — TUYỆT ĐỐI không bịa số liệu hay vị trí.`;
 
 @Injectable()
 export class AiSuggestService {
@@ -137,6 +188,145 @@ export class AiSuggestService {
       kinh_mach_ids: ids,
       kinh_mach_unmatched: unmatched,
     };
+  }
+
+  /**
+   * Gợi ý cho 1 HUYỆT: chạy song song (1) AI điền thông tin text + (2) tìm ảnh thật qua Google.
+   * Hai phần độc lập — phần nào lỗi thì báo lỗi riêng phần đó, phần kia vẫn trả về.
+   */
+  async suggestHuyet(input: SuggestHuyetInput): Promise<HuyetAiSuggestion> {
+    const ten = (input?.ten_huyet || '').trim();
+    if (!ten) {
+      throw new BadRequestException('Thiếu tên huyệt');
+    }
+    const ma = (input?.ma_huyet || '').trim();
+    const kinh = (input?.kinh_mach || '').trim();
+
+    const [infoRes, imagesRes] = await Promise.all([
+      this.suggestHuyetInfo(ten, ma, kinh)
+        .then((info) => ({ info, error: undefined as string | undefined }))
+        .catch((e: any) => ({
+          info: emptyHuyetInfo(),
+          error: String(e?.error?.message || e?.message || e),
+        })),
+      this.searchHuyetImages(ten, ma),
+    ]);
+
+    return {
+      info: infoRes.info,
+      info_error: infoRes.error,
+      images: imagesRes.images,
+      images_error: imagesRes.error,
+    };
+  }
+
+  /** Gọi YeScale (OpenAI-compatible) điền các trường text của huyệt. */
+  private async suggestHuyetInfo(
+    ten: string,
+    ma: string,
+    kinh: string,
+  ): Promise<HuyetAiInfo> {
+    const client = this.getClient();
+    const model =
+      this.config.get<string>('YESCALE_MODEL') || YESCALE_DEFAULT_MODEL;
+
+    const parts = [`Tên huyệt: ${ten}`];
+    if (ma) parts.push(`Mã quốc tế: ${ma}`);
+    if (kinh) parts.push(`Đường kinh: ${kinh}`);
+
+    let response;
+    try {
+      response = await client.chat.completions.create({
+        model,
+        temperature: 0.2,
+        max_tokens: 900,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: HUYET_SYSTEM_PROMPT },
+          { role: 'user', content: parts.join('\n') },
+        ],
+      });
+    } catch (err: any) {
+      const status = typeof err?.status === 'number' ? err.status : 503;
+      const detail = err?.error?.message || err?.message || String(err);
+      throw new HttpException(`yescale lỗi: ${detail}`, status);
+    }
+
+    const content = response.choices?.[0]?.message?.content?.trim() ?? '';
+    if (!content) {
+      throw new ServiceUnavailableException('yescale trả về nội dung rỗng');
+    }
+    const parsed = parseJsonLoose(content);
+    if (!parsed || typeof parsed !== 'object') {
+      throw new ServiceUnavailableException(
+        `Không parse được JSON từ AI: ${content.slice(0, 200)}`,
+      );
+    }
+    return {
+      ten_khac: pickString(parsed, 'ten_khac'),
+      vi_tri: pickString(parsed, 'vi_tri'),
+      giai_phau: pickString(parsed, 'giai_phau'),
+      dac_tinh: pickString(parsed, 'dac_tinh'),
+      chu_tri: pickString(parsed, 'chu_tri'),
+      cham_cuu: pickString(parsed, 'cham_cuu'),
+      phoi_huyet: pickString(parsed, 'phoi_huyet'),
+    };
+  }
+
+  /**
+   * Tìm ảnh thật cho huyệt qua Google Custom Search JSON API (searchType=image).
+   * Best-effort: thiếu key hoặc lỗi mạng → trả mảng rỗng kèm `error` (không ném lỗi,
+   * để phần text vẫn dùng được). Cần biến môi trường GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX.
+   */
+  private async searchHuyetImages(
+    ten: string,
+    ma: string,
+  ): Promise<{ images: HuyetImageResult[]; error?: string }> {
+    const apiKey = this.config.get<string>('GOOGLE_CSE_API_KEY');
+    const cx = this.config.get<string>('GOOGLE_CSE_CX');
+    if (!apiKey || !cx) {
+      return {
+        images: [],
+        error: 'Chưa cấu hình GOOGLE_CSE_API_KEY / GOOGLE_CSE_CX',
+      };
+    }
+
+    const q = [ten, ma, 'huyệt vị trí châm cứu', 'acupuncture point location']
+      .filter(Boolean)
+      .join(' ');
+    const url = new URL('https://www.googleapis.com/customsearch/v1');
+    url.searchParams.set('key', apiKey);
+    url.searchParams.set('cx', cx);
+    url.searchParams.set('q', q);
+    url.searchParams.set('searchType', 'image');
+    url.searchParams.set('num', '8');
+    url.searchParams.set('safe', 'active');
+
+    try {
+      const res = await fetch(url.toString());
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        return {
+          images: [],
+          error: `Google CSE lỗi ${res.status}: ${body.slice(0, 200)}`,
+        };
+      }
+      const data: any = await res.json();
+      const items: any[] = Array.isArray(data?.items) ? data.items : [];
+      const images: HuyetImageResult[] = items
+        .map((it) => ({
+          url: String(it?.link || ''),
+          thumb: String(it?.image?.thumbnailLink || it?.link || ''),
+          title: String(it?.title || ''),
+          source: String(it?.image?.contextLink || ''),
+          width: Number(it?.image?.width) || undefined,
+          height: Number(it?.image?.height) || undefined,
+        }))
+        .filter((im) => im.url);
+      return { images };
+    } catch (e: any) {
+      return { images: [], error: `Google CSE lỗi: ${e?.message || e}` };
+    }
   }
 
   async classifyViThuoc(input: ClassifyViThuocInput): Promise<ViThuocClassification[]> {
@@ -422,6 +612,18 @@ function pickString(obj: Record<string, unknown>, key: string): string {
   if (v == null) return '';
   if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean).join(', ');
   return String(v).trim();
+}
+
+function emptyHuyetInfo(): HuyetAiInfo {
+  return {
+    ten_khac: '',
+    vi_tri: '',
+    giai_phau: '',
+    dac_tinh: '',
+    chu_tri: '',
+    cham_cuu: '',
+    phoi_huyet: '',
+  };
 }
 
 /**

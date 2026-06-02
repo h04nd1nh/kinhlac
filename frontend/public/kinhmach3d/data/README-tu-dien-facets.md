@@ -1,40 +1,36 @@
 # Từ Điển — Index tra ngược (Nguồn & Đặc Tính)
 
-Biến phần Từ Điển từ "đọc dọc từng huyệt" thành **từ điển tra 2 chiều**: từ một **Nguồn (Xuất Xứ)** hay một **Đặc Tính** → ra danh sách huyệt thuộc về nó.
+Phần Từ Điển tra **2 chiều**: từ một **Nguồn (Xuất Xứ)** hay một **Đặc Tính** → ra danh sách huyệt thuộc về nó. UI ở `TuDienView.vue` (tab **Thư Mục Nguồn** + **Tra Theo Đặc Tính**).
+
+> Dữ liệu đã được **chuẩn hoá đồng loạt**: mỗi huyệt trong `acupoints.js` dùng đúng **một tên nguồn chuẩn** (không còn biến thể hoa/thường, OCR, gọi tắt). Thư mục nguồn là **một bộ chuẩn** — không còn alias.
 
 ## Các file
 
 | File | Vai trò | Ai sửa |
 |---|---|---|
-| `acupoints.js` | 1.059 huyệt (text gốc, có `sections[]`) | **KHÔNG sửa tay** |
+| `acupoints.js` | 1.059 huyệt; XUẤT XỨ đã dùng **tên nguồn chuẩn** | sửa qua script khi đổi tên nguồn |
 | `dict-traits.json` | Từ vựng phân loại **Đặc Tính** (regex khớp) | **Người** |
-| `dict-sources.json` | **Thư mục Nguồn** đã duyệt (gộp biến thể, điền link) | **Người** |
-| `_build-dict.cjs` | Script đọc text → gom nguồn + phân loại + đảo chiều | (công cụ) |
+| `dict-sources.json` | **Thư mục Nguồn**: tên chuẩn + tác giả/niên đại/link | **Người** |
+| `_build-dict.cjs` | Đọc data → gom nguồn + phân loại + đảo chiều → sinh index | (công cụ) |
 | `dict-facets.js` | Index `window.DICT_FACETS` cho frontend | **TỰ SINH — không sửa** |
 
-## Quy trình (chạy lại bao nhiêu lần cũng được, không hư dữ liệu gốc)
+Nạp vào app qua `DATA_SCRIPTS` trong `frontend/src/lib/acuMap3d.ts`.
+
+## Dựng lại index (sau mọi thay đổi)
 
 ```bash
 cd frontend/public/kinhmach3d/data
 node _build-dict.cjs
 ```
 
-Script in ra: số nguồn chuẩn, phân loại Đặc Tính, và **cặp NGHI trùng cần duyệt**.
+Script giữ nguyên `ten` / `tacGia` / `nienDai` / `link` bạn đã điền, chỉ làm mới `count` & `huyetIds`,
+rồi sinh lại `dict-facets.js`. In ra số nguồn, phân loại Đặc Tính, và các cặp **nghi trùng** (báo cáo console, để rà).
 
-### Duyệt nguồn (máy gợi ý — bạn quyết)
+## Việc thường làm
 
-- Mở `dict-sources.json`, xem mảng `_reviewQueue`.
-- Mỗi mục là 1 **cặp nghi trùng** (vd `"Giáp Ất Kinh"` vs `"Giáp Ất"`).
-  - **Đúng là một nguồn** → mở bản ghi giữ lại trong `"sources"`, thêm tên nguồn kia vào `alias[]`, rồi **xoá** bản ghi nguồn kia. Chạy lại script.
-  - **Hai nguồn khác nhau** (vd `"Thiên Kim Yếu Phương"` 千金要方 ≠ `"Thiên Kim Dực Phương"` 千金翼方) → **để yên**.
-- Điền `tacGia`, `nienDai`, `link` (URL sách số hoá/wiki) để **đối chiếu**. `link` chính là "khu vực dẫn về đâu".
-- `_seed: true` = nguồn script vừa tự tạo, nên xem lại & bổ sung link.
-
-> Chạy lại script **giữ nguyên** `ten`/`alias`/`link`/`tacGia` bạn đã sửa; chỉ làm mới `count` và `huyetIds`.
-
-### Sửa phân loại Đặc Tính
-
-Mở `dict-traits.json`, thêm/bớt loại hoặc chỉnh `any` (danh sách regex). Chạy lại script.
+- **Bổ sung tác giả / niên đại / link**: mở `dict-sources.json`, điền vào nguồn tương ứng → chạy lại script.
+- **Sửa phân loại Đặc Tính**: mở `dict-traits.json`, thêm/bớt loại hoặc chỉnh `any` (regex) → chạy lại script.
+- **Đổi tên một nguồn (toàn bộ)**: vì tên chuẩn đã nằm trong `acupoints.js`, cần sửa ở đó (tìm-thay tên cũ → tên mới trong các mục `XUẤT XỨ` + `noiDung`) rồi chạy lại script. Đổi mình `ten` trong `dict-sources.json` sẽ KHÔNG khớp với data.
 
 ## Cấu trúc `window.DICT_FACETS`
 
@@ -42,14 +38,7 @@ Mở `dict-traits.json`, thêm/bớt loại hoặc chỉnh `any` (danh sách reg
 {
   count:  { huyet, sources, traits },
   huyet:  { "<id>": { ten, code } },              // tra tên/mã huyệt theo id
-  sources:{ "<id>": { ten, alias, tacGia, nienDai, link, parent, chapter, thien, count, huyetIds } },
+  sources:{ "<id>": { ten, tacGia, nienDai, link, parent, chapter, thien, count, huyetIds } },
   traits: { "<id>": { ten, nhom, moTa, count, huyetIds } }
 }
 ```
-
-## Bước sau (làm UI)
-
-Khi dựng giao diện, nạp thêm file index bằng cách thêm `'data/dict-facets.js'` vào mảng
-`DATA_SCRIPTS` trong `frontend/src/lib/acuMap3d.ts`. Sau đó trong `TuDienView.vue`:
-biến "Xuất Xứ"/"Đặc Tính" thành link → mở Trang Nguồn / mục Tra Theo Đặc Tính
-(dùng `huyetIds` để liệt kê huyệt, `huyet[id].ten` để hiển thị).
