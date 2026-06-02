@@ -382,7 +382,6 @@ window.ACU_COORDS3D = {
     LR12:   { x: 0.007, y: 0.5, z: 0.049, q: "exact", snap: true },
     LR13:   { x: 0.127, y: 0.64, z: 0.006, q: "approx", snap: true },
     LR14:   { x: 0.089, y: 0.7, z: 0.063, q: "exact", snap: true },
-    LR15:   { x: 0.092, y: 0.697, z: 0.063, q: "approx", snap: true },
     // ---- CV ★engine ----
     CV1:    { x: 0, y: 0.448, z: 0, q: "approx", snap: true, src: "who", conf: "WHO-lấp", snapDir: "front" },
     CV2:    { x: 0, y: 0.5, z: 0.055, q: "exact", snap: true, src: "anchor", conf: "mốc", anchor: true, snapDir: "front" },

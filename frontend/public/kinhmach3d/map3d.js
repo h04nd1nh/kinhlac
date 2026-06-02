@@ -371,23 +371,6 @@
     return { pos: best.add(bestN.clone().multiplyScalar(0.01 * bodyHeight)), n: bestN };
   }
 
-  // ---- "dán" 1 điểm world bất kỳ vào DA gần nhất → cho ống đường kinh bám mặt da ----
-  const _SO = new THREE.Vector3(), _SD = new THREE.Vector3();
-  const _SNAP_DIRS_LINE = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];  // chỉ 4 tia ngang (đủ cho đường kinh) → nhẹ hơn
-  function snapToSkin(p, lift) {
-    const R = 0.4 * bodyHeight;
-    let best = null, bestD = Infinity, bestN = null;
-    for (const d of _SNAP_DIRS_LINE) {
-      _SO.set(p.x + d[0] * R, p.y + d[1] * R, p.z + d[2] * R);
-      _SD.copy(p).sub(_SO).normalize();
-      raycaster.set(_SO, _SD);
-      const hits = raycaster.intersectObjects(skinTargets.length ? skinTargets : [modelRoot], true);
-      if (hits.length) { const dd = hits[0].point.distanceTo(p); if (dd < bestD) { bestD = dd; best = hits[0].point.clone(); bestN = _SD.clone().negate(); } }
-    }
-    if (!best) return p.clone();
-    return best.add(bestN.multiplyScalar(lift));
-  }
-
   // soi gương 1 điểm sang bên đối diện: chi x→−x; thân lệch giữa az→360−az; điểm giữa (az 0/180) bỏ.
   function placeMirror(p) {
     if (p.x !== undefined || p.y !== undefined || p.z !== undefined)
@@ -487,18 +470,26 @@
         cur.push(all[j]);
       }
       runs.push(cur);
+      // GỘP đoạn LẺ (chỉ 1 huyệt): nếu huyệt cuối/đầu kinh cách huyệt kề > SPLIT thì bị tách thành đoạn riêng,
+      // mà đoạn 1-huyệt lại bị bỏ qua bên dưới (arr.length < 2) → mất đường nối. Huyệt trên 1 kinh vốn nối liên
+      // tục nên gộp huyệt lẻ về đoạn liền kề (ưu tiên đoạn trước) để LUÔN có đường nối. Bước nhảy thật
+      // (vd BL40↔BL41 lưng↔chân) tạo 2 đoạn nhiều huyệt nên không bị gộp.
+      for (let r = 0; r < runs.length; r++) {
+        if (runs[r].length === 1 && runs.length > 1) {
+          if (r > 0) runs[r - 1].push(runs[r][0]); else runs[r + 1].unshift(runs[r][0]);
+          runs.splice(r, 1); r--;
+        }
+      }
       let seg = 0;
       for (const arr of runs) {
         if (arr.length < 2) continue;
         const skey = key + '|' + (seg++);
-        // đường qua các huyệt → lấy mẫu dày → ÉP từng mẫu BÁM mặt da → ỐNG MẢNH phát sáng.
-        const raw = new THREE.CatmullRomCurve3(arr.map(m => m.position.clone()), false, 'centripetal');
-        const S = Math.max(10, arr.length);        // số mẫu DÁN-da (ít hơn → nhanh hơn)
-        const lift = 0.011 * bodyHeight;           // NÂNG cao hơn → đường nổi rõ trên da, không bị che
-        const pts = [];
-        for (let s = 0; s <= S; s++) pts.push(snapToSkin(raw.getPoint(s / S), lift));
-        const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
-        const tubeSegs = Math.max(28, arr.length * 2);
+        // ĐƯỜNG = ống cong MƯỢT đi XUYÊN qua ĐÚNG vị trí từng huyệt. KHÔNG còn "lấy-mẫu-rồi-dán-da":
+        // cách cũ làm mỗi mẫu bị hút sang một mặt da khác nhau (mu/lòng bàn tay, ngón kề) → đường lượn/zigzag,
+        // lách qua bên cạnh huyệt (rõ nhất ở kinh Đại Trường). Huyệt đã đặt sát da khi tạo chấm nên nối thẳng
+        // qua chúng là vừa bám da vừa TRÚNG HUYỆT. CatmullRom đi qua mọi điểm điều khiển → mọi huyệt nằm trên đường.
+        const curve = new THREE.CatmullRomCurve3(arr.map(m => m.position.clone()), false, 'centripetal');
+        const tubeSegs = Math.max(28, arr.length * 6);   // chia mịn để ống cong mượt
         const tube = new THREE.Mesh(
           new THREE.TubeGeometry(curve, tubeSegs, 0.0010 * bodyHeight, 5, false),   // ống MẢNH (5 cạnh) — nhẹ
           new THREE.MeshStandardMaterial({
@@ -759,7 +750,15 @@
     editPanel.querySelector('#mepSave').onclick = saveUser;
     editPanel.querySelector('#mepDownload').onclick = downloadUser;
     editPanel.querySelector('#mepUndo').onclick = undoPlace;
-    editPanel.querySelector('#mepDerive').onclick = () => { deriveAll(); rebuild(); setEditStatus('⚙ Đã rải lại tất cả kinh theo các chốt. Bấm 💾 Lưu để giữ.'); updateEditPanel(); };
+    editPanel.querySelector('#mepDerive').onclick = () => {
+      if (!Object.keys(userPlaced).length) { setEditStatus('Chưa có chốt nào — hãy chấm vài huyệt CHỐT trước rồi căn.'); return; }
+      setEditStatus('⚙ Đang căn tổng thể theo sách + WHO… (vài giây)');
+      recomputeGold((ok, n, mers, e) => {
+        if (ok) setEditStatus(`⚙ Đã căn tổng thể ${n} huyệt theo chuẩn sách/WHO${mers && mers.length ? ' (kinh: ' + mers.join(', ') + ')' : ''}. Bấm 💾 Lưu để giữ.`);
+        else { deriveAll(); if (inited && modelRoot && dotMeshes.length) rebuild(); setEditStatus('Không gọi được solver (' + ((e && e.message) || 'lỗi mạng') + ') — tạm rải tuyến tính. Kiểm tra đăng nhập/mạng rồi thử lại.'); }
+        updateEditPanel();
+      });
+    };
     editPanel.querySelector('#mepClear').onclick = () => { if (confirm('Xoá TẤT CẢ điểm chấm tay? (các điểm đúng cũng mất)')) { undoStack.length = 0; for (const k in userPlaced) delete userPlaced[k]; for (const k in derived) delete derived[k]; rebuild(); updateEditPanel(); } };
   }
   function setEditStatus(t) { if (editStatusEl && t != null) editStatusEl.textContent = t; }
@@ -787,32 +786,68 @@
     selectEdit(e.code); updateEditPanel();
     setEditStatus('↶ Đã hoàn tác ' + e.code + (e.prev ? ' (về vị trí trước).' : ' (bỏ chấm tay).'));
   }
-  // áp toạ độ engine MỚI (đã căn theo) sau khi lưu → cập nhật các huyệt khác tại chỗ
-  function applyNewCoords(points) {
-    if (!points) return;
+  // áp toạ độ engine GOLD (solver trả về) → cập nhật tại chỗ + XOÁ nội suy thô (TẦNG 2) ở kinh đã căn
+  function applyGold(points) {
+    if (!points) return 0;
+    const codes = Object.keys(points);
+    if (!codes.length) return 0;
     Object.assign(placed, points);
-    rebuild();                                     // dựng lại 1 lần sau khi lưu (không phải lúc kéo) — chấp nhận được
+    const goldMers = new Set(codes.map(merOf));
+    for (const k in derived) if (goldMers.has(merOf(k))) delete derived[k];   // bỏ TẦNG 2 thô ở kinh đã có gold
+    if (inited && modelRoot && dotMeshes.length) rebuild();
+    return codes.length;
+  }
+  // địa chỉ API backend (Vue đặt qua window.ACU_API_BASE) + token đăng nhập (dùng chung localStorage với SPA)
+  const apiBase = () => (window.ACU_API_BASE || '');
+  function authToken() { try { return localStorage.getItem('access_token'); } catch (e) { return null; } }
+  // gọi solver "Căn Tổng Thể" trên server với chốt hiện tại; onDone(ok, nGold, mers[], err)
+  function recomputeGold(onDone) {
+    const token = authToken();
+    fetch(apiBase() + '/kinh-mach-3d/recompute', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+      body: JSON.stringify({ points: userPlaced })
+    })
+      .then(r => {
+        if (r.status === 401) throw new Error('cần đăng nhập lại');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(j => { const n = applyGold(j && j.points); onDone && onDone(true, n, (j && j.mers) || []); })
+      .catch(e => onDone && onDone(false, 0, [], e));
   }
   function saveUser() {
-    setEditStatus('💾 Đang lưu & căn theo… (vài giây)');
-    fetch('/api/save-anchors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ points: userPlaced }) })
-      .then(r => r.json()).then(j => {
-        if (j.points) applyNewCoords(j.points);
-        setEditStatus(j.ok ? `✓ Đã lưu ${j.n} huyệt — engine ĐÃ CĂN THEO${j.recomputed ? '' : ' (⚠ recompute lỗi)'}. Các huyệt khác vừa cập nhật.` : 'Lỗi lưu.');
+    setEditStatus('💾 Đang lưu & căn theo…');
+    const token = authToken();
+    fetch(apiBase() + '/kinh-mach-3d/anchors', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+      body: JSON.stringify({ points: userPlaced })
+    })
+      .then(r => {
+        if (r.status === 401) throw new Error('cần đăng nhập lại');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
       })
-      .catch(() => setEditStatus('Không gọi được server (đang ở cổng 8090?). Dùng ⬇ Tải JSON.'));
+      .then(j => {
+        const n = (j && j.n != null) ? j.n : Object.keys(userPlaced).length;
+        const g = applyGold(j && j.points);          // căn theo (gold) ngay sau khi lưu
+        setEditStatus(`✓ Đã lưu ${n} huyệt — đồng bộ${g ? ' + căn theo ' + g + ' huyệt (chuẩn sách/WHO)' : ''}. Máy khác tải lại sẽ thấy.`);
+      })
+      .catch(e => setEditStatus('Không lưu được lên server (' + ((e && e.message) || 'lỗi mạng') + '). Có thể bấm ⬇ Tải JSON để giữ tạm.'));
   }
   function downloadUser() {
     const blob = new Blob([JSON.stringify({ points: userPlaced }, null, 1)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'user-anchors.json'; a.click();
-    setEditStatus('Đã tải user-anchors.json — gửi file này cho Claude.');
+    setEditStatus('Đã tải user-anchors.json (bản sao lưu tạm). Bình thường chỉ cần bấm 💾 Lưu để đồng bộ lên server.');
   }
   function loadUserAnchors() {
-    fetch('/api/user-anchors').then(r => r.json()).then(j => {
+    fetch(apiBase() + '/kinh-mach-3d/anchors').then(r => r.json()).then(j => {
       const pts = (j && j.points) || j || {};
       let n = 0; for (const k in pts) { if (pts[k] && typeof pts[k].x === 'number') { userPlaced[k] = pts[k]; n++; } }
-      deriveAll();                                    // TẦNG 2: rải các huyệt giữa chốt ngay khi tải
-      if (n && inited && modelRoot && dotMeshes.length) rebuild();
+      if (!n) return;                                 // chưa có chốt → giữ toạ độ gold mặc định sẵn có
+      // căn theo chốt bằng solver (gold) như bản gốc; lỗi (mạng/đăng nhập) → fallback nội suy thô
+      recomputeGold((ok) => { if (!ok) { deriveAll(); if (inited && modelRoot && dotMeshes.length) rebuild(); } });
     }).catch(() => { });
   }
   // ===================================================
