@@ -69,6 +69,7 @@ const navItems = [
   { name: 'Bệnh Tây Y', routeName: 'western-medicine', icon: 'stethoscope' },
   { name: 'Bệnh Đo Kinh Lạc', routeName: 'meridian-diseases', icon: 'rules' },
   { name: 'Kinh Mạch 3D', routeName: 'kinh-mach-3d', icon: 'activity' },
+  { name: 'Từ Điển', routeName: 'tu-dien', icon: 'book' },
   { name: 'Quản Lý Thuốc', routeName: 'medicines', icon: 'pill' },
   { name: 'Triệu Chứng', routeName: 'symptoms', icon: 'clipboard' },
   { name: 'Pháp Trị', routeName: 'treatments', icon: 'shield' },
@@ -150,6 +151,8 @@ function handleLogout() {
             <svg v-if="item.icon === 'stethoscope'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13a9 9 0 0018 0v-5m-9 14a5 5 0 01-5-5V7a2 2 0 012-2h6a2 2 0 012 2v5a5 5 0 01-5 5zm0 0v-4" /></svg>
             <!-- Activity (Meridian) icon -->
             <svg v-if="item.icon === 'activity'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+            <!-- Book (Dictionary) icon -->
+            <svg v-if="item.icon === 'book'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2zM12 6.5v13" /></svg>
             <!-- Table / rules (benh_dong_y_excel) icon -->
             <svg v-if="item.icon === 'rules'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M3 12h18M3 18h18M3 6v12M9 6v12M15 6v12M21 6v12" /></svg>
             <!-- Pill (Medicines) icon -->

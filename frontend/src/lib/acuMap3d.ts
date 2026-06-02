@@ -14,18 +14,25 @@
  */
 
 // Đường dẫn gốc tới thư mục asset trong public/ (tôn trọng BASE_URL khi deploy dưới sub-path).
-const BASE = `${import.meta.env.BASE_URL || '/'}kinhmach3d/`
+export const BASE = `${import.meta.env.BASE_URL || '/'}kinhmach3d/`
 
-// Thứ tự nạp BẮT BUỘC: three → bộ mở rộng THREE → dữ liệu → engine. Mỗi script đợi script trước.
-const SCRIPTS: string[] = [
-  'vendor/three.min.js',
-  'vendor/OrbitControls.js',
-  'vendor/GLTFLoader.js',
-  'vendor/meshopt_decoder.js',
+// ── DỮ LIỆU THUẦN (không cần Three.js) ──
+// Bốn file này chỉ gán window.ACUPOINTS / ACU_INDEX / ACU_COORDS3D / MERIDIANS. Trang "Từ Điển"
+// (tra cứu huyệt + lý thuyết kinh) chỉ cần chừng này → nạp riêng cho NHẸ, không kéo theo 3D engine.
+const DATA_SCRIPTS: string[] = [
   'data/acupoints.js',
   'data/acu-index.js',
   'data/acu-coords3d.js',
   'data/meridians.js',
+]
+
+// ── ENGINE 3D ── (Three + bộ mở rộng + dữ liệu riêng của 3D + map3d). Nạp SAU phần dữ liệu thuần.
+// map3d.js phải chạy sau khi THREE + toàn bộ dữ liệu trên + spacing/handfoot đã có (xem thứ tự THỰC THI bên dưới).
+const ENGINE_SCRIPTS: string[] = [
+  'vendor/three.min.js',
+  'vendor/OrbitControls.js',
+  'vendor/GLTFLoader.js',
+  'vendor/meshopt_decoder.js',
   'data/spacing.js',
   'data/handfoot-bones.js',
   'map3d.js',
@@ -45,18 +52,21 @@ const HOST_HTML = `
       <input id="mapSearch" type="search" placeholder="Tìm huyệt / mã (CV4, Quan Nguyên)…" autocomplete="off" />
       <span id="mapCount" class="count dark"></span>
     </div>
-    <div class="map-legend" id="mapLegend"></div>
   </div>
   <div class="map-body">
     <div class="map-stage" id="mapStage">
       <span class="map-credit">Mô hình giải phẫu: BodyParts3D © DBCLS — CC-BY-SA 2.1 JP</span>
       <div class="hf-inset" id="hfInset"></div>
     </div>
-    <aside class="map-drawer" id="mapDrawer"></aside>
+    <aside class="map-drawer" id="mapDrawer">
+      <div class="map-legend" id="mapLegend"></div>
+      <div class="drawer-body" id="drawerBody"></div>
+    </aside>
   </div>
 `
 
 let bootPromise: Promise<void> | null = null
+let dictPromise: Promise<void> | null = null
 let hostEl: HTMLElement | null = null
 let parkingEl: HTMLElement | null = null
 
@@ -100,7 +110,21 @@ function ensureModelPreload(): void {
 }
 
 /**
- * Khởi động engine MỘT lần: đặt base path, nạp CSS, dựng khối DOM (ẩn), nạp script tuần tự.
+ * Nạp DỮ LIỆU THUẦN một lần (window.ACUPOINTS / ACU_INDEX / ACU_COORDS3D / MERIDIANS) — KHÔNG kéo Three.js.
+ * Trang "Từ Điển" (tra cứu huyệt + lý thuyết kinh) gọi hàm này; trang 3D cũng dùng lại đúng promise này
+ * (xem ensureBooted) nên dữ liệu chỉ tải/parse 1 lần dù mở cả hai trang.
+ */
+export function ensureDictData(): Promise<void> {
+  if (dictPromise) return dictPromise
+  // Một vài chỗ (đường dẫn ảnh…) đọc window.ACU_MAP_BASE → đặt sẵn cho cả nhánh dùng dữ liệu thuần.
+  ;(window as unknown as { ACU_MAP_BASE?: string }).ACU_MAP_BASE = BASE
+  // el.async=false giữ ĐÚNG thứ tự THỰC THI dù các <script> tải song song.
+  dictPromise = Promise.all(DATA_SCRIPTS.map((s) => loadScript(`${BASE}${s}`))).then(() => undefined)
+  return dictPromise
+}
+
+/**
+ * Khởi động engine MỘT lần: đặt base path, nạp CSS, dựng khối DOM (ẩn), nạp script.
  * Trả Promise dùng lại cho mọi lần gọi sau.
  */
 export function ensureBooted(): Promise<void> {
@@ -131,10 +155,12 @@ export function ensureBooted(): Promise<void> {
     parkingEl.appendChild(hostEl)
     document.body.appendChild(parkingEl)
 
-    // Nạp SONG SONG: gọi loadScript cho tất cả → mỗi <script> được chèn ngay (tải đồng thời).
-    // el.async=false giữ ĐÚNG thứ tự THỰC THI (THREE trước, dữ liệu trước engine) dù tải song song.
-    // → tổng thời gian ≈ file lớn nhất, thay vì cộng dồn như nạp tuần tự.
-    await Promise.all(SCRIPTS.map((s) => loadScript(`${BASE}${s}`)))
+    // Nạp SONG SONG cả 2 nhóm: ensureDictData() chèn ngay các <script> dữ liệu (dùng chung promise với
+    // trang Từ Điển → không tải lại), ENGINE_SCRIPTS chèn ngay sau đó. el.async=false bảo đảm THỨ TỰ THỰC
+    // THI = thứ tự chèn (dữ liệu → THREE → map3d), nên map3d luôn thấy đủ globals + THREE. Tải vẫn đồng thời.
+    const dict = ensureDictData()
+    const engine = Promise.all(ENGINE_SCRIPTS.map((s) => loadScript(`${BASE}${s}`)))
+    await Promise.all([dict, engine])
   })()
 
   return bootPromise

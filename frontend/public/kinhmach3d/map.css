@@ -37,7 +37,7 @@
 .acu3d .mv-btn { border: 1px solid var(--border); background: var(--card); color: var(--muted); padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 9px; }
 .acu3d .mv-btn:hover { border-color: var(--green); color: var(--green); }
 .acu3d .mv-btn.active { background: var(--green); color: #fff; border-color: var(--green); }
-.acu3d .map-layers { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.acu3d .map-layers { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-left: auto; }
 .acu3d .map-layer { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .acu3d .map-layer .ml-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
 .acu3d .map-layer input[type=range] { width: 74px; accent-color: var(--c); cursor: pointer; }
@@ -45,7 +45,12 @@
 .acu3d .map-search input { padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; min-width: 200px; font-family: inherit; }
 .acu3d .count { font-size: 12px; white-space: nowrap; }
 .acu3d .count.dark { color: var(--muted); }
-.acu3d .map-legend { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+/* Chú giải kinh mạch — giờ nằm Ở ĐẦU sidebar phải (cuộn riêng nếu dài), KHÔNG còn trên toolbar. */
+.acu3d .map-legend {
+  display: flex; gap: 6px; flex-wrap: wrap; align-content: flex-start; margin: 0;
+  padding: 12px 14px 10px; border-bottom: 1px solid var(--border);
+  max-height: 42%; overflow-y: auto; flex: none;
+}
 .acu3d .leg-chip {
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
   border: 1px solid var(--border); background: var(--card); color: var(--text);
@@ -64,7 +69,8 @@
 .acu3d .map-stage canvas { display: block; cursor: grab; }
 .acu3d .map-stage canvas:active { cursor: grabbing; }
 .acu3d .map-credit { position: absolute; left: 10px; bottom: 8px; z-index: 2; font-size: 10.5px; color: var(--muted); background: rgba(255,255,255,.6); padding: 2px 7px; border-radius: 6px; pointer-events: none; }
-.acu3d .map-edit-panel { position: absolute; left: 10px; top: 10px; z-index: 5; width: 260px; background: rgba(255,255,255,.96); border: 1px solid #cbd5e1; border-left: 3px solid #22c55e; border-radius: 10px; padding: 10px 12px; box-shadow: 0 6px 22px rgba(0,0,0,.14); font-size: 12.5px; }
+/* Panel Chấm Tay — DOCK vào đầu sidebar phải (không nổi đè lên mô hình 3D). */
+.acu3d .map-edit-panel { flex: none; width: auto; background: #f0fdf4; border: 0; border-bottom: 1px solid var(--border); border-left: 3px solid #22c55e; border-radius: 0; padding: 12px 14px; font-size: 12.5px; }
 .acu3d .map-edit-panel .mep-title { font-weight: 700; color: #15803d; margin-bottom: 6px; }
 .acu3d .map-edit-panel .mep-status { color: #334155; min-height: 32px; line-height: 1.35; margin-bottom: 8px; }
 .acu3d .map-edit-panel .mep-row { display: flex; gap: 6px; margin-bottom: 6px; }
@@ -73,8 +79,10 @@
 
 .acu3d .map-drawer {
   width: 340px; flex: none; background: var(--card); border-left: 1px solid var(--border);
-  padding: 18px 20px; overflow-y: auto;
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
 }
+/* Vùng nội dung huyệt (welcome / danh sách huyệt / chi tiết) — cuộn riêng, dưới legend. */
+.acu3d .drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px; }
 .acu3d .dr-welcome h3, .acu3d .dr-head h3 { margin: 6px 0 2px; color: var(--green-dark); }
 .acu3d .dr-welcome .hint { color: var(--muted); font-size: 13px; }
 .acu3d .dr-head { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 8px; }
@@ -124,7 +132,7 @@
 /* ===== Thu hẹp: xếp dọc khi khung nhỏ ===== */
 @media (max-width: 860px) {
   .acu3d .map-body { flex-direction: column; }
-  .acu3d .map-drawer { width: auto; border-left: 0; border-top: 1px solid var(--border); max-height: 40%; }
-  .acu3d .map-legend { margin-left: 0; }
+  .acu3d .map-drawer { width: auto; border-left: 0; border-top: 1px solid var(--border); max-height: 46%; }
+  .acu3d .map-drawer .map-legend { max-height: 32%; }
   .acu3d .hf-inset { width: calc(100% - 24px); }
 }

@@ -8,7 +8,7 @@
   const COORDS = window.ACU_COORDS3D, INDEX = window.ACU_INDEX, ACU = window.ACUPOINTS;
   if (!COORDS || !INDEX || !ACU || typeof THREE === 'undefined') return;
   const $ = id => document.getElementById(id);
-  const stage = $('mapStage'), drawer = $('mapDrawer'), legend = $('mapLegend'),
+  const stage = $('mapStage'), drawer = $('drawerBody'), legend = $('mapLegend'),
         search = $('mapSearch'), countEl = $('mapCount');
   if (!stage) return;
 
@@ -16,7 +16,7 @@
   const BODY_H = 1.7;                            // chuẩn hoá chiều cao thân về 1.7 đơn vị
   const ACCENT = 0xb8763e;                       // màu nhấn khi chọn/khớp tìm kiếm
   // kích thước kim châm (theo tỉ lệ bodyHeight): chiều dài thân · cán · độ cắm vào da · biên độ "trượt vào" · thời lượng
-  const NEEDLE = { len: 0.075, handle: 0.022, insert: 0.014, amp: 0.05, dur: 0.4 };
+  const NEEDLE = { len: 0.05, handle: 0.015, insert: 0.012, amp: 0.035, dur: 0.4 };
 
   // ---- dữ liệu phụ trợ cho ngăn chi tiết ----
   const recById = new Map(ACU.records.map(r => [r.id, r]));
@@ -96,21 +96,16 @@
     return null;
   }
   // bắt cụm "hướng / luồn / châm … <đích>" rồi soi 34 ký tự kế → đích là huyệt hay hướng tổng quát
-  const _AIM_KW = /(?:huong(?:\s+mui\s+kim)?(?:\s+hoi)?\s*(?:ve|toi|den|len|xuong|vao|ra|sang)?|luon(?:\s+kim)?\s*(?:toi|den|qua|sang|duoi)?|cham\s+(?:thang|xien|chech|ngang)?\s*(?:toi|den|ve|sang|qua))\s*(?:phia\s+)?(?:huyet\s+)?/g;
-  function parseAim(t) {
-    _AIM_KW.lastIndex = 0;
-    let m;
-    while ((m = _AIM_KW.exec(t))) {
-      const tail = t.slice(m.index + m[0].length, m.index + m[0].length + 34);
-      const tc = findTargetCode(tail); if (tc) return { type: 'point', code: tc };
-      if (/cot song|dot song/.test(tail)) return { type: 'dir', dir: 'spine' };
-      if (/vao trong|phia trong/.test(tail)) return { type: 'dir', dir: 'medial' };
-      if (/ra ngoai|phia ngoai/.test(tail)) return { type: 'dir', dir: 'lateral' };
-      if (/\blen\b|len tren|phia tren|len phia/.test(tail)) return { type: 'dir', dir: 'cephalad' };
-      if (/xuong|phia duoi/.test(tail)) return { type: 'dir', dir: 'caudad' };
-      if (/ra truoc|phia truoc/.test(tail)) return { type: 'dir', dir: 'anterior' };
-      if (/ra sau|phia sau/.test(tail)) return { type: 'dir', dir: 'posterior' };
-    }
+  // Đọc HƯỚNG mũi kim từ 1 đoạn mô tả: ưu tiên "tới huyệt X" (đã có toạ độ), rồi tới hướng giải phẫu.
+  function aimFromText(t) {
+    const tc = findTargetCode(t); if (tc) return { type: 'point', code: tc };
+    if (/cot song|dot song/.test(t)) return { type: 'dir', dir: 'spine' };
+    if (/chech xuong|xuong duoi|huong xuong|mui kim xuong|ve phia duoi/.test(t)) return { type: 'dir', dir: 'caudad' };
+    if (/chech len|len tren|huong len|mui kim len|ve phia tren/.test(t)) return { type: 'dir', dir: 'cephalad' };
+    if (/ra sau|phia sau/.test(t)) return { type: 'dir', dir: 'posterior' };
+    if (/ra truoc|phia truoc/.test(t)) return { type: 'dir', dir: 'anterior' };
+    if (/vao trong|phia trong/.test(t)) return { type: 'dir', dir: 'medial' };
+    if (/ra ngoai|phia ngoai/.test(t)) return { type: 'dir', dir: 'lateral' };
     return null;
   }
   const _NEEDLE_TILT = { oblique: Math.PI / 4, transverse: 70 * Math.PI / 180 };   // góc NGẢ so với pháp tuyến da
@@ -122,14 +117,14 @@
     const raw = rec ? sec(rec, 'cham cuu') : '';
     const t = norm(raw), primary = t.split('.')[0];        // câu đầu = thủ pháp CHÍNH
     let angle = null;
-    if (/luon|duoi da|cham ngang|nam ngang|song song/.test(primary)) angle = 'transverse';
+    if (/thang|vuong goc/.test(primary)) angle = 'perp';   // "thẳng" ƯU TIÊN (gồm cả "thẳng hoặc xiên") → ⟂ da
+    else if (/luon|duoi da|cham ngang|nam ngang|song song/.test(primary)) angle = 'transverse';
     else if (/xien|chech|chenh/.test(primary)) angle = 'oblique';
-    else if (/thang|vuong goc/.test(primary)) angle = 'perp';
-    const aim = parseAim(primary) || parseAim(t);
-    // tilt (rad): CHỈ ngả khi có HƯỚNG rõ. "thẳng + hướng" vẫn ⟂ da (hướng = chiều mũi kim đi sâu).
-    // có hướng mà không ghi góc → mặc định xiên 45°.
-    const tilt = !aim || angle === 'perp' ? 0
-      : angle === 'transverse' ? _NEEDLE_TILT.transverse : _NEEDLE_TILT.oblique;
+    const aim = aimFromText(primary);                       // hướng đọc từ CÂU ĐẦU (thủ pháp chính)
+    // Ngả theo GÓC: xiên ~45°, luồn ~70°, còn lại ⟂ da. Hướng ngả theo `aim`; nếu xiên/luồn mà câu đầu
+    // KHÔNG ghi hướng → placeNeedle tự ngả DỌC đường kinh (meridianTangent).
+    const tilt = angle === 'transverse' ? _NEEDLE_TILT.transverse
+      : angle === 'oblique' ? _NEEDLE_TILT.oblique : 0;
     return (_needleCache[code] = { angle, aim, tilt, depth: parseDepth(t), raw });
   }
 
@@ -149,7 +144,7 @@
   ];
   const LBY = Object.fromEntries(LAYERS.map(L => [L.id, L]));
   const layerMats = {}, layerMeshes = {};               // id -> [material,…] / [mesh,…]
-  const layerState = { skin: 1, muscle: 0, bone: 0 };   // độ mờ mỗi lớp (0..1). MẶC ĐỊNH chỉ hiện DA → render nhẹ; trượt để bóc lớp cơ/xương.
+  const layerState = { skin: 1, muscle: 1, bone: 1 };   // độ mờ mỗi lớp (0..1). MẶC ĐỊNH hiện ĐỦ Da·Cơ·Xương (full); trượt để bóc tách lớp.
   let skinTargets = [];                                 // mesh để bắn tia đặt huyệt (chỉ lớp da)
 
   // ---- THREE state ----
@@ -353,7 +348,10 @@
   const _SNAP_FRONT = [[0, 0, 1]], _SNAP_BACK = [[0, 0, -1]];
   function limbPoint(p) {
     _LP.set((p.x || 0) * bodyHeight, bodyMinY + (p.y || 0) * bodyHeight, (p.z || 0) * bodyHeight);
-    if (p.snap === false) return { pos: _LP.clone(), n: new THREE.Vector3(0, 0, 1) };
+    if (p.snap === false) {                        // không "dán da" → pháp tuyến XẤP XỈ: toả ra ngoài từ trục dọc thân
+      const out = new THREE.Vector3(_LP.x, 0, _LP.z);
+      return { pos: _LP.clone(), n: out.lengthSq() > 1e-9 ? out.normalize() : new THREE.Vector3(0, 0, 1) };
+    }
     const R = 0.45 * bodyHeight;
     const dirs = p.snapDir === 'front' ? _SNAP_FRONT : p.snapDir === 'back' ? _SNAP_BACK : _SNAP_DIRS;
     let best = null, bestD = Infinity, bestN = null;
@@ -404,7 +402,7 @@
   }
 
   function placeAllPoints() {
-    _dotR = 0.0040 * bodyHeight;                  // chấm nhỏ hơn để chấm tay chính xác
+    _dotR = 0.0026 * bodyHeight;                  // chấm nhỏ gọn (đỡ "quả cầu to") + chấm tay chính xác
     _dotGeo = new THREE.SphereGeometry(_dotR, 10, 8);   // lưới nhẹ hơn (700 chấm) → render nhanh
     let missed = [];
     for (const code of Object.keys(placed)) {
@@ -539,11 +537,23 @@
       default: return null;
     }
   }
+  // hướng TIẾP TUYẾN đường kinh tại 1 chấm: tới huyệt kề (num±1) cùng kinh & cùng bên → ngả xiên "dọc kinh".
+  function meridianTangent(dot) {
+    const mer = dot.userData.mer, num = dot.userData.num, side = dot.userData.side || 'L';
+    let nextM = null, prevM = null;
+    for (const m of dotMeshes) {
+      if (m.userData.mer !== mer || (m.userData.side || 'L') !== side) continue;
+      if (m.userData.num === num + 1) nextM = m; else if (m.userData.num === num - 1) prevM = m;
+    }
+    const ref = nextM || prevM; if (!ref) return null;
+    const d = _aimV.copy(ref.position).sub(dot.position);
+    return d.lengthSq() > 1e-12 ? d : null;
+  }
   function ensureNeedle() {
     if (needleShaft) return;
-    const bh = bodyHeight, r = 0.0018 * bh, L = NEEDLE.len * bh, hl = NEEDLE.handle * bh;
+    const bh = bodyHeight, r = 0.0009 * bh, L = NEEDLE.len * bh, hl = NEEDLE.handle * bh;
     // +Y = phía cán (ra ngoài da); -Y thuôn nhọn = mũi kim (đâm vào trong)
-    const shaftGeo = new THREE.CylinderGeometry(r, 0.0003 * bh, L, 8, 1);
+    const shaftGeo = new THREE.CylinderGeometry(r, 0.00012 * bh, L, 8, 1);
     const handleGeo = new THREE.CylinderGeometry(r * 2.4, r * 2.4, hl, 10, 1);
     needleShaft = new THREE.Mesh(shaftGeo, new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.22 }));
     needleHandle = new THREE.Mesh(handleGeo, new THREE.MeshStandardMaterial({ color: 0xc08436, metalness: 0.6, roughness: 0.4, emissive: 0x3a2208, emissiveIntensity: 0.3 }));
@@ -560,7 +570,8 @@
     const spec = needleSpec(dot.userData.code);
     const n = _Nn.copy(dot.userData.normal).normalize();   // pháp tuyến da (ra ngoài)
     _axis.copy(n);                                          // mặc định: ⟂ da như cũ
-    const aimv = spec.tilt > 1e-4 ? aimWorld(spec.aim, dot) : null;
+    let aimv = spec.tilt > 1e-4 ? aimWorld(spec.aim, dot) : null;
+    if (spec.tilt > 1e-4 && !aimv) aimv = meridianTangent(dot);   // xiên/luồn không rõ hướng → ngả DỌC đường kinh
     if (aimv) {
       _tan.copy(aimv).addScaledVector(n, -aimv.dot(n));     // chiếu hướng lên mặt phẳng TIẾP TUYẾN da
       if (_tan.lengthSq() > 1e-9) {                         // ngả trục: cán ngả ngược, mũi kim chếch THEO hướng vào dưới da
@@ -745,7 +756,8 @@
         '<button class="mv-btn" id="mepClear">✖ Xoá tất cả chấm tay</button>' +
       '</div>' +
       '<div class="mep-count" id="mepCount"></div>';
-    stage.appendChild(editPanel);
+    // Dock panel Chấm Tay vào ĐẦU sidebar phải (không nổi đè lên mô hình 3D nữa).
+    ($('mapDrawer') || stage).prepend(editPanel);
     editStatusEl = editPanel.querySelector('#mepStatus');
     editPanel.querySelector('#mepSave').onclick = saveUser;
     editPanel.querySelector('#mepDownload').onclick = downloadUser;
@@ -937,9 +949,12 @@
     const totAll = Object.values(merTotal).reduce((a, b) => a + b, 0) || 361;
     countEl.textContent = `${Object.keys(placed).length} huyệt đã định vị · ${totAll} huyệt (12 kinh + Nhâm·Đốc)`;
   }
+  // Thứ tự CHUẨN: 12 kinh chính theo vòng tuần hoàn (Phế đầu) → Mạch Nhâm → Mạch Đốc cuối.
+  const MER_ORDER = ['LU', 'LI', 'ST', 'SP', 'HT', 'SI', 'BL', 'KI', 'PC', 'TE', 'GB', 'LR', 'CV', 'GV'];
   function renderLegend() {
-    legend.innerHTML = presentMer
-      .sort((a, b) => Object.keys(placed).filter(c => merOf(c) === b).length - Object.keys(placed).filter(c => merOf(c) === a).length)
+    const ord = c => { const i = MER_ORDER.indexOf(c); return i < 0 ? 99 : i; };
+    legend.innerHTML = presentMer.slice()
+      .sort((a, b) => ord(a) - ord(b))
       .map(mer => {
         const m = COORDS.meridians[mer], n = Object.keys(placed).filter(c => merOf(c) === mer).length;
         const tot = merTotal[mer] ? '/' + merTotal[mer] : '';

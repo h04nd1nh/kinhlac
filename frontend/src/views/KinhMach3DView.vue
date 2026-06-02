@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute } from 'vue-router'
 import { mountAcuMap, unmountAcuMap } from '@/lib/acuMap3d'
 
+const route = useRoute()
 const mountPoint = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -9,6 +11,10 @@ const error = ref<string | null>(null)
 onMounted(async () => {
   try {
     if (mountPoint.value) await mountAcuMap(mountPoint.value)
+    // Mở từ "Từ Điển" với ?focus=<mã huyệt> → bay tới huyệt đó (engine đã sẵn sàng sau mountAcuMap).
+    const focus = route.query.focus
+    const code = Array.isArray(focus) ? focus[0] : focus
+    if (code) (window as unknown as { AcuMap?: { focus: (c: string) => void } }).AcuMap?.focus(code)
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
