@@ -1311,7 +1311,7 @@ async function onImportFileChange(ev: Event) {
 /* Card grid */
 .disease-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
   gap: var(--space-4);
   padding: var(--space-4);
 }

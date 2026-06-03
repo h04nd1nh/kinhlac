@@ -511,6 +511,7 @@ onMounted(loadDashboard)
 @media (max-width: 768px) {
   .hero { grid-template-columns: 1fr; text-align: center; padding: var(--space-6) }
   .hero-chips { justify-content: center }
+  .hero-person { justify-self: center } /* 1 cột → căn hình người vào GIỮA (không dồn trái) */
   .hero-art { display: none }
 }
 </style>

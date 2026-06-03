@@ -1478,7 +1478,7 @@ const unexplainedSymptoms = computed<DiagnosisMatchedSymptom[]>(() => {
 .chip-unmatched { background: var(--warning-bg); color: var(--warning-fg); border-color: var(--warning-border); border-style: dashed; }
 
 /* Hai cột Đông Y / Tây Y cạnh nhau; tự xuống 1 cột khi không đủ rộng. */
-.result-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-5); align-items: start; }
+.result-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--space-5); align-items: start; }
 .result-columns .result-group { margin-bottom: 0; }
 
 .result-group { margin-bottom: var(--space-6); }

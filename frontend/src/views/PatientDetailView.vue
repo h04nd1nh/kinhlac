@@ -746,5 +746,8 @@ function getAge(dob: string | null) {
   .patient-meta{justify-content:center}
   .info-grid{grid-template-columns:1fr}
   .treat-when{min-width:0}
+  /* Nút hành động: xuống dòng & căn giữa dưới tên thay vì dồn 1 hàng tràn mép. */
+  .header-actions{margin-left:0;flex-wrap:wrap;justify-content:center;width:100%}
+  .header-actions .btn-primary,.header-actions .btn-meridian{flex:1 1 auto;justify-content:center}
 }
 </style>

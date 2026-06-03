@@ -121,4 +121,12 @@ onBeforeUnmount(() => {
   /* Padding content-area nhỏ hơn ở mobile → bù lại để khung không bị cụt. */
   .km3d-mount { height: calc(100vh - 108px); }
 }
+@media (max-width: 480px) {
+  /* Điện thoại nhỏ: hạ chiều cao tối thiểu để đồ hình không lấn quá nhiều. */
+  .km3d-mount { min-height: 360px; }
+}
+@media (max-height: 480px) {
+  /* Điện thoại xoay NGANG (màn thấp): không ép khung cao hơn viewport. */
+  .km3d-mount { height: calc(100vh - 90px); min-height: 260px; }
+}
 </style>

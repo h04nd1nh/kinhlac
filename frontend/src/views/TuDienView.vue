@@ -14,6 +14,11 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ensureDictData, ensureBenhData, BASE } from '@/lib/acuMap3d'
 
+// Đặt TÊN component để <keep-alive :include="['TuDienView']"> ở DashboardLayout giữ lại trang này:
+// dữ liệu nặng (~5MB) + việc dựng các bản đồ tra cứu chỉ chạy MỘT lần ở onMounted, các lần vào tab
+// sau không phải xử lý lại → hết "đơ" mỗi lần bấm. (Deep-link ?acu=/?mer= vẫn chạy nhờ watch bên dưới.)
+defineOptions({ name: 'TuDienView' })
+
 // ───────────────────────── kiểu dữ liệu ─────────────────────────
 interface AcuSection { h: string; body: string }
 interface AcuRecord {

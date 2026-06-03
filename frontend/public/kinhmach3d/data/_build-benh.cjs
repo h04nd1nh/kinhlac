@@ -75,6 +75,32 @@ function realBoundary(s, idx) {
   return letters >= 2 && lower;
 }
 const proseAt = (s, p) => p + 1 < s.length && isProse(s, p, p + 17);
+// âm tiết Việt CHÍNH TẮC (chữ thường): có nguyên âm + kết bằng nguyên âm / c m n p t / ng nh ch.
+// Dùng để nhận từ thật KỂ CẢ khi nằm trong cụm số ("5 – 10 phút." không vào cửa sổ prose).
+// "phút","oreille" đạt; rác "òz","gt","gñª" trượt. (oreille kết 'e' = nguyên âm → đạt, giữ tiếng Pháp.)
+const VOW = 'aàáảãạăằắẳẵặâầấẩẫậeèéẻẽẹêềếểễệiìíỉĩịoòóỏõọôồốổỗộơờớởỡợuùúủũụưừứửữựyỳýỷỹỵ';
+const RE_VOW = new RegExp('[' + VOW + ']', 'u');
+const RE_END = new RegExp('(?:[' + VOW + ']|ng|nh|ch|[cmnpt])$', 'u');
+const isVNword = (w) => (RE_VOW.test(w) && RE_END.test(w)) || (w.length >= 6 && (w.match(new RegExp('[' + VOW + ']', 'gu')) || []).length >= 2);
+// ranh giới câu THẬT để cắt: dấu kết câu mà NGAY TRƯỚC nó (trong vùng SẠCH marker) là số, hoặc một
+// âm tiết Việt chính tắc ≥3 chữ. KHÔNG dùng "covered" (cửa sổ prose TRÀN ~17 ký tự sang rác → "Wx",
+// "6]" bị tưởng là văn xuôi). cleanCtx + isVNword miễn nhiễm với tràn, vẫn nhận "Nghĩa).","phút.",
+// "oreille).","HongKong)." và loại "Wx\"","6]","dY.".
+function goodBoundary(s, idx) {
+  if (idx < 0 || !isTerm(s[idx])) return false;
+  let k = idx - 1;
+  while (k >= 0 && (isTerm(s[k]) || s[k] === "'" || s[k] === '’')) k--;
+  if (k >= 0 && (s[k] === '%' || s[k] === '°')) k--;
+  // vùng TRƯỚC dấu kết câu sạch marker? (rác "6]","dY." luôn kề marker; KHÔNG xét ký tự SAU dấu vì
+  // đó chính là rác cần cắt). 8 ký tự đủ phủ phần lead-in rác mà không vướng câu thật phía trước.
+  const cleanCtx = () => { for (let t = Math.max(0, k - 8); t <= idx; t++) if (isMark(s[t])) return false; return true; };
+  // số chỉ tính khi dấu kết là . ) ] (citation/liều thật: "1986)", "(5): 40)", "97,37%.", "C8.")
+  if (k >= 0 && /[0-9]/.test(s[k]) && '.)]'.includes(s[idx])) return cleanCtx();
+  let w = '', lower = false, kk = k;
+  while (kk >= 0 && isVN(s[kk])) { w = s[kk] + w; if (isLower(s[kk])) lower = true; kk--; }
+  if (w.length < 3 || !lower) return false; // ≥3 chữ (loại "Wx","dY"); có ít nhất 1 chữ thường
+  return isVNword(w.toLowerCase()) && cleanCtx();
+}
 // từ kết thúc tại idx là từ Việt thật (≥2 chữ, có dấu thanh CHỮ THƯỜNG — phân biệt "Huyết" với rác "Én")
 function toneWordEndsAt(s, idx) {
   let letters = 0, lowTone = false;
@@ -103,12 +129,12 @@ function removeGarbage(s) {
     if (!isMark(s[m])) continue;
     if (m > 0 && m < n - 1 && isVN(s[m - 1]) && isVN(s[m + 1])) continue; // lạc giữa từ → deGarbage gỡ
     if (covered[m] && proseAt(s, m + 1)) continue;                        // lạc giữa văn xuôi → deGarbage gỡ
-    // ranh giới trái = dấu kết câu thật, HOẶC khoảng trắng ngay sau 1 từ thật — gần marker nhất thắng
+    // ranh giới trái = dấu kết câu THẬT, HOẶC khoảng trắng ngay sau 1 từ thật (trong văn xuôi) — gần
+    // marker nhất thắng. goodBoundary nhận cả đuôi-số "5 – 10 phút." (không vào cửa sổ prose).
     let left = m, found = false;
     for (let q = m; q >= Math.max(1, m - 40); q--) {
-      if (q >= 2 && !covered[q - 2]) continue; // ranh giới phải nằm ở mép văn xuôi thật
-      if (realBoundary(s, q - 1)) { left = q; found = true; break; }
-      if ((s[q - 1] === ' ' || s[q - 1] === '\n') && toneWordEndsAt(s, q - 2)) { left = q; found = true; break; }
+      if (goodBoundary(s, q - 1)) { left = q; found = true; break; }
+      if ((s[q - 1] === ' ' || s[q - 1] === '\n') && q >= 2 && covered[q - 2] && toneWordEndsAt(s, q - 2)) { left = q; found = true; break; }
     }
     if (!found) for (let q = m; q >= Math.max(1, m - 40); q--) if (s[q - 1] === ' ' || s[q - 1] === '\n') { left = q; break; }
     // ranh giới phải = nơi văn xuôi thật chạy tiếp (bỏ qua cả rác "bị phủ" do tràn cửa sổ)

@@ -192,6 +192,7 @@ const pageNumbers = computed(() => {
       <div class="table-loading" v-if="store.isLoading">
         <div class="spinner spinner--sm"></div>
       </div>
+      <div class="table-scroll">
       <table class="data-table">
         <thead>
           <tr>
@@ -224,6 +225,7 @@ const pageNumbers = computed(() => {
           </tr>
         </tbody>
       </table>
+      </div>
 
       <!-- Pagination -->
       <div v-if="store.totalPages > 1" class="pagination">

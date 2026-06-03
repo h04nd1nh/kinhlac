@@ -339,7 +339,7 @@ async function deleteOverride(date: string) {
 .config-page { animation: fadeIn .3s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 2px solid var(--brown-100); }
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 2px solid var(--brown-100); }
 .page-title { font-size: var(--font-size-2xl); font-weight: 800; color: var(--brown-800); margin-bottom: 4px; }
 .page-subtitle { color: var(--gray-500); font-size: var(--font-size-md); }
 

@@ -568,7 +568,7 @@ async function handleDelete() {
 
 .disease-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
   background: var(--surface-2);

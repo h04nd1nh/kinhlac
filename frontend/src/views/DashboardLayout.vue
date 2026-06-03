@@ -285,7 +285,13 @@ function handleLogout() {
       </header>
 
       <div class="content-area">
-        <RouterView />
+        <!-- Giữ riêng trang "Từ Điển" trong bộ nhớ (keep-alive): dữ liệu ~5MB + việc dựng bản đồ tra cứu
+             rất nặng, chỉ nên chạy 1 lần. Các trang khác vẫn mount/unmount bình thường để luôn tải dữ liệu mới. -->
+        <RouterView v-slot="{ Component }">
+          <keep-alive :include="['TuDienView']">
+            <component :is="Component" />
+          </keep-alive>
+        </RouterView>
       </div>
     </main>
 

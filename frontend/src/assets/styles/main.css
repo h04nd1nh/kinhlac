@@ -284,6 +284,23 @@ img {
 @media (max-width: 400px)  { html { font-size: 14.5px; } }
 
 /* ============================================
+   Mobile: chống iOS tự phóng to khi focus ô nhập
+   --------------------------------------------
+   Safari trên iPhone tự zoom khi cỡ chữ ô nhập < 16px.
+   Ép tối thiểu 16px cho mọi input/select/textarea ở
+   màn hình ≤768px để không bị giật zoom khi gõ.
+   (checkbox/radio/range/color không có chữ → không ảnh hưởng)
+   ============================================ */
+@media (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+
+/* ============================================
    Viết hoa chữ cái đầu (Title Case) cho toàn UI
    --------------------------------------------
    Áp dụng cho vùng nội dung chính (mọi trang + modal render trong
