@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, In, ILike, EntityManager } from 'typeorm';
+import { Repository, DataSource, In, EntityManager } from 'typeorm';
 import { BaiThuoc } from '../models/bai-thuoc.model';
 import { BaiThuocChiTiet } from '../models/bai-thuoc-chi-tiet.model';
 import { BaiThuocPhapTri } from '../models/bai-thuoc-phap-tri.model';
@@ -359,49 +359,129 @@ export class BaiThuocService {
   private demoFormulasCache: BaiThuoc[] | null = null;
 
   /**
-   * Chọn 1 bài thuốc kinh điển để DEMO công khai (khách chưa đăng nhập xem thử
-   * phân tích tính vị quy kinh + Quân–Thần–Tá–Sứ).
+   * Bài thuốc GẮN VỚI BỆNH TÂY Y ưu tiên cho demo công khai: tên quen thuộc + bệnh Tây Y
+   * dễ nhận biết (Cao Huyết Áp, Hen Suyễn, Sỏi Thận, Viêm Gan…). Match nới lỏng bằng ILIKE,
+   * chỉ nhận bài thật sự có liên kết bệnh Tây Y + có chứng trạng (để phần "5) Tổng Hợp" hiện).
+   */
+  private static readonly DEMO_TAY_Y_PREFERRED = [
+    'Thiên Ma Câu Đằng Ẩm', // Bệnh Thận Tăng Huyết Áp (Cao Huyết Áp)
+    'Tiểu Thanh Long Thang', // Hen Suyễn
+    'Nhân Trần Cao Thang', // Viêm Gan Virus
+    'Long Đởm Tả Can', // Zona Thần Kinh / Viêm — Can Hỏa
+    'Quy Tỳ Thang', // Ung Thư Tuyến Vú
+    'Ngân Kiều Tán', // Cảm Cúm / Viêm Phổi
+    'Thạch Vi Tán', // Sỏi Thận
+    'Kim Quỹ Thận Khí', // Bệnh Thận Tăng Huyết Áp
+    'Bán Hạ Bạch Truật Thiên Ma', // Cao Huyết Áp (đàm thấp)
+    'Tiêu Phong Tán', // Thấp Chẩn / Viêm Da
+    'Nhân Sâm Bạch Hổ', // Sốt cao
+    'Trúc Diệp Thạch Cao', // Bỏng / Lupus Ban Đỏ
+  ];
+
+  /** Bỏ hậu tố kỹ thuật " (12)" ở cuối tên bài thuốc khi DEMO (dữ liệu gốc giữ nguyên). */
+  private cleanDemoName(name: string | null | undefined): string {
+    return (name || '').replace(/\s*\(\d+\)\s*$/, '').trim();
+  }
+
+  /** Tên các bệnh Tây Y mà bài thuốc điều trị — đổ vào phần "Tổng Hợp" của demo. */
+  private async getBenhTayYNames(baiThuocId: number): Promise<string[]> {
+    const rows: { ten_benh: string }[] = await this.dataSource.query(
+      `SELECT DISTINCT bty.ten_benh
+         FROM benh_tay_y_bai_thuoc x
+         JOIN benh_tay_y bty ON bty.id = x.id_benh_tay_y
+        WHERE x.id_bai_thuoc = $1
+        ORDER BY bty.ten_benh`,
+      [baiThuocId],
+    );
+    return rows.map((r) => (r.ten_benh || '').trim()).filter(Boolean);
+  }
+
+  /** ID 1 bài thuốc Tây Y "đẹp" theo tên gợi ý (đủ vị + có chứng trạng để phần Tổng Hợp hiện). */
+  private async findTayYDemoIdByName(name: string): Promise<number | null> {
+    const rows: { id: number }[] = await this.dataSource.query(
+      `SELECT bt.id
+         FROM bai_thuoc bt
+        WHERE bt.ten_bai_thuoc ILIKE $1
+          AND EXISTS (SELECT 1 FROM benh_tay_y_bai_thuoc x WHERE x.id_bai_thuoc = bt.id)
+          AND (SELECT COUNT(*) FROM bai_thuoc_chi_tiet c WHERE c.id_bai_thuoc = bt.id) >= 3
+          AND EXISTS (SELECT 1 FROM bai_thuoc_phap_tri l JOIN phap_tri pt ON pt.id = l.id_phap_tri
+                      WHERE l.id_bai_thuoc = bt.id AND length(trim(coalesce(pt.the_benh, ''))) > 0)
+        ORDER BY (SELECT COUNT(*) FROM bai_thuoc_chi_tiet c WHERE c.id_bai_thuoc = bt.id) DESC, bt.id
+        LIMIT 1`,
+      [`%${name}%`],
+    );
+    return rows[0]?.id ?? null;
+  }
+
+  /** Bù danh sách ID bài thuốc Tây Y "đẹp" (loại placeholder trùng tên triệu chứng). */
+  private async fallbackTayYDemoIds(limit: number): Promise<number[]> {
+    if (limit <= 0) return [];
+    const rows: { id: number }[] = await this.dataSource.query(
+      `SELECT bt.id
+         FROM bai_thuoc bt
+        WHERE EXISTS (SELECT 1 FROM benh_tay_y_bai_thuoc x WHERE x.id_bai_thuoc = bt.id)
+          AND (SELECT COUNT(*) FROM bai_thuoc_chi_tiet c WHERE c.id_bai_thuoc = bt.id) >= 4
+          AND EXISTS (SELECT 1 FROM bai_thuoc_phap_tri l JOIN phap_tri pt ON pt.id = l.id_phap_tri
+                      WHERE l.id_bai_thuoc = bt.id AND length(trim(coalesce(pt.the_benh, ''))) > 0)
+          AND bt.ten_bai_thuoc !~ '\\((Biểu|Ngoại|Tiết Niệu|Phụ Khoa|Nhi Khoa|Ngũ Quan)\\)'
+        ORDER BY (SELECT COUNT(*) FROM bai_thuoc_chi_tiet c WHERE c.id_bai_thuoc = bt.id) DESC, bt.id
+        LIMIT $1`,
+      [limit],
+    );
+    return rows.map((r) => r.id);
+  }
+
+  /** Thứ tự ID bài thuốc Tây Y cho demo: ưu tiên gợi ý, bù sau; tôn trọng DEMO_BAI_THUOC_ID. */
+  private async resolveDemoTayYIds(want: number): Promise<number[]> {
+    const ids: number[] = [];
+    const seen = new Set<number>();
+    const push = (id: number | null | undefined) => {
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        ids.push(id);
+      }
+    };
+
+    const pinned = process.env.DEMO_BAI_THUOC_ID ? Number(process.env.DEMO_BAI_THUOC_ID) : null;
+    if (pinned && Number.isFinite(pinned)) push(pinned);
+
+    for (const name of BaiThuocService.DEMO_TAY_Y_PREFERRED) {
+      if (ids.length >= want) break;
+      push(await this.findTayYDemoIdByName(name));
+    }
+    if (ids.length < want) {
+      for (const id of await this.fallbackTayYDemoIds(want - ids.length + 5)) {
+        if (ids.length >= want) break;
+        push(id);
+      }
+    }
+    return ids.slice(0, want);
+  }
+
+  /** Nạp đủ chi tiết 1 bài thuốc cho demo: gắn tên bệnh Tây Y + làm sạch tên hiển thị. */
+  private async loadDemoFormula(id: number): Promise<BaiThuoc | null> {
+    const bt = await this.findOne(id);
+    if (!bt) return null;
+    bt.ten_bai_thuoc = this.cleanDemoName(bt.ten_bai_thuoc);
+    (bt as unknown as { benhTayY: string[] }).benhTayY = await this.getBenhTayYNames(id);
+    return bt;
+  }
+
+  /**
+   * Chọn 1 bài thuốc GẮN VỚI BỆNH TÂY Y để DEMO công khai (khách chưa đăng nhập xem thử
+   * phân tích tính vị quy kinh + Quân–Thần–Tá–Sứ + bệnh Tây Y ở phần Tổng Hợp).
    * - Có thể chỉ định cứng qua biến môi trường DEMO_BAI_THUOC_ID.
-   * - Mặc định: ưu tiên vài bài thuốc nổi tiếng, dễ nhận biết; nếu không có thì lấy
-   *   bài thuốc đầu tiên có đủ ≥ 3 vị thuốc.
+   * - Mặc định: ưu tiên bài Tây Y quen thuộc (xem DEMO_TAY_Y_PREFERRED), bù bằng bài Tây Y khác.
    */
   async findDemoFormula(): Promise<{ baiThuoc: BaiThuoc; analysis: any }> {
     if (this.demoFormulaCache) return this.demoFormulaCache;
 
-    let id: number | null = process.env.DEMO_BAI_THUOC_ID
-      ? Number(process.env.DEMO_BAI_THUOC_ID)
-      : null;
-
-    if (!id || !Number.isFinite(id)) {
-      const preferred = ['Lục Vị Địa Hoàng Hoàn', 'Bổ Trung Ích Khí Thang', 'Tiêu Dao Tán'];
-      for (const name of preferred) {
-        const found = await this.repo.findOne({
-          where: { ten_bai_thuoc: ILike(`%${name}%`) },
-          relations: ['chiTietViThuoc'],
-        });
-        // Chỉ chọn nếu bài thuốc có đủ vị thuốc để phân tích cho sinh động.
-        if (found && (found.chiTietViThuoc?.length ?? 0) >= 3) {
-          id = found.id;
-          break;
-        }
-      }
-    }
-
+    const [id] = await this.resolveDemoTayYIds(1);
     if (!id) {
-      const candidates = await this.repo.find({
-        relations: ['chiTietViThuoc'],
-        order: { ten_bai_thuoc: 'ASC' },
-        take: 100,
-      });
-      const good = candidates.find((b) => (b.chiTietViThuoc?.length ?? 0) >= 3);
-      id = (good ?? candidates[0])?.id ?? null;
+      throw new NotFoundException('Chưa có bài thuốc Tây Y nào để demo');
     }
 
-    if (!id) {
-      throw new NotFoundException('Chưa có bài thuốc nào để demo');
-    }
-
-    const baiThuoc = await this.findOne(id);
+    const baiThuoc = await this.loadDemoFormula(id);
     if (!baiThuoc) {
       throw new NotFoundException('Không tìm thấy bài thuốc demo');
     }
@@ -411,67 +491,22 @@ export class BaiThuocService {
   }
 
   /**
-   * Chọn VÀI bài thuốc kinh điển cho slider DEMO công khai (khách lướt xem nhiều bài).
-   * Ưu tiên các bài nổi tiếng, đủ ≥ 3 vị để phân tích sinh động; thiếu thì bù bằng bài khác.
-   * Trả về mỗi bài đã có đủ chi tiết (findOne) — KHÔNG kèm analysis (frontend tự tính).
+   * Chọn VÀI bài thuốc GẮN VỚI BỆNH TÂY Y cho slider DEMO công khai (khách lướt xem nhiều bài).
+   * Ưu tiên bài Tây Y quen thuộc, đủ vị + có chứng trạng để phần "5) Tổng Hợp" sinh động;
+   * thiếu thì bù bằng bài Tây Y khác. Mỗi bài đã gắn tên bệnh Tây Y + làm sạch tên hiển thị.
    */
   async findDemoFormulas(count = 5): Promise<BaiThuoc[]> {
     const want = Math.max(1, Math.min(count, 12));
     if (this.demoFormulasCache) return this.demoFormulasCache.slice(0, want);
 
-    const preferred = [
-      'Bổ Trung Ích Khí Thang',
-      'Lục Vị Địa Hoàng Hoàn',
-      'Tiêu Dao Tán',
-      'Tứ Quân Tử Thang',
-      'Tứ Vật Thang',
-      'Bát Trân Thang',
-      'Quy Tỳ Thang',
-      'Sài Hồ Sơ Can Tán',
-      'Ngọc Bình Phong Tán',
-      'Lý Trung Thang',
-      'Thập Toàn Đại Bổ Thang',
-      'Bán Hạ Tả Tâm Thang',
-    ];
-
-    const ids: number[] = [];
-    const seen = new Set<number>();
-    const pushIf = (b?: BaiThuoc | null) => {
-      if (b && (b.chiTietViThuoc?.length ?? 0) >= 3 && !seen.has(b.id)) {
-        seen.add(b.id);
-        ids.push(b.id);
-      }
-    };
-
-    for (const name of preferred) {
-      if (ids.length >= want) break;
-      const found = await this.repo.findOne({
-        where: { ten_bai_thuoc: ILike(`%${name}%`) },
-        relations: ['chiTietViThuoc'],
-      });
-      pushIf(found);
-    }
-
-    // Bù thêm nếu chưa đủ: lấy bài thuốc khác có đủ ≥ 3 vị.
-    if (ids.length < want) {
-      const candidates = await this.repo.find({
-        relations: ['chiTietViThuoc'],
-        order: { ten_bai_thuoc: 'ASC' },
-        take: 200,
-      });
-      for (const b of candidates) {
-        if (ids.length >= want) break;
-        pushIf(b);
-      }
-    }
-
+    const ids = await this.resolveDemoTayYIds(want);
     if (!ids.length) {
-      throw new NotFoundException('Chưa có bài thuốc nào để demo');
+      throw new NotFoundException('Chưa có bài thuốc Tây Y nào để demo');
     }
 
     const list: BaiThuoc[] = [];
     for (const id of ids) {
-      const full = await this.findOne(id);
+      const full = await this.loadDemoFormula(id);
       if (full) list.push(full);
     }
     this.demoFormulasCache = list;

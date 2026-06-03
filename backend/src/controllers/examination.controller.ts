@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Examination } from '../models/examination.model';
@@ -7,7 +7,9 @@ import { MeridiansService, AnalyzeInputDto } from './meridian.controller';
 import { PatientsService } from './patient.controller';
 
 @Injectable()
-export class ExaminationsService {
+export class ExaminationsService implements OnModuleInit {
+  private readonly logger = new Logger(ExaminationsService.name);
+
   constructor(
     @InjectRepository(Examination)
     private readonly examinationRepository: Repository<Examination>,
@@ -22,6 +24,40 @@ export class ExaminationsService {
   private demoExamCache: Examination | null = null;
   /** Cache danh sách ca đo cho slider DEMO (nhiều ca) — quét 1 lần rồi giữ lại. */
   private demoExamsCache: Examination[] | null = null;
+  /**
+   * Lần quét DEMO đang chạy dở (để pre-warm lúc khởi động và request đầu tiên
+   * không quét chồng lên nhau). Quét xong thì xoá về null.
+   */
+  private demoExamsPromise: Promise<Examination[]> | null = null;
+
+  /**
+   * Làm nóng cache DEMO ngay khi backend khởi động: khách vào trang landing
+   * không phải chờ lần quét đầu tiên. Chạy nền (không await), lỗi thì chỉ ghi log
+   * — pre-warm hỏng không được làm sập tiến trình.
+   */
+  onModuleInit() {
+    void this.findDemoExaminations(5).catch((e) => {
+      this.logger.warn(`Không pre-warm được cache demo: ${e?.message ?? e}`);
+    });
+  }
+
+  /**
+   * Gắn kết quả phân tích "tươi" vào một ca đo — đúng các trường mà findOne() gắn,
+   * để dùng lại kết quả đã tính sẵn (khỏi phân tích lại lần nữa).
+   */
+  private attachFreshAnalysis(exam: Examination, fresh: any): Examination {
+    exam.amDuong = fresh.am_duong;
+    exam.khi = fresh.khi;
+    exam.huyet = fresh.huyet;
+    exam.flags = fresh.flags;
+    exam.syndromes = fresh.syndromes as any[];
+    (exam as any).currentSyndromes = fresh.currentSyndromes ?? fresh.syndromes ?? [];
+    (exam as any).legacySyndromes = fresh.legacySyndromes ?? [];
+    (exam as any).excelSyndromes = fresh.excelSyndromes ?? [];
+    (exam as any).modernSyndromes = fresh.modernSyndromes ?? [];
+    (exam as any).comparisonRows = fresh.comparisonRows ?? [];
+    return exam;
+  }
 
   findAll(): Promise<Examination[]> {
     return this.examinationRepository.find({
@@ -220,8 +256,8 @@ export class ExaminationsService {
   /**
    * Chọn 1 ca đo "đẹp" để DEMO công khai (khách chưa đăng nhập xem thử).
    * - Có thể chỉ định cứng qua biến môi trường DEMO_EXAM_ID.
-   * - Mặc định: quét 40 ca gần nhất, ưu tiên ca cho ra NHIỀU thể bệnh để demo sinh động.
-   * Trả về Examination đã được phân tích đầy đủ (findOne tự gắn excelSyndromes/modernSyndromes…).
+   * - Mặc định: quét 24 ca gần nhất, ưu tiên ca cho ra NHIỀU thể bệnh để demo sinh động.
+   * Trả về Examination đã được phân tích đầy đủ (dùng lại kết quả analyze, không phân tích lại).
    * KHÔNG kèm thông tin bệnh nhân — phần ẩn danh do DemoRouter xử lý.
    */
   async findDemoExamination(): Promise<Examination> {
@@ -236,10 +272,12 @@ export class ExaminationsService {
 
     const candidates = await this.examinationRepository.find({
       order: { createdAt: 'DESC' },
-      take: 40,
+      take: 24,
     });
 
-    let bestId: number | null = null;
+    // Phân tích MỘT lần cho mỗi ca và giữ lại kết quả — khỏi gọi findOne()
+    // để phân tích lại ca được chọn lần nữa.
+    let best: { exam: Examination; fresh: any } | null = null;
     let bestScore = -1;
     for (const exam of candidates) {
       if (!exam.inputData) continue;
@@ -251,22 +289,23 @@ export class ExaminationsService {
           (fresh.syndromes?.length ?? 0);
         if (score > bestScore) {
           bestScore = score;
-          bestId = exam.id;
+          best = { exam, fresh };
         }
       } catch {
         // Bỏ qua ca lỗi phân tích, thử ca tiếp theo.
       }
     }
 
-    if (bestId == null) {
+    if (!best) {
       const fallback = candidates.find((e) => e.inputData) ?? candidates[0];
       if (!fallback) {
         throw new NotFoundException('Chưa có ca đo nào để demo');
       }
-      bestId = fallback.id;
+      const fresh = await this.meridiansService.analyze(fallback.inputData as any);
+      best = { exam: fallback, fresh };
     }
 
-    const chosen = await this.findOne(bestId);
+    const chosen = this.attachFreshAnalysis(best.exam, best.fresh);
     this.demoExamCache = chosen;
     return chosen;
   }
@@ -280,13 +319,28 @@ export class ExaminationsService {
   async findDemoExaminations(count = 5): Promise<Examination[]> {
     const want = Math.max(1, Math.min(count, 12));
     if (this.demoExamsCache) return this.demoExamsCache.slice(0, want);
+    // Đã có lần quét đang chạy (pre-warm lúc khởi động) → chờ chung, đừng quét lại.
+    if (this.demoExamsPromise) return (await this.demoExamsPromise).slice(0, want);
 
+    this.demoExamsPromise = this.scanDemoExaminations();
+    try {
+      const exams = await this.demoExamsPromise;
+      this.demoExamsCache = exams;
+      return exams.slice(0, want);
+    } finally {
+      this.demoExamsPromise = null;
+    }
+  }
+
+  /** Quét DB chọn các ca đo "đẹp" cho slider DEMO. Phân tích MỖI ca đúng một lần. */
+  private async scanDemoExaminations(): Promise<Examination[]> {
     const candidates = await this.examinationRepository.find({
       order: { createdAt: 'DESC' },
-      take: 50,
+      take: 24,
     });
 
-    const scored: { id: number; score: number }[] = [];
+    // Phân tích một lần cho mỗi ca, GIỮ LẠI kết quả để khỏi phân tích lại.
+    const scored: { exam: Examination; fresh: any; score: number }[] = [];
     for (const exam of candidates) {
       if (!exam.inputData) continue;
       try {
@@ -295,28 +349,25 @@ export class ExaminationsService {
           (fresh.excelSyndromes?.length ?? 0) * 2 +
           (fresh.modernSyndromes?.length ?? 0) +
           (fresh.syndromes?.length ?? 0);
-        if (score > 0) scored.push({ id: exam.id, score });
+        if (score > 0) scored.push({ exam, fresh, score });
       } catch {
         // Bỏ qua ca lỗi phân tích.
       }
     }
 
     scored.sort((a, b) => b.score - a.score);
-    let ids = scored.slice(0, want).map((s) => s.id);
+    let chosen = scored.slice(0, 12);
 
     // Fallback: chưa có ca nào ra thể bệnh → lấy đại 1 ca có dữ liệu đo.
-    if (ids.length === 0) {
+    if (chosen.length === 0) {
       const fb = candidates.find((e) => e.inputData) ?? candidates[0];
       if (!fb) throw new NotFoundException('Chưa có ca đo nào để demo');
-      ids = [fb.id];
+      const fresh = await this.meridiansService.analyze(fb.inputData as any);
+      chosen = [{ exam: fb, fresh, score: 0 }];
     }
 
-    const exams: Examination[] = [];
-    for (const id of ids) {
-      exams.push(await this.findOne(id));
-    }
-    this.demoExamsCache = exams;
-    return exams;
+    // Dùng LẠI kết quả phân tích đã có — không gọi findOne() để phân tích lại.
+    return chosen.map(({ exam, fresh }) => this.attachFreshAnalysis(exam, fresh));
   }
 
   async fixSequence(): Promise<any> {

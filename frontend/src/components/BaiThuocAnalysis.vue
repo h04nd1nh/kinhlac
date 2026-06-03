@@ -47,6 +47,7 @@ interface BaiThuocLite {
   chung_trang?: string | null
   chiTietViThuoc?: ChiTietLite[] | null
   phapTriLinks?: PhapTriLink[] | null
+  benhTayY?: string[] | null // Tên bệnh Tây Y bài thuốc điều trị (chỉ có ở dữ liệu demo)
 }
 
 // hideDosage: ẩn TOÀN BỘ bảng "Quân–Thần–Tá–Sứ" (cột bên phải) — dùng cho khối nhúng gọn ở landing,
@@ -281,6 +282,11 @@ function analyze(bt: BaiThuocLite | null): Result | null {
 
 const result = computed(() => analyze(props.baiThuoc))
 
+// Bệnh Tây Y (chỉ có ở dữ liệu demo) — hiện thành chip ở phần "5) Tổng Hợp".
+const benhTayY = computed(() =>
+  (props.baiThuoc?.benhTayY ?? []).map((s) => (s || '').trim()).filter(Boolean),
+)
+
 const tuKhiVals = computed(() => {
   const tk = result.value?.tuKhi
   if (!tk) return TU_KHI_SEGS.map(() => 0)
@@ -425,8 +431,14 @@ onBeforeUnmount(destroyCharts)
           <div class="ana-radar-canvas-wrap"><canvas ref="radarTgptRef"></canvas></div>
         </div>
 
-        <div v-if="result.chungTrang || result.kiengKy.length" class="ana-card">
+        <div v-if="benhTayY.length || result.chungTrang || result.kiengKy.length" class="ana-card">
           <div class="ana-section-title">5) Tổng Hợp</div>
+          <template v-if="benhTayY.length">
+            <div class="ana-sub-title">Bệnh (Tây Y)</div>
+            <div class="ana-chip-row">
+              <span v-for="(b, i) in benhTayY" :key="'tyy-' + i" class="ana-chip ana-chip-tayy">{{ b }}</span>
+            </div>
+          </template>
           <template v-if="result.chungTrang">
             <div class="ana-sub-title">Chứng Trạng</div>
             <div class="ana-chip-row">
@@ -647,6 +659,8 @@ onBeforeUnmount(destroyCharts)
 }
 .ana-chip-phap { border-color: #7a9b8e; background: #e8f2ee; color: #2d4a3e; }
 .ana-chip-kk { border-color: #e8a598; background: #fdf5f3; color: #7a2e23; }
+/* Bệnh Tây Y — xanh y khoa, tách bạch với Chứng Trạng (YHCT) */
+.ana-chip-tayy { border-color: #93b4d8; background: #eef4fb; color: #1f4b73; }
 
 .ana-empty {
   padding: var(--space-6);

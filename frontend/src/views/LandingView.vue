@@ -12,14 +12,16 @@
  *
  * Trang nằm NGOÀI DashboardLayout (không có .content-area) nên tự viết Title Case.
  * Hiệu năng: hero dùng vòng CosmicWheel (SVG nhẹ); hình người 3D nặng đặt ở khu "Đồ Hình 3D" phía
- * dưới, tự lazy-load khi cuộn tới, và chỉ dựng trên màn hình rộng (mobile dùng vòng SVG).
+ * dưới, tự lazy-load khi cuộn tới (kể cả trên điện thoại — vòng SVG chỉ là phương án dự phòng).
  */
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import CosmicWheel from '@/components/CosmicWheel.vue'
 import HeroMeridianFigure from '@/components/HeroMeridianFigure.vue'
 import BanXoayBienChung from '@/components/BanXoayBienChung.vue'
+import BaiThuocAnalysis from '@/components/BaiThuocAnalysis.vue'
+import { api } from '@/services/api'
 import {
   rawUpper,
   rawLower,
@@ -48,18 +50,27 @@ function openDemo(name: 'xem-3d' | 'xem-ket-qua-do' | 'xem-bai-thuoc' | 'thu-vie
   router.push({ name })
 }
 
-// Chỉ dựng hình người 3D trên màn hình rộng (mobile dùng vòng SVG nhẹ).
-const showFigure = ref(false)
-let mq: MediaQueryList | null = null
-function syncFigure() {
-  showFigure.value = !!mq?.matches
-}
-onMounted(() => {
-  mq = window.matchMedia('(min-width: 769px)')
-  syncFigure()
-  mq.addEventListener?.('change', syncFigure)
+// ── Phân tích bài thuốc THẬT, nhúng ngay trong section "Đo Kinh Lạc · Big Data"
+// (lấy /demo/bai-thuoc, KHÔNG cần đăng nhập). Dùng lại ĐÚNG component phân tích thật
+// (BaiThuocAnalysis): Tứ Khí + 3 radar + bảng Quân–Thần–Tá–Sứ — chỉ cần truyền nguyên bài thuốc.
+const formulaLoading = ref(true)
+const demoFormula = ref<any>(null)
+
+onMounted(async () => {
+  try {
+    const res = await api.get<{ baiThuoc: any }>('/demo/bai-thuoc')
+    demoFormula.value = res.baiThuoc
+  } catch {
+    // Backend chưa sẵn sàng → ẩn khối phân tích, giữ nguyên phần còn lại của trang.
+  } finally {
+    formulaLoading.value = false
+  }
 })
-onBeforeUnmount(() => mq?.removeEventListener?.('change', syncFigure))
+
+// Dựng hình người 3D trên MỌI màn hình (kể cả điện thoại) → luôn có vòng tròn % khi tải.
+// Hình tự lazy-load khi cuộn tới khu "Đồ Hình 3D" (IntersectionObserver bên trong component) nên
+// KHÔNG làm chậm lúc mới mở trang. Vòng SVG (nhánh v-else) chỉ còn là phương án dự phòng.
+const showFigure = ref(true)
 
 // ── "Nhá hàng" đồ hình 3D ──
 const model3d = [
@@ -334,6 +345,7 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
         <nav class="lp-nav-links">
           <button @click="scrollTo('model3d')">Đồ Hình 3D</button>
           <button @click="scrollTo('measure')">Kết Quả Đo</button>
+          <button @click="scrollTo('phan-tich-bai-thuoc')">Phân Tích Bài Thuốc</button>
           <button @click="scrollTo('thu-vien')">Thư Viện</button>
           <button @click="scrollTo('hoc-lieu')">Học Liệu</button>
           <button @click="scrollTo('bang-gia')">Bảng Giá</button>
@@ -351,7 +363,7 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
             <span class="hl">Đông Y Nghìn Năm</span><br />Giờ Đọc Được Bằng Dữ Liệu
           </h1>
           <p class="lp-hero-sub">
-            Đồ hình kinh lạc <strong>3D</strong>, kết quả đo hiện thành <strong>biểu đồ</strong>, kho tri thức <strong>1.058 huyệt</strong> — sờ thử hết ngay trên màn hình, không cần đăng nhập.
+            Đồ hình kinh lạc <strong>3D</strong>, kết quả đo hiện thành <strong>biểu đồ</strong>, kho tri thức <strong>1.058 huyệt</strong> — tự tay trải nghiệm ngay trên màn hình, không cần đăng nhập.
           </p>
           <div class="lp-cta-row">
             <button class="lp-btn lp-btn--primary lp-btn--lg" @click="openDemo('xem-3d')">Trải Nghiệm 3D Ngay →</button>
@@ -364,6 +376,7 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
               <span>{{ s.label }}</span>
             </li>
           </ul>
+          <p class="lp-hero-quote">Công Đức Và Trí Tuệ Của Tổ Tiên Đã Được Số Hoá Và Phát Huy Cho Mai Sau.</p>
         </div>
 
         <div class="lp-hero-art">
@@ -376,7 +389,7 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
     <section class="lp-dials" id="dials">
       <div class="lp-section-head">
         <span class="lp-eyebrow">Từ Bàn Xoay Đến Dữ Liệu</span>
-        <h2 class="lp-h2">Cả Tủ Bàn Xoay Biện Chứng, Gói Trong Một Cơ Sở Dữ Liệu.</h2>
+        <h2 class="lp-h2">Vòng Xoay Biện Chứng - Trí Tuệ Cổ Nhân - Ngày Nay Có Big Data</h2>
         <p class="lp-section-sub">
           Bàn xoay cũ mỗi lần chỉ khớp được một cặp: Triệu Chứng – Tạng Phủ, Thể Bệnh – Bài Thuốc. Phần mềm gộp cả tủ đĩa thành một mạng dữ liệu — quan hệ <strong>1–n</strong>, <strong>n–n</strong> nối liền nhau, chạm một điểm là cả mạng sáng lên.
         </p>
@@ -616,6 +629,22 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
           <strong>Mỗi lần đo là một điểm dữ liệu.</strong> Hơn chín nghìn lần đo kinh lạc dạy phần mềm nhận ra đâu là sinh lý bình thường, đâu là dấu hiệu bệnh lý — đó là Đông Y <strong>đọc được bằng dữ liệu</strong>.
         </p>
       </div>
+
+      <!-- Phân tích bài thuốc THẬT — nhúng ngay trên landing, xem không cần đăng nhập -->
+      <div v-if="!formulaLoading && demoFormula" id="phan-tich-bai-thuoc" class="lp-bt">
+        <div class="lp-bt-head">
+          <div class="lp-bt-headtext">
+            <span class="lp-bt-eyebrow">Bài Thuốc Cho Bệnh Tây Y · Phân Tích Bằng Đông Y</span>
+            <h3 class="lp-bt-title">Phân Tích “{{ demoFormula.ten_bai_thuoc }}” Theo Tính Vị Quy Kinh</h3>
+            <p v-if="demoFormula.nguon_goc" class="lp-bt-source">Nguồn Gốc: {{ demoFormula.nguon_goc }}</p>
+          </div>
+          <button class="lp-btn lp-btn--primary" @click="openDemo('xem-bai-thuoc')">Mở Phân Tích Đầy Đủ →</button>
+        </div>
+
+        <BaiThuocAnalysis :bai-thuoc="demoFormula" />
+
+        <p class="lp-bt-note">Phần mềm soi bài thuốc qua Tứ Khí · Ngũ Vị · Quy Kinh · Thăng–Giáng–Phù–Trầm và vai trò <strong>Quân · Thần · Tá · Sứ</strong> — đồng thời chỉ rõ <strong>bài thuốc này dùng cho bệnh Tây Y nào</strong> (xem phần Tổng Hợp). Phân tích THẬT, xem trực tiếp không cần đăng nhập.</p>
+      </div>
     </section>
 
     <!-- ============ Thư viện · Từ Điển (mở miễn phí — giới thiệu + lối vào /thu-vien) ============ -->
@@ -693,13 +722,13 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
     <!-- ============ ⑧ Bằng chứng quy mô ============ -->
     <section class="lp-proof">
       <div class="lp-proof-inner">
-        <p class="lp-proof-lead">Không phải phần mềm minh hoạ — đây là dữ liệu lâm sàng thật, đang lớn lên mỗi ngày.</p>
         <ul class="lp-proof-stats">
           <li v-for="p in proof" :key="p.label">
             <strong>{{ p.value }}</strong>
             <span>{{ p.label }}</span>
           </li>
         </ul>
+        <p class="lp-proof-foot">Công Đức Và Trí Tuệ Của Tổ Tiên Đã Được Số Hoá Và Phát Huy Cho Mai Sau.</p>
       </div>
     </section>
 
@@ -707,7 +736,7 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
     <section class="lp-cta">
       <div class="lp-cta-inner">
         <h2 class="lp-cta-title">Đông Y Của Bạn, Bắt Đầu Từ Một Cú Xoay.</h2>
-        <p class="lp-cta-sub">Sờ thử toàn bộ — miễn phí, không cần đăng nhập. Thích thì hãy đưa bệnh nhân của bạn vào.</p>
+        <p class="lp-cta-sub">Tự tay trải nghiệm toàn bộ — miễn phí, không cần đăng nhập. Thích thì hãy đưa bệnh nhân của bạn vào.</p>
         <div class="lp-cta-row lp-cta-row--center">
           <button class="lp-btn lp-btn--primary lp-btn--lg" @click="openDemo('xem-3d')">Trải Nghiệm 3D Ngay →</button>
           <button class="lp-btn lp-btn--ghost-light lp-btn--lg" @click="enter">{{ ctaLabel }}</button>
@@ -770,6 +799,10 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
   background: var(--bg-app);
   color: var(--text);
   overflow-x: hidden;
+  /* Di truyền xuống MỌI đoạn chữ con: trình duyệt tự tránh để 1 từ rớt lẻ loi
+     xuống dòng cuối (orphan). Heading được đặt riêng `text-wrap: balance` để chia
+     dòng cân nhau — declaration riêng đó sẽ đè lên giá trị di truyền này. */
+  text-wrap: pretty;
 }
 
 /* ---------- Nút chung ---------- */
@@ -921,6 +954,7 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
   line-height: 1.12;
   letter-spacing: -0.02em;
   margin-bottom: var(--space-5);
+  text-wrap: balance;
 }
 .lp-title .hl {
   color: var(--brown-200);
@@ -962,6 +996,24 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
   font-size: var(--font-size-sm);
   color: rgba(255, 255, 255, 0.7);
   margin-top: 2px;
+}
+.lp-hero-quote {
+  margin-top: var(--space-6);
+  /* Giữ câu trên ĐÚNG 1 dòng ở desktop; cỡ chữ nhỏ hơn 1 nấc cho vừa cột trái của Hero. */
+  font-size: var(--font-size-sm);
+  font-style: italic;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+}
+/* Màn hình hẹp (gồm điện thoại): cột thu lại, cho phép xuống dòng & chia cân
+   để câu không bị tràn ngang / cụt chữ. */
+@media (max-width: 1100px) {
+  .lp-hero-quote {
+    white-space: normal;
+    text-wrap: balance;
+    max-width: 42rem;
+  }
 }
 .lp-hero-art {
   position: relative;
@@ -1122,6 +1174,7 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
 .lp-measure > .mc-flow,
 .lp-measure > .lp-measure-card,
 .lp-measure > .mc-bigdata,
+.lp-measure > .lp-bt,
 .lp-knowledge > .lp-section-head,
 .lp-knowledge > .lp-flow,
 .lp-knowledge > .lp-k-grid,
@@ -1132,7 +1185,9 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
 }
 .lp-section-head {
   text-align: center;
-  max-width: 44rem;
+  /* Rộng hơn để tiêu đề dài (vd "Học Đông Y Khó — Vì Cái Quan Trọng Nhất Lại Vô Hình.")
+     nằm gọn 1 dòng trên màn hình lớn, không bị rớt 1 chữ lẻ xuống dòng. */
+  max-width: min(64rem, 100%);
   margin: 0 auto var(--space-12);
 }
 .lp-eyebrow {
@@ -1151,8 +1206,12 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
   font-size: var(--font-size-3xl);
   font-weight: 800;
   letter-spacing: -0.02em;
+  line-height: 1.2;
   color: var(--text);
   margin-bottom: var(--space-3);
+  /* Khi màn hình hẹp buộc phải xuống dòng thì chia 2 dòng cân nhau,
+     không để 1 chữ rớt lẻ loi xuống dòng cuối. */
+  text-wrap: balance;
 }
 .lp-h2--light {
   color: var(--white);
@@ -1162,6 +1221,11 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
   font-size: var(--font-size-base);
   color: var(--text-muted);
   line-height: 1.7;
+  /* Phần mô tả giữ độ rộng vừa đọc (hẹp hơn tiêu đề) và căn giữa. */
+  max-width: 46rem;
+  margin-left: auto;
+  margin-right: auto;
+  text-wrap: pretty;
 }
 
 /* ---------- Kết quả đo kinh lạc ---------- */
@@ -1890,6 +1954,7 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
 /* ---------- Phân tích bài thuốc THẬT nhúng trên landing ---------- */
 .lp-bt {
   margin-top: var(--space-8);
+  scroll-margin-top: 84px; /* chừa chỗ cho thanh nav sticky (68px) khi nhảy từ menu */
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -1918,6 +1983,7 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
   font-weight: 800;
   color: var(--text-brand);
   letter-spacing: -0.01em;
+  text-wrap: balance;
 }
 .lp-bt-source {
   margin-top: 4px;
@@ -2395,6 +2461,15 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
   margin: 0 auto var(--space-8);
   line-height: 1.6;
 }
+.lp-proof-foot {
+  font-size: var(--font-size-lg);
+  color: rgba(255, 255, 255, 0.85);
+  /* Nới rộng + chia dòng cân để câu này không rớt 1 chữ lẻ xuống dòng cuối. */
+  max-width: 52rem;
+  margin: var(--space-8) auto 0;
+  line-height: 1.6;
+  text-wrap: balance;
+}
 .lp-proof-stats {
   display: flex;
   flex-wrap: wrap;
@@ -2539,12 +2614,16 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
   font-size: var(--font-size-3xl);
   font-weight: 800;
   letter-spacing: -0.02em;
+  line-height: 1.2;
   margin-bottom: var(--space-3);
+  text-wrap: balance;
 }
 .lp-cta-sub {
   font-size: var(--font-size-base);
   color: rgba(255, 255, 255, 0.82);
-  margin-bottom: var(--space-8);
+  margin: 0 auto var(--space-8);
+  max-width: 46rem;
+  text-wrap: pretty;
 }
 
 /* ---------- Chân trang ---------- */
