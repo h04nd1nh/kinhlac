@@ -16,6 +16,21 @@
 // Đường dẫn gốc tới thư mục asset trong public/ (tôn trọng BASE_URL khi deploy dưới sub-path).
 export const BASE = `${import.meta.env.BASE_URL || '/'}kinhmach3d/`
 
+// ── CACHE-BUSTING ──
+// Các file engine 3D (map3d.js, data/*.js, model .glb…) GIỮ NGUYÊN TÊN qua mỗi lần deploy. Cấu hình
+// nginx cũ từng phục vụ chúng kèm `Cache-Control: immutable` (1 năm) → trình duyệt nào đã tải về sẽ
+// KHÔNG hỏi lại server suốt 1 năm, nên bản cập nhật (điểm chấm huyệt, đường kinh…) "không lên" trên
+// các máy đó (hay gặp trên điện thoại đã mở tab 3D từ trước). Đổi header server sang no-cache KHÔNG
+// cứu được các máy đã lỡ cache — chỉ ĐỔI URL mới cứu được. Vì vậy gắn ?v=<số build> vào mọi asset:
+// mỗi lần build ra số mới → URL mới → trình duyệt coi là file mới → tải lại, bỏ qua bản cache cũ.
+// __ACU_ASSET_VER__ do Vite define nhúng (xem vite.config.ts); typeof tránh lỗi nếu thiếu define.
+declare const __ACU_ASSET_VER__: string
+const ASSET_VER = typeof __ACU_ASSET_VER__ !== 'undefined' ? __ACU_ASSET_VER__ : ''
+/** Ghép đường dẫn 1 asset trong /kinhmach3d/ kèm ?v=<ver> để phá cache trình duyệt theo mỗi build. */
+function asset(path: string): string {
+  return ASSET_VER ? `${BASE}${path}?v=${ASSET_VER}` : `${BASE}${path}`
+}
+
 // ── DỮ LIỆU THUẦN (không cần Three.js) ──
 // Các file này chỉ gán window.ACUPOINTS / ACU_INDEX / ACU_COORDS3D / MERIDIANS / DICT_FACETS. Trang "Từ Điển"
 // (tra cứu huyệt + lý thuyết kinh + tra theo Nguồn/Đặc Tính) chỉ cần chừng này → nạp riêng cho NHẸ, không kéo 3D.
@@ -90,7 +105,7 @@ function ensureCss(): void {
   const link = document.createElement('link')
   link.id = 'acu3d-css'
   link.rel = 'stylesheet'
-  link.href = `${BASE}map.css`
+  link.href = asset('map.css')
   document.head.appendChild(link)
 }
 
@@ -106,7 +121,7 @@ function ensureModelPreload(): void {
   link.id = 'acu3d-model-preload'
   link.rel = 'preload'
   link.as = 'fetch'
-  link.href = `${BASE}models/body-layers.glb`
+  link.href = asset('models/body-layers.glb')
   // KHÔNG đặt crossOrigin: GLTFLoader tải bằng XHR same-origin → để khớp request (tránh tải 2 lần).
   document.head.appendChild(link)
 }
@@ -121,7 +136,7 @@ export function ensureDictData(): Promise<void> {
   // Một vài chỗ (đường dẫn ảnh…) đọc window.ACU_MAP_BASE → đặt sẵn cho cả nhánh dùng dữ liệu thuần.
   ;(window as unknown as { ACU_MAP_BASE?: string }).ACU_MAP_BASE = BASE
   // el.async=false giữ ĐÚNG thứ tự THỰC THI dù các <script> tải song song.
-  dictPromise = Promise.all(DATA_SCRIPTS.map((s) => loadScript(`${BASE}${s}`))).then(() => undefined)
+  dictPromise = Promise.all(DATA_SCRIPTS.map((s) => loadScript(asset(s)))).then(() => undefined)
   return dictPromise
 }
 
@@ -133,7 +148,7 @@ let benhPromise: Promise<void> | null = null
  */
 export function ensureBenhData(): Promise<void> {
   if (benhPromise) return benhPromise
-  benhPromise = loadScript(`${BASE}data/benh.js`).then(() => undefined)
+  benhPromise = loadScript(asset('data/benh.js')).then(() => undefined)
   return benhPromise
 }
 
@@ -147,6 +162,8 @@ export function ensureBooted(): Promise<void> {
   bootPromise = (async () => {
     // map3d.js đọc window.ACU_MAP_BASE để dựng đường dẫn model .glb cho đúng trong SPA.
     ;(window as unknown as { ACU_MAP_BASE?: string }).ACU_MAP_BASE = BASE
+    // …và ACU_ASSET_VER để gắn ?v=<số build> vào URL model .glb (khớp với preload bên dưới, phá cache).
+    ;(window as unknown as { ACU_ASSET_VER?: string }).ACU_ASSET_VER = ASSET_VER
     // Địa chỉ API backend cho tính năng "Chấm Tay" (lưu/tải chốt). Khớp với api.ts:
     //   dev  → http://localhost:3001 (gọi thẳng backend)
     //   prod → /api  (nginx VPS chuyển /api/* sang backend, cắt prefix /api)
@@ -173,7 +190,7 @@ export function ensureBooted(): Promise<void> {
     // trang Từ Điển → không tải lại), ENGINE_SCRIPTS chèn ngay sau đó. el.async=false bảo đảm THỨ TỰ THỰC
     // THI = thứ tự chèn (dữ liệu → THREE → map3d), nên map3d luôn thấy đủ globals + THREE. Tải vẫn đồng thời.
     const dict = ensureDictData()
-    const engine = Promise.all(ENGINE_SCRIPTS.map((s) => loadScript(`${BASE}${s}`)))
+    const engine = Promise.all(ENGINE_SCRIPTS.map((s) => loadScript(asset(s))))
     await Promise.all([dict, engine])
   })()
 

@@ -3204,7 +3204,7 @@ window.ACUPOINTS = {
     {
       "id": 85,
       "ten": "Cảnh Tý",
-      "noiDung": "TÊN HUYỆT\nHuyệt có tác dụng trị bệnh ở cổ (cảnh) và cánh tay (tý), vì vậy gọi là Cảnh Tý.\nXUẤT XỨ\nChâm Cứu Học Thượng Hải.\nVỊ TRÍ\nTại trước tĩnh mạch nông 2 bên cổ, giữa huyệt Khí Xá (Vi 11) và Khuyết Bồn (Vi 12).\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị cánh tay tê, thần kinh cánh tay đau, bắp tay teo, cơ cánh tay teo, bàn tay teo, tay và vai đau.\nCHÂM CỨU\nHơi nghiêng đầu về 1 bên, nằm ngửa, châm thẳng sâu 1 thốn, vê nhẹ cho có cảm giác lan đến tay. Nếu cảm giác lan đến ngực thì đổi hướng cho đến khi thấy lan xuống tay. Cứu 5 – 10 phút.GT\nd¸",
+      "noiDung": "TÊN HUYỆT\nHuyệt có tác dụng trị bệnh ở cổ (cảnh) và cánh tay (tý), vì vậy gọi là Cảnh Tý.\nXUẤT XỨ\nChâm Cứu Học Thượng Hải.\nVỊ TRÍ\nTại trước tĩnh mạch nông 2 bên cổ, giữa huyệt Khí Xá (Vi 11) và Khuyết Bồn (Vi 12).\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị cánh tay tê, thần kinh cánh tay đau, bắp tay teo, cơ cánh tay teo, bàn tay teo, tay và vai đau.\nCHÂM CỨU\nHơi nghiêng đầu về 1 bên, nằm ngửa, châm thẳng sâu 1 thốn, vê nhẹ cho có cảm giác lan đến tay. Nếu cảm giác lan đến ngực thì đổi hướng cho đến khi thấy lan xuống tay. Cứu 5 – 10 phút.",
       "phoiHuyet": "",
       "ghiChu": "Tránh châm quá sâu vì có thể gây tổn thương màng phổi và tràn khí màng phổi. Tránh động mạch.",
       "thamKhao": "",
@@ -3231,7 +3231,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Hơi nghiêng đầu về 1 bên, nằm ngửa, châm thẳng sâu 1 thốn, vê nhẹ cho có cảm giác lan đến tay. Nếu cảm giác lan đến ngực thì đổi hướng cho đến khi thấy lan xuống tay. Cứu 5 – 10 phút.GT\nd¸"
+          "body": "Hơi nghiêng đầu về 1 bên, nằm ngửa, châm thẳng sâu 1 thốn, vê nhẹ cho có cảm giác lan đến tay. Nếu cảm giác lan đến ngực thì đổi hướng cho đến khi thấy lan xuống tay. Cứu 5 – 10 phút."
         }
       ],
       "slug": "canh-ty",
@@ -5344,7 +5344,7 @@ window.ACUPOINTS = {
     {
       "id": 140,
       "ten": "Cứu Háo",
-      "noiDung": "TÊN HUYỆT\nHuyệt thành dùng để cứu trị suyễn (háo), vì vậy, gọi là Cứu Háo.\nTÊN KHÁC\nCứu Suyễn.\nXUẤT XỨ\nLoại Kinh Đồ Dực.\nVỊ TRÍ\nDùng 1 sợi dây đo vòng từ đốt sống cổ (C7) xuống huyệt Cưu Vĩ (Nh 10), từ Cưu Vĩ đo vòng ra sau lưng, chạm vào cột sống, lấy đầu dây làm chuẩn, đo ra 2 bên đốt sống lưng là huyệt.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị suyễn lâu ngày.\nCHÂM CỨU\nCứu 10 – 15 phút.8´\n¨",
+      "noiDung": "TÊN HUYỆT\nHuyệt thành dùng để cứu trị suyễn (háo), vì vậy, gọi là Cứu Háo.\nTÊN KHÁC\nCứu Suyễn.\nXUẤT XỨ\nLoại Kinh Đồ Dực.\nVỊ TRÍ\nDùng 1 sợi dây đo vòng từ đốt sống cổ (C7) xuống huyệt Cưu Vĩ (Nh 10), từ Cưu Vĩ đo vòng ra sau lưng, chạm vào cột sống, lấy đầu dây làm chuẩn, đo ra 2 bên đốt sống lưng là huyệt.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị suyễn lâu ngày.\nCHÂM CỨU\nCứu 10 – 15 phút.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "",
@@ -5375,7 +5375,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Cứu 10 – 15 phút.8´\n¨"
+          "body": "Cứu 10 – 15 phút."
         }
       ],
       "slug": "cuu-hao",
@@ -7672,7 +7672,7 @@ window.ACUPOINTS = {
     {
       "id": 202,
       "ten": "Đại Lăng",
-      "noiDung": "TÊN HUYỆT\nHuyệt ở vị trí nhô cao (đại) ở cổ tay, có hình dáng giống gò mả (lăng), vì vậy gọi là Đại Lăng (Trung Y Cương Mục).\nTÊN KHÁC\nQủy Tâm, Tâm Chủ.\nXUẤT XỨ\nThiên 'Bản Du' (Linh Khu 2)..\nVỊ TRÍ\nỞ ngay trên lằn nếp cổ tay, khe giữa gân cơ gan tay lớn và bé, hoặc gấp các ngón tay vào lòng bàn tay, đầu ngón tay giữa chạm vào lằn chỉ (văn) tay ở đâu, đó là huyệt.\nĐẶC TÍNH\nHuyệt thứ 7 của kinh Tâm Bào.\nHuyệt Du, huyệt Nguyên, thuộc hành Thổ.\nHuyệt Tả của kinh Tâm Bào.\nMột trong Thập Tam Quỷ Huyệt (Quỷ Tâm) dùng để trị bệnh tâm thần.\nTÁC DỤNG:\nThanh Tâm, định thần, lương huyết.\nCHỦ TRỊ:\nTrị cổ tay đau, khớp cổ tay viêm, hồi hộp, động kinh, mất ngủ.\nCHÂM CỨU\nChâm thẳng 0,3 – 0,5 thốn. Trị khớp xương cổ tay thì châm xiên. Cứu 1 – 3 tráng. Ôn cứu 3 – 5 phút.\nGIẢI PHẪU\nDưới da là khe giữa gân cơ gan tay lớn và gân cơ gan tay bé, ở sâu là khe giữa gân cơ gấp dài ngón tay cái và cơ gấp chung ngón tay nông và sâu, khe khớp cổ tay.\nThần kinh vận động cơ là các nhánh của dây thần kinh giữa và dây thần kinh trụ.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh C7 hoặc C8.V¨'\n thai và bí tiểu: không châm.",
+      "noiDung": "TÊN HUYỆT\nHuyệt ở vị trí nhô cao (đại) ở cổ tay, có hình dáng giống gò mả (lăng), vì vậy gọi là Đại Lăng (Trung Y Cương Mục).\nTÊN KHÁC\nQủy Tâm, Tâm Chủ.\nXUẤT XỨ\nThiên 'Bản Du' (Linh Khu 2)..\nVỊ TRÍ\nỞ ngay trên lằn nếp cổ tay, khe giữa gân cơ gan tay lớn và bé, hoặc gấp các ngón tay vào lòng bàn tay, đầu ngón tay giữa chạm vào lằn chỉ (văn) tay ở đâu, đó là huyệt.\nĐẶC TÍNH\nHuyệt thứ 7 của kinh Tâm Bào.\nHuyệt Du, huyệt Nguyên, thuộc hành Thổ.\nHuyệt Tả của kinh Tâm Bào.\nMột trong Thập Tam Quỷ Huyệt (Quỷ Tâm) dùng để trị bệnh tâm thần.\nTÁC DỤNG:\nThanh Tâm, định thần, lương huyết.\nCHỦ TRỊ:\nTrị cổ tay đau, khớp cổ tay viêm, hồi hộp, động kinh, mất ngủ.\nCHÂM CỨU\nChâm thẳng 0,3 – 0,5 thốn. Trị khớp xương cổ tay thì châm xiên. Cứu 1 – 3 tráng. Ôn cứu 3 – 5 phút.\nGIẢI PHẪU\nDưới da là khe giữa gân cơ gan tay lớn và gân cơ gan tay bé, ở sâu là khe giữa gân cơ gấp dài ngón tay cái và cơ gấp chung ngón tay nông và sâu, khe khớp cổ tay.\nThần kinh vận động cơ là các nhánh của dây thần kinh giữa và dây thần kinh trụ.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh C7 hoặc C8.V'\n thai và bí tiểu: không châm.",
       "phoiHuyet": "Phối Thiên Lịch (Đtr 6) trị họng tê, mồ hôi trộm (Thiên Kim Phương).\n2.\tPhối Thiếu Phủ (Tm.8) trị ho suyễn (Tư Sinh Kinh).\n3.\tPhối Khích Môn (Tb 4) trị nôn ra máu (Tư Sinh Kinh).\n4.\tPhối Thượng Quản (Nh.13) trị tim đau (Tư Sinh Kinh).\n5.\tPhối Dũng Tuyền (Th 1) + Hợp Cốc (Đtr 4) + Nội Quan (Tb 6) + Thập Tuyên + Tứ Hoa trị ngũ tâm phiền nhiệt (Châm cứu Đại Thành).\n6.\tPhối Xích Trạch (P 5) trị hụt hơi, hơi thở ngắn (Châm cứu Đại Thành).\n7.\tPhối Đản Trung (Nh.17) + Trung Quản (Nh.12) trị ho nghịch lên, ợ hơi (Châm cứu Đại Thành).\n8.\tPhối Quan Nguyên (Nh.4) trị tiểu đỏ (Châm cứu Đại Thành).\n9.\tPhối Nội Quan (Tb 6) + Khúc Trạch (Tb 3) trị vùng tim ngực đau nhức (Châm cứu Đại Thành).\n10. Phối A Thị Huyệt + Du Phủ (Th 27) + Đản Trung (Nh.17) + Thiếu Trạch (Tr.1) + Ủy Trung (Bq 40) trị nhũ ung [vú sưng] (Châm cứu Đại Thành).\n11. Phối Bách Lao + Thủy Phân (Nh.9) + Ủy Trung (Bq 40) trị trúng nắng (Châm cứu Đại Thành).\n12. Phối Chi Câu (Ttu 6) + Ngoại Quan (Ttu 5) trị bụng đau do bí kết (Ngọc Long Ca).\n13. Phối Cự Khuyết (Nh.14) + Đản Trung (Nh.17) + Hạ Quản (Nh.10) + Tâm Du (Bq 15) + Thượng Quản (Nh.13) + Trung Khôi + Trung Quản (Nh.12) + Túc Tam Lý (Vi 36) + Tỳ Du (Bq 20) + Vị Du (Bq 21) trị ngũ ế, ngũ cách (Y Học Cương Mục).\n14. Phối Tam Âm Giao (Ty 6) + Trung Quản (Nh.12) trị bỉ khối đau tức (Thần Cứu Kinh Luân).\n15. Phối Ngoại Quan (Tb 5) + Phế Du (Bq 13) + Thận Du (Bq 23) + Thượng Quản (Nh.13) + Tỳ Du (Bq 20) trị hư lao thổ huyết (Thần Cứu Kinh Luân).\n16. Phối Khúc Trì (Đtr 11) + Kiên Trinh (Ttr.9) + Lao Cung (Tb 8) + Phong Môn (Bq 12) trị phong chẩn lở loét (Châm cứu Học Thượng Hải).\n17. Phối Nội Quan (Tb 6) + Thiếu Phủ (Tm.8) trị mất ngủ, thấp tim (Châm cứu Học Thượng Hải).\n18. Phối Ấn Đường + Bá Hội (Đc 20) + Thái Khê (Th 3) trị mất ngủ (Châm cứu Học Thượng Hải)",
       "ghiChu": "",
       "thamKhao": "Nếu khí loạn ở Tâm, (sinh ra tâm phiền, thích yên tĩnh), thủ huyệt Du của Tâm [Thần Môn) và Tâm Bào [Đại Lăng] (Linh Khu 34,16).\n“Quỷ Tâm tức là huyệt Đại Lăng” (Châm cứu Đại Toàn).\n\"Tâm nhiệt, miệng hôi: châm Đại Lăng\" (Thắng Ngọc Ca).\n\"Bụng đau chịu không nổi: châm Đại Lăng + Ngoại Quan (Ttu 5) (Ngọc Long Ca).\n\"Bệnh vùng tim và ngực: châm Đại Lăng... Miệng hôi: châm Đại Lăng\" (Ngọc Long Ca)\n\"Tâm bào lạc gây bệnh làm cho tay bị co rút, cánh tay không duỗi ra được, cánh tay đau như gẫy, ngực đầy, hông sườn đầy tức, nách sưng, tâm phiền, mặt đỏ, mắt vàng, hay cười, tâm thống, bàn tay rất nóng, các thầy thuốc nên để ý, châm huyệt Đại Lăng + Ngoại Quan\" (Thập Nhị Kinh Trị Chứng Chủ Khách Nguyên Lạc Quyết).\n“Chứng Tâm khái, trong họng khó chịu như mắc nghẹn: chọn Đại Lăng” (Chứng Trị Chuẩn Thằng).\n“Sau nếp ngang cổ tay, gọi là huyệt Quỷ Tâm (Châm cứu Đồ Quyết), đời Nguyên chú là huyệt Đại Lăng” (Châm cứu Học Từ Điển).\n“Huyệt Đại Lăng và Nội Quan có tác dụng khác nhau tuy cả 2 huyệt đều là Du Huyệt của đường kinh Tâm Bào. 2 huyệt này được dùng khi Nguyên và Lạc huyệt bất đồng, công hiệu khác nhau” (Thường Dụng Du Huyệt Lâm Sàng Phát Huy).\n“Huyệt Đại Lăng và Thần Môn có tác dụng khác nhau. Đại Lăng và Thần Môn là những huyệt thường dùng trong điều trị bệnh ở Tâm. Nếu Tâm thuộc thực chứng, đa số là do Tâm Bào Lạc thụ tà khí. Nếu Tâm thuộc hư chứng, đa số do tạng Tâm, do nội thương. Tâm bào lạc có Nguyên huyệt, huyệt con (tử) là Đại Lăng, thiên về trị Tâm hỏa ủng thịnh, tà tại Tâm bào, đờm hỏa công lên Tâm, hợp với Tâm kết ứ trệ gây ra bệnh. Thường dùng tả pháp. Tâm kinh có Nguyên huyệt, huyệt con (tử) là Thần Môn, không dùng trị những chứng giống Đại Lăng mà trị Tâm hư chứng, trị Tâm khí bất túc, Tâm huyết hư suy. Hư thì phải dùng phép bổ (Thường Dụng Du Huyệt Lâm Sàng Phát Huy)",
@@ -7711,7 +7711,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "GIẢI PHẪU",
-          "body": "Dưới da là khe giữa gân cơ gan tay lớn và gân cơ gan tay bé, ở sâu là khe giữa gân cơ gấp dài ngón tay cái và cơ gấp chung ngón tay nông và sâu, khe khớp cổ tay.\nThần kinh vận động cơ là các nhánh của dây thần kinh giữa và dây thần kinh trụ.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh C7 hoặc C8.V¨'\n thai và bí tiểu: không châm."
+          "body": "Dưới da là khe giữa gân cơ gan tay lớn và gân cơ gan tay bé, ở sâu là khe giữa gân cơ gấp dài ngón tay cái và cơ gấp chung ngón tay nông và sâu, khe khớp cổ tay.\nThần kinh vận động cơ là các nhánh của dây thần kinh giữa và dây thần kinh trụ.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh C7 hoặc C8.V'\n thai và bí tiểu: không châm."
         }
       ],
       "slug": "dai-lang",
@@ -7752,7 +7752,7 @@ window.ACUPOINTS = {
     {
       "id": 204,
       "ten": "Đại Mẫu Chỉ Đầu",
-      "noiDung": "XUẤT XỨ\nThiên Kim Phương.\nVỊ TRÍ\nTại sát bờ trên móng ngón tay cái, phía ngón thứ 2.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị phù toàn thân.\nCHÂM CỨU\nChâm thẳng, sâu 0,1 – 0,2 thốn. Cứu 5 – 10 phút.4\nß",
+      "noiDung": "XUẤT XỨ\nThiên Kim Phương.\nVỊ TRÍ\nTại sát bờ trên móng ngón tay cái, phía ngón thứ 2.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị phù toàn thân.\nCHÂM CỨU\nChâm thẳng, sâu 0,1 – 0,2 thốn. Cứu 5 – 10 phút.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "cứu 2 huyệt Đại Mẫu Chỉ Đầu ở tay, mỗi huyệt 7 tráng” (Thiên Kim Phương).\n“Đây là một trong Thập Tuyên Huyệt (Châm cứu Học Từ Điển)",
@@ -7775,7 +7775,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Châm thẳng, sâu 0,1 – 0,2 thốn. Cứu 5 – 10 phút.4\nß"
+          "body": "Châm thẳng, sâu 0,1 – 0,2 thốn. Cứu 5 – 10 phút."
         }
       ],
       "slug": "dai-mau-chi-dau",
@@ -10388,7 +10388,7 @@ window.ACUPOINTS = {
     {
       "id": 274,
       "ten": "Giáp Thượng Tinh",
-      "noiDung": "TÊN HUYỆT\nHuyệt ở gần (giáp) 2 bên huyệt Thượng Tinh, vì vậy gọi là Giáp Thượng Tinh.\nXUẤT XỨ\nChâm Cứu Khổng Huyệt Cập Kỳ Liệu Pháp Tiện Lãm.\nVỊ TRÍ\nGiữa đường chân tóc trán lên 1 thốn (huyệt Thượng Tinh – Đc.23) rồi đo ra 2 bên, mỗi bên 3 thốn.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị mũi có thịt dư (polyp mũi).\nCHÂM CỨU\nCứu 100 tráng.:0a\n ¸",
+      "noiDung": "TÊN HUYỆT\nHuyệt ở gần (giáp) 2 bên huyệt Thượng Tinh, vì vậy gọi là Giáp Thượng Tinh.\nXUẤT XỨ\nChâm Cứu Khổng Huyệt Cập Kỳ Liệu Pháp Tiện Lãm.\nVỊ TRÍ\nGiữa đường chân tóc trán lên 1 thốn (huyệt Thượng Tinh – Đc.23) rồi đo ra 2 bên, mỗi bên 3 thốn.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị mũi có thịt dư (polyp mũi).\nCHÂM CỨU\nCứu 100 tráng.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "",
@@ -10415,7 +10415,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Cứu 100 tráng.:0a\n ¸"
+          "body": "Cứu 100 tráng."
         }
       ],
       "slug": "giap-thuong-tinh",
@@ -13580,7 +13580,7 @@ window.ACUPOINTS = {
     {
       "id": 357,
       "ten": "Huyền Khu",
-      "noiDung": "TÊN HUYỆT\nHuyền chỉ nơi treo lơ lửng. Huyệt ở ngang với huyệt Tam Tiêu Du, là nơi vận hóa khí cơ của Tam Tiêu, vì vậy gọi là Huyền Khu (Trung Y Cương Mục).\nTÊN KHÁC\nHuyền Trụ, Huyền Xu.\nXUẤT XỨ\nGiáp Ất Kinh.\nVỊ TRÍ\nỞ chỗ lõm dưới đầu mỏm gai đốt sống thắt lưng 1.\nĐẶC TÍNH\nHuyệt thứ 5 của mạch Đốc.\nTÁC DỤNG:\nKiện Tỳ, hoà Vị, cường kiện yêu tất (làm mạnh lưng, gối).\nCHỦ TRỊ:\nTrị vùng thắt lưng đau cứng, lưng đau, ăn không tiêu, tiêu chảy.\nCHÂM CỨU\nChâm kim chếch lên trên, luồn kim dưới mỏm gai, hướng vào khoảng gian đốt sống thắt lưng 1 – 2, sâu 0,3 – 1 thốn. Cứu 10 – 40 phút.\nGIẢI PHẪU\nDưới da là cân ngực – thắt lưng của cơ lưng to, chỗ bám của cơ răng bé sau – dưới, cơ gian gai, cơ ngang gai, dây chằng trên gai, dây chằng gian gai, dây chằng vàng, ống sống.\nThần kinh vận động cơ là các nhánh của dây thần kinh sống.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh D10.s1:A¯:3Vùng huyệt rất dễ bị nhiễm trùng, cần thận trọng khi châm.",
+      "noiDung": "TÊN HUYỆT\nHuyền chỉ nơi treo lơ lửng. Huyệt ở ngang với huyệt Tam Tiêu Du, là nơi vận hóa khí cơ của Tam Tiêu, vì vậy gọi là Huyền Khu (Trung Y Cương Mục).\nTÊN KHÁC\nHuyền Trụ, Huyền Xu.\nXUẤT XỨ\nGiáp Ất Kinh.\nVỊ TRÍ\nỞ chỗ lõm dưới đầu mỏm gai đốt sống thắt lưng 1.\nĐẶC TÍNH\nHuyệt thứ 5 của mạch Đốc.\nTÁC DỤNG:\nKiện Tỳ, hoà Vị, cường kiện yêu tất (làm mạnh lưng, gối).\nCHỦ TRỊ:\nTrị vùng thắt lưng đau cứng, lưng đau, ăn không tiêu, tiêu chảy.\nCHÂM CỨU\nChâm kim chếch lên trên, luồn kim dưới mỏm gai, hướng vào khoảng gian đốt sống thắt lưng 1 – 2, sâu 0,3 – 1 thốn. Cứu 10 – 40 phút.\nGIẢI PHẪU\nDưới da là cân ngực – thắt lưng của cơ lưng to, chỗ bám của cơ răng bé sau – dưới, cơ gian gai, cơ ngang gai, dây chằng trên gai, dây chằng gian gai, dây chằng vàng, ống sống.\nThần kinh vận động cơ là các nhánh của dây thần kinh sống.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh D10.s1:A:3Vùng huyệt rất dễ bị nhiễm trùng, cần thận trọng khi châm.",
       "phoiHuyet": "Phối Dũng Tuyền (Th 1) + Đại Chùy (Đc 14) + Hợp Cốc (Đtr 4) + Khúc Trì (Đtr 11) + Túc Tam Lý (Vi 36) trị thương hàn sốt cao không giảm (Châm Cứu Đại Thành).\n2.\tPhối Hành Gian (C 2) + Hợp Cốc (Đtr 4) + Phong Môn (Bq 12) trị sau khi thương hàn mà còn dư nhiệt (Châm Cứu Đại Thành).\n3.\tPhối Bá Lao + Dũng Tuyền (Th 1) + Khúc Trì (Đtr 11) trị phát cuồng (Châm Cứu Đại Thành).\n4.\tPhối Hoa Đà + Hoàn Khiêu (Đ 30) trị chân đi lại khó khăn (Tiêu U Phú).\n5.\tPhối Bá Hội (Đc 20) + Hoàn Khiêu (Đ 30) + Hợp Cốc (Đtr 4) + Khúc Trì (Đtr 11) + Kiên Ngung (Đtr 15) + Phong Trì (Đ 20) + Túc Tam Lý (Vi 36): ngừa trúng phong (Thần Cứu Kinh Luân).\n6.\tPhối Bá Hội (Đc 20) + Kiên Ngung (Đtr 15) + Phát Tế + Túc Tam Lý (Vi 36) trị chân tay đau nhức, ngừa trúng phong [bệnh bên trái cứu bên phải và ngược lại] (Vệ Sinh Bảo Giám)",
       "ghiChu": "",
       "thamKhao": "",
@@ -13619,7 +13619,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "GIẢI PHẪU",
-          "body": "Dưới da là cân ngực – thắt lưng của cơ lưng to, chỗ bám của cơ răng bé sau – dưới, cơ gian gai, cơ ngang gai, dây chằng trên gai, dây chằng gian gai, dây chằng vàng, ống sống.\nThần kinh vận động cơ là các nhánh của dây thần kinh sống.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh D10.s1:A¯:3Vùng huyệt rất dễ bị nhiễm trùng, cần thận trọng khi châm."
+          "body": "Dưới da là cân ngực – thắt lưng của cơ lưng to, chỗ bám của cơ răng bé sau – dưới, cơ gian gai, cơ ngang gai, dây chằng trên gai, dây chằng gian gai, dây chằng vàng, ống sống.\nThần kinh vận động cơ là các nhánh của dây thần kinh sống.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh D10.s1:A:3Vùng huyệt rất dễ bị nhiễm trùng, cần thận trọng khi châm."
         }
       ],
       "slug": "huyen-khu",
@@ -13836,7 +13836,7 @@ window.ACUPOINTS = {
     {
       "id": 363,
       "ten": "Huyết Môn",
-      "noiDung": "TÊN KHÁC\nThực Thương.\nXUẤT XỨ\nY Kinh Tiểu Học.\nVỊ TRÍ\nRốn đo lên 4 thốn (Trung Quản), đo ngang ra 3 thốn.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị phụ nữ trong bụng có huyết khối, dạ dầy đau, si ngốc, tiêu hóa rối loạn.\nCHÂM CỨU\nChâm thẳng sâu 1 – 1,5 thốn. Cứu 3 – 5 tráng. Ôn cứu 5 – 15 phút.\n4\nMû",
+      "noiDung": "TÊN KHÁC\nThực Thương.\nXUẤT XỨ\nY Kinh Tiểu Học.\nVỊ TRÍ\nRốn đo lên 4 thốn (Trung Quản), đo ngang ra 3 thốn.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị phụ nữ trong bụng có huyết khối, dạ dầy đau, si ngốc, tiêu hóa rối loạn.\nCHÂM CỨU\nChâm thẳng sâu 1 – 1,5 thốn. Cứu 3 – 5 tráng. Ôn cứu 5 – 15 phút.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "Lậu kinh huyệt pháp... Huyết Môn, từ huyệt trung Quản đo ngang ra 3 thốn” (Y Kinh Tiểu Học)",
@@ -13863,7 +13863,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Châm thẳng sâu 1 – 1,5 thốn. Cứu 3 – 5 tráng. Ôn cứu 5 – 15 phút.\n4\nMû"
+          "body": "Châm thẳng sâu 1 – 1,5 thốn. Cứu 3 – 5 tráng. Ôn cứu 5 – 15 phút."
         }
       ],
       "slug": "huyet-mon",
@@ -14008,7 +14008,7 @@ window.ACUPOINTS = {
     {
       "id": 368,
       "ten": "Hữu Nghi",
-      "noiDung": "XUẤT XỨ\nChâm Cứu Học Thượng Hải.\nVỊ TRÍ\nHuyệt Nhũ Căn (Vi.18) đo ngang ra bên phải 1 thốn.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị tuyến vú viêm, màng ngực viêm, màng trong tim viêm, thần kinh liên sườn đau.\nCHÂM CỨU\nChâm xiên 0,3 – 0,5 thốn.3\nQ©",
+      "noiDung": "XUẤT XỨ\nChâm Cứu Học Thượng Hải.\nVỊ TRÍ\nHuyệt Nhũ Căn (Vi.18) đo ngang ra bên phải 1 thốn.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị tuyến vú viêm, màng ngực viêm, màng trong tim viêm, thần kinh liên sườn đau.\nCHÂM CỨU\nChâm xiên 0,3 – 0,5 thốn.",
       "phoiHuyet": "",
       "ghiChu": "Cũng huyệt này, ở bên TRÁI gọi là Tả Nghi.",
       "thamKhao": "",
@@ -14031,7 +14031,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Châm xiên 0,3 – 0,5 thốn.3\nQ©"
+          "body": "Châm xiên 0,3 – 0,5 thốn."
         }
       ],
       "slug": "huu-nghi",
@@ -14040,7 +14040,7 @@ window.ACUPOINTS = {
     {
       "id": 369,
       "ten": "Hữu Quan",
-      "noiDung": "VỊ TRÍ\nTại bụng trên, rốn lên 3 thốn (tức huyệt Kiến lý), đo ngang ra bên phải 1,5 thốn.\nĐẶC TÍNH\nKỳ huyệt.\nCHỦ TRỊ\nTrị dạ dày đau.\nCHÂM CỨU\nChâm thẳng, sâu 0,5 – 1 thốn. Cứu 3 – 7 tráng.R\nß",
+      "noiDung": "VỊ TRÍ\nTại bụng trên, rốn lên 3 thốn (tức huyệt Kiến lý), đo ngang ra bên phải 1,5 thốn.\nĐẶC TÍNH\nKỳ huyệt.\nCHỦ TRỊ\nTrị dạ dày đau.\nCHÂM CỨU\nChâm thẳng, sâu 0,5 – 1 thốn. Cứu 3 – 7 tráng.",
       "phoiHuyet": "",
       "ghiChu": "Huyệt bên phải gọi là Hữu quan, huyệt bên trái gọi là Tả quan.",
       "thamKhao": "",
@@ -14059,7 +14059,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Châm thẳng, sâu 0,5 – 1 thốn. Cứu 3 – 7 tráng.R\nß"
+          "body": "Châm thẳng, sâu 0,5 – 1 thốn. Cứu 3 – 7 tráng."
         }
       ],
       "slug": "huu-quan",
@@ -16004,7 +16004,7 @@ window.ACUPOINTS = {
     {
       "id": 420,
       "ten": "Kiên Thượng",
-      "noiDung": "XUẤT XỨ\nChâm Cứu Du Huyệt Đồ.\nVỊ TRÍ\nGiữa điểm nối huyệt Đại chùy và bả vai.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị khớp vai đau nơi người lớn tuổi, họng đau, răng đau.\nCHÂM CỨU\nChâm thẳng 0,4 – 0,6 thốn. Cứu 3 – 7 tráng.(\n9»",
+      "noiDung": "XUẤT XỨ\nChâm Cứu Du Huyệt Đồ.\nVỊ TRÍ\nGiữa điểm nối huyệt Đại chùy và bả vai.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị khớp vai đau nơi người lớn tuổi, họng đau, răng đau.\nCHÂM CỨU\nChâm thẳng 0,4 – 0,6 thốn. Cứu 3 – 7 tráng.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "",
@@ -16027,7 +16027,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Châm thẳng 0,4 – 0,6 thốn. Cứu 3 – 7 tráng.(\n9»"
+          "body": "Châm thẳng 0,4 – 0,6 thốn. Cứu 3 – 7 tráng."
         }
       ],
       "slug": "kien-thuong",
@@ -17224,7 +17224,7 @@ window.ACUPOINTS = {
     {
       "id": 453,
       "ten": "Lao Cung",
-      "noiDung": "TÊN HUYỆT\nTay làm việc không biết mệt (lao). Huyệt lại nằm giữa lòng bàn tay (giống như nhà lớn = cung) vì vậy gọi là Lao Cung (Trung Y Cương Mục).\nTÊN KHÁC\nChưởng Trung, Quỷ Lộ, Quỷ Quật.\nXUẤT XỨ\nGiáp Ất Kinh.\nVỊ TRÍ\nHuyệt ở trên đường văn tim của gan bàn tay, nơi khe của ngón giữa và ngón vô danh (ngón 4) chạm vào đường văn này hoặc gấp các ngón tay vào lòng bàn tay, đầu ngón tay giữa chạm vào đường nếp gấp giữa lòng bàn tay (đường tâm đạo) ở đâu thì đó là huyệt.\nĐẶC TÍNH\nHuyệt thứ 8 của kinh Tâm Bào.\nHuyệt Vinh, thuộc hành Hỏa.\nMột trong Thập Tam Quỷ Huyệt (Quỷ Quật) dùng trị bệnh tâm thần.\nTÁC DỤNG:\nThanh Tâm hỏa, an thần, trừ thấp nhiệt.\nCHỦ TRỊ:\nTrị mồ hôi tay, eczema ở vùng bàn tay, vùng tim đau, động kinh, nấc, xoang miệng viêm.\nCHÂM CỨU\nChâm thẳng từ lòng bàn tay hướng về phía lưng bàn tay đối diện 0,3 – 0,5 thốn. Cứu 1 – 3 tráng, ôn cứu 5 – 10 phút.\nGIẢI PHẪU\nDưới da là cân tay giữa, cơ giun, phía trong gân gấp ngón giữa của cơ gấp chung ngón tay nông và sâu, cơ gian cốt gan tay và cơ gian cốt mu tay, bờ trong đầu dưới xương bàn tay 3.\nThần kinh vận động cơ là nhánh của dây thần kinh giữa và dây thần kinh trụ.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh C7 hoặc C8.l!ü\nTránh châm sâu vào xương và động mạch.\nSách Giáp Ất ghi không cứu vì có thể ảnh hưởng đến thần minh.",
+      "noiDung": "TÊN HUYỆT\nTay làm việc không biết mệt (lao). Huyệt lại nằm giữa lòng bàn tay (giống như nhà lớn = cung) vì vậy gọi là Lao Cung (Trung Y Cương Mục).\nTÊN KHÁC\nChưởng Trung, Quỷ Lộ, Quỷ Quật.\nXUẤT XỨ\nGiáp Ất Kinh.\nVỊ TRÍ\nHuyệt ở trên đường văn tim của gan bàn tay, nơi khe của ngón giữa và ngón vô danh (ngón 4) chạm vào đường văn này hoặc gấp các ngón tay vào lòng bàn tay, đầu ngón tay giữa chạm vào đường nếp gấp giữa lòng bàn tay (đường tâm đạo) ở đâu thì đó là huyệt.\nĐẶC TÍNH\nHuyệt thứ 8 của kinh Tâm Bào.\nHuyệt Vinh, thuộc hành Hỏa.\nMột trong Thập Tam Quỷ Huyệt (Quỷ Quật) dùng trị bệnh tâm thần.\nTÁC DỤNG:\nThanh Tâm hỏa, an thần, trừ thấp nhiệt.\nCHỦ TRỊ:\nTrị mồ hôi tay, eczema ở vùng bàn tay, vùng tim đau, động kinh, nấc, xoang miệng viêm.\nCHÂM CỨU\nChâm thẳng từ lòng bàn tay hướng về phía lưng bàn tay đối diện 0,3 – 0,5 thốn. Cứu 1 – 3 tráng, ôn cứu 5 – 10 phút.\nGIẢI PHẪU\nDưới da là cân tay giữa, cơ giun, phía trong gân gấp ngón giữa của cơ gấp chung ngón tay nông và sâu, cơ gian cốt gan tay và cơ gian cốt mu tay, bờ trong đầu dưới xương bàn tay 3.\nThần kinh vận động cơ là nhánh của dây thần kinh giữa và dây thần kinh trụ.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh C7 hoặc C8.l!\nTránh châm sâu vào xương và động mạch.\nSách Giáp Ất ghi không cứu vì có thể ảnh hưởng đến thần minh.",
       "phoiHuyet": "Phối Thiếu Trạch (Ttr 1) + Tam Gian (Đtr.3) + Thái Xung (C.3) trị miệng nóng, khô (Thiên Kim Phương).\n2.\tPhối Ẩn Bạch (Ty.1) + Hành Gian (C.3) + Khúc Trì (Đtr.11) + Kim Tân + Ngọc Dịch + Nhiên Cốc (Th.2) + Thái Xung (C.3) + Thủy Câu (Đc.26) + Thừa Tương (Nh.24) + Thương Khâu (Ty.5) trị tiêu khát (Thiên Kim Phương).\n3.\tPhối Đại Lăng (Tb.7) trị hay cười (Tư Sinh Kinh).\n4.\tPhối Đại Lăng (Tb.7) trị tâm phiền (Châm Cứu Tụ Anh Châm Cứu Tụ Anh).\n5.\tPhối Dương Cốc (Ttr 5) + Hiệp Khê (Đ.43) + Hợp Cốc (Đtr.4) + Lệ Đoài (Vi.45) + Thương Dương (Đtr.1) + Uyển Cốt (Ttr 4) trị bệnh nhiệt mà mồ hôi không ra (Châm Cứu Tụ Anh).\n6.\tPhối Đại Lăng (Tb.7) + Đàn Trung (Nh.17) + Kỳ Môn (C.14) trị thương hàn mà hông sườn đau (Châm Cứu Đại Thành).\n7.\tPhối Hậu Khê (Ttr 3) trị hoàng đản (Bách Chứng Phú).\n8.\tPhối Ẩn Bạch (Ty.1) + Hạ Liêu (Bq.34) + Hội Dương (Bq.35) + Phục Lưu (Th.7) + Thái Bạch (Ty.3) + Thái Xung (C.3) + Thừa Sơn (Bq.57) trị tiêu ra máu (Thần Cứu Kinh Luân).\n9.\tPhối Bát Tà trị lòng bàn tay bị lở loét (Nga chưởng phong) (Trung Hoa Châm Cứu Học).\n10. Phối Nhân Trung (Đc.26) + Hợp Cốc (Đtr.4) thấu Lao Cung (Tb.8) trị hysteria (Châm Cứu Học Thượng Hải).\n11. Phối Đại Lăng (Tb.7) + Nội Quan (Tb.6) trị dạ dày viêm cấp (Châm Cứu Học Thượng Hải)",
       "ghiChu": "",
       "thamKhao": "Huyệt Lao Cung làm lui được chứng phiên vị, tâm thống” (Thông Huyền Chỉ Yếu Phú).\n“Huyệt Lao Cung trị được cơ thể mỏi mệt” (Linh Quang Phú).\n“Tâm thống, phiên vị: châm Lao Cung. Lao Cung còn trị được 5 loại động kinh” (Tạp Bệnh Huyệt Pháp Ca).\n“Thường phối huyệt Lao Cung với huyệt Túc Tam Lý (Vi.36) vì Lao Cung thuộc về Tâm Bào Lạc, tính nó mát mà hay đi xuống, vì thế nó có tác dụng điều lý được chứng khí trệ do lao động nặng nhọc gây ra. Lao Cung cũng có tác dụng làm thư được những nỗi uất kết do thất tình, nội thường gây nên và nhất là thanh được nhiệt ở vùng ngực và hoành cách mô, mở đường cho Tâm hỏa đi xuống. Dùng chung với huyệt Túc Tam Lý có tác dụng tả được hỏa của Tâm lẫn Vị, trấn được nhiệt khí từ dưới xung lên. Các chứng như bứt rứt, phiền muộn, hay nôn mửa, nôn khan, ợ hơi, ợ chua, nóng mặt, chỉ thích nằm... mà dùng cách phối 2 huyệt này thì đều có công hiệu” (Phối huyệt Khái Luận Giảng Nghĩa)",
@@ -17263,7 +17263,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "GIẢI PHẪU",
-          "body": "Dưới da là cân tay giữa, cơ giun, phía trong gân gấp ngón giữa của cơ gấp chung ngón tay nông và sâu, cơ gian cốt gan tay và cơ gian cốt mu tay, bờ trong đầu dưới xương bàn tay 3.\nThần kinh vận động cơ là nhánh của dây thần kinh giữa và dây thần kinh trụ.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh C7 hoặc C8.l!ü\nTránh châm sâu vào xương và động mạch.\nSách Giáp Ất ghi không cứu vì có thể ảnh hưởng đến thần minh."
+          "body": "Dưới da là cân tay giữa, cơ giun, phía trong gân gấp ngón giữa của cơ gấp chung ngón tay nông và sâu, cơ gian cốt gan tay và cơ gian cốt mu tay, bờ trong đầu dưới xương bàn tay 3.\nThần kinh vận động cơ là nhánh của dây thần kinh giữa và dây thần kinh trụ.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh C7 hoặc C8.l!\nTránh châm sâu vào xương và động mạch.\nSách Giáp Ất ghi không cứu vì có thể ảnh hưởng đến thần minh."
         }
       ],
       "slug": "lao-cung",
@@ -17336,7 +17336,7 @@ window.ACUPOINTS = {
     {
       "id": 456,
       "ten": "Lặc Đầu",
-      "noiDung": "TÊN HUYỆT\nHuyệt nằm ở đầu khe xương sườn (lặc) vì vậy gọi là Lặc Đầu.\nXUẤT XỨ\nThiên Kim Dực.\nVỊ TRÍ\nTại khe xương sườn thứ 1 – 2 và 2 – 3, hai bên có 4 huyệt.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị ho suyễn, nấc cụt.\nCHÂM CỨU\nCứu 3 – 7 tráng.3;\n¸",
+      "noiDung": "TÊN HUYỆT\nHuyệt nằm ở đầu khe xương sườn (lặc) vì vậy gọi là Lặc Đầu.\nXUẤT XỨ\nThiên Kim Dực.\nVỊ TRÍ\nTại khe xương sườn thứ 1 – 2 và 2 – 3, hai bên có 4 huyệt.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị ho suyễn, nấc cụt.\nCHÂM CỨU\nCứu 3 – 7 tráng.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "",
@@ -17363,7 +17363,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Cứu 3 – 7 tráng.3;\n¸"
+          "body": "Cứu 3 – 7 tráng."
         }
       ],
       "slug": "lac-dau",
@@ -17372,7 +17372,7 @@ window.ACUPOINTS = {
     {
       "id": 457,
       "ten": "Lặc Đường",
-      "noiDung": "XUẤT XỨ\nNgoại Đài Bí Yếu.\nVỊ TRÍ\nDưới hố nách 2 thốn hoặc xác định huyệt Uyên Dịch (Đ.22) hơi hướng lên phía trước – ngoài 1 thốn.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\n(Phối hợp với huyệt Cử Tý) trị ngực sườn đầy trướng, bụng đầy, ho suyễn, mắt vàng, thần kinh hông sườn đau.\nCHÂM CỨU\nChâm xiên 0,3–0,5 thốn. Cứu 3 – 5 tráng. Ôn cứu 5 – 10 phút.b\nl»",
+      "noiDung": "XUẤT XỨ\nNgoại Đài Bí Yếu.\nVỊ TRÍ\nDưới hố nách 2 thốn hoặc xác định huyệt Uyên Dịch (Đ.22) hơi hướng lên phía trước – ngoài 1 thốn.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\n(Phối hợp với huyệt Cử Tý) trị ngực sườn đầy trướng, bụng đầy, ho suyễn, mắt vàng, thần kinh hông sườn đau.\nCHÂM CỨU\nChâm xiên 0,3–0,5 thốn. Cứu 3 – 5 tráng. Ôn cứu 5 – 10 phút.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "",
@@ -17395,7 +17395,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Châm xiên 0,3–0,5 thốn. Cứu 3 – 5 tráng. Ôn cứu 5 – 10 phút.b\nl»"
+          "body": "Châm xiên 0,3–0,5 thốn. Cứu 3 – 5 tráng. Ôn cứu 5 – 10 phút."
         }
       ],
       "slug": "lac-duong",
@@ -17736,7 +17736,7 @@ window.ACUPOINTS = {
     {
       "id": 467,
       "ten": "Liêm Tuyền",
-      "noiDung": "TÊN HUYỆT\nLiêm = góc nhọn, ở đây chỉ xương đỉnh của họng, lưỡi. Huyệt nằm trên chỗ lõm, giống hình con suối (tuyền), vì vậy gọi là Liêm Tuyền (Trung Y Cương Mục).\nTÊN KHÁC\nBản Trì, Bổn Trì, Hầu Trung, Thiệt Bản, Thiệt Bổn.\nXUẤT XỨ\nGiáp Ất Kinh.\nVỊ TRÍ\nChính giữa bờ trên sụn giáp trạng, trên lằn chỉ ngang chỗ cuống hầu 0,2 thốn (Ngước đầu lên để tìm huyệt).\nĐẶC TÍNH\nHuyệt thứ 23 của mạch Nhâm.\nHội của mạch Nhâm và Âm Duy.\nHội của khí của kinh Thận.\nTÁC DỤNG:\nLợi cuống hầu, trừ đờm khí, thanh hỏa nghịch.\nCHỦ TRỊ:\nTrị lưỡi rụt, lưỡi cứng, lưỡi mềm nhão, thở khó, nuốt khó, chảy nước miếng, họng viêm, amidal viêm, câm, mất tiếng.\nCHÂM CỨU\nChâm luồn kim dưới da, mũi kim hướng ngược lên cuống lưỡi, sâu 0,2 – 1 thốn. Cứu 5 – 10 phút.\nChâm thẳng trị bệnh ở họng.\nChâm hướng về phía dưới cuống lưỡi, châm vào cơ lưỡi, trị lưỡi sưng, lưỡi cứng như gỗ, lưỡi lở loét.\nChâm xiên hướng về 2 bên phải và trái hoặc châm hướng về phía hạch hàm, dưới tai, trong tai, tuyến mang tai, trị chứng amydale (hầu nga), tai ù, điếc, tuyến mang tai viêm (Thường Dụng Du Huyệt Lâm Sàng Phát Huy).\nGIẢI PHẪU\nHuyệt ở trên khe của xương móng và sụn giáp trạng. Từ nông vào sâu có cơ ức – đòn – móng, cơ giáp móng, sau cơ là thanh quản, thực quản.\nThần kinh vận động cơ do các nhánh của đám rối cổ sâu và dây thần kinh sọ não số XII.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh C3.y3k.t]d«V2Nếu lỡ châm làm cho người bệnh đột ngột bị câm, không nói được, châm ngay huyệt Chí Âm (Bq.67) để giải. Châm sâu 0,1 thốn, vê kim chừng nửa giờ thì có thể nói lại được (Danh Từ Huyệt Vị Châm Cứu)",
+      "noiDung": "TÊN HUYỆT\nLiêm = góc nhọn, ở đây chỉ xương đỉnh của họng, lưỡi. Huyệt nằm trên chỗ lõm, giống hình con suối (tuyền), vì vậy gọi là Liêm Tuyền (Trung Y Cương Mục).\nTÊN KHÁC\nBản Trì, Bổn Trì, Hầu Trung, Thiệt Bản, Thiệt Bổn.\nXUẤT XỨ\nGiáp Ất Kinh.\nVỊ TRÍ\nChính giữa bờ trên sụn giáp trạng, trên lằn chỉ ngang chỗ cuống hầu 0,2 thốn (Ngước đầu lên để tìm huyệt).\nĐẶC TÍNH\nHuyệt thứ 23 của mạch Nhâm.\nHội của mạch Nhâm và Âm Duy.\nHội của khí của kinh Thận.\nTÁC DỤNG:\nLợi cuống hầu, trừ đờm khí, thanh hỏa nghịch.\nCHỦ TRỊ:\nTrị lưỡi rụt, lưỡi cứng, lưỡi mềm nhão, thở khó, nuốt khó, chảy nước miếng, họng viêm, amidal viêm, câm, mất tiếng.\nCHÂM CỨU\nChâm luồn kim dưới da, mũi kim hướng ngược lên cuống lưỡi, sâu 0,2 – 1 thốn. Cứu 5 – 10 phút.\nChâm thẳng trị bệnh ở họng.\nChâm hướng về phía dưới cuống lưỡi, châm vào cơ lưỡi, trị lưỡi sưng, lưỡi cứng như gỗ, lưỡi lở loét.\nChâm xiên hướng về 2 bên phải và trái hoặc châm hướng về phía hạch hàm, dưới tai, trong tai, tuyến mang tai, trị chứng amydale (hầu nga), tai ù, điếc, tuyến mang tai viêm (Thường Dụng Du Huyệt Lâm Sàng Phát Huy).\nGIẢI PHẪU\nHuyệt ở trên khe của xương móng và sụn giáp trạng. Từ nông vào sâu có cơ ức – đòn – móng, cơ giáp móng, sau cơ là thanh quản, thực quản.\nThần kinh vận động cơ do các nhánh của đám rối cổ sâu và dây thần kinh sọ não số XII.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh C3.y3k.t]dV2Nếu lỡ châm làm cho người bệnh đột ngột bị câm, không nói được, châm ngay huyệt Chí Âm (Bq.67) để giải. Châm sâu 0,1 thốn, vê kim chừng nửa giờ thì có thể nói lại được (Danh Từ Huyệt Vị Châm Cứu)",
       "phoiHuyet": "Phối Âm Cốc (Th.10) + Nhiên Cốc (Th.2) trị dưới lưỡi sưng, khó nói (Thiên Kim Phương).\n2.\tPhối Kim Tân + Ngọc Dịch + Phong Phủ (Đc.16) trị lưỡi cứng, nói khó (Châm Cứu Đại Thành).\n3.\tPhối Trung Xung (Tb.9) trị dưới lưỡi sưng đau (Bách Chứng Phú)",
       "ghiChu": "Không châm thẳng vì kim có thể xuyên qua thanh quản gây ho.",
       "thamKhao": "Theo thiên Trướng Luận (Linh Khu 35): Huyệt Liêm Tuyền và Ngọc Anh (Ngọc Đường) là con đường đi của tân dịch, vì thế đây là những huyệt đặc hiệu để trị chứng khát.\nTheo thiên Khí Phủ Luận (Tố Vấn 59): Khí của kinh túc Thiếu Âm Thận và túc Quyết âm Can lộ ra ở 2 huyệt rất quan trọng là huyệt Liêm Tuyền và Đại Đôn. Đây là những huyệt nối khí Âm với khí Dương.\n“Huyệt Liêm Tuyền và Á Môn (Đc.15) có tác dụng khác nhau: cả 2 huyệt đều liên hệ với cuống lưỡi: một ở phía trước và một ở phía sau. Cả 2 đều được dùng trị câm, mất tiếng. Tuy nhiên, Liêm Tuyền dùng thông lạc ở lưỡi, bổ ích cho gốc lưỡi, thiên về trị bệnh câm, không nói được do gốc tại lưỡi bệnh. Á Môn có tác dụng khai âm khiếu, ích não, tăng âm. Thiên về trị câm, không nói được do bệnh của não [di chứng não...] (Du Huyệt Công Năng Giám Biệt).\n“Huyệt Liêm Tuyền và Thiên Đột có công dụng khác nhau: Liêm Tuyền thiên về trị bệnh ở họng, lưỡi, có tác dụng thanh lợi yết hầu, thông điều lạc của lưỡi. Nếu tả nhiều không làm tổn thương chính khí. Huyệt Thiên Đột thiên về trị bệnh ở khí quản, ở Phế, có tác dụng thông lợi khí quản, giáng đờm, tuyên Phế. Nếu tả nhiều có thể làm tổn thương chính khí (Thường Dụng Du Huyệt Lâm Sàng Phát Huy)",
@@ -17775,7 +17775,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "GIẢI PHẪU",
-          "body": "Huyệt ở trên khe của xương móng và sụn giáp trạng. Từ nông vào sâu có cơ ức – đòn – móng, cơ giáp móng, sau cơ là thanh quản, thực quản.\nThần kinh vận động cơ do các nhánh của đám rối cổ sâu và dây thần kinh sọ não số XII.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh C3.y3k.t]d«V2Nếu lỡ châm làm cho người bệnh đột ngột bị câm, không nói được, châm ngay huyệt Chí Âm (Bq.67) để giải. Châm sâu 0,1 thốn, vê kim chừng nửa giờ thì có thể nói lại được (Danh Từ Huyệt Vị Châm Cứu)"
+          "body": "Huyệt ở trên khe của xương móng và sụn giáp trạng. Từ nông vào sâu có cơ ức – đòn – móng, cơ giáp móng, sau cơ là thanh quản, thực quản.\nThần kinh vận động cơ do các nhánh của đám rối cổ sâu và dây thần kinh sọ não số XII.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh C3.y3k.t]dV2Nếu lỡ châm làm cho người bệnh đột ngột bị câm, không nói được, châm ngay huyệt Chí Âm (Bq.67) để giải. Châm sâu 0,1 thốn, vê kim chừng nửa giờ thì có thể nói lại được (Danh Từ Huyệt Vị Châm Cứu)"
         }
       ],
       "slug": "liem-tuyen",
@@ -21628,7 +21628,7 @@ window.ACUPOINTS = {
     {
       "id": 575,
       "ten": "Nhất Y",
-      "noiDung": "XUẤT XỨ\nTân Biên Châm Cứu Trị Liệu Học.\nVỊ TRÍ\nTại đỉnh cao bờ trên cơ tam giác vai. Giữa hai đường nối của ụ chẩm ngoài và lồi cầu vai.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị vai đau, cánh tay đau, sốt không ra mồ hôi.\nCHÂM CỨU\nChâm thẳng 0,5 – 0,7 thốn. Cứu 3 – 5 tráng. Z\n0®",
+      "noiDung": "XUẤT XỨ\nTân Biên Châm Cứu Trị Liệu Học.\nVỊ TRÍ\nTại đỉnh cao bờ trên cơ tam giác vai. Giữa hai đường nối của ụ chẩm ngoài và lồi cầu vai.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị vai đau, cánh tay đau, sốt không ra mồ hôi.\nCHÂM CỨU\nChâm thẳng 0,5 – 0,7 thốn. Cứu 3 – 5 tráng.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "",
@@ -21651,7 +21651,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Châm thẳng 0,5 – 0,7 thốn. Cứu 3 – 5 tráng. Z\n0®"
+          "body": "Châm thẳng 0,5 – 0,7 thốn. Cứu 3 – 5 tráng."
         }
       ],
       "slug": "nhat-y",
@@ -21804,7 +21804,7 @@ window.ACUPOINTS = {
     {
       "id": 580,
       "ten": "Nhĩ Khổng Trung",
-      "noiDung": "TÊN KHÁC\nNhĩ Trung.\nXUẤT XỨ\nThiên Kim Phương.\nVỊ TRÍ\nTrong lỗ tai, ngay chỗ ngang với sống tai.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị trúng phong, vàng da, bệnh về tai.\nCHÂM CỨU\nThường dùng phép cứu.\nCứu theo cách sau: Dùng một cái ống, để vào lỗ tai, lấy bông gòn nhét chung quanh cho hơi thuốc không ra. Trên đầu ống để viên ngải to bằng hạt đậu, cứu 7 tráng. Đau bên phải cứu bên trái và ngược lại.+\n'¸",
+      "noiDung": "TÊN KHÁC\nNhĩ Trung.\nXUẤT XỨ\nThiên Kim Phương.\nVỊ TRÍ\nTrong lỗ tai, ngay chỗ ngang với sống tai.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị trúng phong, vàng da, bệnh về tai.\nCHÂM CỨU\nThường dùng phép cứu.\nCứu theo cách sau: Dùng một cái ống, để vào lỗ tai, lấy bông gòn nhét chung quanh cho hơi thuốc không ra. Trên đầu ống để viên ngải to bằng hạt đậu, cứu 7 tráng. Đau bên phải cứu bên trái và ngược lại.",
       "phoiHuyet": "",
       "ghiChu": "Tên gọi Nhĩ Khổng Trung do sách Kinh Huyệt Hối Giải đặt ra, sách Thiên Kim Phương chỉ mô tả vị trí huyệt mà thôi.",
       "thamKhao": "",
@@ -21831,7 +21831,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Thường dùng phép cứu.\nCứu theo cách sau: Dùng một cái ống, để vào lỗ tai, lấy bông gòn nhét chung quanh cho hơi thuốc không ra. Trên đầu ống để viên ngải to bằng hạt đậu, cứu 7 tráng. Đau bên phải cứu bên trái và ngược lại.+\n'¸"
+          "body": "Thường dùng phép cứu.\nCứu theo cách sau: Dùng một cái ống, để vào lỗ tai, lấy bông gòn nhét chung quanh cho hơi thuốc không ra. Trên đầu ống để viên ngải to bằng hạt đậu, cứu 7 tráng. Đau bên phải cứu bên trái và ngược lại."
         }
       ],
       "slug": "nhi-khong-trung",
@@ -22856,7 +22856,7 @@ window.ACUPOINTS = {
     {
       "id": 609,
       "ten": "Nhũ Tuyền",
-      "noiDung": "XUẤT XỨ\nChâm Cứu Du Huyệt Đồ.\nVỊ TRÍ\nỞ bờ dưới cơ ngực lớn, trước lằn chỉ ngang hố nách.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị thiếu sữa.\nCHÂM CỨU\nNằm ngửa, đưa hai tay lên, dùng kim châm từ đầu trước lằn chỉ nách, dọc theo bờ dưới cơ ngực lớn, mũi kim hướng về huyệt Thiên đột. Lưu kim 20 phút, cứ 5 phút vê kim một lần.4\n¯",
+      "noiDung": "XUẤT XỨ\nChâm Cứu Du Huyệt Đồ.\nVỊ TRÍ\nỞ bờ dưới cơ ngực lớn, trước lằn chỉ ngang hố nách.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị thiếu sữa.\nCHÂM CỨU\nNằm ngửa, đưa hai tay lên, dùng kim châm từ đầu trước lằn chỉ nách, dọc theo bờ dưới cơ ngực lớn, mũi kim hướng về huyệt Thiên đột. Lưu kim 20 phút, cứ 5 phút vê kim một lần.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "",
@@ -22879,7 +22879,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Nằm ngửa, đưa hai tay lên, dùng kim châm từ đầu trước lằn chỉ nách, dọc theo bờ dưới cơ ngực lớn, mũi kim hướng về huyệt Thiên đột. Lưu kim 20 phút, cứ 5 phút vê kim một lần.4\n¯"
+          "body": "Nằm ngửa, đưa hai tay lên, dùng kim châm từ đầu trước lằn chỉ nách, dọc theo bờ dưới cơ ngực lớn, mũi kim hướng về huyệt Thiên đột. Lưu kim 20 phút, cứ 5 phút vê kim một lần."
         }
       ],
       "slug": "nhu-tuyen",
@@ -26376,7 +26376,7 @@ window.ACUPOINTS = {
     {
       "id": 703,
       "ten": "Tam Giác Cứu",
-      "noiDung": "TÊN KHÁC\nMỗ Tự, Sán Khí Huyệt, Tam Giác Huyệt, Tề Bàng, Tề Tam Giác Cứu Pháp.\nXUẤT XỨ\nChâm Cứu Học Giang Tô.\nVỊ TRÍ\nLấy chiều dài của 2 khoé miệng bệnh nhân làm 1 thốn, rồi lấy rốn làm đỉnh hình tam giác đều, còn 2 góc kia cách đều rốn đỉnh. Ba đỉnh của hình tam giác là 3 huyệt.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị ruột viêm mạn tính, dạ dày co thắt, thoát vị, vùng bụng đau nhức.\nCHÂM CỨU\nCứu 5 – 7 tráng. Ở rốn: cứu cách muối.F¤\nFU",
+      "noiDung": "TÊN KHÁC\nMỗ Tự, Sán Khí Huyệt, Tam Giác Huyệt, Tề Bàng, Tề Tam Giác Cứu Pháp.\nXUẤT XỨ\nChâm Cứu Học Giang Tô.\nVỊ TRÍ\nLấy chiều dài của 2 khoé miệng bệnh nhân làm 1 thốn, rồi lấy rốn làm đỉnh hình tam giác đều, còn 2 góc kia cách đều rốn đỉnh. Ba đỉnh của hình tam giác là 3 huyệt.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị ruột viêm mạn tính, dạ dày co thắt, thoát vị, vùng bụng đau nhức.\nCHÂM CỨU\nCứu 5 – 7 tráng. Ở rốn: cứu cách muối.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "",
@@ -26403,7 +26403,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Cứu 5 – 7 tráng. Ở rốn: cứu cách muối.F¤\nFU"
+          "body": "Cứu 5 – 7 tráng. Ở rốn: cứu cách muối."
         }
       ],
       "slug": "tam-giac-cuu",
@@ -26984,7 +26984,7 @@ window.ACUPOINTS = {
     {
       "id": 720,
       "ten": "Tất Căn II",
-      "noiDung": "XUẤT XỨ\nChâm Cứu Du Huyệt Đồ.\nVỊ TRÍ\nTại chỗ lõm dưới góc dưới – ngoài xương bánh chè và ở ngoài gân cơ D đầu đùi (h. Độc Tỵ) ra 0,2 thốn, gần sát xương.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị đầu gối viêm, đầu gối cử động khó khăn.\nCHÂM CỨU\nCứu 5–10 phút.v\n,¨",
+      "noiDung": "XUẤT XỨ\nChâm Cứu Du Huyệt Đồ.\nVỊ TRÍ\nTại chỗ lõm dưới góc dưới – ngoài xương bánh chè và ở ngoài gân cơ D đầu đùi (h. Độc Tỵ) ra 0,2 thốn, gần sát xương.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị đầu gối viêm, đầu gối cử động khó khăn.\nCHÂM CỨU\nCứu 5–10 phút.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "",
@@ -27007,7 +27007,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Cứu 5–10 phút.v\n,¨"
+          "body": "Cứu 5–10 phút."
         }
       ],
       "slug": "tat-can-ii",
@@ -30056,7 +30056,7 @@ window.ACUPOINTS = {
     {
       "id": 798,
       "ten": "Thiếu Trạch",
-      "noiDung": "TÊN HUYỆT\nThiếu = non trẻ, ý chỉ Tiểu Trường. Trạch = chỗ nước đọng.\nHuyệt ở đầu ngón tay út, ngang vị trí huyệt Thiếu Xung. Nó cũng là huyệt Tỉnh Kim của kinh Tiểu Trường. Tỉnh Kim được coi là làm ẩm ướt. Sự lưu thông khí huyết ở huyệt này nhỏ như nước nằm yên trong giếng, vì vậy gọi là Thiếu trạch (Trung Y Cương Mục).\nTÊN KHÁC\nTiểu Cát.\nXUẤT XỨ\nThiên 'Bản Du' (Linh Khu 2)..\nVỊ TRÍ\nCạnh góc trong chân móng tay út cách 0,1 thốn trên đường tiếp giáp da gan tay – mu tay.\nĐẶC TÍNH\nHuyệt thứ 1 của kinh Tiểu Trường.\nHuyệt Tỉnh của kinh Tiểu Trường, Thuộc hành Kim.\nTÁC DỤNG:\nThanh Tâm nhiệt, tán phong nhiệt, thông sữa.\nCHỦ TRỊ:\nTrị đầu đau, mắt đau, tuyến vú viêm, sữa thiếu.\nCHÂM CỨU\nChâm thẳng 0,1 – 0,2 thốn. Cứu 1 – 3 tráng, Ôn cứu 3 – 5 phút.\nGIẢI PHẪU\nDưới da là giữa chỗ bám gân ngón 5 của cơ gấp chung sâu các ngón tay và gân ngón út của cơ duỗi chung các ngón tay, bờ trong của đốt 3 xương ngón tay 5.\nThần kinh vận động cơ là nhánh của dây thần kinh trụ và thần kinh quay.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh D1.;Ü\nX\"",
+      "noiDung": "TÊN HUYỆT\nThiếu = non trẻ, ý chỉ Tiểu Trường. Trạch = chỗ nước đọng.\nHuyệt ở đầu ngón tay út, ngang vị trí huyệt Thiếu Xung. Nó cũng là huyệt Tỉnh Kim của kinh Tiểu Trường. Tỉnh Kim được coi là làm ẩm ướt. Sự lưu thông khí huyết ở huyệt này nhỏ như nước nằm yên trong giếng, vì vậy gọi là Thiếu trạch (Trung Y Cương Mục).\nTÊN KHÁC\nTiểu Cát.\nXUẤT XỨ\nThiên 'Bản Du' (Linh Khu 2)..\nVỊ TRÍ\nCạnh góc trong chân móng tay út cách 0,1 thốn trên đường tiếp giáp da gan tay – mu tay.\nĐẶC TÍNH\nHuyệt thứ 1 của kinh Tiểu Trường.\nHuyệt Tỉnh của kinh Tiểu Trường, Thuộc hành Kim.\nTÁC DỤNG:\nThanh Tâm nhiệt, tán phong nhiệt, thông sữa.\nCHỦ TRỊ:\nTrị đầu đau, mắt đau, tuyến vú viêm, sữa thiếu.\nCHÂM CỨU\nChâm thẳng 0,1 – 0,2 thốn. Cứu 1 – 3 tráng, Ôn cứu 3 – 5 phút.\nGIẢI PHẪU\nDưới da là giữa chỗ bám gân ngón 5 của cơ gấp chung sâu các ngón tay và gân ngón út của cơ duỗi chung các ngón tay, bờ trong của đốt 3 xương ngón tay 5.\nThần kinh vận động cơ là nhánh của dây thần kinh trụ và thần kinh quay.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh D1.",
       "phoiHuyet": "Phối Côn Lôn (Bq 60) + Phục Lưu (Th.7) trị sốt rét thể hàn, mồ hôi không ra (Thiên Kim Phương).\n2.\tPhối Lao Cung (Tb.8) + Tam Gian (Đtr.3) trị miệng nóng, họng khô, trong miệng lở (Bị Cấp Thiên Kim Phương).\n3.\tPhối Khuyết Bồn (Vi 12) + Liệt Khuyết (P.7) + Ngư Tế (P.10) trị ho (Tư Sinh Kinh).\n4.\tPhối Can Du (Bq 18) trị mắt có mộng thịt (Châm Cứu Tụ Anh).\n5.\tPhối Thái Dương trị vú sưng (Ngọc Long Kinh).\n6.\tPhối Chiên Trung (Nh 17) + Hợp Cốc (Đtr.4) trị không có sữa (Châm Cứu Đại Thành).\n7.\tPhối A Thị Huyệt + Du Phủ (Th.27) + Đại Lăng (Tb.7) + Đản Trung (Nh 17) + Ủy Trung (Bq 40) trị vú sưng (Châm Cứu Đại Thành).\n8.\tPhối Quan Xung (Ttu 1) + Thiếu Thương (P.11) + Thiếu Xung (Tm.9) + Thương Dương (Đtr.1) + Trung Xung (Tb.9) trị trúng phong hôn mê, đờm dãi khò khè (Châm Cứu Đại Thành).\n9.\tPhối Túc Lâm Khấp (Đ.41) trị vú sưng (Thần Cứu Kinh Luân).\n10. Phối Hạ Liêm (Đtr.8) + Hiệp Khê (Đ.43) + Ngư Tế (P.10) + Túc Tam Lý (Vi 36) + Ủy Trung (Bq 40) trị vú sưng (Thần Cứu Kinh Luân).\n11. Phối Đản Trung (Nh 17) + Hợp Cốc (Đtr.4) + Nhũ Căn (Vi 18) trị sữa thiếu (Châm Cứu Học Giản Biên).\n12. Phối Dịch Môn (Ttu 2) + Thủ Tam Lý + Thủ Ngũ Lý trị phần trước cánh tay đau (Châm Cứu Học Thượng Hải).\n13. Phối Đản Trung (Nh 17) + Nhũ Căn (Vi 18) [thêm Nội Quan (Tb.6) + Thiên Tỉnh (Ttu 10) ] trị tuyến vú viêm cấp (Châm Cứu Học Thượng Hải).\n14. Phối Tinh Minh (Bq 1) + Thái Dương + Hợp Cốc (Đtr.4) trị mắt có mộng thịt (Châm Cứu Học Thượng Hải)",
       "ghiChu": "",
       "thamKhao": "Thiếu Trạch (Ttr.1) trị phụ nữ không có sữa, trước tả sau bổ” (Loại Kinh Đồ Dực)",
@@ -30095,7 +30095,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "GIẢI PHẪU",
-          "body": "Dưới da là giữa chỗ bám gân ngón 5 của cơ gấp chung sâu các ngón tay và gân ngón út của cơ duỗi chung các ngón tay, bờ trong của đốt 3 xương ngón tay 5.\nThần kinh vận động cơ là nhánh của dây thần kinh trụ và thần kinh quay.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh D1.;Ü\nX\""
+          "body": "Dưới da là giữa chỗ bám gân ngón 5 của cơ gấp chung sâu các ngón tay và gân ngón út của cơ duỗi chung các ngón tay, bờ trong của đốt 3 xương ngón tay 5.\nThần kinh vận động cơ là nhánh của dây thần kinh trụ và thần kinh quay.\nDa vùng huyệt chi phối bởi tiết đoạn thần kinh D1."
         }
       ],
       "slug": "thieu-trach",
@@ -32904,7 +32904,7 @@ window.ACUPOINTS = {
     {
       "id": 871,
       "ten": "Tích Bối Ngũ Huyệt",
-      "noiDung": "XUẤT XỨ\nThiên Kim Dực.\nVỊ TRÍ\nGồm 5 huyệt: một huyệt ở đốt xương sống thứ nhất, một huyệt ở xương cùng thứ 5, một huyệt ở giữa lưng đo từ huyệt thứ nhất đến giữa lưng rồi cắt dây đo đó làm 2 làm thành hình tam giác đều, đỉnh đặt tại giữa lưng, 2 đỉnh còn lại là 2 huyệt Cộng chung là 5 huyệt.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị trẻ nhỏ suy dinh dưỡng, bệnh tâm thần, điên cuồng, kinh phong.\nCHÂM CỨU\nCứu 3 – 5 tráng.û\nC",
+      "noiDung": "XUẤT XỨ\nThiên Kim Dực.\nVỊ TRÍ\nGồm 5 huyệt: một huyệt ở đốt xương sống thứ nhất, một huyệt ở xương cùng thứ 5, một huyệt ở giữa lưng đo từ huyệt thứ nhất đến giữa lưng rồi cắt dây đo đó làm 2 làm thành hình tam giác đều, đỉnh đặt tại giữa lưng, 2 đỉnh còn lại là 2 huyệt Cộng chung là 5 huyệt.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị trẻ nhỏ suy dinh dưỡng, bệnh tâm thần, điên cuồng, kinh phong.\nCHÂM CỨU\nCứu 3 – 5 tráng.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "Sách Loại Kinh Đồ Dực viết: “Đó là kỳ huyệt, gọi là Tích Bối Ngũ Huyệt”",
@@ -32927,7 +32927,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Cứu 3 – 5 tráng.û\nC"
+          "body": "Cứu 3 – 5 tráng."
         }
       ],
       "slug": "tich-boi-ngu-huyet",
@@ -37868,7 +37868,7 @@ window.ACUPOINTS = {
     {
       "id": 1003,
       "ten": "Tử Cung Cảnh",
-      "noiDung": "TÊN HUYỆT\nHuyệt nằm ở vị quanh cổ (cảnh) tử cung, vì vậy được dùng để đặt tên cho huyệt như trên.\nXUẤT XỨ\nChâm Cứu Học Thượng Hải.\nVỊ TRÍ\nXác định vùng cổ tử cung, chọn 12 điểm quanh đó để châm.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị cổ tử cung viêm mạn tính.\nCHÂM CỨU\nChâm thẳng sâu 0,5 thốn, kích thích xong rút kim ra, không vê kim.X9\n©",
+      "noiDung": "TÊN HUYỆT\nHuyệt nằm ở vị quanh cổ (cảnh) tử cung, vì vậy được dùng để đặt tên cho huyệt như trên.\nXUẤT XỨ\nChâm Cứu Học Thượng Hải.\nVỊ TRÍ\nXác định vùng cổ tử cung, chọn 12 điểm quanh đó để châm.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị cổ tử cung viêm mạn tính.\nCHÂM CỨU\nChâm thẳng sâu 0,5 thốn, kích thích xong rút kim ra, không vê kim.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "",
@@ -37895,7 +37895,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Châm thẳng sâu 0,5 thốn, kích thích xong rút kim ra, không vê kim.X9\n©"
+          "body": "Châm thẳng sâu 0,5 thốn, kích thích xong rút kim ra, không vê kim."
         }
       ],
       "slug": "tu-cung-canh",
@@ -38304,7 +38304,7 @@ window.ACUPOINTS = {
     {
       "id": 1015,
       "ten": "Tỵ Giao Át Trung",
-      "noiDung": "TÊN KHÁC\nTỵ Giao.\nXUẤT XỨ\nThiên Kim Dực.\nVỊ TRÍ\nTại nơi cao nhất của xương mũi, hơi lên phía ngoài một ít, giữa chỗ lõm.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị động kinh, trúng phong, mặt có cảm giác như trùng bò, trúng phong đột ngột, ngủ nhiều, hay quên, cấm khẩu, bất tỉnh, hoàng đản, cấp hoàng, bát chủng đại phong.\nCHÂM CỨU\nCứu hoặc châm luồn dưới da, sâu 0,3–0,5 thốn.\tI\n¤¨",
+      "noiDung": "TÊN KHÁC\nTỵ Giao.\nXUẤT XỨ\nThiên Kim Dực.\nVỊ TRÍ\nTại nơi cao nhất của xương mũi, hơi lên phía ngoài một ít, giữa chỗ lõm.\nĐẶC TÍNH\nKỳ Huyệt.\nCHỦ TRỊ\nTrị động kinh, trúng phong, mặt có cảm giác như trùng bò, trúng phong đột ngột, ngủ nhiều, hay quên, cấm khẩu, bất tỉnh, hoàng đản, cấp hoàng, bát chủng đại phong.\nCHÂM CỨU\nCứu hoặc châm luồn dưới da, sâu 0,3–0,5 thốn.",
       "phoiHuyet": "",
       "ghiChu": "",
       "thamKhao": "Tỵ Giao Át Trung một huyệt... có thể dùng phép cứu, không nên châm” (Thiên Kim Dực Phương)",
@@ -38331,7 +38331,7 @@ window.ACUPOINTS = {
         },
         {
           "h": "CHÂM CỨU",
-          "body": "Cứu hoặc châm luồn dưới da, sâu 0,3–0,5 thốn.\tI\n¤¨"
+          "body": "Cứu hoặc châm luồn dưới da, sâu 0,3–0,5 thốn."
         }
       ],
       "slug": "ty-giao-at-trung",

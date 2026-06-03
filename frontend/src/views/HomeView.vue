@@ -512,6 +512,19 @@ onMounted(loadDashboard)
   .hero { grid-template-columns: 1fr; text-align: center; padding: var(--space-6) }
   .hero-chips { justify-content: center }
   .hero-person { justify-self: center } /* 1 cột → căn hình người vào GIỮA (không dồn trái) */
-  .hero-art { display: none }
+  /* Vòng xoay: giữ TO như cũ, ghim vào GÓC TRÊN–PHẢI làm hoạ tiết nền (mờ nhẹ).
+     Cho phép chữ chồng lên — đã thêm bóng chữ ở .hero-main để chữ vẫn đọc rõ. */
+  .hero-art {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    width: 128px;
+    opacity: 0.7;
+    z-index: 0;
+    pointer-events: none;
+    justify-self: initial; /* huỷ justify-self:end của desktop khi đã absolute */
+  }
+  /* "Lớp phủ" cho chữ: 2 lớp bóng (nét gần + quầng tối xa) → chữ nổi hẳn trên vòng xoay */
+  .hero-main { text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 2px 12px rgba(20, 11, 4, 0.85) }
 }
 </style>

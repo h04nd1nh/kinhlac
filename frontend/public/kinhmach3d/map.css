@@ -139,8 +139,16 @@
 
 /* ===== Thu hẹp: xếp dọc khi khung nhỏ ===== */
 @media (max-width: 860px) {
+  /* Mobile: NGĂN CHỌN (chú giải kinh + danh sách huyệt) lên TRÊN, mô hình 3D xuống DƯỚI
+     → thao tác chọn nằm ngay tầm tay, không phải cuộn xuống dưới mô hình. */
   .acu3d .map-body { flex-direction: column; }
-  .acu3d .map-drawer { width: auto; border-left: 0; border-top: 1px solid var(--border); max-height: 46%; }
-  .acu3d .map-drawer .map-legend { max-height: 32%; }
+  .acu3d .map-drawer {
+    order: 1; width: auto; border-left: 0; border-top: 0;
+    border-bottom: 1px solid var(--border); max-height: 50%;
+  }
+  /* min-height:0 → SÂN KHẤU 3D co lại được; thiếu nó canvas giữ chiều cao nội tại
+     và đẩy ngăn chọn ra ngoài .acu3d{overflow:hidden} → bị cắt mất trên điện thoại. */
+  .acu3d .map-stage { order: 2; min-height: 0; }
+  .acu3d .map-drawer .map-legend { max-height: 40%; }
   .acu3d .hf-inset { width: calc(100% - 24px); }
 }

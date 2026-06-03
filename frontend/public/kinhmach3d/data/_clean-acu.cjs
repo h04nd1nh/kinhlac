@@ -6,8 +6,8 @@
  * _build-benh.cjs (deGarbage): rác = chuỗi byte ngẫu nhiên (ÿ ¿ Æ # $ @ …) dính ở cuối/giữa câu;
  * GIỮ ° ± ½ ¼ ¾ ~ , đổi \ → /. Làm sạch `noiDung` + mọi `sections[].body` (rác nằm ở 23 huyệt, cả 2 nơi).
  *
- * AN TOÀN: chỉ chạy nếu validate "0 prose-window bị mất" (không cắt nhầm chữ thật). Idempotent
- * (chạy lại trên dữ liệu đã sạch = không đổi). Ghi lại đúng định dạng JSON.stringify(…,2) như cũ.
+ * AN TOÀN: chỉ ghi nếu validate "0 prose-window bị mất" (không cắt nhầm chữ thật). Idempotent
+ * (chạy lại trên dữ liệu đã sạch = không đổi). Chỉ đụng trường CÓ marker (giữ nguyên 100% phần khác).
  *
  * CHẠY:  node _clean-acu.cjs            (validate rồi GHI)
  *        node _clean-acu.cjs --check    (chỉ validate, KHÔNG ghi)
@@ -17,7 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const D = __dirname;
 
-/* ── bộ lọc giống hệt _build-benh.cjs ── */
+/* ── bộ lọc GIỐNG HỆT _build-benh.cjs ── */
 const VN_LATIN1 = new Set('ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúý'.split(''));
 const KEEP_SYM = new Set('°±½¼¾'.split(''));
 const isUniBad = (ch) => {
@@ -43,17 +43,23 @@ function isProse(s, lo, hi) {
   }
   return spaces >= 2 && marks <= 1 && (tones >= 3 || letters >= 10);
 }
-function realBoundary(s, idx) {
+const proseAt = (s, p) => p + 1 < s.length && isProse(s, p, p + 17);
+const VOW = 'aàáảãạăằắẳẵặâầấẩẫậeèéẻẽẹêềếểễệiìíỉĩịoòóỏõọôồốổỗộơờớởỡợuùúủũụưừứửữựyỳýỷỹỵ';
+const RE_VOW = new RegExp('[' + VOW + ']', 'u');
+const RE_END = new RegExp('(?:[' + VOW + ']|ng|nh|ch|[cmnpt])$', 'u');
+const isVNword = (w) => (RE_VOW.test(w) && RE_END.test(w)) || (w.length >= 6 && (w.match(new RegExp('[' + VOW + ']', 'gu')) || []).length >= 2);
+function goodBoundary(s, idx, covered) {
   if (idx < 0 || !isTerm(s[idx])) return false;
   let k = idx - 1;
   while (k >= 0 && (isTerm(s[k]) || s[k] === "'" || s[k] === '’')) k--;
   if (k >= 0 && (s[k] === '%' || s[k] === '°')) k--;
-  if (k >= 0 && /[0-9]/.test(s[k])) return true;
-  let letters = 0, lower = false;
-  while (k >= 0 && isVN(s[k])) { letters++; if (isLower(s[k])) lower = true; k--; }
-  return letters >= 2 && lower;
+  const cleanCtx = () => { for (let t = Math.max(0, k - 8); t <= idx; t++) if (isMark(s[t])) return false; return true; };
+  if (k >= 0 && /[0-9]/.test(s[k]) && '.)]'.includes(s[idx])) return cleanCtx();
+  let w = '', lower = false, vowel = false, kk = k;
+  while (kk >= 0 && isVN(s[kk])) { const c = s[kk]; w = c + w; if (isLower(c)) lower = true; if (RE_VOW.test(c.toLowerCase())) vowel = true; kk--; }
+  if (w.length < 2 || !lower || !vowel) return false;
+  return (covered[k] || isVNword(w.toLowerCase())) && cleanCtx();
 }
-const proseAt = (s, p) => p + 1 < s.length && isProse(s, p, p + 17);
 function toneWordEndsAt(s, idx) {
   let letters = 0, lowTone = false;
   for (let k = idx; k >= 0 && isVN(s[k]); k--) { letters++; if (isLower(s[k]) && isTone(s[k])) lowTone = true; }
@@ -73,7 +79,14 @@ function removeGarbage(s, drops) {
   for (let a = 0; a + 1 < n; a++) {
     if (isProse(s, a, a + 17)) { any = true; for (let k = a; k <= a + 17 && k < n; k++) covered[k] = true; }
   }
-  if (!any) return s;
+  if (!any) {
+    // trường NGẮN không có cửa sổ prose (vd section "Cứu 5 phút.8´"): vẫn cắt ĐUÔI rác.
+    let fm = -1;
+    for (let i = 0; i < n; i++) if (isMark(s[i])) { fm = i; break; }
+    if (fm < 0) return s;
+    for (let q = fm; q >= Math.max(0, fm - 40); q--) if (goodBoundary(s, q - 1, covered)) return s.slice(0, q);
+    return s;
+  }
   const zones = [];
   for (let m = 0; m < n; m++) {
     if (!isMark(s[m])) continue;
@@ -81,9 +94,8 @@ function removeGarbage(s, drops) {
     if (covered[m] && proseAt(s, m + 1)) continue;
     let left = m, found = false;
     for (let q = m; q >= Math.max(1, m - 40); q--) {
-      if (q >= 2 && !covered[q - 2]) continue;
-      if (realBoundary(s, q - 1)) { left = q; found = true; break; }
-      if ((s[q - 1] === ' ' || s[q - 1] === '\n') && toneWordEndsAt(s, q - 2)) { left = q; found = true; break; }
+      if (goodBoundary(s, q - 1, covered)) { left = q; found = true; break; }
+      if ((s[q - 1] === ' ' || s[q - 1] === '\n') && q >= 2 && covered[q - 2] && toneWordEndsAt(s, q - 2)) { left = q; found = true; break; }
     }
     if (!found) for (let q = m; q >= Math.max(1, m - 40); q--) if (s[q - 1] === ' ' || s[q - 1] === '\n') { left = q; break; }
     let right = m + 1;
@@ -107,7 +119,7 @@ function deGarbage(s, drops) {
   for (const ch of r) if (!isMark(ch)) out += ch;
   return out.replace(/ {2,}/g, ' ');
 }
-// chuỗi bị bỏ có chứa văn xuôi thật? (= mất chữ → CHẶN ghi)
+// đoạn bị bỏ có chứa văn xuôi thật? (= mất chữ → CHẶN ghi)
 function suspectLegit(d) {
   for (let i = 0; i + 1 < d.length; i++) if (isProse(d, i, i + 17)) return true;
   return false;
@@ -123,11 +135,9 @@ const A = global.window.ACUPOINTS;
 
 const drops = [];
 let cleanedFields = 0;
+const hasMark = (v) => { for (const ch of v) if (isMark(ch)) return true; return false; };
 const clean1 = (v) => {
-  if (typeof v !== 'string') return v;
-  let hasMark = false;
-  for (const ch of v) if (isMark(ch)) { hasMark = true; break; }
-  if (!hasMark) return v; // sạch sẵn → GIỮ NGUYÊN 100% (không đụng khoảng trắng/định dạng)
+  if (typeof v !== 'string' || !hasMark(v)) return v; // sạch sẵn → GIỮ NGUYÊN 100%
   const c = deGarbage(v, drops);
   if (c !== v) cleanedFields++;
   return c;
@@ -137,11 +147,10 @@ for (const r of A.records) {
   for (const s of r.sections || []) s.body = clean1(s.body);
 }
 
-// kiểm an toàn
 let residue = 0;
 for (const r of A.records) {
-  const fields = [r.noiDung, ...(r.sections || []).map((s) => s.body)];
-  for (const v of fields) if (typeof v === 'string') for (const ch of v) if (isMark(ch)) { residue++; break; }
+  for (const v of [r.noiDung, ...(r.sections || []).map((s) => s.body)])
+    if (typeof v === 'string') for (const ch of v) if (isMark(ch)) { residue++; break; }
 }
 const suspects = drops.filter(suspectLegit);
 
@@ -151,10 +160,7 @@ console.log(`Đoạn bỏ NGHI là chữ thật (phải = 0): ${suspects.length}
 for (const s of suspects.slice(0, 10)) console.log('  ⚠ ' + JSON.stringify(s.slice(0, 80)));
 
 if (CHECK) { console.log('\n--check: KHÔNG ghi.'); process.exit(0); }
-if (suspects.length > 0) {
-  console.error('\n✗ HỦY GHI: có đoạn nghi là chữ thật bị cắt. Xem lại bộ lọc.');
-  process.exit(1);
-}
+if (suspects.length > 0) { console.error('\n✗ HỦY GHI: có đoạn nghi là chữ thật bị cắt.'); process.exit(1); }
 const out = 'window.ACUPOINTS = ' + JSON.stringify(A, null, 2) + ';\n';
 if (out === orig) { console.log('\n✔ Đã sạch sẵn — không có gì để đổi.'); process.exit(0); }
 fs.writeFileSync(file, out, 'utf8');

@@ -8,6 +8,10 @@ const router = useRouter()
 const mountPoint = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+// Mobile: nút gạt ẩn mô hình 3D để danh sách kinh/huyệt chiếm trọn chiều cao.
+// Ẩn bằng display:none là an toàn — onResize của engine có guard `if(!w||!h)return`,
+// và ResizeObserver trên #mapStage tự chỉnh lại canvas khi hiện mô hình trở lại.
+const showModel = ref(true)
 
 /**
  * Cầu nối engine → SPA: drawer 3D có sẵn 2 link "Xem thêm" (href #acu/<id>) và "Lý thuyết kinh
@@ -52,7 +56,21 @@ onBeforeUnmount(() => {
       <p>{{ error }}</p>
     </div>
 
-    <div class="km3d-mount" ref="mountPoint">
+    <!-- Nút gạt ẩn/hiện mô hình 3D — chỉ hiện trên mobile (CSS), để dành chỗ cho danh sách. -->
+    <button
+      type="button"
+      class="km3d-toggle"
+      :aria-pressed="!showModel"
+      @click="showModel = !showModel"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12" />
+      </svg>
+      <span>{{ showModel ? 'Ẩn mô hình 3D — mở rộng danh sách' : 'Hiện mô hình 3D' }}</span>
+    </button>
+
+    <div class="km3d-mount" :class="{ 'hide-model': !showModel }" ref="mountPoint">
       <div v-if="loading" class="km3d-loading">
         <div class="km3d-spinner" aria-hidden="true"></div>
         <p>Đang tải đồ hình kinh lạc 3D…</p>
@@ -117,9 +135,34 @@ onBeforeUnmount(() => {
 }
 @keyframes km3d-spin { to { transform: rotate(360deg); } }
 
+/* Nút gạt ẩn/hiện mô hình 3D — mặc định ẨN, chỉ hiện trên mobile (≤860px). */
+.km3d-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 9px var(--space-4);
+  background: var(--surface);
+  color: var(--brown-700);
+  border: 1px solid var(--brown-200);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  transition: all var(--transition-fast);
+}
+.km3d-toggle:hover { background: var(--brown-50); border-color: var(--brown-300); }
+.km3d-toggle svg { flex: none; }
+
+@media (max-width: 860px) {
+  .km3d-toggle { display: flex; }
+  /* Khi ẩn mô hình: giấu sân khấu 3D, cho ngăn chọn (kinh + huyệt) chiếm trọn chiều cao. */
+  .km3d-mount.hide-model :deep(.map-stage) { display: none; }
+  .km3d-mount.hide-model :deep(.map-drawer) { max-height: none; flex: 1 1 auto; }
+}
 @media (max-width: 768px) {
-  /* Padding content-area nhỏ hơn ở mobile → bù lại để khung không bị cụt. */
-  .km3d-mount { height: calc(100vh - 108px); }
+  /* Trừ thêm chiều cao của nút gạt phía trên (≈54px) để khung không tràn quá viewport. */
+  .km3d-mount { height: calc(100vh - 162px); }
 }
 @media (max-width: 480px) {
   /* Điện thoại nhỏ: hạ chiều cao tối thiểu để đồ hình không lấn quá nhiều. */
@@ -127,6 +170,6 @@ onBeforeUnmount(() => {
 }
 @media (max-height: 480px) {
   /* Điện thoại xoay NGANG (màn thấp): không ép khung cao hơn viewport. */
-  .km3d-mount { height: calc(100vh - 90px); min-height: 260px; }
+  .km3d-mount { height: calc(100vh - 144px); min-height: 240px; }
 }
 </style>

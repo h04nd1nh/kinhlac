@@ -12,7 +12,8 @@
         search = $('mapSearch'), countEl = $('mapCount');
   if (!stage) return;
 
-  const MODEL_URL = (window.ACU_MAP_BASE || '') + 'models/body-layers.glb';   // 3 lớp Da/Cơ/Xương (BodyParts3D). ACU_MAP_BASE do Vue đặt (vd '/kinhmach3d/') → đường dẫn đúng trong SPA.
+  const MODEL_URL = (window.ACU_MAP_BASE || '') + 'models/body-layers.glb'
+    + (window.ACU_ASSET_VER ? '?v=' + window.ACU_ASSET_VER : '');   // 3 lớp Da/Cơ/Xương (BodyParts3D). ACU_MAP_BASE do Vue đặt (vd '/kinhmach3d/'); ?v=<số build> để phá cache (khớp preload trong acuMap3d.ts).
   const BODY_H = 1.7;                            // chuẩn hoá chiều cao thân về 1.7 đơn vị
   const ACCENT = 0xb8763e;                       // màu nhấn khi chọn/khớp tìm kiếm
   // kích thước kim châm (theo tỉ lệ bodyHeight): chiều dài thân · cán · độ cắm vào da · biên độ "trượt vào" · thời lượng
