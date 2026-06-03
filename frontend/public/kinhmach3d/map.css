@@ -139,6 +139,12 @@
 
 /* ===== Thu hẹp: xếp dọc khi khung nhỏ ===== */
 @media (max-width: 860px) {
+  /* Mobile: ẩn TOÀN BỘ thanh công cụ (Đặt Lại Góc Nhìn · Dòng Chảy · Hai Bên · Chấm Tay ·
+     bóc lớp Da/Cơ/Xương · Bàn Tay/Chân · Tìm Kiếm) → dồn hết diện tích cho mô hình + danh sách
+     + chi tiết huyệt. Các nút VẪN NẰM trong DOM (chỉ display:none) nên nút "Phóng To" của Vue
+     gọi .click() lên #mapReset để canh lại góc nhìn vẫn chạy bình thường.
+     "Hai Bên" mặc định BẬT → ẩn nút không tắt nó, mô hình vẫn hiện huyệt đối xứng cả hai bên. */
+  .acu3d .map-toolbar { display: none; }
   /* Mobile: NGĂN CHỌN (chú giải kinh + danh sách huyệt) lên TRÊN, mô hình 3D xuống DƯỚI
      → thao tác chọn nằm ngay tầm tay, không phải cuộn xuống dưới mô hình. */
   .acu3d .map-body { flex-direction: column; }

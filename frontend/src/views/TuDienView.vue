@@ -1650,6 +1650,29 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
 }
 @media (max-width: 768px) {
   .td-shell { min-height: 0; }
+  /* tab con: nút gọn lại để bớt xuống nhiều dòng */
+  .td-tab { padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); }
+  /* chi tiết: giảm padding để nội dung có thêm bề ngang */
+  .td-main { padding: var(--space-4); overflow-x: hidden; }
+  .td-main :deep(.detail-head) { gap: 16px; }
+  .td-main :deep(.detail-head .photo) { width: 150px; }
+  .td-main :deep(.detail-head .titles) { min-width: 0; flex-basis: 100%; }
+  .td-main :deep(.detail-head h2) { font-size: 23px; }
+  .td-main :deep(.field) { padding: 13px 15px 12px; margin: 13px 0; }
+  .td-main :deep(.field .body) { font-size: 14.5px; line-height: 1.75; }
+  .mer-head h2 { font-size: 23px; }
+}
+@media (max-width: 560px) {
+  .td-main { padding: var(--space-3); }
+  /* nhãn : giá trị → xuống dòng cho dễ đọc trên màn hẹp */
+  .td-main :deep(.meta .m-row),
+  .src-meta .m-row { flex-direction: column; gap: 2px; }
+  .td-main :deep(.meta dt),
+  .td-main :deep(.benh-head .meta dt),
+  .src-meta dt { flex: none; }
+  .td-main :deep(.detail-head h2) { font-size: 21px; }
+  .td-main :deep(.detail-head .photo) { width: 120px; }
+  .mer-head h2 { font-size: 21px; }
 }
 
 </style>

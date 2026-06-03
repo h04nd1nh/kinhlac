@@ -618,10 +618,11 @@ function goToPatient(id: number) {
 .appointments-page { animation: fadeIn .3s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 2px solid var(--brown-100); }
-.page-title { font-size: var(--font-size-2xl); font-weight: 800; color: var(--brown-800); margin-bottom: 4px; }
-.page-subtitle { color: var(--gray-500); font-size: var(--font-size-md); }
-.header-actions { display: flex; gap: var(--space-2); }
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 2px solid var(--brown-100); }
+.page-header > div:first-child { flex: 1; min-width: 200px; }
+.page-title { font-size: var(--font-size-2xl); font-weight: 800; color: var(--brown-800); margin-bottom: 4px; line-height: 1.2; }
+.page-subtitle { color: var(--gray-500); font-size: var(--font-size-md); line-height: 1.4; }
+.header-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
 .alert-error { padding: var(--space-3); background: var(--danger-bg); color: var(--danger-fg); border-radius: var(--radius-md); margin-bottom: var(--space-4); display: flex; justify-content: space-between; align-items: center; }
 .btn-link { background: transparent; color: var(--danger-fg); text-decoration: underline; }

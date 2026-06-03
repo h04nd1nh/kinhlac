@@ -1213,9 +1213,10 @@ const unexplainedSymptoms = computed<DiagnosisMatchedSymptom[]>(() => {
 .management-page { width: 100%; animation: fadeIn 0.4s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: var(--space-6); padding-bottom: var(--space-4); border-bottom: 2px solid var(--brown-100); }
-.page-title { font-size: var(--font-size-2xl); font-weight: 800; color: var(--brown-800); margin-bottom: var(--space-1); }
-.page-subtitle { color: var(--gray-500); font-size: var(--font-size-md); }
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-6); padding-bottom: var(--space-4); border-bottom: 2px solid var(--brown-100); }
+.header-content { flex: 1; min-width: 200px; }
+.page-title { font-size: var(--font-size-2xl); font-weight: 800; color: var(--brown-800); margin-bottom: var(--space-1); line-height: 1.2; }
+.page-subtitle { color: var(--gray-500); font-size: var(--font-size-md); line-height: 1.4; }
 
 /* Main tabs (Danh sách / Chẩn đoán) */
 .main-tabs { display: flex; gap: var(--space-2); margin-bottom: var(--space-5); border-bottom: 1px solid var(--brown-100); flex-wrap: wrap; }
