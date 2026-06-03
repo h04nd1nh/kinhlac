@@ -1681,4 +1681,22 @@ async function handleDelete() {
 .chip-create { border-style: dashed; border-color: var(--brown-400); color: var(--brown-700); background: var(--brown-50); }
 .chip-create:hover:not(:disabled) { background: var(--brown-100); border-color: var(--brown-500); }
 .chip-create:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ─── Responsive: lưới thẻ, phân trang, biểu mẫu, modal ─── */
+@media (max-width: 768px) {
+  .search-wrap { max-width: none; }
+  /* giảm padding lưới + thanh tiêu đề thẻ để có thêm bề ngang */
+  .disease-grid { padding: var(--space-3); gap: var(--space-3); }
+  .card-header { padding: var(--space-3) var(--space-4); gap: var(--space-2); flex-wrap: wrap; }
+  /* phân trang: cho phép xuống dòng, "Trang x / y" rớt xuống hàng riêng */
+  .pagination { flex-wrap: wrap; gap: 6px; padding: var(--space-3); }
+  .page-info { margin-left: 0; flex: 1 1 100%; text-align: center; }
+}
+@media (max-width: 640px) {
+  /* biểu mẫu trong modal: 2 cột → 1 cột cho dễ nhập trên điện thoại */
+  .form-grid { grid-template-columns: 1fr; }
+  .modal { max-height: 95vh; }
+  .modal-body { padding: var(--space-4); }
+  .modal-header, .modal-footer { padding: var(--space-3) var(--space-4); }
+}
 </style>

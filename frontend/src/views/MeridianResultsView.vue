@@ -2814,4 +2814,26 @@ function footerDiffClassMerged() {
   .results-layout { grid-template-columns: 1fr; }
   .mock-stats-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 }
+@media (max-width: 768px) {
+  /* meta tiêu đề: cho xuống dòng, ẩn dấu "|" khi đã xuống dòng */
+  .exam-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--space-2); }
+  .exam-meta .divider { display: none; }
+  /* layout dọc: giảm khoảng cách giữa các phần */
+  .results-layout { gap: var(--space-4); }
+  .result-section { gap: var(--space-3); }
+  /* thẻ kết quả: giảm padding để nội dung có thêm bề ngang */
+  .result-card { padding: var(--space-4); }
+  .patient-table-header { padding: var(--space-3); }
+  /* bảng thông tin BN: chữ nhỏ lại cho bớt chật (nhiều cột trên 1 hàng) */
+  .patient-table-header .data-table { font-size: var(--font-size-xs); }
+  .data-table td { padding: 5px 8px; }
+  /* hàng thống kê 5 cột: thu gọn cho vừa màn hình hẹp */
+  .stat-col { padding: 6px 3px; font-size: var(--font-size-xs); }
+  .section-title { font-size: var(--font-size-md); }
+}
+@media (max-width: 480px) {
+  .result-card { padding: var(--space-3); }
+  .page-title { font-size: var(--font-size-xl); }
+  .patient-table-header .data-table td { padding: 4px 6px; }
+}
 </style>
