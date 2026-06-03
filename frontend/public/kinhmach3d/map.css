@@ -144,7 +144,7 @@
   .acu3d .map-body { flex-direction: column; }
   .acu3d .map-drawer {
     order: 1; width: auto; border-left: 0; border-top: 0;
-    border-bottom: 1px solid var(--border); max-height: 50%;
+    border-bottom: 1px solid var(--border); max-height: 44%;
   }
   /* min-height:0 → SÂN KHẤU 3D co lại được; thiếu nó canvas giữ chiều cao nội tại
      và đẩy ngăn chọn ra ngoài .acu3d{overflow:hidden} → bị cắt mất trên điện thoại. */

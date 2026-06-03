@@ -13,6 +13,34 @@ const error = ref<string | null>(null)
 // và ResizeObserver trên #mapStage tự chỉnh lại canvas khi hiện mô hình trở lại.
 const showModel = ref(true)
 
+// Mobile: phóng to mô hình 3D ra TOÀN màn hình để xem cho rõ (khung mặc định khá nhỏ).
+// Khi bật: .km3d-mount phủ kín màn hình (position:fixed), ẩn ngăn danh sách → mô hình chiếm trọn.
+const expanded = ref(false)
+
+/**
+ * Sau khi đổi kích thước khung (vào/ra toàn màn hình), canh lại camera cho mô hình vừa khít.
+ * Engine có sẵn ResizeObserver trên #mapStage (tự đổi tỉ lệ canvas); ta bấm hộ nút "Đặt Lại Góc
+ * Nhìn" để khung hình vừa vặn màn hình mới. Đợi 2 frame cho layout + observer chạy xong rồi mới canh.
+ */
+function refitModel() {
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      document.getElementById('mapReset')?.click()
+    }),
+  )
+}
+
+function toggleExpand() {
+  expanded.value = !expanded.value
+  // Khoá cuộn trang nền khi xem toàn màn hình để không bị "trôi" phía sau.
+  document.body.style.overflow = expanded.value ? 'hidden' : ''
+  refitModel()
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && expanded.value) toggleExpand()
+}
+
 /**
  * Cầu nối engine → SPA: drawer 3D có sẵn 2 link "Xem thêm" (href #acu/<id>) và "Lý thuyết kinh
  * đầy đủ" (href #meridian/<mã>) — di sản từ webapp gốc, không tự điều hướng trong SPA. Bắt sự kiện
@@ -32,6 +60,7 @@ onMounted(async () => {
   try {
     if (mountPoint.value) await mountAcuMap(mountPoint.value)
     window.addEventListener('hashchange', onHashNav)
+    window.addEventListener('keydown', onKeydown)
     // Mở từ "Từ Điển" với ?focus=<mã huyệt> → bay tới huyệt đó (engine đã sẵn sàng sau mountAcuMap).
     const focus = route.query.focus
     const code = Array.isArray(focus) ? focus[0] : focus
@@ -45,6 +74,8 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('hashchange', onHashNav)
+  window.removeEventListener('keydown', onKeydown)
+  document.body.style.overflow = '' // phòng khi rời trang lúc đang phóng to
   unmountAcuMap()
 })
 </script>
@@ -70,7 +101,24 @@ onBeforeUnmount(() => {
       <span>{{ showModel ? 'Ẩn mô hình 3D — mở rộng danh sách' : 'Hiện mô hình 3D' }}</span>
     </button>
 
-    <div class="km3d-mount" :class="{ 'hide-model': !showModel }" ref="mountPoint">
+    <div class="km3d-mount" :class="{ 'hide-model': !showModel, 'is-expanded': expanded }" ref="mountPoint">
+      <!-- Nút phóng to mô hình ra TOÀN màn hình (mobile) — bấm lại hoặc Esc để thu nhỏ. -->
+      <button
+        type="button"
+        class="km3d-expand"
+        :aria-pressed="expanded"
+        :title="expanded ? 'Thu nhỏ mô hình' : 'Phóng to mô hình toàn màn hình'"
+        @click="toggleExpand"
+      >
+        <svg v-if="!expanded" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+        </svg>
+        <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+        </svg>
+        <span>{{ expanded ? 'Thu Nhỏ' : 'Phóng To' }}</span>
+      </button>
+
       <div v-if="loading" class="km3d-loading">
         <div class="km3d-spinner" aria-hidden="true"></div>
         <p>Đang tải đồ hình kinh lạc 3D…</p>
@@ -135,6 +183,48 @@ onBeforeUnmount(() => {
 }
 @keyframes km3d-spin { to { transform: rotate(360deg); } }
 
+/* Nút "Phóng To" — nổi ở góc dưới-phải khung 3D, chỉ hiện trên mobile (≤860px). */
+.km3d-expand {
+  display: none;
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 6;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 9px 14px;
+  background: var(--brown-700);
+  color: #fff;
+  border: 0;
+  border-radius: 999px;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+}
+.km3d-expand svg { flex: none; }
+/* Khi đang ẩn mô hình (mở rộng danh sách) thì không có gì để phóng to → ẩn nút. */
+.km3d-mount.hide-model .km3d-expand { display: none !important; }
+
+/* Chế độ TOÀN MÀN HÌNH: khung 3D phủ kín màn hình, ẩn ngăn danh sách → mô hình to hết cỡ. */
+.km3d-mount.is-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  height: 100vh;
+  height: 100dvh; /* trừ thanh địa chỉ trình duyệt mobile để không bị tràn */
+  min-height: 0;
+  margin: 0;
+  border-radius: 0;
+  background: var(--surface);
+}
+.km3d-mount.is-expanded :deep(.acu3d) { border: 0; border-radius: 0; }
+.km3d-mount.is-expanded :deep(.map-drawer) { display: none; }
+/* Giữ nút ở góc dưới-phải (tránh đè thanh công cụ/ô tìm kiếm ở trên); luôn hiện để có lối thoát. */
+.km3d-mount.is-expanded .km3d-expand {
+  display: inline-flex !important;
+}
+
 /* Nút gạt ẩn/hiện mô hình 3D — mặc định ẨN, chỉ hiện trên mobile (≤860px). */
 .km3d-toggle {
   display: none;
@@ -156,6 +246,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 860px) {
   .km3d-toggle { display: flex; }
+  .km3d-expand { display: inline-flex; }
   /* Khi ẩn mô hình: giấu sân khấu 3D, cho ngăn chọn (kinh + huyệt) chiếm trọn chiều cao. */
   .km3d-mount.hide-model :deep(.map-stage) { display: none; }
   .km3d-mount.hide-model :deep(.map-drawer) { max-height: none; flex: 1 1 auto; }

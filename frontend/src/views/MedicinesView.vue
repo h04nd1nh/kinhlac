@@ -3437,9 +3437,10 @@ async function suggestViThuocAi() {
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Header */
-.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: var(--space-6); padding-bottom: var(--space-4); border-bottom: 2px solid var(--brown-100); }
-.page-title { font-size: var(--font-size-2xl); font-weight: 800; color: var(--brown-800); margin-bottom: var(--space-1); }
-.page-subtitle { color: var(--gray-500); font-size: var(--font-size-md); }
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-6); padding-bottom: var(--space-4); border-bottom: 2px solid var(--brown-100); }
+.header-content { min-width: 0; flex: 1 1 auto; }
+.page-title { font-size: var(--font-size-2xl); font-weight: 800; color: var(--brown-800); margin-bottom: var(--space-1); line-height: 1.2; }
+.page-subtitle { color: var(--gray-500); font-size: var(--font-size-md); line-height: 1.4; }
 
 .view-toggle { display: flex; background: var(--white); padding: 4px; border-radius: var(--radius-lg); border: 1px solid var(--brown-200); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
 .toggle-btn { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-sm); color: var(--gray-600); transition: all var(--transition-base); }
@@ -4468,4 +4469,34 @@ async function suggestViThuocAi() {
 .ana-chip-tacdung { border-color: #C49A6C; background: #FAEBD8; color: #5B3A1A; }
 .ana-chip-tayy { border-color: var(--chip-brand-border); background: var(--chip-brand-bg); color: var(--chip-brand-fg); }
 .ana-sub-hint { font-weight: 400; color: var(--gray-400); font-size: 10px; }
+
+/* ─── Responsive: tiêu đề trang, nút chuyển tab, thanh công cụ ─── */
+@media (max-width: 900px) {
+  /* Xếp dọc: tiêu đề ở trên, dải nút Bài/Vị/Dược Lý xuống dưới và trải hết hàng */
+  .page-header { flex-direction: column; align-items: stretch; gap: var(--space-3); }
+  .view-toggle { align-self: stretch; }
+  .toggle-btn { flex: 1 1 0; justify-content: center; }
+  /* Thanh tiêu đề thẻ: cho phép xuống dòng để nút thao tác không bị bóp */
+  .card-header { flex-wrap: wrap; }
+  .card-header-left { flex: 1 1 100%; }
+  .header-actions { flex: 1 1 100%; justify-content: flex-start; }
+  .search-wrap { min-width: 0; max-width: none; flex: 1 1 100%; }
+}
+@media (max-width: 560px) {
+  .page-subtitle { font-size: var(--font-size-sm); }
+  .toggle-btn { gap: 4px; padding: var(--space-2); font-size: var(--font-size-xs); }
+  .toggle-btn svg { width: 16px; height: 16px; }
+  .vt-grid { padding: var(--space-3); }
+  .card-header { padding: var(--space-3) var(--space-4); }
+  .header-actions { gap: 6px; }
+  .header-actions .btn-secondary,
+  .header-actions .btn-primary {
+    flex: 1 1 auto;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-xs);
+    text-align: center;
+  }
+  .pagination { flex-wrap: wrap; gap: 6px; padding: var(--space-3); }
+  .page-info { margin-left: 0; flex: 1 1 100%; text-align: center; }
+}
 </style>
