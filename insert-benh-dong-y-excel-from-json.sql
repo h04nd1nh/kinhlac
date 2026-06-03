@@ -116,7 +116,7 @@ WITH src AS (
   },
   {
     "code": "can_duong_thuong_sang",
-    "name": "Can dương thượng sang",
+    "name": "Can dương thượng cang",
     "outputCell": "AG14",
     "excel_formula": "=IF(AND(E12>0;E13>0;E15>0;E22>0;E24>0;E25>E18;E26>0);AG14&\", \";\"\")",
     "logic": "(E12 > 0) AND (E13 > 0) AND (E15 > 0) AND (E22 > 0) AND (E24 > 0) AND (E25 > E18) AND (E26 > 0)",
@@ -134,7 +134,7 @@ WITH src AS (
   },
   {
     "code": "dam_nhiet",
-    "name": "Đảm nhiệt",
+    "name": "Đởm nhiệt",
     "outputCell": "AG16",
     "excel_formula": "=IF(E23>0;AG16&\", \";\"\")",
     "logic": "(E23 > 0)",

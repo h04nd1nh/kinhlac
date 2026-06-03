@@ -15,6 +15,14 @@ export class ExaminationsService {
     private readonly patientsService: PatientsService,
   ) {}
 
+  /**
+   * Cache ca đo dùng cho trang DEMO công khai (trang landing cho khách xem thử).
+   * Quét tìm 1 lần rồi giữ trong bộ nhớ tiến trình — lần sau trả ngay, không quét lại.
+   */
+  private demoExamCache: Examination | null = null;
+  /** Cache danh sách ca đo cho slider DEMO (nhiều ca) — quét 1 lần rồi giữ lại. */
+  private demoExamsCache: Examination[] | null = null;
+
   findAll(): Promise<Examination[]> {
     return this.examinationRepository.find({
       order: { createdAt: 'DESC' },
@@ -207,6 +215,108 @@ export class ExaminationsService {
   async remove(id: number): Promise<void> {
     const examination = await this.findOne(id);
     await this.examinationRepository.remove(examination);
+  }
+
+  /**
+   * Chọn 1 ca đo "đẹp" để DEMO công khai (khách chưa đăng nhập xem thử).
+   * - Có thể chỉ định cứng qua biến môi trường DEMO_EXAM_ID.
+   * - Mặc định: quét 40 ca gần nhất, ưu tiên ca cho ra NHIỀU thể bệnh để demo sinh động.
+   * Trả về Examination đã được phân tích đầy đủ (findOne tự gắn excelSyndromes/modernSyndromes…).
+   * KHÔNG kèm thông tin bệnh nhân — phần ẩn danh do DemoRouter xử lý.
+   */
+  async findDemoExamination(): Promise<Examination> {
+    if (this.demoExamCache) return this.demoExamCache;
+
+    const envId = process.env.DEMO_EXAM_ID ? Number(process.env.DEMO_EXAM_ID) : null;
+    if (envId && Number.isFinite(envId)) {
+      const chosen = await this.findOne(envId);
+      this.demoExamCache = chosen;
+      return chosen;
+    }
+
+    const candidates = await this.examinationRepository.find({
+      order: { createdAt: 'DESC' },
+      take: 40,
+    });
+
+    let bestId: number | null = null;
+    let bestScore = -1;
+    for (const exam of candidates) {
+      if (!exam.inputData) continue;
+      try {
+        const fresh = await this.meridiansService.analyze(exam.inputData as any);
+        const score =
+          (fresh.excelSyndromes?.length ?? 0) * 2 +
+          (fresh.modernSyndromes?.length ?? 0) +
+          (fresh.syndromes?.length ?? 0);
+        if (score > bestScore) {
+          bestScore = score;
+          bestId = exam.id;
+        }
+      } catch {
+        // Bỏ qua ca lỗi phân tích, thử ca tiếp theo.
+      }
+    }
+
+    if (bestId == null) {
+      const fallback = candidates.find((e) => e.inputData) ?? candidates[0];
+      if (!fallback) {
+        throw new NotFoundException('Chưa có ca đo nào để demo');
+      }
+      bestId = fallback.id;
+    }
+
+    const chosen = await this.findOne(bestId);
+    this.demoExamCache = chosen;
+    return chosen;
+  }
+
+  /**
+   * Chọn NHIỀU ca đo "đẹp" cho slider DEMO công khai (khách lướt xem vài ca).
+   * - Quét các ca gần nhất, ưu tiên ca ra NHIỀU thể bệnh để demo sinh động.
+   * - Trả về tối đa `count` ca, mỗi ca đã phân tích đầy đủ (findOne tự gắn excelSyndromes/modernSyndromes…).
+   * KHÔNG kèm thông tin bệnh nhân — phần ẩn danh do DemoRouter xử lý.
+   */
+  async findDemoExaminations(count = 5): Promise<Examination[]> {
+    const want = Math.max(1, Math.min(count, 12));
+    if (this.demoExamsCache) return this.demoExamsCache.slice(0, want);
+
+    const candidates = await this.examinationRepository.find({
+      order: { createdAt: 'DESC' },
+      take: 50,
+    });
+
+    const scored: { id: number; score: number }[] = [];
+    for (const exam of candidates) {
+      if (!exam.inputData) continue;
+      try {
+        const fresh = await this.meridiansService.analyze(exam.inputData as any);
+        const score =
+          (fresh.excelSyndromes?.length ?? 0) * 2 +
+          (fresh.modernSyndromes?.length ?? 0) +
+          (fresh.syndromes?.length ?? 0);
+        if (score > 0) scored.push({ id: exam.id, score });
+      } catch {
+        // Bỏ qua ca lỗi phân tích.
+      }
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+    let ids = scored.slice(0, want).map((s) => s.id);
+
+    // Fallback: chưa có ca nào ra thể bệnh → lấy đại 1 ca có dữ liệu đo.
+    if (ids.length === 0) {
+      const fb = candidates.find((e) => e.inputData) ?? candidates[0];
+      if (!fb) throw new NotFoundException('Chưa có ca đo nào để demo');
+      ids = [fb.id];
+    }
+
+    const exams: Examination[] = [];
+    for (const id of ids) {
+      exams.push(await this.findOne(id));
+    }
+    this.demoExamsCache = exams;
+    return exams;
   }
 
   async fixSequence(): Promise<any> {

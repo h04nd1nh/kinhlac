@@ -73,7 +73,11 @@ const navItems = [
   { name: 'Quản Lý Thuốc', routeName: 'medicines', icon: 'pill' },
   { name: 'Triệu Chứng', routeName: 'symptoms', icon: 'clipboard' },
   { name: 'Pháp Trị', routeName: 'treatments', icon: 'shield' },
+  { name: 'Quản Lý Người Dùng', routeName: 'users', icon: 'users' },
 ]
+
+// Chỉ hiện những mục mà vai trò hiện tại được phép vào (routeName trùng key trang).
+const visibleNavItems = computed(() => navItems.filter((i) => authStore.can(i.routeName)))
 
 const currentRouteName = computed(() => route.name)
 
@@ -134,7 +138,7 @@ function handleLogout() {
 
       <nav class="sidebar-nav">
         <button
-          v-for="item in navItems"
+          v-for="item in visibleNavItems"
           :key="item.routeName"
           class="nav-item"
           :class="{ active: currentRouteName === item.routeName || (item.routeName === 'patients' && currentRouteName === 'patient-detail') || (item.routeName === 'appointments' && currentRouteName === 'schedule-config') }"
@@ -165,6 +169,8 @@ function handleLogout() {
             <svg v-if="item.icon === 'patients'" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
             </svg>
+            <!-- Users (quản lý người dùng) icon -->
+            <svg v-if="item.icon === 'users'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-3.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a3 3 0 10-2.5-1.35"/></svg>
           </span>
           <Transition name="fade-text">
             <span v-show="!isSidebarCollapsed" class="nav-label">{{ item.name }}</span>
@@ -180,8 +186,8 @@ function handleLogout() {
           </div>
           <Transition name="fade-text">
             <div v-show="!isSidebarCollapsed" class="user-details">
-              <span class="user-name">{{ authStore.username || 'Admin' }}</span>
-              <span class="user-role">Quản trị viên</span>
+              <span class="user-name">{{ authStore.user?.hoTen || authStore.username || 'Admin' }}</span>
+              <span class="user-role">{{ authStore.tenVaiTro }}</span>
             </div>
           </Transition>
         </div>

@@ -14,6 +14,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    return { id: payload.sub, username: payload.username };
+    // Giữ id/username cho code cũ; bổ sung role/kind/quanTri cho phân quyền.
+    // Token bệnh nhân có role:'patient', không có kind/quanTri -> các field này undefined.
+    return {
+      id: payload.sub,
+      username: payload.username,
+      phone: payload.phone,
+      role: payload.role,
+      kind: payload.kind,
+      quanTri: payload.quanTri,
+    };
   }
 }

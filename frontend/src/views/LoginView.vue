@@ -53,6 +53,10 @@ async function handleLogin() {
 
       <div class="login-form-wrapper">
         <div class="login-form-inner">
+          <RouterLink :to="{ name: 'landing' }" class="back-home">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+            <span>Về Trang Chủ</span>
+          </RouterLink>
           <div class="form-header">
             <h2 class="form-title">Đăng nhập</h2>
             <p class="form-description">Nhập thông tin tài khoản để truy cập hệ thống</p>
@@ -120,6 +124,8 @@ async function handleLogin() {
 .feature-dot{width:8px;height:8px;border-radius:50%;background:var(--brown-300);flex-shrink:0}
 .login-form-wrapper{flex:1;display:flex;align-items:center;justify-content:center;padding:var(--space-12)}
 .login-form-inner{width:100%;max-width:360px}
+.back-home{display:inline-flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-5);font-size:var(--font-size-sm);font-weight:600;color:var(--gray-500);transition:color var(--transition-fast)}
+.back-home:hover{color:var(--brown-600)}
 .form-header{margin-bottom:var(--space-8)}
 .form-title{font-size:var(--font-size-2xl);font-weight:700;color:var(--black);margin-bottom:var(--space-2)}
 .form-description{font-size:var(--font-size-sm);color:var(--gray-600)}

@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, In, EntityManager } from 'typeorm';
+import { Repository, DataSource, In, ILike, EntityManager } from 'typeorm';
 import { BaiThuoc } from '../models/bai-thuoc.model';
 import { BaiThuocChiTiet } from '../models/bai-thuoc-chi-tiet.model';
 import { BaiThuocPhapTri } from '../models/bai-thuoc-phap-tri.model';
@@ -351,6 +351,61 @@ export class BaiThuocService {
       where: { id },
       relations: [...BaiThuocService.BT_VI_RELATIONS],
     });
+  }
+
+  /** Cache bài thuốc + phân tích cho trang DEMO công khai (tính 1 lần/đời tiến trình). */
+  private demoFormulaCache: { baiThuoc: BaiThuoc; analysis: any } | null = null;
+
+  /**
+   * Chọn 1 bài thuốc kinh điển để DEMO công khai (khách chưa đăng nhập xem thử
+   * phân tích tính vị quy kinh + Quân–Thần–Tá–Sứ).
+   * - Có thể chỉ định cứng qua biến môi trường DEMO_BAI_THUOC_ID.
+   * - Mặc định: ưu tiên vài bài thuốc nổi tiếng, dễ nhận biết; nếu không có thì lấy
+   *   bài thuốc đầu tiên có đủ ≥ 3 vị thuốc.
+   */
+  async findDemoFormula(): Promise<{ baiThuoc: BaiThuoc; analysis: any }> {
+    if (this.demoFormulaCache) return this.demoFormulaCache;
+
+    let id: number | null = process.env.DEMO_BAI_THUOC_ID
+      ? Number(process.env.DEMO_BAI_THUOC_ID)
+      : null;
+
+    if (!id || !Number.isFinite(id)) {
+      const preferred = ['Lục Vị Địa Hoàng Hoàn', 'Bổ Trung Ích Khí Thang', 'Tiêu Dao Tán'];
+      for (const name of preferred) {
+        const found = await this.repo.findOne({
+          where: { ten_bai_thuoc: ILike(`%${name}%`) },
+          relations: ['chiTietViThuoc'],
+        });
+        // Chỉ chọn nếu bài thuốc có đủ vị thuốc để phân tích cho sinh động.
+        if (found && (found.chiTietViThuoc?.length ?? 0) >= 3) {
+          id = found.id;
+          break;
+        }
+      }
+    }
+
+    if (!id) {
+      const candidates = await this.repo.find({
+        relations: ['chiTietViThuoc'],
+        order: { ten_bai_thuoc: 'ASC' },
+        take: 100,
+      });
+      const good = candidates.find((b) => (b.chiTietViThuoc?.length ?? 0) >= 3);
+      id = (good ?? candidates[0])?.id ?? null;
+    }
+
+    if (!id) {
+      throw new NotFoundException('Chưa có bài thuốc nào để demo');
+    }
+
+    const baiThuoc = await this.findOne(id);
+    if (!baiThuoc) {
+      throw new NotFoundException('Không tìm thấy bài thuốc demo');
+    }
+    const analysis = await this.analyzeBaiThuoc(id);
+    this.demoFormulaCache = { baiThuoc, analysis };
+    return this.demoFormulaCache;
   }
 
   async create(dto: CreateBaiThuocDto): Promise<BaiThuoc> {

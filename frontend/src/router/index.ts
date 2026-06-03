@@ -1,6 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
+const LandingView = () => import('@/views/LandingView.vue')
 const LoginView = () => import('@/views/LoginView.vue')
+const PublicKinhMach3DView = () => import('@/views/PublicKinhMach3DView.vue')
+const PublicTuDienView = () => import('@/views/PublicTuDienView.vue')
+const DemoKetQuaDoView = () => import('@/views/DemoKetQuaDoView.vue')
+const DemoBaiThuocView = () => import('@/views/DemoBaiThuocView.vue')
 const DashboardLayout = () => import('@/views/DashboardLayout.vue')
 const HomeView = () => import('@/views/HomeView.vue')
 const PatientsView = () => import('@/views/PatientsView.vue')
@@ -16,18 +22,51 @@ const SymptomsView = () => import('@/views/SymptomsView.vue')
 const TreatmentsView = () => import('@/views/TreatmentsView.vue')
 const KinhMach3DView = () => import('@/views/KinhMach3DView.vue')
 const TuDienView = () => import('@/views/TuDienView.vue')
+const UsersView = () => import('@/views/UsersView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    {
+      path: '/',
+      name: 'landing',
+      component: LandingView,
+      meta: { requiresAuth: false },
+    },
     {
       path: '/login',
       name: 'login',
       component: LoginView,
       meta: { requiresAuth: false },
     },
+    // Trang "xem thử" CÔNG KHAI (không cần đăng nhập) — dùng tính năng thật ở chế độ chỉ-xem.
     {
-      path: '/',
+      path: '/xem-3d',
+      name: 'xem-3d',
+      component: PublicKinhMach3DView,
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/xem-ket-qua-do',
+      name: 'xem-ket-qua-do',
+      component: DemoKetQuaDoView,
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/xem-bai-thuoc',
+      name: 'xem-bai-thuoc',
+      component: DemoBaiThuocView,
+      meta: { requiresAuth: false },
+    },
+    // Thư viện tra cứu CÔNG KHAI — mở ĐẦY ĐỦ (không cần đăng nhập).
+    {
+      path: '/thu-vien',
+      name: 'thu-vien',
+      component: PublicTuDienView,
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/app',
       name: 'dashboard',
       component: DashboardLayout,
       meta: { requiresAuth: true },
@@ -37,85 +76,105 @@ const router = createRouter({
           path: '',
           name: 'home',
           component: HomeView,
+          meta: { page: 'home' },
         },
         {
           path: 'patients',
           name: 'patients',
           component: PatientsView,
+          meta: { page: 'patients' },
         },
         {
           path: 'appointments',
           name: 'appointments',
           component: AppointmentsView,
+          meta: { page: 'appointments' },
         },
         {
           path: 'appointments/config',
           name: 'schedule-config',
           component: ScheduleConfigView,
+          meta: { page: 'appointments' },
         },
         {
           path: 'western-medicine',
           name: 'western-medicine',
           component: WesternMedicineView,
+          meta: { page: 'western-medicine' },
         },
         {
           path: 'meridian-diseases',
           name: 'meridian-diseases',
           component: MeridianDiseasesTabsView,
+          meta: { page: 'meridian-diseases' },
         },
         {
           path: 'medicines',
           name: 'medicines',
           component: MedicinesView,
+          meta: { page: 'medicines' },
         },
         {
           path: 'symptoms',
           name: 'symptoms',
           component: SymptomsView,
+          meta: { page: 'symptoms' },
         },
         {
           path: 'treatments',
           name: 'treatments',
           component: TreatmentsView,
+          meta: { page: 'treatments' },
         },
         {
           path: 'kinh-mach-3d',
           name: 'kinh-mach-3d',
           component: KinhMach3DView,
+          meta: { page: 'kinh-mach-3d' },
         },
         {
           path: 'tu-dien',
           name: 'tu-dien',
           component: TuDienView,
+          meta: { page: 'tu-dien' },
+        },
+        {
+          path: 'users',
+          name: 'users',
+          component: UsersView,
+          meta: { page: 'users' },
         },
         {
           path: 'patients/:id',
           name: 'patient-detail',
           component: PatientDetailView,
           props: true,
+          meta: { page: 'patients' },
         },
         {
           path: 'patients/:id/new-examination',
           name: 'new-examination',
           component: NewExaminationView,
           props: true,
+          meta: { page: 'patients' },
         },
         {
           path: 'patients/:patientId/examinations/:examId',
           name: 'meridian-results',
           component: MeridianResultsView,
           props: true,
+          meta: { page: 'patients' },
         },
       ],
     },
     {
       path: '/:pathMatch(.*)*',
-      redirect: { name: 'login' },
+      redirect: { name: 'landing' },
     },
   ],
 })
 
-// Navigation guard
+// Navigation guard: kiểm tra đăng nhập + quyền theo trang.
 router.beforeEach((to) => {
   const token = localStorage.getItem('access_token')
 
@@ -124,6 +183,15 @@ router.beforeEach((to) => {
   }
   if (to.name === 'login' && token) {
     return { name: 'dashboard' }
+  }
+
+  // Chặn vào trang không có quyền -> đưa về Trang Chủ.
+  const page = to.meta.page as string | undefined
+  if (page && token) {
+    const auth = useAuthStore()
+    if (!auth.can(page)) {
+      return { name: 'home' }
+    }
   }
 })
 

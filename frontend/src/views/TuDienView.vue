@@ -19,6 +19,12 @@ import { ensureDictData, ensureBenhData, BASE } from '@/lib/acuMap3d'
 // sau không phải xử lý lại → hết "đơ" mỗi lần bấm. (Deep-link ?acu=/?mer= vẫn chạy nhờ watch bên dưới.)
 defineOptions({ name: 'TuDienView' })
 
+// Tên route đích cho nút "xem huyệt trong 3D". Trong app = 'kinh-mach-3d' (sau đăng nhập);
+// trang công khai /thu-vien truyền 'xem-3d' để khách ở lại ngữ cảnh công khai (không đòi đăng nhập).
+const props = withDefaults(defineProps<{ mapRouteName?: string }>(), {
+  mapRouteName: 'kinh-mach-3d',
+})
+
 // ───────────────────────── kiểu dữ liệu ─────────────────────────
 interface AcuSection { h: string; body: string }
 interface AcuRecord {
@@ -937,7 +943,7 @@ function openAcu(id?: number) {
 }
 // mở tab Kinh Mạch 3D + bay tới huyệt (KinhMach3DView đọc query.focus sau khi engine sẵn sàng)
 function gotoMap(code: string) {
-  router.push({ name: 'kinh-mach-3d', query: { focus: code } })
+  router.push({ name: props.mapRouteName, query: { focus: code } })
 }
 // từ chi tiết huyệt → tab "Lý Thuyết · Tra Cứu Kinh": chọn đúng đường kinh, mở "Các Huyệt",
 // cuộn tới + tô sáng huyệt vừa xem (Kỳ Huyệt thì hiện thẳng danh sách kỳ huyệt).

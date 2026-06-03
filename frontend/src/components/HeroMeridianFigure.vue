@@ -15,6 +15,14 @@ import { ensureModelDeps, fetchModelBuffer, hasWebGL } from '@/lib/heroThree'
 
 const host = ref<HTMLDivElement | null>(null)
 
+/**
+ * Prop tuỳ chọn (mặc định TẮT — banner trang chủ giữ nguyên hành vi cũ):
+ *  • interactive — cho người dùng KÉO để xoay (vẫn chỉ-xem, không có công cụ chỉnh sửa).
+ *  • showPoints  — vẽ thêm CHẤM HUYỆT phát sáng trên các đường kinh.
+ * Dùng cho trang Landing để "nhá hàng" đồ hình 3D ở chế độ chỉ-xem.
+ */
+const props = defineProps<{ interactive?: boolean; showPoints?: boolean }>()
+
 // ── Tiến độ tải (cho người xem yên tâm chờ) ──
 // Chia 3 việc: tải engine 3D (script) · tải mô hình .glb · dựng đường kinh — gộp về 1 thanh %.
 const progress = ref(0) // 0..100, chỉ TĂNG (không lùi)
@@ -73,7 +81,11 @@ let visible = true
 let inView = true
 let reduceMotion = false
 let linesReady = false // dựng xong đường kinh → mới cho xoay (tránh raycast lệch khung khi đang xoay)
-let rotStartMs = 0
+let flowT = 0 // thời gian tích luỹ cho dòng chảy "kinh khí"
+let lastMs = 0 // mốc khung trước → tính delta thời gian (xoay đều theo thực thời gian)
+let dragging = false // người dùng đang kéo xoay (chỉ ở chế độ interactive)
+let lastX = 0
+let lastY = 0
 
 // ── Dữ liệu toạ độ (acu-coords3d.js → window.ACU_COORDS3D) ──
 const COORDS = () => (window as unknown as { ACU_COORDS3D?: Any }).ACU_COORDS3D
@@ -120,7 +132,8 @@ function limbPoint(p: Any): Any | null {
   let best: Any = null
   let bestD = Infinity
   for (const d of dirs) {
-    const o = new T.Vector3(lp.x + d[0] * R, lp.y + d[1] * R, lp.z + d[2] * R)
+    const [dx = 0, dy = 0, dz = 0] = d
+    const o = new T.Vector3(lp.x + dx * R, lp.y + dy * R, lp.z + dz * R)
     raycaster.set(o, lp.clone().sub(o).normalize())
     const hits = raycaster.intersectObjects(targets, true)
     if (hits.length) {
@@ -196,6 +209,58 @@ function addGlowLine(pts: Any[], color: Any, phase: number, speed: number) {
   flows.push({ tex, speed, phase })
 }
 
+// Sprite tròn (đốm sáng tâm trắng → tản dần) cho CHẤM HUYỆT.
+let dotCanvas: HTMLCanvasElement | null = null
+function getDotCanvas(): HTMLCanvasElement {
+  if (dotCanvas) return dotCanvas
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const ctx = c.getContext('2d') as CanvasRenderingContext2D
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
+  g.addColorStop(0.0, 'rgba(255,255,255,1)')
+  g.addColorStop(0.35, 'rgba(255,255,255,0.85)')
+  g.addColorStop(0.7, 'rgba(255,255,255,0.18)')
+  g.addColorStop(1.0, 'rgba(255,255,255,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, 64, 64)
+  dotCanvas = c
+  return c
+}
+
+/** Vẽ TOÀN BỘ huyệt thành 1 đám chấm sáng (Points) — tô màu theo từng đường kinh. */
+function addPoints(items: { pos: Any; color: Any }[]) {
+  if (!items.length) return
+  const geo = new T.BufferGeometry()
+  const posArr = new Float32Array(items.length * 3)
+  const colArr = new Float32Array(items.length * 3)
+  items.forEach((it, i) => {
+    posArr[i * 3] = it.pos.x
+    posArr[i * 3 + 1] = it.pos.y
+    posArr[i * 3 + 2] = it.pos.z
+    colArr[i * 3] = it.color.r
+    colArr[i * 3 + 1] = it.color.g
+    colArr[i * 3 + 2] = it.color.b
+  })
+  geo.setAttribute('position', new T.BufferAttribute(posArr, 3))
+  geo.setAttribute('color', new T.BufferAttribute(colArr, 3))
+  const tex = new T.CanvasTexture(getDotCanvas())
+  const mat = new T.PointsMaterial({
+    size: 0.034 * bodyHeight,
+    map: tex,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+    depthTest: true, // TÔN TRỌNG chiều sâu → huyệt mặt sau bị thân che (khớp với đường kinh)
+    blending: T.AdditiveBlending,
+    sizeAttenuation: true,
+  })
+  disposables.push(geo, mat, tex)
+  const cloud = new T.Points(geo, mat)
+  cloud.renderOrder = 3 // trên đường kinh
+  figure.add(cloud)
+}
+
 // Mỗi khung hình chỉ dành tối đa chừng này (ms) cho việc dựng → luôn còn chỗ cho render +
 // giữ vòng Âm Dương (SVG xoay trên luồng chính) không bị khựng. ~8ms < 16ms (60fps) → mượt.
 const FRAME_BUDGET_MS = 8
@@ -226,6 +291,7 @@ function buildMeridiansDeferred() {
       // Làm từng huyệt cho tới khi hết ngân sách thời gian khung này → nhường lại cho render/xoay.
       while (idx < codes.length) {
         const code = codes[idx]
+        if (code === undefined) break
         const p = placed[code]
         const mer = merOf(code)
         const num = numOf(code)
@@ -264,19 +330,26 @@ function finalizeLinesDeferred(C: Any, groups: Record<string, { mer: string; num
   const SPLIT = 0.16 * bodyHeight // nhảy không gian lớn (vd BL lưng↔chân) → cắt đoạn
   // Bước 1 (rẻ): gom mọi nhóm kinh|bên thành danh sách "đoạn" ống cần dựng.
   const jobs: { run: Any[]; color: Any; i: number }[] = []
+  const pointItems: { pos: Any; color: Any }[] = [] // toạ độ + màu mọi huyệt (cho chế độ showPoints)
   let i = 0
   for (const key in groups) {
-    const all = groups[key].sort((a, b) => a.num - b.num)
-    const mer = all[0].mer
+    const all = (groups[key] ?? []).sort((a, b) => a.num - b.num)
+    const first = all[0]
+    if (!first) continue
+    const mer = first.mer
     const color = new T.Color(C.meridians[mer]?.color || '#ffd98a')
+    if (props.showPoints) for (const it of all) pointItems.push({ pos: it.pos, color })
     const runs: Any[][] = []
-    let cur: Any[] = [all[0].pos]
+    let cur: Any[] = [first.pos]
     for (let j = 1; j < all.length; j++) {
-      if (all[j].pos.distanceTo(all[j - 1].pos) > SPLIT) {
+      const curPt = all[j]
+      const prevPt = all[j - 1]
+      if (!curPt || !prevPt) continue
+      if (curPt.pos.distanceTo(prevPt.pos) > SPLIT) {
         runs.push(cur)
         cur = []
       }
-      cur.push(all[j].pos)
+      cur.push(curPt.pos)
     }
     runs.push(cur)
     for (const run of runs) {
@@ -294,6 +367,7 @@ function finalizeLinesDeferred(C: Any, groups: Record<string, { mer: string; num
       const start = performance.now()
       while (j < jobs.length) {
         const job = jobs[j]
+        if (!job) { j++; continue }
         addGlowLine(job.run, job.color, (job.i * 0.137) % 1, 0.13 + (job.i % 4) * 0.03)
         j++
         if (performance.now() - start > FRAME_BUDGET_MS) break
@@ -310,8 +384,9 @@ function finalizeLinesDeferred(C: Any, groups: Record<string, { mer: string; num
       requestAnimationFrame(buildStep)
       return
     }
+    if (props.showPoints) addPoints(pointItems) // chấm huyệt vẽ 1 lần sau khi xong các ống
     linesReady = true
-    revealCanvas() // ĐỦ thân + đường kinh → mới hiện cả khối ra
+    revealCanvas() // ĐỦ thân + đường kinh (+ huyệt) → mới hiện cả khối ra
   }
   requestAnimationFrame(buildStep)
 }
@@ -428,6 +503,17 @@ async function init(modelBuf: ArrayBuffer) {
   document.addEventListener('visibilitychange', onVisibility)
   reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
+  // Chế độ chỉ-xem-tương-tác: cho KÉO để xoay (không có công cụ chỉnh sửa nào).
+  if (props.interactive) {
+    const cv = renderer.domElement
+    cv.style.cursor = 'grab'
+    cv.style.touchAction = 'none' // bắt được thao tác kéo, không cuộn trang
+    cv.addEventListener('pointerdown', onPointerDown)
+    cv.addEventListener('pointermove', onPointerMove)
+    cv.addEventListener('pointercancel', onPointerUp)
+    window.addEventListener('pointerup', onPointerUp) // bắt cả khi thả chuột ngoài canvas
+  }
+
   // Render ngầm (canvas còn opacity 0) trong lúc dựng; revealCanvas() chỉ mờ-hiện khi ĐÃ đủ
   // thân + đường kinh → cả khối hiện cùng lúc (không "thân trước, đường kinh sau").
   raf = requestAnimationFrame(loop)
@@ -446,25 +532,61 @@ function onResize() {
 
 function onVisibility() {
   visible = !document.hidden
-  if (visible && inView && alive && !raf) raf = requestAnimationFrame(loop)
+  ensureLoop()
+}
+
+/** Bật lại vòng lặp nếu đang dừng (sau khi kéo xoay ở chế độ reduceMotion, đổi tab…). */
+function ensureLoop() {
+  if (alive && visible && inView && !raf) raf = requestAnimationFrame(loop)
 }
 
 function loop(ms: number) {
   raf = 0
   if (!alive) return
 
+  const dt = lastMs ? Math.min(0.05, (ms - lastMs) / 1000) : 0
+  lastMs = ms
+
   // Chỉ xoay + chạy dòng chảy SAU khi đường kinh đã dựng xong (lúc raycast giữ figure đứng yên).
-  if (!reduceMotion && linesReady) {
-    if (!rotStartMs) rotStartMs = ms
-    const t = (ms - rotStartMs) / 1000
-    figure.rotation.y = t * 0.45 // xoay quanh TRỤC DỌC (~14s/vòng — thấy rõ nhưng không chóng mặt)
-    for (const f of flows) f.tex.offset.x = f.phase - t * f.speed // vạch sáng chạy dọc đường kinh
+  if (linesReady && !reduceMotion) {
+    if (!dragging) figure.rotation.y += dt * 0.45 // tự xoay quanh trục dọc (~14s/vòng); tạm dừng khi đang kéo
+    flowT += dt
+    for (const f of flows) f.tex.offset.x = f.phase - flowT * f.speed // vạch sáng chạy dọc đường kinh
   }
 
   renderer.render(scene, camera)
-  // reduceMotion: chạy tới khi đường kinh dựng xong thì vẽ nốt 1 khung rồi dừng.
-  if (reduceMotion && linesReady) return
+
+  // Đứng yên (giảm chuyển động, không kéo) → vẽ nốt 1 khung rồi DỪNG để đỡ tốn pin.
+  // Người dùng kéo (interactive) sẽ gọi ensureLoop() để vẽ lại khung mới.
+  if (linesReady && reduceMotion && !dragging) return
   if (visible && inView) raf = requestAnimationFrame(loop)
+}
+
+// ── Kéo để xoay (chỉ khi interactive, sau khi đã dựng xong đường kinh) ──
+function onPointerDown(e: PointerEvent) {
+  if (!props.interactive || !linesReady || !figure) return
+  dragging = true
+  lastX = e.clientX
+  lastY = e.clientY
+  if (renderer?.domElement) renderer.domElement.style.cursor = 'grabbing'
+  renderer?.domElement?.setPointerCapture?.(e.pointerId)
+  ensureLoop()
+}
+function onPointerMove(e: PointerEvent) {
+  if (!dragging || !figure) return
+  const dx = e.clientX - lastX
+  const dy = e.clientY - lastY
+  lastX = e.clientX
+  lastY = e.clientY
+  figure.rotation.y += dx * 0.01 // kéo ngang → xoay quanh trục dọc
+  figure.rotation.x = Math.max(-0.6, Math.min(0.6, figure.rotation.x + dy * 0.006)) // kéo dọc → nghiêng nhẹ (có chặn)
+  ensureLoop()
+}
+function onPointerUp(e: PointerEvent) {
+  if (!dragging) return
+  dragging = false
+  if (renderer?.domElement) renderer.domElement.style.cursor = 'grab'
+  renderer?.domElement?.releasePointerCapture?.(e.pointerId)
 }
 
 async function boot() {
@@ -517,6 +639,7 @@ onBeforeUnmount(() => {
   alive = false
   if (raf) cancelAnimationFrame(raf)
   document.removeEventListener('visibilitychange', onVisibility)
+  window.removeEventListener('pointerup', onPointerUp)
   bootIo?.disconnect()
   ro?.disconnect()
   io?.disconnect()
@@ -541,7 +664,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="host" class="hero-figure" aria-hidden="true">
+  <div ref="host" class="hero-figure" :class="{ 'is-interactive': interactive }" aria-hidden="true">
     <!-- Vòng tròn % tải — hiện trong lúc tải engine 3D + mô hình + dựng đường kinh, mờ đi khi xong -->
     <div v-if="loadState !== 'idle'" class="hf-loader" :class="{ 'is-done': loadState === 'done' }">
       <div class="hf-ring" :style="{ '--p': progress }">
@@ -558,6 +681,11 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   filter: drop-shadow(0 0 14px rgba(255, 224, 170, 0.28));
+}
+/* Chế độ chỉ-xem-tương-tác: nhận thao tác kéo (con trỏ "grab" do JS đặt trên canvas). */
+.hero-figure.is-interactive {
+  pointer-events: auto;
+  touch-action: none;
 }
 .hero-figure :deep(canvas) {
   width: 100% !important;

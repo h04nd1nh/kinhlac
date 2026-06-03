@@ -1,6 +1,8 @@
 import { Controller, Post, Body, UnauthorizedException, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
 import { PatientAuthService } from '../controllers/patient-auth.controller';
+import { Public } from '../middlewares/auth/public.decorator';
 
+@Public()
 @Controller('patient-auth')
 export class PatientAuthRouter {
   constructor(private readonly patientAuthService: PatientAuthService) {}
