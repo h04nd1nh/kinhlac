@@ -1693,6 +1693,9 @@ async function handleDelete() {
   .page-info { margin-left: 0; flex: 1 1 100%; text-align: center; }
 }
 @media (max-width: 640px) {
+  /* 3 nhóm Đông Y / Tây Y / Tất Cả: luôn gọn 1 hàng, chia đều bề ngang */
+  .sub-tabs { flex-wrap: nowrap; }
+  .sub-tab { flex: 1 1 0; justify-content: center; padding: var(--space-2); white-space: nowrap; }
   /* biểu mẫu trong modal: 2 cột → 1 cột cho dễ nhập trên điện thoại */
   .form-grid { grid-template-columns: 1fr; }
   .modal { max-height: 95vh; }

@@ -4486,6 +4486,9 @@ async function suggestViThuocAi() {
   .page-subtitle { font-size: var(--font-size-sm); }
   .toggle-btn { gap: 4px; padding: var(--space-2); font-size: var(--font-size-xs); }
   .toggle-btn svg { width: 16px; height: 16px; }
+  /* 3 nhóm Đông Y / Tây Y / Tất Cả: luôn gọn 1 hàng, chia đều bề ngang */
+  .sub-tabs { flex-wrap: nowrap; }
+  .sub-tab { flex: 1 1 0; justify-content: center; padding: var(--space-2); white-space: nowrap; }
   .vt-grid { padding: var(--space-3); }
   .card-header { padding: var(--space-3) var(--space-4); }
   .header-actions { gap: 6px; }
