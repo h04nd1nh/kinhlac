@@ -355,6 +355,8 @@ export class BaiThuocService {
 
   /** Cache bài thuốc + phân tích cho trang DEMO công khai (tính 1 lần/đời tiến trình). */
   private demoFormulaCache: { baiThuoc: BaiThuoc; analysis: any } | null = null;
+  /** Cache danh sách bài thuốc cho slider DEMO (nhiều bài) — quét 1 lần rồi giữ lại. */
+  private demoFormulasCache: BaiThuoc[] | null = null;
 
   /**
    * Chọn 1 bài thuốc kinh điển để DEMO công khai (khách chưa đăng nhập xem thử
@@ -406,6 +408,74 @@ export class BaiThuocService {
     const analysis = await this.analyzeBaiThuoc(id);
     this.demoFormulaCache = { baiThuoc, analysis };
     return this.demoFormulaCache;
+  }
+
+  /**
+   * Chọn VÀI bài thuốc kinh điển cho slider DEMO công khai (khách lướt xem nhiều bài).
+   * Ưu tiên các bài nổi tiếng, đủ ≥ 3 vị để phân tích sinh động; thiếu thì bù bằng bài khác.
+   * Trả về mỗi bài đã có đủ chi tiết (findOne) — KHÔNG kèm analysis (frontend tự tính).
+   */
+  async findDemoFormulas(count = 5): Promise<BaiThuoc[]> {
+    const want = Math.max(1, Math.min(count, 12));
+    if (this.demoFormulasCache) return this.demoFormulasCache.slice(0, want);
+
+    const preferred = [
+      'Bổ Trung Ích Khí Thang',
+      'Lục Vị Địa Hoàng Hoàn',
+      'Tiêu Dao Tán',
+      'Tứ Quân Tử Thang',
+      'Tứ Vật Thang',
+      'Bát Trân Thang',
+      'Quy Tỳ Thang',
+      'Sài Hồ Sơ Can Tán',
+      'Ngọc Bình Phong Tán',
+      'Lý Trung Thang',
+      'Thập Toàn Đại Bổ Thang',
+      'Bán Hạ Tả Tâm Thang',
+    ];
+
+    const ids: number[] = [];
+    const seen = new Set<number>();
+    const pushIf = (b?: BaiThuoc | null) => {
+      if (b && (b.chiTietViThuoc?.length ?? 0) >= 3 && !seen.has(b.id)) {
+        seen.add(b.id);
+        ids.push(b.id);
+      }
+    };
+
+    for (const name of preferred) {
+      if (ids.length >= want) break;
+      const found = await this.repo.findOne({
+        where: { ten_bai_thuoc: ILike(`%${name}%`) },
+        relations: ['chiTietViThuoc'],
+      });
+      pushIf(found);
+    }
+
+    // Bù thêm nếu chưa đủ: lấy bài thuốc khác có đủ ≥ 3 vị.
+    if (ids.length < want) {
+      const candidates = await this.repo.find({
+        relations: ['chiTietViThuoc'],
+        order: { ten_bai_thuoc: 'ASC' },
+        take: 200,
+      });
+      for (const b of candidates) {
+        if (ids.length >= want) break;
+        pushIf(b);
+      }
+    }
+
+    if (!ids.length) {
+      throw new NotFoundException('Chưa có bài thuốc nào để demo');
+    }
+
+    const list: BaiThuoc[] = [];
+    for (const id of ids) {
+      const full = await this.findOne(id);
+      if (full) list.push(full);
+    }
+    this.demoFormulasCache = list;
+    return list;
   }
 
   async create(dto: CreateBaiThuocDto): Promise<BaiThuoc> {

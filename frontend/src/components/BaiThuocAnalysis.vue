@@ -49,7 +49,9 @@ interface BaiThuocLite {
   phapTriLinks?: PhapTriLink[] | null
 }
 
-const props = defineProps<{ baiThuoc: BaiThuocLite | null }>()
+// hideDosage: ẩn TOÀN BỘ bảng "Quân–Thần–Tá–Sứ" (cột bên phải) — dùng cho khối nhúng gọn ở landing,
+// khi đó cột trái (các radar) giãn full. Trang /xem-bai-thuoc để mặc định → vẫn hiện đầy đủ bảng.
+const props = defineProps<{ baiThuoc: BaiThuocLite | null; hideDosage?: boolean }>()
 
 // ─────────────────────────── Hằng số + hàm thuần (copy từ MedicinesView) ───────────────────────────
 const YHCT_KINH_ORDER = [
@@ -408,7 +410,7 @@ onBeforeUnmount(destroyCharts)
       </div>
     </div>
 
-    <div class="ana-layout">
+    <div class="ana-layout" :class="{ 'ana-layout--solo': hideDosage }">
       <div class="ana-left">
         <div class="ana-card ana-radar-card">
           <div class="ana-radar-side"><div class="ana-section-title">2) Ngũ Vị</div></div>
@@ -444,7 +446,7 @@ onBeforeUnmount(destroyCharts)
         </div>
       </div>
 
-      <div class="ana-right">
+      <div v-if="!hideDosage" class="ana-right">
         <div class="ana-dosage">
           <div class="ana-dosage-head">
             <span>Quân–Thần–Tá–Sứ</span>
@@ -552,6 +554,8 @@ onBeforeUnmount(destroyCharts)
 }
 .ana-left { display: flex; flex-direction: column; min-width: 0; }
 .ana-right { min-width: 0; }
+/* Khi ẩn bảng Quân–Thần–Tá–Sứ (landing): cột trái giãn full, không để trống nửa phải. */
+.ana-layout--solo { grid-template-columns: 1fr; }
 @media (max-width: 900px) {
   .ana-layout { grid-template-columns: 1fr; }
 }

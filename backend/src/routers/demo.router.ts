@@ -3,6 +3,7 @@ import { Public } from '../middlewares/auth/public.decorator';
 import { ExaminationsService } from '../controllers/examination.controller';
 import { PatientsService } from '../controllers/patient.controller';
 import { BaiThuocService } from '../controllers/bai-thuoc.controller';
+import { PhapTriService } from '../controllers/phap-tri.controller';
 
 /**
  * DemoRouter — các endpoint CÔNG KHAI (@Public) phục vụ trang landing cho khách CHƯA đăng nhập.
@@ -18,6 +19,7 @@ export class DemoRouter {
     private readonly examinationsService: ExaminationsService,
     private readonly patientsService: PatientsService,
     private readonly baiThuocService: BaiThuocService,
+    private readonly phapTriService: PhapTriService,
   ) {}
 
   /** Một ca đo kinh lạc mẫu (bảng chỉ số nhiệt độ + thể bệnh), ẩn danh bệnh nhân. */
@@ -75,5 +77,26 @@ export class DemoRouter {
   @Get('bai-thuoc')
   async baiThuoc() {
     return this.baiThuocService.findDemoFormula();
+  }
+
+  /** Vài bài thuốc kinh điển cho slider (mỗi bài đủ chi tiết để phân tích). */
+  @Public()
+  @Get('bai-thuoc-list')
+  async baiThuocList(@Query('count') count?: string) {
+    const n = count ? Number(count) : 5;
+    const baiThuocList = await this.baiThuocService.findDemoFormulas(
+      Number.isFinite(n) ? n : 5,
+    );
+    return { baiThuocList };
+  }
+
+  /**
+   * "Bàn xoay biện chứng" số hoá — lát cắt thật của đồ thị Pháp Trị nối Triệu Chứng /
+   * Tạng Phủ / Tác Nhân / Thể Bệnh / Bài Thuốc, phục vụ bàn xoay tương tác trên landing.
+   */
+  @Public()
+  @Get('ban-xoay')
+  banXoay() {
+    return this.phapTriService.findBienChungWheel();
   }
 }

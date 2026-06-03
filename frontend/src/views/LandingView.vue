@@ -17,10 +17,18 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { api } from '@/services/api'
 import CosmicWheel from '@/components/CosmicWheel.vue'
 import HeroMeridianFigure from '@/components/HeroMeridianFigure.vue'
-import BaiThuocAnalysis from '@/components/BaiThuocAnalysis.vue'
+import BanXoayBienChung from '@/components/BanXoayBienChung.vue'
+import {
+  rawUpper,
+  rawLower,
+  calculateBounds,
+  processRows,
+  computeDiagnosis,
+  fmt,
+  type InputData,
+} from '@/lib/meridianAnalysis'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -39,22 +47,6 @@ function scrollTo(id: string) {
 function openDemo(name: 'xem-3d' | 'xem-ket-qua-do' | 'xem-bai-thuoc' | 'thu-vien') {
   router.push({ name })
 }
-
-// ── Phân tích bài thuốc THẬT, nhúng ngay trên landing (lấy /demo/bai-thuoc, KHÔNG cần đăng nhập) ──
-// Dùng lại đúng component phân tích thật (BaiThuocAnalysis) — chỉ cần truyền nguyên bài thuốc.
-const formulaLoading = ref(true)
-const demoFormula = ref<any>(null)
-
-onMounted(async () => {
-  try {
-    const res = await api.get<{ baiThuoc: any }>('/demo/bai-thuoc')
-    demoFormula.value = res.baiThuoc
-  } catch {
-    // Backend chưa sẵn sàng → ẩn khối phân tích, giữ nguyên các panel tĩnh bên dưới.
-  } finally {
-    formulaLoading.value = false
-  }
-})
 
 // Chỉ dựng hình người 3D trên màn hình rộng (mobile dùng vòng SVG nhẹ).
 const showFigure = ref(false)
@@ -77,87 +69,158 @@ const model3d = [
   'Giáo cụ trực quan cho học – giảng dạy và tra cứu tại phòng khám.',
 ]
 
-// ── "Nhá hàng" kết quả đo kinh lạc (số liệu mẫu kiểu Ryodoraku, thang tương đối 0–100) ──
-const NORMAL_LOW = 45
-const NORMAL_HIGH = 75
-type MStatus = 'normal' | 'high' | 'low'
-const meridianChart: { ten: string; value: number; status: MStatus }[] = [
-  { ten: 'Phế', value: 58, status: 'normal' },
-  { ten: 'Đại Trường', value: 55, status: 'normal' },
-  { ten: 'Tâm Bào', value: 64, status: 'normal' },
-  { ten: 'Tam Tiêu', value: 60, status: 'normal' },
-  { ten: 'Tâm', value: 67, status: 'normal' },
-  { ten: 'Tiểu Trường', value: 62, status: 'normal' },
-  { ten: 'Tỳ', value: 33, status: 'low' },
-  { ten: 'Vị', value: 37, status: 'low' },
-  { ten: 'Can', value: 88, status: 'high' },
-  { ten: 'Đởm', value: 84, status: 'high' },
-  { ten: 'Thận', value: 52, status: 'normal' },
-  { ten: 'Bàng Quang', value: 57, status: 'normal' },
-]
-const statusShort: Record<MStatus, string> = { normal: 'Cân Bằng', high: 'Cao', low: 'Thấp' }
+// ── "Nhá hàng" kết quả đo kinh lạc — XOAY QUA NHIỀU CA THẬT (đã ẩn danh) ──
+// Mỗi ca là số đo nhiệt độ 12 đường kinh (× trái/phải). Dùng CHUNG engine meridianAnalysis
+// với trang đo thật (DemoKetQuaDoView): bảng chỉ số chi trên/chi dưới, ngưỡng, dấu +/0/− đều khớp app.
+interface MeasureCase {
+  id: string
+  who: string // người bệnh đã ẩn danh (giới tính · tuổi)
+  complaint: string // lý do tới khám
+  input: InputData // 24 chỉ số nhiệt độ (12 kinh × trái/phải)
+  theBenh: string
+  phapTri: string
+}
 
-// ── "Nhá hàng" kho tri thức (dữ liệu Đông Y cổ điển — thật & chính xác) ──
-interface KItem {
-  name: string
-  sub: string
-}
-interface KPanel {
-  icon: string
-  title: string
-  tone: string
-  items: KItem[]
-  more: string
-}
-const knowledge: KPanel[] = [
+const measureCases: MeasureCase[] = [
   {
-    icon: 'flask',
-    title: 'Bài Thuốc',
-    tone: 'k-herb',
-    items: [
-      { name: 'Lục Vị Địa Hoàng Hoàn', sub: 'Tư Bổ Can Thận' },
-      { name: 'Bổ Trung Ích Khí Thang', sub: 'Kiện Tỳ Ích Khí' },
-      { name: 'Tiêu Dao Tán', sub: 'Sơ Can Giải Uất' },
-    ],
-    more: '500+ Bài Thuốc Đông Y · Tây Y',
+    id: 'Ca 01',
+    who: 'Nữ · 42 Tuổi',
+    complaint: 'Hay Cáu Gắt · Đầy Bụng · Chán Ăn',
+    // Số đo thật trong ảnh — Can Khí Uất Kết · Tỳ Vị Hư Nhược
+    input: {
+      tieutruongtrai: 35.4,
+      tieutruongphai: 34.0,
+      tamtrai: 35.2,
+      tamphai: 34.9,
+      tamtieutrai: 35.2,
+      tamtieuphai: 34.8,
+      tambaotrai: 35.2,
+      tambaophai: 35.0,
+      daitrangtrai: 34.4,
+      daitrangphai: 35.0,
+      phetrai: 34.5,
+      phephai: 34.9,
+      bangquangtrai: 33.0,
+      bangquangphai: 32.4,
+      thantrai: 33.0,
+      thanphai: 32.5,
+      damtrai: 32.4,
+      damphai: 32.4,
+      vitrai: 33.0,
+      viphai: 32.5,
+      cantrai: 33.1,
+      canphai: 33.4,
+      tytrai: 33.2,
+      typhai: 33.5,
+    },
+    theBenh: 'Can Khí Uất Kết · Tỳ Vị Hư Nhược',
+    phapTri: 'Sơ Can Lý Khí · Kiện Tỳ Hoà Vị',
   },
   {
-    icon: 'pattern',
-    title: 'Thể Bệnh',
-    tone: 'k-pattern',
-    items: [
-      { name: 'Can Thận Âm Hư', sub: 'Âm Dịch Suy Tổn' },
-      { name: 'Tỳ Vị Khí Hư', sub: 'Vận Hoá Suy Giảm' },
-      { name: 'Khí Trệ Huyết Ứ', sub: 'Kinh Mạch Ứ Trở' },
-    ],
-    more: '100+ Thể Bệnh',
+    id: 'Ca 02',
+    who: 'Nam · 35 Tuổi',
+    complaint: 'Mất Ngủ · Hồi Hộp · Lưng Gối Mỏi',
+    // Tâm cường, Thận nhược — Tâm Thận Bất Giao · Âm Hư Hoả Vượng
+    input: {
+      tieutruongtrai: 34.6,
+      tieutruongphai: 34.5,
+      tamtrai: 35.6,
+      tamphai: 35.4,
+      tamtieutrai: 34.8,
+      tamtieuphai: 34.7,
+      tambaotrai: 35.3,
+      tambaophai: 35.1,
+      daitrangtrai: 34.5,
+      daitrangphai: 34.6,
+      phetrai: 34.7,
+      phephai: 34.6,
+      bangquangtrai: 33.2,
+      bangquangphai: 33.1,
+      thantrai: 32.6,
+      thanphai: 32.5,
+      damtrai: 33.3,
+      damphai: 33.2,
+      vitrai: 33.4,
+      viphai: 33.3,
+      cantrai: 33.5,
+      canphai: 33.6,
+      tytrai: 33.3,
+      typhai: 33.2,
+    },
+    theBenh: 'Tâm Thận Bất Giao · Âm Hư Hoả Vượng',
+    phapTri: 'Tư Âm Giáng Hoả · Giao Thông Tâm Thận',
   },
   {
-    icon: 'shield',
-    title: 'Pháp Trị',
-    tone: 'k-method',
-    items: [
-      { name: 'Tư Âm Giáng Hỏa', sub: 'Bổ Âm Tiềm Dương' },
-      { name: 'Kiện Tỳ Hoà Vị', sub: 'Củng Cố Trung Tiêu' },
-      { name: 'Hoạt Huyết Hoá Ứ', sub: 'Thông Kinh Tán Ứ' },
-    ],
-    more: 'Hàng Trăm Pháp Trị',
+    id: 'Ca 03',
+    who: 'Nữ · 58 Tuổi',
+    complaint: 'Dễ Cảm · Hụt Hơi · Ra Mồ Hôi Trộm',
+    // Phế · Tỳ Vị nhược — Phế Tỳ Khí Hư · Vệ Khí Bất Cố
+    input: {
+      tieutruongtrai: 34.3,
+      tieutruongphai: 34.2,
+      tamtrai: 35.0,
+      tamphai: 34.9,
+      tamtieutrai: 34.3,
+      tamtieuphai: 34.2,
+      tambaotrai: 34.9,
+      tambaophai: 35.0,
+      daitrangtrai: 34.2,
+      daitrangphai: 34.1,
+      phetrai: 34.2,
+      phephai: 34.3,
+      bangquangtrai: 33.0,
+      bangquangphai: 33.1,
+      thantrai: 33.0,
+      thanphai: 32.9,
+      damtrai: 33.1,
+      damphai: 33.0,
+      vitrai: 32.6,
+      viphai: 32.5,
+      cantrai: 33.2,
+      canphai: 33.1,
+      tytrai: 32.6,
+      typhai: 32.7,
+    },
+    theBenh: 'Phế Tỳ Khí Hư · Vệ Khí Bất Cố',
+    phapTri: 'Bổ Phế Kiện Tỳ · Ích Khí Cố Biểu',
   },
 ]
+
+const activeCase = ref(0)
+const currentCase = computed(() => measureCases[activeCase.value])
+function gotoCase(i: number) {
+  activeCase.value = (i + measureCases.length) % measureCases.length
+}
+
+// Bảng kết quả đo (chi trên / chi dưới) + Bát Cương — chạy đúng engine của trang đo thật.
+const upperStats = computed(() => calculateBounds(rawUpper(currentCase.value.input)))
+const lowerStats = computed(() => calculateBounds(rawLower(currentCase.value.input)))
+const upperRows = computed(() => processRows(rawUpper(currentCase.value.input), upperStats.value))
+const lowerRows = computed(() => processRows(rawLower(currentCase.value.input), lowerStats.value))
+const diag = computed(() =>
+  computeDiagnosis(
+    currentCase.value.input,
+    upperRows.value,
+    lowerRows.value,
+    upperStats.value,
+    lowerStats.value,
+  ),
+)
+// Gộp 2 nhóm để render bảng bằng 1 vòng v-for (đỡ lặp markup).
+const limbGroups = computed(() => [
+  { label: 'Chi Trên (Tay)', rows: upperRows.value, stats: upperStats.value },
+  { label: 'Chi Dưới (Chân)', rows: lowerRows.value, stats: lowerStats.value },
+])
+function signClass(sign: string): string {
+  if (sign === '+') return 'mc-sign-hi'
+  if (sign === '-') return 'mc-sign-lo'
+  return 'mc-sign-ze'
+}
 
 const stats = [
   { value: '14', label: 'Đường Kinh Chính' },
   { value: '5.000+', label: 'Hồ Sơ Bệnh Nhân' },
   { value: '9.000+', label: 'Lần Đo Kinh Lạc' },
-]
-
-const features = [
-  { icon: 'book', label: 'Từ Điển Huyệt Vị', desc: 'Tra cứu huyệt, kinh mạch, châm cứu trị bệnh và bệnh học một cách trực quan.' },
-  { icon: 'clipboard', label: 'Triệu Chứng → Pháp Trị', desc: 'Từ triệu chứng suy ra pháp trị, bài thuốc và thể bệnh theo lý luận Đông Y.' },
-  { icon: 'rules', label: 'Bệnh Đo Kinh Lạc', desc: 'Phân tích chỉ số đo kinh lạc và gợi ý chẩn đoán theo bộ quy tắc tự động.' },
-  { icon: 'stethoscope', label: 'Bệnh Tây Y', desc: 'Đối chiếu bệnh danh Tây Y với chẩn đoán Đông Y, kết hợp hai nền y học.' },
-  { icon: 'patients', label: 'Quản Lý Bệnh Nhân', desc: 'Hồ sơ, tiền sử bệnh và lịch sử điều trị tập trung một nơi, tra cứu vài giây.' },
-  { icon: 'calendar', label: 'Lịch Trị Liệu', desc: 'Đặt lịch, cấu hình giờ khám và theo dõi tình trạng từng lần hẹn dễ dàng.' },
 ]
 
 // ── Các mục trong Thư Viện · Từ Điển (mở miễn phí ở /thu-vien) ──
@@ -169,28 +232,90 @@ const libraryCats = [
   { icon: 'source', title: 'Thư Mục Nguồn', count: '93 Nguồn', desc: 'Trích dẫn xuất xứ từ các y thư kinh điển.' },
 ]
 
-interface Audience {
-  icon: string
+// ── ② Cũ vs Mới — cú chuyển cảm xúc (cái vô hình → cái hữu hình) ──
+const shiftOld = [
+  'Kinh lạc nằm trong trí tưởng tượng',
+  'Bắt mạch, chẩn bệnh bằng cảm nhận',
+  'Kinh nghiệm truyền miệng, khó dạy lại',
+  'Hồ sơ giấy, tra cứu mất hàng giờ',
+]
+const shiftNew = [
+  'Kinh lạc xoay 360° ngay trên màn hình',
+  'Đo ra con số — biểu đồ tự chỉ kinh cường, kinh nhược',
+  'Tri thức chuẩn hoá, tra trong một giây',
+  '5.000+ hồ sơ số hoá, tìm trong vài giây',
+]
+
+// ── ⑦ Thang giá trị — "Khám Phá Miễn Phí · Hành Nghề Có Phí" (khoá theo "của ai") ──
+const ladderFree = [
+  'Xoay đồ hình kinh lạc 3D, bay tới từng huyệt',
+  'Tra cứu 1.058 huyệt · 12 kinh · 100 bệnh châm cứu',
+  'Xem ca đo mẫu & phân tích bài thuốc thật',
+  'Toàn bộ kho tri thức — không cần đăng nhập',
+]
+const ladderPaid = [
+  'Đo & lưu kết quả cho chính bệnh nhân của bạn',
+  'Hồ sơ, tiền sử, lịch sử điều trị tập trung',
+  'Tự chẩn đoán trên dữ liệu thật của phòng khám',
+  'Lịch hẹn, phân quyền nhân sự, an toàn dữ liệu',
+]
+
+// ── ⑧ Bằng chứng quy mô ──
+const proof = [
+  { value: '1.058', label: 'Huyệt Vị' },
+  { value: '14', label: 'Đường Kinh Chính' },
+  { value: '5.000+', label: 'Hồ Sơ Bệnh Nhân' },
+  { value: '9.260', label: 'Lần Đo Kinh Lạc' },
+  { value: '500+', label: 'Bài Thuốc' },
+]
+
+// ── ③ Bàn Xoay → Dữ Liệu Lớn ──
+// Bàn xoay biện chứng cổ điển (中医辩证施治盘) nay là bàn xoay TƯƠNG TÁC chạy bằng dữ liệu thật —
+// xem component BanXoayBienChung (tự lấy /demo/ban-xoay). Phần dưới chỉ còn 2 thẻ giải thích quan hệ.
+
+// Hai loại quan hệ làm nên sức mạnh của số hoá — mỗi loại 1 chuỗi ví dụ Đông Y thật.
+interface RelCard {
+  tag: string
   title: string
   desc: string
+  fan: boolean // true: một nguồn toả ra nhiều nhánh (n↔n); false: chuỗi nở dần (1→n)
+  head: string
+  nodes: string[]
 }
-const audiences: Audience[] = [
+const relCards: RelCard[] = [
   {
-    icon: 'grad',
-    title: 'Sinh Viên & Giảng Viên',
-    desc: 'Giáo cụ trực quan cho việc học và giảng dạy kinh lạc, huyệt vị, bệnh học Đông Y — sinh động hơn hẳn hình vẽ trên giấy.',
+    tag: '1 → n',
+    title: 'Một Dẫn Ra Nhiều',
+    desc: 'Một Thể Bệnh mở ra nhiều Pháp Trị, mỗi Pháp Trị gọi nhiều Bài Thuốc, mỗi Bài Thuốc gồm nhiều Vị Thuốc — một chuỗi nở dần.',
+    fan: false,
+    head: 'Can Khí Uất Kết',
+    nodes: ['Sơ Can Lý Khí', 'Tiêu Dao Tán', 'Sài Hồ · Bạch Thược · Đương Quy'],
   },
   {
-    icon: 'stethoscope',
-    title: 'Y Sỹ & Bác Sỹ',
-    desc: 'Hỗ trợ chẩn đoán, kê đơn và tra cứu huyệt vị nhanh chóng, chính xác trong thực hành lâm sàng hằng ngày.',
-  },
-  {
-    icon: 'hospital',
-    title: 'Phòng Khám & Bệnh Viện',
-    desc: 'Quản lý bệnh nhân, lịch trị liệu và hồ sơ điều trị tập trung, chuyên nghiệp và an toàn dữ liệu.',
+    tag: 'n ↔ n',
+    title: 'Nhiều Nối Nhiều',
+    desc: 'Cùng một Triệu Chứng có thể thuộc nhiều Thể Bệnh; cùng một Vị Thuốc nằm trong nhiều Bài Thuốc — mạng lưới đan chéo hai chiều.',
+    fan: true,
+    head: 'Mất Ngủ',
+    nodes: ['Tâm Thận Bất Giao', 'Can Hoả Thượng Viêm', 'Tâm Tỳ Lưỡng Hư'],
   },
 ]
+
+// ── Học liệu: danh sách phát video Đông Y (kênh YouTube "Trang Trương") cho học viên tham khảo ──
+// Nhúng trực tiếp trình phát playlist của YouTube (lazy-load) + liên kết mở toàn bộ trên YouTube.
+interface Playlist {
+  id: string
+  title: string
+  sub: string
+}
+const playlists: Playlist[] = [
+  { id: 'PLoA7J_Cpj57WPJ9Z8aGnL6-yPUmiw8RDt', title: 'Lý Luận Cơ Bản Của Đông Y', sub: 'Âm Dương · Ngũ Hành · Tạng Phủ · Khí Huyết Tân Dịch' },
+  { id: 'PLoA7J_Cpj57U4XrCRbvZOMMOuWUaWQGLa', title: 'Hoàng Đế Nội Kinh', sub: 'Kinh Điển Nền Tảng · Phim Tư Liệu CCTV' },
+  { id: 'PLoA7J_Cpj57VDU_vhn0eUYJYSJeC50-uL', title: 'Thương Hàn Luận', sub: 'Lục Kinh Biện Chứng · G.S Hách Vạn Sơn Giảng' },
+  { id: 'PLoA7J_Cpj57UsS4bfR9OuwQY29QDFgSls', title: 'Châm Cứu Đại Thành', sub: 'Đại Thành Châm Cứu · Huyệt Vị & Thủ Pháp' },
+]
+const ytPlaylist = (id: string) => `https://www.youtube-nocookie.com/embed/videoseries?list=${id}`
+const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${id}`
 </script>
 
 <template>
@@ -209,9 +334,9 @@ const audiences: Audience[] = [
         <nav class="lp-nav-links">
           <button @click="scrollTo('model3d')">Đồ Hình 3D</button>
           <button @click="scrollTo('measure')">Kết Quả Đo</button>
-          <button @click="scrollTo('knowledge')">Kho Tri Thức</button>
           <button @click="scrollTo('thu-vien')">Thư Viện</button>
-          <button @click="scrollTo('audience')">Dành Cho Ai</button>
+          <button @click="scrollTo('hoc-lieu')">Học Liệu</button>
+          <button @click="scrollTo('bang-gia')">Bảng Giá</button>
         </nav>
         <button class="lp-btn lp-btn--primary" @click="enter">{{ ctaLabel }}</button>
       </div>
@@ -221,17 +346,17 @@ const audiences: Audience[] = [
     <section class="lp-hero" id="top">
       <div class="lp-hero-inner">
         <div class="lp-hero-copy">
-          <span class="lp-badge">Phần Mềm Y Học Cổ Truyền · Đào Tạo & Lâm Sàng</span>
+          <span class="lp-badge">Phần Mềm Y Học Cổ Truyền · Học Tập & Lâm Sàng</span>
           <h1 class="lp-title">
-            <span class="hl">Y Học Cổ Truyền</span><br />Từ Giảng Đường Đến Phòng Khám
+            <span class="hl">Đông Y Nghìn Năm</span><br />Giờ Đọc Được Bằng Dữ Liệu
           </h1>
           <p class="lp-hero-sub">
-            Phần mềm quản lý phòng khám kết hợp <strong>đồ hình kinh lạc 3D</strong> — công cụ học tập, giảng dạy và thực hành lâm sàng dành cho sinh viên, giảng viên, y sỹ và bác sỹ Đông Y.
+            Đồ hình kinh lạc <strong>3D</strong>, kết quả đo hiện thành <strong>biểu đồ</strong>, kho tri thức <strong>1.058 huyệt</strong> — sờ thử hết ngay trên màn hình, không cần đăng nhập.
           </p>
           <div class="lp-cta-row">
-            <button class="lp-btn lp-btn--primary lp-btn--lg" @click="enter">{{ ctaLabel }} →</button>
-            <button class="lp-btn lp-btn--ghost-light lp-btn--lg" @click="openDemo('xem-3d')">Trải Nghiệm 3D Ngay</button>
-            <button class="lp-btn lp-btn--ghost-light lp-btn--lg" @click="openDemo('thu-vien')">Mở Thư Viện Tra Cứu</button>
+            <button class="lp-btn lp-btn--primary lp-btn--lg" @click="openDemo('xem-3d')">Trải Nghiệm 3D Ngay →</button>
+            <button class="lp-btn lp-btn--ghost-light lp-btn--lg" @click="openDemo('xem-ket-qua-do')">Xem Kết Quả Đo Thật</button>
+            <button class="lp-btn lp-btn--ghost-light lp-btn--lg" @click="enter">{{ ctaLabel }}</button>
           </div>
           <ul class="lp-stats">
             <li v-for="s in stats" :key="s.label">
@@ -244,6 +369,30 @@ const audiences: Audience[] = [
         <div class="lp-hero-art">
           <div class="lp-wheel"><CosmicWheel /></div>
         </div>
+      </div>
+    </section>
+
+    <!-- ============ ② Cũ vs Mới — cú chuyển ============ -->
+    <section class="lp-shift">
+      <div class="lp-section-head">
+        <span class="lp-eyebrow">Cũ &amp; Mới</span>
+        <h2 class="lp-h2">Học Đông Y Khó — Vì Cái Quan Trọng Nhất Lại Vô Hình.</h2>
+        <p class="lp-section-sub">Khí, kinh, mạch đều không nhìn thấy. Phần mềm biến chúng thành mô hình, con số và biểu đồ — để ai cũng học được, dạy được, kiểm chứng được.</p>
+      </div>
+      <div class="lp-shift-grid">
+        <article class="lp-shift-col lp-shift-col--old">
+          <h3 class="lp-shift-title">Ngày Xưa</h3>
+          <ul class="lp-shift-list">
+            <li v-for="(s, i) in shiftOld" :key="i">{{ s }}</li>
+          </ul>
+        </article>
+        <span class="lp-shift-arrow" aria-hidden="true">→</span>
+        <article class="lp-shift-col lp-shift-col--new">
+          <h3 class="lp-shift-title">Bây Giờ</h3>
+          <ul class="lp-shift-list">
+            <li v-for="(s, i) in shiftNew" :key="i">{{ s }}</li>
+          </ul>
+        </article>
       </div>
     </section>
 
@@ -268,10 +417,10 @@ const audiences: Audience[] = [
           </div>
         </div>
         <div class="lp-model-copy">
-          <span class="lp-eyebrow lp-eyebrow--light">Điểm Nhấn</span>
-          <h2 class="lp-h2 lp-h2--light">Đồ Hình Kinh Lạc 3D Sống Động</h2>
+          <span class="lp-eyebrow lp-eyebrow--light">Chạm Thử · Không Cần Đăng Nhập</span>
+          <h2 class="lp-h2 lp-h2--light">Lần Đầu Tiên, Bạn Nhìn Thấy Đường Kinh.</h2>
           <p class="lp-model-sub">
-            Mô hình cơ thể người ba chiều với toàn bộ hệ thống đường kinh và huyệt vị — kéo xoay để quan sát, học giải phẫu kinh lạc trực quan ngay trên màn hình.
+            14 đường kinh chính, hơn 1.000 huyệt vị định vị chính xác trên mô hình cơ thể 3D. Kéo để xoay, chạm để bay tới từng huyệt — cái vô hình giờ hiện rõ trước mắt.
           </p>
           <ul class="lp-checks">
             <li v-for="(p, i) in model3d" :key="i">
@@ -285,11 +434,145 @@ const audiences: Audience[] = [
       </div>
     </section>
 
+    <!-- ============ Kết quả đo kinh lạc — ĐỈNH "BIG DATA" (xoay nhiều ca thật) ============ -->
+    <section class="lp-measure" id="measure">
+      <div class="lp-section-head">
+        <span class="lp-eyebrow">Đo Kinh Lạc · Big Data</span>
+        <h2 class="lp-h2">Đo Nhiệt Độ Kinh Lạc, Cơ Thể Tự Kể Bạn Nghe Về Bệnh Của Mình.</h2>
+        <p class="lp-section-sub">Đo nhiệt 12 đường kinh → phần mềm lập bảng chỉ số, đối chiếu ngưỡng sinh lý, rồi tự gợi ý thể bệnh và pháp trị. Đông Y, nhưng đọc bằng dữ liệu.</p>
+      </div>
+
+      <!-- Dòng chảy 3 bước: Đo → Bảng chỉ số → Chẩn đoán -->
+      <div class="mc-flow">
+        <span class="mc-flow-step"><b>1</b> Đo Nhiệt 12 Đường Kinh</span>
+        <span class="mc-flow-arrow">→</span>
+        <span class="mc-flow-step"><b>2</b> Lập Bảng Chỉ Số · Đối Chiếu Ngưỡng</span>
+        <span class="mc-flow-arrow">→</span>
+        <span class="mc-flow-step mc-flow-step--accent"><b>3</b> Suy Ra Thể Bệnh · Pháp Trị</span>
+      </div>
+
+      <div class="lp-measure-card">
+        <div class="mc-chart">
+          <!-- Đầu thẻ: ca nào · ai (ẩn danh) · lý do khám + nút lật ca -->
+          <div class="mc-casehead">
+            <div class="mc-casemeta">
+              <span class="mc-caseid">{{ currentCase.id }}</span>
+              <span class="mc-casewho">{{ currentCase.who }}</span>
+              <span class="mc-casecomplaint">{{ currentCase.complaint }}</span>
+            </div>
+            <div class="mc-casenav">
+              <button class="mc-navbtn" @click="gotoCase(activeCase - 1)" aria-label="Ca trước">‹</button>
+              <span class="mc-dots">
+                <i v-for="(c, i) in measureCases" :key="c.id" :class="{ on: i === activeCase }" @click="gotoCase(i)"></i>
+              </span>
+              <button class="mc-navbtn" @click="gotoCase(activeCase + 1)" aria-label="Ca sau">›</button>
+            </div>
+          </div>
+
+          <span class="lp-eyebrow">Kết Quả Đo</span>
+          <div v-for="g in limbGroups" :key="g.label" class="mc-limb">
+            <div class="mc-limb-name">{{ g.label }}</div>
+            <div class="mc-stats">
+              <div class="mc-st">
+                <span class="mc-st-k">Max / Min</span>
+                <span class="mc-st-v">{{ fmt(g.stats.max, 1) }} / {{ fmt(g.stats.min, 1) }}</span>
+              </div>
+              <div class="mc-st">
+                <span class="mc-st-k">Biên Độ</span>
+                <span class="mc-st-v">{{ fmt(g.stats.range, 1) }}</span>
+              </div>
+              <div class="mc-st">
+                <span class="mc-st-k">Bình Quân</span>
+                <span class="mc-st-v">{{ fmt(g.stats.mean, 2) }}</span>
+              </div>
+              <div class="mc-st">
+                <span class="mc-st-k">Sai Số</span>
+                <span class="mc-st-v">{{ fmt(g.stats.sd, 2) }}</span>
+              </div>
+              <div class="mc-st">
+                <span class="mc-st-k">Ngưỡng Trên / Dưới</span>
+                <span class="mc-st-v">{{ fmt(g.stats.upperBound, 2) }} / {{ fmt(g.stats.lowerBound, 2) }}</span>
+              </div>
+            </div>
+            <div class="mc-tbl-wrap">
+              <table class="mc-tbl">
+                <thead>
+                  <tr>
+                    <th>Kinh</th>
+                    <th>T</th>
+                    <th>Trái</th>
+                    <th>TB</th>
+                    <th>Lệch</th>
+                    <th>Phải</th>
+                    <th>P</th>
+                    <th>|T−P|</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(r, i) in g.rows" :key="g.label + i">
+                    <td class="mc-tbl-name">{{ r.name }}</td>
+                    <td :class="signClass(r.leftSign)">{{ r.leftSign }}</td>
+                    <td>{{ fmt(r.left, 1) }}</td>
+                    <td class="mc-tbl-avg">{{ fmt(r.avg, 2) }}</td>
+                    <td :class="r.diff > 0 ? 'mc-sign-hi' : r.diff < 0 ? 'mc-sign-lo' : ''">
+                      {{ r.diff > 0 ? '+' : '' }}{{ fmt(r.diff, 2) }}
+                    </td>
+                    <td>{{ fmt(r.right, 1) }}</td>
+                    <td :class="signClass(r.rightSign)">{{ r.rightSign }}</td>
+                    <td>{{ fmt(r.absDiff, 1) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p class="mc-tablenote">
+            <span class="mc-sign-hi">+</span> Cao (Thực) · <span class="mc-sign-lo">−</span> Thấp (Hư) ·
+            <span class="mc-sign-ze">0</span> Trong Ngưỡng. Ngưỡng = bình quân ± sai số (biên độ ÷ 6).
+          </p>
+        </div>
+
+        <aside class="mc-readout">
+          <span class="lp-eyebrow">Phần Mềm Tự Đọc</span>
+          <div class="mc-batcuong">
+            <span class="mc-bc"><b>Âm / Dương</b>{{ diag.amDuong || '—' }}</span>
+            <span class="mc-bc"><b>Khí</b>{{ diag.khi || '—' }}</span>
+            <span class="mc-bc"><b>Huyết</b>{{ diag.huyet || '—' }}</span>
+          </div>
+          <dl class="mc-dx">
+            <div>
+              <dt>Thể Bệnh</dt>
+              <dd>{{ currentCase.theBenh }}</dd>
+            </div>
+            <div>
+              <dt>Pháp Trị</dt>
+              <dd>{{ currentCase.phapTri }}</dd>
+            </div>
+          </dl>
+          <p class="mc-note">Lật qua từng ca để thấy mỗi người một bảng chỉ số, một thể bệnh khác nhau. Đây là số liệu từ ca đo thật — bấm bên dưới để mở một bản đo đầy đủ đã ẩn danh.</p>
+          <div class="mc-actions">
+            <button class="lp-btn lp-btn--primary mc-cta" @click="openDemo('xem-ket-qua-do')">Xem Kết Quả Đo Thật →</button>
+            <button class="mc-unlock" @click="enter">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" /></svg>
+              <span>Đo Cho Bệnh Nhân Của Bạn</span>
+            </button>
+          </div>
+        </aside>
+      </div>
+
+      <!-- Cú đấm "Big Data" -->
+      <div class="mc-bigdata">
+        <span class="mc-bigdata-num">9.260</span>
+        <p class="mc-bigdata-text">
+          <strong>Mỗi lần đo là một điểm dữ liệu.</strong> Hơn chín nghìn lần đo kinh lạc dạy phần mềm nhận ra đâu là sinh lý bình thường, đâu là dấu hiệu bệnh lý — đó là Đông Y <strong>đọc được bằng dữ liệu</strong>.
+        </p>
+      </div>
+    </section>
+
     <!-- ============ Thư viện · Từ Điển (mở miễn phí — giới thiệu + lối vào /thu-vien) ============ -->
     <section class="lp-library" id="thu-vien">
       <div class="lp-section-head">
         <span class="lp-eyebrow">Thư Viện · Từ Điển</span>
-        <h2 class="lp-h2">Từ Điển Đông Y — Tra Cứu Toàn Diện, Mở Miễn Phí</h2>
+        <h2 class="lp-h2">Từ Điển Đông Y — Tra Cứu Miễn Phí Toàn Diện</h2>
         <p class="lp-section-sub">
           Toàn bộ kho tri thức huyệt vị, kinh mạch, châm cứu trị bệnh và bệnh học — mở đầy đủ cho mọi người, không cần đăng nhập.
         </p>
@@ -318,173 +601,150 @@ const audiences: Audience[] = [
       </div>
     </section>
 
-    <!-- ============ Kết quả đo kinh lạc (xem trước) ============ -->
-    <section class="lp-measure" id="measure">
+    <!-- ============ ③ Bàn Xoay → Dữ Liệu Lớn (cũ → mới · quan hệ 1-n / n-n) ============ -->
+    <section class="lp-dials" id="dials">
       <div class="lp-section-head">
-        <span class="lp-eyebrow">Đo Kinh Lạc</span>
-        <h2 class="lp-h2">Kết Quả Đo Hiện Thành Biểu Đồ Trực Quan</h2>
-        <p class="lp-section-sub">Chỉ số 12 đường kinh được đối chiếu với ngưỡng sinh lý, tự động chỉ ra kinh cường – kinh nhược và gợi ý chẩn đoán.</p>
+        <span class="lp-eyebrow">Từ Bàn Xoay Đến Dữ Liệu</span>
+        <h2 class="lp-h2">Cả Tủ Bàn Xoay Biện Chứng, Gói Trong Một Cơ Sở Dữ Liệu.</h2>
+        <p class="lp-section-sub">
+          Bàn xoay cũ mỗi lần chỉ khớp được một cặp: Triệu Chứng – Tạng Phủ, Thể Bệnh – Bài Thuốc. Phần mềm gộp cả tủ đĩa thành một mạng dữ liệu — quan hệ <strong>1–n</strong>, <strong>n–n</strong> nối liền nhau, chạm một điểm là cả mạng sáng lên.
+        </p>
       </div>
 
-      <div class="lp-measure-card">
-        <div class="mc-chart">
-          <div class="mc-legend">
-            <span class="mc-leg"><i class="is-high"></i> Cao (Thực)</span>
-            <span class="mc-leg"><i class="is-normal"></i> Cân Bằng</span>
-            <span class="mc-leg"><i class="is-low"></i> Thấp (Hư)</span>
-            <span class="mc-leg mc-leg--band"><i></i> Ngưỡng Sinh Lý</span>
+      <!-- Bàn xoay biện chứng THẬT: số hoá, chạy bằng dữ liệu DB, chạm để xoay & lọc sáng. -->
+      <div class="lp-dials-live">
+        <BanXoayBienChung />
+      </div>
+
+      <!-- Hai loại quan hệ: 1→n và n↔n -->
+      <div class="dl-rels">
+        <article v-for="c in relCards" :key="c.tag" class="dl-rel">
+          <div class="dl-rel-head">
+            <span class="dl-rel-tag">{{ c.tag }}</span>
+            <h4 class="dl-rel-title">{{ c.title }}</h4>
           </div>
-          <div class="mc-rows">
-            <div class="mc-row" v-for="m in meridianChart" :key="m.ten">
-              <span class="mc-name">{{ m.ten }}</span>
-              <span class="mc-track">
-                <span class="mc-band"></span>
-                <span class="mc-fill" :class="'is-' + m.status" :style="{ width: m.value + '%' }"></span>
+          <p class="dl-rel-desc">{{ c.desc }}</p>
+          <div class="dl-rel-chain">
+            <span class="dl-node dl-node--src">{{ c.head }}</span>
+            <template v-if="c.fan">
+              <span class="dl-rel-sep">↔</span>
+              <span class="dl-fan">
+                <span v-for="n in c.nodes" :key="n" class="dl-node">{{ n }}</span>
               </span>
-              <span class="mc-val" :class="'is-' + m.status">{{ statusShort[m.status] }}</span>
-            </div>
+            </template>
+            <template v-else>
+              <template v-for="n in c.nodes" :key="n">
+                <span class="dl-rel-sep">→</span>
+                <span class="dl-node">{{ n }}</span>
+              </template>
+            </template>
           </div>
-        </div>
-
-        <aside class="mc-readout">
-          <span class="lp-eyebrow">Gợi Ý Chẩn Đoán</span>
-          <div class="mc-flags">
-            <span class="mc-flag is-high">Can · Đởm Cao</span>
-            <span class="mc-flag is-low">Tỳ · Vị Thấp</span>
-          </div>
-          <dl class="mc-dx">
-            <div>
-              <dt>Thể Bệnh</dt>
-              <dd>Can Khí Uất Kết · Tỳ Vị Hư Nhược</dd>
-            </div>
-            <div>
-              <dt>Pháp Trị</dt>
-              <dd>Sơ Can Lý Khí · Kiện Tỳ Hoà Vị</dd>
-            </div>
-          </dl>
-          <p class="mc-note">Biểu đồ trên là minh hoạ. Bấm “Xem Kết Quả Đo Thật” để mở một bản đo thật (đã ẩn danh) — đọc được toàn bộ bảng chỉ số, Bát Cương và thể bệnh.</p>
-          <button class="lp-btn lp-btn--primary mc-cta" @click="openDemo('xem-ket-qua-do')">Xem Kết Quả Đo Thật →</button>
-          <button class="lp-link-btn" @click="enter">Đo Cho Bệnh Nhân Của Bạn →</button>
-        </aside>
-      </div>
-    </section>
-
-    <!-- ============ Tính năng ============ -->
-    <section class="lp-section" id="features">
-      <div class="lp-section-head">
-        <span class="lp-eyebrow">Tính Năng</span>
-        <h2 class="lp-h2">Tất Cả Phòng Khám Cần, Trong Một Hệ Thống</h2>
-        <p class="lp-section-sub">Từ tiếp đón bệnh nhân đến chẩn đoán và kê đơn — mọi nghiệp vụ Đông Y đều được số hoá liền mạch.</p>
-      </div>
-
-      <div class="lp-feature-grid">
-        <article v-for="f in features" :key="f.label" class="lp-feature">
-          <span class="lp-feature-ic">
-            <svg v-if="f.icon === 'patients'" width="24" height="24" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" /></svg>
-            <svg v-else-if="f.icon === 'calendar'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-            <svg v-else-if="f.icon === 'clipboard'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-            <svg v-else-if="f.icon === 'book'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2zM12 6.5v13" /></svg>
-            <svg v-else-if="f.icon === 'stethoscope'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13a9 9 0 0018 0v-5m-9 14a5 5 0 01-5-5V7a2 2 0 012-2h6a2 2 0 012 2v5a5 5 0 01-5 5zm0 0v-4" /></svg>
-            <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M3 12h18M3 18h18M3 6v12M9 6v12M15 6v12M21 6v12" /></svg>
-          </span>
-          <h3 class="lp-feature-title">{{ f.label }}</h3>
-          <p class="lp-feature-desc">{{ f.desc }}</p>
         </article>
       </div>
+
+      <!-- Cú đấm: 1 ↔ n ↔ n -->
+      <div class="dl-punch">
+        <span class="dl-punch-sym">1 ↔ n ↔ n</span>
+        <p class="dl-punch-text">
+          <strong>Bàn xoay chỉ khớp được một cặp mỗi lần.</strong> Cơ sở dữ liệu quan hệ giữ cả nghìn mối nối hai chiều: chạm vào một triệu chứng, phần mềm truy ngược tác nhân – tạng phủ – thể bệnh, rồi truy xuôi tới pháp trị và bài thuốc. <strong>Cả bộ bàn xoay, chạy trong một cú chạm.</strong>
+        </p>
+      </div>
     </section>
 
-    <!-- ============ Kho tri thức (xem trước, khoá phần còn lại) ============ -->
-    <section class="lp-knowledge" id="knowledge">
+    <!-- ============ ⑦ Thang giá trị — Khám Phá Miễn Phí · Hành Nghề Có Phí ============ -->
+    <section class="lp-ladder" id="bang-gia">
       <div class="lp-section-head">
-        <span class="lp-eyebrow">Kho Tri Thức</span>
-        <h2 class="lp-h2">Bài Thuốc · Thể Bệnh · Pháp Trị Liên Kết Với Nhau</h2>
-        <p class="lp-section-sub">Hệ thống tự suy luận: từ triệu chứng ra pháp trị, rồi gợi ý bài thuốc và thể bệnh phù hợp.</p>
+        <span class="lp-eyebrow">Miễn Phí &amp; Có Phí</span>
+        <h2 class="lp-h2">Học Thì Miễn Phí. Hành Nghề Mới Tính Phí.</h2>
+        <p class="lp-section-sub">Xem thoải mái, không cần đăng ký. Chỉ trả phí khi bạn đo và lưu hồ sơ cho bệnh nhân của mình.</p>
       </div>
-
-      <div class="lp-flow">
-        <span class="lp-flow-step">Triệu Chứng</span>
-        <span class="lp-flow-arrow">→</span>
-        <span class="lp-flow-step lp-flow-step--accent">Pháp Trị</span>
-        <span class="lp-flow-arrow">→</span>
-        <span class="lp-flow-step">Bài Thuốc</span>
-        <span class="lp-flow-plus">+</span>
-        <span class="lp-flow-step">Thể Bệnh</span>
-      </div>
-
-      <div class="lp-k-grid">
-        <article v-for="p in knowledge" :key="p.title" class="lp-k-panel" :class="p.tone">
-          <header class="lp-k-head">
-            <span class="lp-k-ic">
-              <svg v-if="p.icon === 'flask'" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7 2a1 1 0 00-.707 1.707L7 4.414v3.758a1 1 0 01-.293.707l-4 4C.816 14.769 2.156 18 4.828 18h10.343c2.673 0 4.013-3.231 2.122-5.121l-4-4A1 1 0 0113 8.172V4.414l.707-.707A1 1 0 0013 2H7z" clip-rule="evenodd" /></svg>
-              <svg v-else-if="p.icon === 'shield'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </span>
-            <h3 class="lp-k-title">{{ p.title }}</h3>
+      <div class="lp-ladder-grid">
+        <article class="lp-ladder-col">
+          <header class="lp-ladder-head">
+            <span class="lp-ladder-tag lp-ladder-tag--free">Miễn Phí</span>
+            <h3 class="lp-ladder-name">Khám Phá</h3>
+            <p class="lp-ladder-cap">Toàn bộ kho tri thức — không cần đăng nhập</p>
           </header>
-          <ul class="lp-k-list">
-            <li v-for="it in p.items" :key="it.name">
-              <span class="lp-k-name">{{ it.name }}</span>
-              <span class="lp-k-sub">{{ it.sub }}</span>
+          <ul class="lp-ladder-list">
+            <li v-for="(it, i) in ladderFree" :key="i">
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 010 1.42l-7.5 7.5a1 1 0 01-1.42 0l-3.5-3.5a1 1 0 111.42-1.42l2.79 2.79 6.79-6.79a1 1 0 011.42 0z" clip-rule="evenodd" /></svg>
+              <span>{{ it }}</span>
             </li>
           </ul>
-          <button
-            v-if="p.title === 'Bài Thuốc'"
-            class="lp-k-more lp-k-more--live"
-            @click="openDemo('xem-bai-thuoc')"
-          >
-            <span>Xem Phân Tích Tính Vị Quy Kinh →</span>
-          </button>
-          <button v-else class="lp-k-more" @click="enter">
-            <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" /></svg>
-            <span>{{ p.more }} · Đăng Nhập Để Xem</span>
-          </button>
+          <button class="lp-btn lp-btn--ghost lp-btn--lg lp-ladder-cta" @click="openDemo('xem-3d')">Bắt Đầu Miễn Phí</button>
         </article>
-      </div>
-
-      <!-- Phân tích bài thuốc THẬT — nhúng ngay trên landing, xem không cần đăng nhập -->
-      <div v-if="!formulaLoading && demoFormula" class="lp-bt">
-        <div class="lp-bt-head">
-          <div class="lp-bt-headtext">
-            <span class="lp-bt-eyebrow">Trải Nghiệm Thật · Không Cần Đăng Nhập</span>
-            <h3 class="lp-bt-title">Phân Tích “{{ demoFormula.ten_bai_thuoc }}” Theo Tính Vị Quy Kinh</h3>
-            <p v-if="demoFormula.nguon_goc" class="lp-bt-source">Nguồn Gốc: {{ demoFormula.nguon_goc }}</p>
-          </div>
-          <button class="lp-btn lp-btn--primary" @click="openDemo('xem-bai-thuoc')">Mở Phân Tích Đầy Đủ →</button>
-        </div>
-
-        <BaiThuocAnalysis :bai-thuoc="demoFormula" />
-
-        <p class="lp-bt-note">Tứ Khí · Ngũ Vị · Quy Kinh · Thăng–Giáng–Phù–Trầm và vai trò <strong>Quân · Thần · Tá · Sứ</strong> đều suy ra tự động từ thành phần bài thuốc — đây là phân tích THẬT, xem trực tiếp không cần đăng nhập.</p>
+        <article class="lp-ladder-col lp-ladder-col--paid">
+          <header class="lp-ladder-head">
+            <span class="lp-ladder-tag lp-ladder-tag--paid">Có Phí</span>
+            <h3 class="lp-ladder-name">Hành Nghề</h3>
+            <p class="lp-ladder-cap">Dùng trên chính bệnh nhân của bạn</p>
+          </header>
+          <ul class="lp-ladder-list">
+            <li v-for="(it, i) in ladderPaid" :key="i">
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 010 1.42l-7.5 7.5a1 1 0 01-1.42 0l-3.5-3.5a1 1 0 111.42-1.42l2.79 2.79 6.79-6.79a1 1 0 011.42 0z" clip-rule="evenodd" /></svg>
+              <span>{{ it }}</span>
+            </li>
+          </ul>
+          <button class="lp-btn lp-btn--primary lp-btn--lg lp-ladder-cta" @click="enter">{{ ctaLabel }} →</button>
+        </article>
       </div>
     </section>
 
-    <!-- ============ Dành cho ai ============ -->
-    <section class="lp-audience" id="audience">
-      <div class="lp-section-head">
-        <span class="lp-eyebrow">Dành Cho Ai</span>
-        <h2 class="lp-h2">Một Nền Tảng, Nhiều Người Dùng</h2>
-        <p class="lp-section-sub">Thiết kế cho cả giảng đường lẫn lâm sàng — phục vụ người học, người dạy và người hành nghề Đông Y.</p>
-      </div>
-      <div class="lp-audience-grid">
-        <article v-for="a in audiences" :key="a.title" class="lp-audience-card">
-          <span class="lp-audience-ic">
-            <svg v-if="a.icon === 'grad'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 10L12 5 2 10l10 5 10-5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 12v5c0 1.1 2.7 3 6 3s6-1.9 6-3v-5M22 10v6" /></svg>
-            <svg v-else-if="a.icon === 'stethoscope'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13a9 9 0 0018 0v-5m-9 14a5 5 0 01-5-5V7a2 2 0 012-2h6a2 2 0 012 2v5a5 5 0 01-5 5zm0 0v-4" /></svg>
-            <svg v-else width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16M12 7v6M9 10h6" /></svg>
-          </span>
-          <h3 class="lp-audience-title">{{ a.title }}</h3>
-          <p class="lp-audience-desc">{{ a.desc }}</p>
-        </article>
+    <!-- ============ ⑧ Bằng chứng quy mô ============ -->
+    <section class="lp-proof">
+      <div class="lp-proof-inner">
+        <p class="lp-proof-lead">Không phải phần mềm minh hoạ — đây là dữ liệu lâm sàng thật, đang lớn lên mỗi ngày.</p>
+        <ul class="lp-proof-stats">
+          <li v-for="p in proof" :key="p.label">
+            <strong>{{ p.value }}</strong>
+            <span>{{ p.label }}</span>
+          </li>
+        </ul>
       </div>
     </section>
 
     <!-- ============ Lời kêu gọi ============ -->
     <section class="lp-cta">
       <div class="lp-cta-inner">
-        <h2 class="lp-cta-title">Sẵn Sàng Trải Nghiệm?</h2>
-        <p class="lp-cta-sub">Đăng nhập để khám phá đồ hình kinh lạc 3D và toàn bộ kho tri thức Đông Y.</p>
-        <button class="lp-btn lp-btn--primary lp-btn--lg" @click="enter">{{ ctaLabel }} →</button>
+        <h2 class="lp-cta-title">Đông Y Của Bạn, Bắt Đầu Từ Một Cú Xoay.</h2>
+        <p class="lp-cta-sub">Sờ thử toàn bộ — miễn phí, không cần đăng nhập. Thích thì hãy đưa bệnh nhân của bạn vào.</p>
+        <div class="lp-cta-row lp-cta-row--center">
+          <button class="lp-btn lp-btn--primary lp-btn--lg" @click="openDemo('xem-3d')">Trải Nghiệm 3D Ngay →</button>
+          <button class="lp-btn lp-btn--ghost-light lp-btn--lg" @click="enter">{{ ctaLabel }}</button>
+        </div>
       </div>
+    </section>
+
+    <!-- ============ Học liệu — danh sách phát Đông Y (cho học viên học & tham khảo) ============ -->
+    <section class="lp-learn" id="hoc-lieu">
+      <div class="lp-section-head">
+        <span class="lp-eyebrow">Học Liệu</span>
+        <h2 class="lp-h2">Danh Sách Phát Đông Y — Học Và Tham Khảo</h2>
+        <p class="lp-section-sub">Tuyển tập video bài giảng và kinh điển Đông Y cho học viên, sinh viên và người mới — xem ngay tại đây hoặc mở toàn bộ trên YouTube.</p>
+      </div>
+
+      <div class="lp-learn-grid">
+        <article v-for="p in playlists" :key="p.id" class="lp-learn-card">
+          <div class="lp-learn-frame">
+            <iframe
+              :src="ytPlaylist(p.id)"
+              :title="p.title"
+              loading="lazy"
+              frameborder="0"
+              allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerpolicy="strict-origin-when-cross-origin"
+              allowfullscreen
+            ></iframe>
+          </div>
+          <div class="lp-learn-text">
+            <h3 class="lp-learn-title">{{ p.title }}</h3>
+            <p class="lp-learn-sub">{{ p.sub }}</p>
+            <a class="lp-learn-link" :href="ytPlaylistPage(p.id)" target="_blank" rel="noopener noreferrer">Xem Toàn Bộ Trên YouTube →</a>
+          </div>
+        </article>
+      </div>
+
+      <p class="lp-learn-note">Nguồn video thuộc kênh YouTube “Trang Trương” · chỉ dùng cho mục đích học tập &amp; tham khảo.</p>
     </section>
 
     <!-- ============ Chân trang ============ -->
@@ -859,10 +1119,13 @@ const audiences: Audience[] = [
   border-bottom: 1px solid var(--border);
 }
 .lp-measure > .lp-section-head,
+.lp-measure > .mc-flow,
 .lp-measure > .lp-measure-card,
+.lp-measure > .mc-bigdata,
 .lp-knowledge > .lp-section-head,
 .lp-knowledge > .lp-flow,
-.lp-knowledge > .lp-k-grid {
+.lp-knowledge > .lp-k-grid,
+.lp-knowledge > .lp-bt {
   max-width: 1180px;
   margin-left: auto;
   margin-right: auto;
@@ -912,108 +1175,101 @@ const audiences: Audience[] = [
   box-shadow: var(--shadow-md);
   padding: var(--space-8);
 }
-.mc-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
+/* Bảng kết quả đo kinh lạc (chi trên / chi dưới) — định dạng giống trang đo thật */
+.mc-limb {
+  margin-top: var(--space-4);
 }
-.mc-leg {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
+.mc-limb-name {
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  color: var(--brown-700);
+  margin-bottom: var(--space-2);
 }
-.mc-leg i {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  display: inline-block;
+.mc-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
-.mc-leg i.is-high {
-  background: var(--danger);
-}
-.mc-leg i.is-normal {
-  background: var(--success);
-}
-.mc-leg i.is-low {
-  background: var(--info);
-}
-.mc-leg--band i {
-  background: var(--success-bg);
-  border: 1px dashed var(--success-border);
-}
-.mc-rows {
+.mc-st {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 2px;
+  padding: var(--space-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: center;
 }
-.mc-row {
-  display: grid;
-  grid-template-columns: 86px 1fr 64px;
-  align-items: center;
-  gap: var(--space-3);
-}
-.mc-name {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--text);
-  text-align: right;
-  white-space: nowrap;
-}
-.mc-track {
-  position: relative;
-  height: 16px;
-  background: var(--gray-100);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-/* Vùng "ngưỡng sinh lý" 45%–75% */
-.mc-band {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 45%;
-  width: 30%;
-  background: var(--success-bg);
-  border-left: 1px dashed var(--success-border);
-  border-right: 1px dashed var(--success-border);
-}
-.mc-fill {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  border-radius: var(--radius-full);
-  animation: mc-grow 0.9s cubic-bezier(0.4, 0, 0.2, 1);
-}
-@keyframes mc-grow {
-  from {
-    width: 0 !important;
-  }
-}
-.mc-fill.is-high {
-  background: linear-gradient(90deg, var(--danger), #d4674e);
-}
-.mc-fill.is-normal {
-  background: linear-gradient(90deg, var(--brown-400), var(--brown-600));
-}
-.mc-fill.is-low {
-  background: linear-gradient(90deg, var(--info), #4d93b0);
-}
-.mc-val {
-  font-size: var(--font-size-xs);
+.mc-st-k {
+  font-size: 10px;
   font-weight: 700;
-}
-.mc-val.is-high {
-  color: var(--danger-fg);
-}
-.mc-val.is-normal {
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   color: var(--text-subtle);
 }
-.mc-val.is-low {
+.mc-st-v {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--text-brand);
+  font-variant-numeric: tabular-nums;
+}
+.mc-tbl-wrap {
+  overflow-x: auto;
+}
+.mc-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+.mc-tbl th {
+  background: var(--surface-2);
+  color: var(--brown-700);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  padding: 5px 6px;
+  text-align: center;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.mc-tbl td {
+  padding: 5px 6px;
+  text-align: center;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.mc-tbl-name {
+  font-weight: 700;
+  color: var(--text);
+  text-align: left !important;
+}
+.mc-tbl-avg {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+.mc-sign-hi {
+  color: var(--danger-fg);
+  font-weight: 800;
+}
+.mc-sign-lo {
   color: var(--info-fg);
+  font-weight: 800;
+}
+.mc-sign-ze {
+  color: var(--text-subtle);
+  font-weight: 700;
+}
+.mc-tablenote {
+  margin-top: var(--space-4);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.mc-tablenote .mc-sign-hi,
+.mc-tablenote .mc-sign-lo,
+.mc-tablenote .mc-sign-ze {
+  margin: 0 1px;
 }
 
 .mc-readout {
@@ -1023,27 +1279,32 @@ const audiences: Audience[] = [
   padding: var(--space-6);
   align-self: start;
 }
-.mc-flags {
-  display: flex;
-  flex-wrap: wrap;
+.mc-batcuong {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-2);
   margin-bottom: var(--space-5);
 }
-.mc-flag {
-  font-size: var(--font-size-xs);
+.mc-bc {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--space-3) var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: center;
+  font-size: var(--font-size-sm);
   font-weight: 700;
-  padding: 4px 12px;
-  border-radius: var(--radius-full);
+  color: var(--text-brand);
+  text-transform: capitalize;
 }
-.mc-flag.is-high {
-  background: var(--danger-bg);
-  color: var(--danger-fg);
-  border: 1px solid var(--danger-border);
-}
-.mc-flag.is-low {
-  background: var(--info-bg);
-  color: var(--info-fg);
-  border: 1px solid var(--info-border);
+.mc-bc b {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
 }
 .mc-dx {
   display: flex;
@@ -1073,7 +1334,202 @@ const audiences: Audience[] = [
 .mc-cta {
   width: 100%;
   justify-content: center;
-  margin-bottom: var(--space-3);
+}
+
+/* Dòng chảy 3 bước: Đo → Biểu đồ → Chẩn đoán */
+.mc-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-8);
+}
+.mc-flow-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--text-brand);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  padding: 8px var(--space-4);
+  border-radius: var(--radius-full);
+}
+.mc-flow-step b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--brown-100);
+  color: var(--brown-700);
+  font-size: var(--font-size-xs);
+}
+.mc-flow-step--accent {
+  color: var(--white);
+  background: linear-gradient(135deg, var(--brown-600), var(--brown-700));
+  border-color: var(--brown-700);
+}
+.mc-flow-step--accent b {
+  background: rgba(255, 255, 255, 0.25);
+  color: var(--white);
+}
+.mc-flow-arrow {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--brown-400);
+}
+
+/* Đầu thẻ: ca · người ẩn danh · lý do khám + nút lật ca */
+.mc-casehead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.mc-casemeta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+.mc-caseid {
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--white);
+  background: var(--brown-600);
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+}
+.mc-casewho {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--text);
+}
+.mc-casecomplaint {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.mc-casenav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.mc-navbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--brown-700);
+  font-size: var(--font-size-lg);
+  line-height: 1;
+  transition: all var(--transition-fast);
+}
+.mc-navbtn:hover {
+  background: var(--brown-600);
+  color: var(--white);
+  border-color: var(--brown-600);
+}
+.mc-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mc-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  cursor: pointer;
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+.mc-dots i.on {
+  background: var(--brown-600);
+  transform: scale(1.25);
+}
+
+/* Cụm nút: xem thật (free) + mở khoá "của bạn" (điểm chuyển đổi) */
+.mc-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.mc-unlock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: 44px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--brown-700);
+  background: var(--brown-50);
+  border: 1px dashed var(--brown-300);
+  transition: all var(--transition-fast);
+}
+.mc-unlock:hover {
+  color: var(--white);
+  background: var(--brown-700);
+  border-color: var(--brown-700);
+  border-style: solid;
+}
+.mc-unlock svg {
+  flex-shrink: 0;
+}
+
+/* Cú đấm "Big Data" — dải tối để con số nổi bật */
+.mc-bigdata {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  margin-top: var(--space-8);
+  padding: var(--space-6) var(--space-8);
+  background: linear-gradient(135deg, var(--brown-800), #1a0f05);
+  color: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.mc-bigdata-num {
+  font-size: clamp(2.4rem, 1.8rem + 2.4vw, 3.6rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--brown-100);
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.mc-bigdata-text {
+  font-size: var(--font-size-base);
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.82);
+}
+.mc-bigdata-text strong {
+  color: var(--white);
+  font-weight: 700;
+}
+@media (max-width: 560px) {
+  .mc-bigdata {
+    flex-direction: column;
+    text-align: center;
+    gap: var(--space-3);
+    padding: var(--space-6);
+  }
 }
 
 /* ---------- Lưới tính năng ---------- */
@@ -1151,6 +1607,157 @@ const audiences: Audience[] = [
   font-weight: 700;
   color: var(--brown-400);
 }
+
+/* ---------- Mạch biện chứng tương tác ---------- */
+.lp-trace {
+  max-width: 1180px;
+  margin: 0 auto var(--space-10);
+}
+.lp-trace-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+.lp-trace-pick-label {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.lp-trace-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.lp-trace-chip {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--chip-symptom-fg);
+  background: var(--surface);
+  border: 1px solid var(--chip-symptom-border);
+  padding: 8px var(--space-4);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.lp-trace-chip:hover {
+  background: var(--chip-symptom-bg);
+}
+.lp-trace-chip.is-active {
+  background: var(--chip-symptom-bg);
+  border-color: var(--chip-symptom-fg);
+  box-shadow: var(--shadow-sm);
+}
+.lp-trace-chain {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr auto 1fr;
+  align-items: stretch;
+  gap: var(--space-2);
+  animation: lpTraceIn 0.35s ease;
+}
+@keyframes lpTraceIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.lp-trace-step {
+  background: var(--k-bg);
+  border: 1px solid var(--k-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+}
+.lp-trace-step.k-cause {
+  --k-bg: var(--chip-pulse-bg);
+  --k-fg: var(--chip-pulse-fg);
+  --k-border: var(--chip-pulse-border);
+}
+.lp-trace-step.k-organ {
+  --k-bg: var(--chip-brand-bg);
+  --k-fg: var(--chip-brand-fg);
+  --k-border: var(--chip-brand-border);
+}
+.lp-trace-step.k-pattern {
+  --k-bg: var(--chip-pattern-bg);
+  --k-fg: var(--chip-pattern-fg);
+  --k-border: var(--chip-pattern-border);
+}
+.lp-trace-step.k-method {
+  --k-bg: var(--chip-method-bg);
+  --k-fg: var(--chip-method-fg);
+  --k-border: var(--chip-method-border);
+}
+.lp-trace-step.k-herb {
+  --k-bg: var(--chip-herb-bg);
+  --k-fg: var(--chip-herb-fg);
+  --k-border: var(--chip-herb-border);
+}
+.lp-trace-step.is-pivot {
+  box-shadow: 0 0 0 2px var(--k-fg) inset;
+}
+.lp-trace-tag {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--k-fg);
+  opacity: 0.85;
+}
+.lp-trace-val {
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--k-fg);
+}
+.lp-trace-sub {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--k-fg);
+  opacity: 0.8;
+}
+.lp-trace-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--brown-400);
+}
+.lp-trace-foot {
+  margin: var(--space-5) auto 0;
+  max-width: 760px;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.lp-trace-foot strong {
+  color: var(--text-brand);
+}
+@media (max-width: 1024px) {
+  .lp-trace-chain {
+    grid-template-columns: 1fr;
+  }
+  .lp-trace-link {
+    transform: rotate(90deg);
+  }
+}
+
 .lp-k-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1180,6 +1787,21 @@ const audiences: Audience[] = [
   --k-bg: var(--chip-method-bg);
   --k-fg: var(--chip-method-fg);
   --k-border: var(--chip-method-border);
+}
+.lp-k-panel.k-symptom {
+  --k-bg: var(--chip-symptom-bg);
+  --k-fg: var(--chip-symptom-fg);
+  --k-border: var(--chip-symptom-border);
+}
+.lp-k-panel.k-cause {
+  --k-bg: var(--chip-pulse-bg);
+  --k-fg: var(--chip-pulse-fg);
+  --k-border: var(--chip-pulse-border);
+}
+.lp-k-panel.k-organ {
+  --k-bg: var(--chip-brand-bg);
+  --k-fg: var(--chip-brand-fg);
+  --k-border: var(--chip-brand-border);
 }
 .lp-k-head {
   display: flex;
@@ -1467,6 +2089,441 @@ const audiences: Audience[] = [
   line-height: 1.7;
 }
 
+/* ---------- ② Cũ vs Mới ---------- */
+.lp-shift {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-16) var(--space-6);
+}
+.lp-shift-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: stretch;
+  gap: var(--space-5);
+}
+.lp-shift-col {
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  border: 1px solid var(--border);
+}
+.lp-shift-col--old {
+  background: var(--surface-2);
+}
+.lp-shift-col--new {
+  background: linear-gradient(140deg, var(--brown-800) 0%, #1a0f05 100%);
+  color: var(--white);
+  border-color: var(--brown-700);
+  box-shadow: var(--shadow-lg);
+}
+.lp-shift-title {
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-4);
+  color: var(--text-subtle);
+}
+.lp-shift-col--new .lp-shift-title {
+  color: var(--brown-200);
+}
+.lp-shift-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.lp-shift-list li {
+  list-style: none;
+  position: relative;
+  padding-left: var(--space-5);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.lp-shift-col--new .lp-shift-list li {
+  color: rgba(255, 255, 255, 0.9);
+}
+.lp-shift-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brown-300);
+}
+.lp-shift-col--new .lp-shift-list li::before {
+  background: var(--brown-200);
+}
+.lp-shift-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  color: var(--brown-400);
+}
+
+/* ---------- ③ Bàn Xoay → Dữ Liệu Lớn ---------- */
+.lp-dials {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-16) var(--space-6);
+}
+/* Khung chứa bàn xoay biện chứng tương tác (component BanXoayBienChung) */
+.lp-dials-live {
+  margin: 0 auto var(--space-8);
+}
+
+/* Hai thẻ quan hệ 1→n và n↔n */
+.dl-rels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+  margin-bottom: var(--space-8);
+}
+.dl-rel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-sm);
+}
+.dl-rel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.dl-rel-tag {
+  font-size: var(--font-size-md);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--white);
+  background: linear-gradient(135deg, var(--brown-600), var(--brown-700));
+  padding: 4px 12px;
+  border-radius: var(--radius-md);
+  letter-spacing: 0.04em;
+}
+.dl-rel-title {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--text);
+}
+.dl-rel-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: var(--space-4);
+}
+.dl-rel-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.dl-node {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--text-brand);
+  background: var(--brown-50);
+  border: 1px solid var(--border-strong);
+  padding: 5px 11px;
+  border-radius: var(--radius-full);
+}
+.dl-node--src {
+  color: var(--white);
+  background: var(--brown-700);
+  border-color: var(--brown-700);
+}
+.dl-rel-sep {
+  font-weight: 800;
+  color: var(--brown-400);
+}
+.dl-fan {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Cú đấm 1 ↔ n ↔ n */
+.dl-punch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-8);
+  background: linear-gradient(135deg, var(--brown-800), #1a0f05);
+  color: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.dl-punch-sym {
+  font-size: clamp(2rem, 1.5rem + 2vw, 3rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--brown-100);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.dl-punch-text {
+  font-size: var(--font-size-base);
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.82);
+}
+.dl-punch-text strong {
+  color: var(--white);
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .dl-rels {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .dl-punch {
+    flex-direction: column;
+    text-align: center;
+    gap: var(--space-3);
+    padding: var(--space-6);
+  }
+}
+
+/* ---------- ⑦ Thang giá trị ---------- */
+.lp-ladder {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-16) var(--space-6);
+}
+.lp-ladder-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  max-width: 920px;
+  margin: 0 auto;
+}
+.lp-ladder-col {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8) var(--space-6);
+  box-shadow: var(--shadow-sm);
+}
+.lp-ladder-col--paid {
+  border: 2px solid var(--brown-600);
+  box-shadow: var(--shadow-lg);
+}
+.lp-ladder-head {
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+.lp-ladder-tag {
+  display: inline-block;
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 12px;
+  border-radius: var(--radius-full);
+  margin-bottom: var(--space-3);
+}
+.lp-ladder-tag--free {
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+}
+.lp-ladder-tag--paid {
+  color: var(--white);
+  background: var(--brown-600);
+}
+.lp-ladder-name {
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.lp-ladder-cap {
+  margin-top: 4px;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+.lp-ladder-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  flex: 1;
+}
+.lp-ladder-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  list-style: none;
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  color: var(--text);
+}
+.lp-ladder-list svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--brown-600);
+}
+.lp-ladder-cta {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ---------- ⑧ Bằng chứng quy mô ---------- */
+.lp-proof {
+  background: linear-gradient(135deg, var(--brown-700) 0%, var(--brown-900) 100%);
+  color: var(--white);
+}
+.lp-proof-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-12) var(--space-6);
+  text-align: center;
+}
+.lp-proof-lead {
+  font-size: var(--font-size-lg);
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 40rem;
+  margin: 0 auto var(--space-8);
+  line-height: 1.6;
+}
+.lp-proof-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-8) var(--space-10);
+}
+.lp-proof-stats li {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.lp-proof-stats strong {
+  font-size: clamp(1.8rem, 1.4rem + 1.6vw, 2.6rem);
+  font-weight: 800;
+  color: var(--white);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.lp-proof-stats span {
+  margin-top: 6px;
+  font-size: var(--font-size-sm);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* Nút ghost nền sáng + hàng CTA căn giữa */
+.lp-btn--ghost {
+  background: var(--surface);
+  color: var(--brown-700);
+  border: 1px solid var(--border-strong);
+}
+.lp-btn--ghost:hover {
+  background: var(--brown-50);
+  border-color: var(--brown-300);
+  transform: translateY(-2px);
+}
+.lp-cta-row--center {
+  justify-content: center;
+}
+
+@media (max-width: 860px) {
+  .lp-shift-grid,
+  .lp-ladder-grid {
+    grid-template-columns: 1fr;
+  }
+  .lp-shift-arrow {
+    transform: rotate(90deg);
+    padding: var(--space-2) 0;
+  }
+}
+
+/* ---------- Học liệu · Danh sách phát Đông Y ---------- */
+.lp-learn {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-16) var(--space-6);
+}
+.lp-learn-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-6);
+}
+.lp-learn-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+.lp-learn-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-brand);
+}
+.lp-learn-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+.lp-learn-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+.lp-learn-text {
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.lp-learn-title {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--text);
+}
+.lp-learn-sub {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.lp-learn-link {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--brown-600);
+  transition: color var(--transition-fast);
+}
+.lp-learn-link:hover {
+  color: var(--brown-800);
+}
+.lp-learn-note {
+  margin-top: var(--space-8);
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-subtle);
+}
+@media (max-width: 768px) {
+  .lp-learn-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- Lời kêu gọi ---------- */
 .lp-cta {
   background: linear-gradient(135deg, var(--brown-600) 0%, var(--brown-800) 100%);
@@ -1606,7 +2663,7 @@ const audiences: Audience[] = [
     grid-template-columns: repeat(2, 1fr);
   }
   .lp-k-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
   .lp-measure-card {
     grid-template-columns: 1fr;
@@ -1663,6 +2720,9 @@ const audiences: Audience[] = [
   .lp-feature-grid {
     grid-template-columns: 1fr;
   }
+  .lp-k-grid {
+    grid-template-columns: 1fr;
+  }
   .lp-section,
   .lp-measure,
   .lp-knowledge,
@@ -1679,12 +2739,15 @@ const audiences: Audience[] = [
   .lp-measure-card {
     padding: var(--space-5);
   }
-  .mc-row {
-    grid-template-columns: 70px 1fr 52px;
-    gap: var(--space-2);
+  .mc-stats {
+    grid-template-columns: repeat(2, 1fr);
   }
-  .mc-name {
+  .mc-tbl {
     font-size: var(--font-size-xs);
+  }
+  .mc-tbl th,
+  .mc-tbl td {
+    padding: 4px 5px;
   }
 }
 </style>

@@ -8,6 +8,7 @@ import { BaiThuocPhapTri } from '../models/bai-thuoc-phap-tri.model';
 import { KinhMach } from '../models/kinh-mach.model';
 import { MeridianSyndrome } from '../models/meridian-syndrome.model';
 import { TrieuChung } from '../models/trieu-chung.model';
+import { BenhTayY } from '../models/benh-tay-y.model';
 
 @Injectable()
 export class PhapTriService {
@@ -33,6 +34,8 @@ export class PhapTriService {
     private readonly baiPhapTriLinkRepo: Repository<BaiThuocPhapTri>,
     @InjectRepository(TrieuChung)
     private readonly trieuChungRepo: Repository<TrieuChung>,
+    @InjectRepository(BenhTayY)
+    private readonly benhTayYRepo: Repository<BenhTayY>,
   ) {}
 
   findAll(): Promise<PhapTri[]> {
@@ -51,6 +54,149 @@ export class PhapTriService {
       select: ['id', 'chung_trang', 'nguyen_tac'],
       order: { id: 'ASC' },
     });
+  }
+
+  /**
+   * "Bàn xoay biện chứng" (中医辩证施治盘 đã số hoá) — dữ liệu CÔNG KHAI cho trang landing.
+   *
+   * Trả về HAI lát cắt THẬT, mỗi cái là một "bàn xoay" riêng cho một loại bệnh:
+   *   • dongY — trục là HỘI CHỨNG Đông Y (benh_dong_y): Hội Chứng · Triệu Chứng · Pháp Trị · Bài Thuốc.
+   *   • tayY  — trục là BỆNH Tây Y (benh_tay_y), nhóm theo Chủng Bệnh: Chủng Bệnh · Bệnh Tây Y · Triệu Chứng · Bài Thuốc.
+   *
+   * Mỗi phần tử "links" là một nan hoa (một bệnh) mang sẵn các mục của từng vòng; frontend dựng
+   * vòng đồng tâm từ tập hợp này và tô sáng quan hệ khi chạm. Chỉ giữ bệnh "giàu liên kết" + cắt
+   * mỗi danh mục cho gọn — đây là showcase, không phải bảng tra đầy đủ.
+   */
+  async findBienChungWheel(): Promise<{
+    dongY: { links: Array<Record<string, unknown>> };
+    tayY: { links: Array<Record<string, unknown>> };
+  }> {
+    const splitList = (raw?: string | null): string[] =>
+      (raw ?? '')
+        .split(/[,;\n/]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    const uniq = (arr: string[]): string[] => [...new Set(arr)];
+    const cap = <T>(arr: T[], n: number): T[] => arr.slice(0, n);
+    // Chỉ giữ triệu chứng NGẮN GỌN cho bàn xoay — loại các câu mô tả dài
+    // (vd: "hoặc ở nơi vùng núi uống dùng …" / "Nếu can uất hoá hoả thương âm").
+    const isShortTc = (s: string): boolean => {
+      const t = s.trim();
+      if (t.length < 2 || t.length > 36) return false; // quá dài = câu mô tả → loại
+      if (/[.!?]/.test(t)) return false; // có dấu kết câu → là cả câu → loại
+      return true;
+    };
+
+    // ── ĐÔNG Y: trục = Hội Chứng (benh_dong_y) — Hội Chứng · Tạng Phủ · Triệu Chứng · Bài Thuốc. ──
+    // benh_dong_y_phap_tri & benh_dong_y_bai_thuoc đều RỖNG → bỏ Pháp Trị; bài thuốc lấy từ text.
+    // Tạng phủ suy từ 12 cột tạng phủ (giá trị ≠ 0 = có liên quan) — rất "chất" Đông Y.
+    const ORGANS: Array<[keyof MeridianSyndrome, keyof MeridianSyndrome, keyof MeridianSyndrome, string]> = [
+      ['tieutruong', 'tieutruong_c8', 'tieutruong_c11', 'Tiểu Trường'],
+      ['tam', 'tam_c8', 'tam_c11', 'Tâm'],
+      ['tamtieu', 'tamtieu_c8', 'tamtieu_c11', 'Tam Tiêu'],
+      ['tambao', 'tambao_c8', 'tambao_c11', 'Tâm Bào'],
+      ['daitrang', 'daitrang_c8', 'daitrang_c11', 'Đại Trường'],
+      ['phe', 'phe_c8', 'phe_c11', 'Phế'],
+      ['bangquang', 'bangquang_c8', 'bangquang_c11', 'Bàng Quang'],
+      ['than', 'than_c8', 'than_c11', 'Thận'],
+      ['dam', 'dam_c8', 'dam_c11', 'Đởm'],
+      ['vi', 'vi_c8', 'vi_c11', 'Vị'],
+      ['can', 'can_c8', 'can_c11', 'Can'],
+      ['ty', 'ty_c8', 'ty_c11', 'Tỳ'],
+    ];
+    const syndromes = await this.benhDongYRepo.find({
+      relations: ['trieuChungList'],
+      order: { id: 'ASC' },
+    });
+    const dongY = syndromes
+      .map((s) => {
+        const tcEntity = (s.trieuChungList ?? []).map((t) => t.ten_trieu_chung).filter(Boolean);
+        const tcRaw = tcEntity.length ? tcEntity : splitList(s.trieuchung);
+        const trieuChung = cap(uniq(tcRaw.filter(isShortTc)), 5);
+        const baiThuoc = cap(uniq(splitList(s.bai_thuoc)), 4);
+        const tangPhu = cap(
+          ORGANS.filter(([b, c8, c11]) => Number(s[b]) !== 0 || Number(s[c8]) !== 0 || Number(s[c11]) !== 0).map(
+            ([, , , name]) => name,
+          ),
+          5,
+        );
+        const label = (s.tieuket || `Hội Chứng #${s.id}`).trim();
+        return { id: s.id, label, hoiChung: [label], tangPhu, trieuChung, baiThuoc };
+      })
+      .filter((x) => x.trieuChung.length >= 1 && (x.tangPhu.length >= 1 || x.baiThuoc.length >= 1))
+      .sort(
+        (a, b) =>
+          b.trieuChung.length + b.tangPhu.length + b.baiThuoc.length -
+          (a.trieuChung.length + a.tangPhu.length + a.baiThuoc.length),
+      )
+      .slice(0, 16);
+
+    // ── TÂY Y: trục = Bệnh Tây Y, nhóm theo Chủng Bệnh — Chủng Bệnh · Bệnh Tây Y · Triệu Chứng · Bài Thuốc. ──
+    // quan_he_benh_trieu_chung thưa & dồn 1 nhóm → dùng triệu chứng DẪN XUẤT (bài thuốc→pháp trị) phủ cả 5 nhóm.
+    // Xếp hạng rồi lấy CÂN BẰNG mỗi chủng bệnh để vòng Chủng Bệnh không bị 1 nhóm chiếm hết.
+    const tcDerived = `(SELECT count(DISTINCT pt.id_trieu_chung)
+        FROM benh_tay_y_bai_thuoc bb
+        JOIN bai_thuoc_phap_tri bp ON bp.id_bai_thuoc = bb.id_bai_thuoc
+        JOIN phap_tri_trieu_chung pt ON pt.id_phap_tri = bp.id_phap_tri
+       WHERE bb.id_benh_tay_y = b.id)`;
+    const btReal = `(SELECT count(DISTINCT bb.id_bai_thuoc)
+        FROM benh_tay_y_bai_thuoc bb JOIN bai_thuoc bt ON bt.id = bb.id_bai_thuoc
+       WHERE bb.id_benh_tay_y = b.id AND bt.ten_bai_thuoc <> b.ten_benh)`;
+    const rankRows: Array<{ id: number; ten_benh: string; chung: string; tc: number; bt: number }> =
+      await this.repo.query(
+        `SELECT b.id, b.ten_benh, cb.ten_chung_benh AS chung, ${tcDerived} AS tc, ${btReal} AS bt
+         FROM benh_tay_y b JOIN chung_benh cb ON cb.id = b.id_chung_benh`,
+      );
+    // Cân bằng: mỗi chủng bệnh lấy tối đa 4 bệnh giàu nhất (có ≥2 triệu chứng dẫn xuất + ≥1 bài thuốc thật).
+    const byChung = new Map<string, Array<{ id: number; ten_benh: string; chung: string }>>();
+    for (const r of rankRows
+      .filter((r) => Number(r.tc) >= 2 && Number(r.bt) >= 1)
+      .sort((a, b) => Number(b.tc) + Number(b.bt) - (Number(a.tc) + Number(a.bt)))) {
+      const arr = byChung.get(r.chung) ?? [];
+      if (arr.length < 4) {
+        arr.push({ id: r.id, ten_benh: r.ten_benh, chung: r.chung });
+        byChung.set(r.chung, arr);
+      }
+    }
+    const picked = [...byChung.values()].flat();
+    const pickedIds = picked.map((p) => p.id);
+
+    let tayY: Array<Record<string, unknown>> = [];
+    if (pickedIds.length > 0) {
+      const tcRows: Array<{ bid: number; name: string }> = await this.repo.query(
+        `SELECT bb.id_benh_tay_y AS bid, t.ten_trieu_chung AS name
+         FROM benh_tay_y_bai_thuoc bb
+         JOIN bai_thuoc_phap_tri bp ON bp.id_bai_thuoc = bb.id_bai_thuoc
+         JOIN phap_tri_trieu_chung pt ON pt.id_phap_tri = bp.id_phap_tri
+         JOIN trieu_chung t ON t.id = pt.id_trieu_chung
+         WHERE bb.id_benh_tay_y = ANY($1)
+         GROUP BY bb.id_benh_tay_y, t.ten_trieu_chung`,
+        [pickedIds],
+      );
+      const btRows: Array<{ bid: number; name: string }> = await this.repo.query(
+        `SELECT bb.id_benh_tay_y AS bid, bt.ten_bai_thuoc AS name
+         FROM benh_tay_y_bai_thuoc bb
+         JOIN bai_thuoc bt ON bt.id = bb.id_bai_thuoc
+         JOIN benh_tay_y b ON b.id = bb.id_benh_tay_y
+         WHERE bb.id_benh_tay_y = ANY($1) AND bt.ten_bai_thuoc <> b.ten_benh`,
+        [pickedIds],
+      );
+      const tcByBid = new Map<number, string[]>();
+      for (const r of tcRows) (tcByBid.get(r.bid) ?? tcByBid.set(r.bid, []).get(r.bid)!).push(r.name);
+      const btByBid = new Map<number, string[]>();
+      for (const r of btRows) (btByBid.get(r.bid) ?? btByBid.set(r.bid, []).get(r.bid)!).push(r.name);
+
+      tayY = picked.map((p) => ({
+        id: p.id,
+        label: p.ten_benh,
+        chungBenh: [p.chung],
+        benhTayY: [p.ten_benh],
+        trieuChung: cap(uniq((tcByBid.get(p.id) ?? []).filter(isShortTc)), 5),
+        baiThuoc: cap(uniq(btByBid.get(p.id) ?? []), 4),
+      }));
+    }
+
+    return { dongY: { links: dongY }, tayY: { links: tayY } };
   }
 
   /**
