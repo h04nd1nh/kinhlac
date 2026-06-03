@@ -12,7 +12,7 @@
  */
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ensureDictData, BASE } from '@/lib/acuMap3d'
+import { ensureDictData, ensureBenhData, BASE } from '@/lib/acuMap3d'
 
 // ───────────────────────── kiểu dữ liệu ─────────────────────────
 interface AcuSection { h: string; body: string }
@@ -61,6 +61,24 @@ interface FacetSource {
 }
 interface FacetTrait { ten: string; nhom: string; moTa?: string; count: number; huyetIds: number[] }
 
+// ── kiểu dữ liệu BỆNH (Châm Cứu Trị Bệnh / Bệnh Học) — từ window.BENH (benh.js) ──
+type BenhKind = 'ccdt' | 'benhhoc'
+interface BenhRecord {
+  id: number; ten: string; slug: string
+  _meta?: string            // tên khác (ccdt) / đối chiếu bệnh danh hiện đại (bệnh học)
+  _name?: string            // norm(tên) — cho xếp hạng tìm kiếm
+  _s?: string               // norm(tên + meta + toàn bộ thân bài) — tìm theo triệu chứng…
+  [field: string]: string | number | undefined   // các trường thân bài (daiCuong, dieuTri…)
+}
+interface BenhSet {
+  title: string
+  metaLabel: string
+  fields: [string, string][]   // [khoá, Nhãn] theo thứ tự hiển thị
+  count: number
+  records: BenhRecord[]
+}
+interface BenhRef { kind: BenhKind; id: number; ten: string }   // 1 bệnh có nhắc tới huyệt (chiều ngược)
+
 const router = useRouter()
 const route = useRoute()
 
@@ -68,7 +86,7 @@ const route = useRoute()
 const loading = ref(true)
 const error = ref<string | null>(null)
 const ready = ref(false)
-const subtab = ref<'huyet' | 'kinh' | 'nguon' | 'dactinh'>('huyet')
+const subtab = ref<'huyet' | 'kinh' | 'nguon' | 'ccdt' | 'benhhoc'>('huyet')
 
 // Huyệt vị
 const acuRecords = ref<AcuRecord[]>([])
@@ -106,13 +124,40 @@ const rawSources = ref<Record<string, FacetSource>>({})
 const traits = ref<Record<string, FacetTrait>>({})
 const sourceSearch = ref('')
 const activeSourceId = ref<string | null>(null)
-const traitSearch = ref('')
-const activeTraitId = ref<string | null>(null)
+const activeTraitId = ref<string | null>(null)   // = bộ lọc đặc tính của tab Huyệt Vị (null = không lọc)
+const traitPanelOpen = ref(false)                 // bảng chip đặc tính đang xổ ra hay không
+
+// ── BỆNH: Châm Cứu Trị Bệnh + Bệnh Học (2 tab con dùng CHUNG một khung) ──
+const benhReady = ref(false)
+const benhData = ref<Record<BenhKind, BenhSet | null>>({ ccdt: null, benhhoc: null })
+const benhSearch = ref<Record<BenhKind, string>>({ ccdt: '', benhhoc: '' })
+const benhActiveId = ref<Record<BenhKind, number | null>>({ ccdt: null, benhhoc: null })
+const benhLetters = ref<Record<BenhKind, string[]>>({ ccdt: [], benhhoc: [] })
+
+// Bản đồ "thực thể" để LINK trong văn bản bệnh: lkey(tên) → id. Chỉ tên ≥2 âm tiết (tránh nhận nhầm
+// từ đơn thường gặp). benhLinkBlock = cụm KHÁI NIỆM trùng tên huyệt (giữ dấu) cần CHẶN, không link.
+let benhAcuKey = new Map<string, number>()   // tên huyệt (giữ dấu) → id huyệt → tab Huyệt Vị
+let benhSrcKey = new Map<string, string>()   // tên/alias nguồn → id nguồn → tab Thư Mục Nguồn
+let benhAcuMaxN = 0
+let benhSrcMaxN = 0
+const benhLinkBlock = new Set<string>(['âm dương']) // "âm dương" (khái niệm) ≡ tên huyệt → không link
+let acuToBenh = new Map<number, BenhRef[]>()   // CHIỀU NGƯỢC: id huyệt → các bệnh có nhắc tới (dựng 1 lần ở onMounted)
 
 // ───────────────────────── tiện ích ─────────────────────────
 const norm = (s?: string) =>
   (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase()
 const fold = (s?: string) => norm(s).replace(/[^a-z0-9]+/g, ' ').trim()
+// KHOÁ GIỮ DẤU: thường-hoá + gộp dấu cách/dấu câu nhưng KHÔNG bỏ dấu — để dò tên huyệt/nguồn trong
+// văn bản bệnh mà không va chạm đồng âm khác dấu (vd "thận dương" ≠ huyệt "Thần Đường", "khí huyết" ≠ gì).
+// Có gộp BIẾN THỂ VỊ TRÍ DẤU THANH kiểu cũ/mới ở cụm uy/oa/oe (cùng một chữ): uỷ↔ủy, chuỳ↔chùy, hoá↔hóa…
+const lkey = (s?: string) =>
+  (s || '')
+    .normalize('NFD')
+    .toLowerCase()
+    .replace(/([ou])([aey])([̣̀́̃̉])/g, '$1$3$2') // dời dấu thanh về nguyên âm đầu cụm
+    .normalize('NFC')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
 // tách truy vấn thành các từ khoá (đã chuẩn hoá) — khớp mọi từ, không cần đúng thứ tự
 const tokenize = (q: string) => q.split(/\s+/).filter(Boolean)
 /**
@@ -161,13 +206,13 @@ function decorate(t: string): string {
  *  · "Nhãn: …" → in đậm nhãn (.f-lead) · tên huyệt → .f-acu · nguồn "(…)" → .src (nhạt)
  *  · mục 1./2. → .f-num · mục a)/b) → .f-sub-item
  */
-function formatBody(raw?: string): string {
+function formatBody(raw?: string, dec: (t: string) => string = decorate): string {
   const lines = (raw || '').split('\n').map((l) => l.trim()).filter(Boolean)
   if (!lines.length) return ''
   // 1 đoạn văn đơn (không tiêu đề, không đánh số) → thẻ <p> cho thoáng
   if (lines.length === 1) {
     const only = lines[0]!
-    if (!isHeading(only) && !/^[\p{L}\d][.)]\s/u.test(only)) return `<p class="f-p">${decorate(only)}</p>`
+    if (!isHeading(only) && !/^[\p{L}\d][.)]\s/u.test(only)) return `<p class="f-p">${dec(only)}</p>`
   }
   let out = ''
   let inList = false
@@ -188,10 +233,93 @@ function formatBody(raw?: string): string {
       inList = true
     }
     const cls = /^\d+[.)]\s/.test(t) ? ' class="f-num"' : /^[\p{L}][.)]\s/u.test(t) ? ' class="f-sub-item"' : ''
-    out += `<li${cls}>${decorate(t)}</li>`
+    out += `<li${cls}>${dec(t)}</li>`
   }
   closeList()
   return out
+}
+
+/**
+ * LINK THỰC THỂ trong 1 dòng văn bản bệnh: dò TÊN HUYỆT (→ tab Huyệt Vị) và TÊN NGUỒN/SÁCH
+ * (→ Thư Mục Nguồn), bọc thành <a> bấm được. Khớp giữ-dấu, tên ≥2 âm tiết, ưu tiên cụm DÀI nhất;
+ * nguồn (tên sách dài) dò trước huyệt. Phần chữ còn lại được escape an toàn.
+ */
+function linkBenhEntities(text: string): string {
+  const parts = text.split(/([\p{L}\p{N}]+)/u)             // [sep, từ, sep, từ, …]
+  const wi: number[] = []                                   // chỉ số 'parts' là TỪ
+  for (let i = 0; i < parts.length; i++) if (/[\p{L}\p{N}]/u.test(parts[i]!)) wi.push(i)
+  if (!wi.length) return esc(text)
+  const fW = wi.map((i) => lkey(parts[i]))
+  const link = new Array<{ end: number; html: string } | null>(wi.length).fill(null)
+  const used = new Array(wi.length).fill(false)
+  for (let a = 0; a < wi.length; a++) {
+    if (used[a]) continue
+    let matched = false
+    for (const kind of ['src', 'acu'] as const) {           // nguồn (cụm dài) trước, rồi huyệt
+      const map = kind === 'src' ? benhSrcKey : benhAcuKey   // Map<…,string> | Map<…,number> → get() trả union
+      const maxN = kind === 'src' ? benhSrcMaxN : benhAcuMaxN
+      for (let n = Math.min(maxN, wi.length - a); n >= 2 && !matched; n--) {
+        const id = map.get(fW.slice(a, a + n).join(' '))
+        if (id == null) continue
+        const orig = parts.slice(wi[a]!, wi[a + n - 1]! + 1).join('')
+        const attr = kind === 'src' ? `data-source-id="${esc(String(id))}"` : `data-acu-id="${id}"`
+        link[a] = { end: a + n - 1, html: `<a class="ent ent-${kind}" role="button" ${attr}>${esc(orig)}</a>` }
+        for (let k = a; k < a + n; k++) used[k] = true
+        matched = true
+      }
+      if (matched) break
+    }
+  }
+  // dựng lại chuỗi: phần thuộc thực thể → thẻ <a>; còn lại → escape
+  const htmlAt = new Map<number, string>()                  // part-index từ-đầu thực thể → html <a>
+  const skip = new Set<number>()                            // part-index nằm GIỮA thực thể → bỏ
+  for (let w = 0; w < wi.length; ) {
+    const lk = link[w]
+    if (lk) {
+      htmlAt.set(wi[w]!, lk.html)
+      for (let pi = wi[w]! + 1; pi <= wi[lk.end]!; pi++) skip.add(pi)
+      w = lk.end + 1
+    } else w++
+  }
+  let out = ''
+  for (let i = 0; i < parts.length; i++) {
+    if (skip.has(i)) continue
+    out += htmlAt.has(i) ? htmlAt.get(i)! : esc(parts[i]!)
+  }
+  return out
+}
+
+// Dò TẤT CẢ id huyệt được nhắc trong 1 đoạn (cùng luật với linkBenhEntities: giữ dấu, ≥2 âm tiết, cụm dài
+// nhất, bỏ qua phần đã dùng) — cho CHIỀU NGƯỢC huyệt→bệnh. Chỉ quan tâm huyệt (bỏ qua nguồn).
+function benhAcuIdsIn(text: string): number[] {
+  const parts = text.split(/([\p{L}\p{N}]+)/u)
+  const wi: number[] = []
+  for (let i = 0; i < parts.length; i++) if (/[\p{L}\p{N}]/u.test(parts[i]!)) wi.push(i)
+  const fW = wi.map((i) => lkey(parts[i]))
+  const used = new Array(wi.length).fill(false)
+  const ids: number[] = []
+  for (let a = 0; a < wi.length; a++) {
+    if (used[a]) continue
+    for (let n = Math.min(benhAcuMaxN, wi.length - a); n >= 2; n--) {
+      const id = benhAcuKey.get(fW.slice(a, a + n).join(' '))
+      if (id != null) {
+        ids.push(id)
+        for (let k = a; k < a + n; k++) used[k] = true
+        break
+      }
+    }
+  }
+  return ids
+}
+
+// Tô điểm 1 dòng văn bản BỆNH: link huyệt/nguồn + in đậm NHÃN đầu dòng ("Phong Độc:"…).
+// KHÔNG làm nhạt "(…)" như decorate vì trong bài bệnh ngoặc thường là GIẢI THÍCH (có cả tên huyệt cần link).
+function decorateBenhLine(t: string): string {
+  const s = linkBenhEntities(t)
+  // nhãn đầu dòng: chỉ khớp khi dòng KHÔNG mở đầu bằng thẻ <a> (tránh vỡ thẻ)
+  return s.replace(/^([^:<.;!?]{1,40}):(?=\s|$)/u, (full, label) =>
+    /\p{L}/u.test(label) ? `<b class="f-lead">${label}:</b>` : full,
+  )
 }
 
 // ═══════════════════════ FACET LOGIC (Nguồn ↔ Huyệt · Đặc Tính ↔ Huyệt) ═══════════════════════
@@ -235,10 +363,9 @@ const sourceActive = computed<(FacetSource & { id: string }) | null>(() => {
 
 // đặc tính gom theo "nhom" để hiển thị
 const traitGroups = computed<{ nhom: string; items: (FacetTrait & { id: string })[] }[]>(() => {
-  const q = norm(traitSearch.value.trim())
   const map = new Map<string, (FacetTrait & { id: string })[]>()
   for (const [id, t] of Object.entries(traits.value)) {
-    if (!t.count || (q && !norm(t.ten).includes(q))) continue
+    if (!t.count) continue
     const g = map.get(t.nhom) || []
     g.push({ ...t, id })
     map.set(t.nhom, g)
@@ -264,12 +391,26 @@ function openSource(id?: string | null) {
 }
 function openTrait(id?: string | null) {
   if (!id || !traits.value[id]) return
-  subtab.value = 'dactinh'
+  // "Tra theo đặc tính" giờ là BỘ LỌC trong tab Huyệt Vị: mở tab huyệt, xoá ô tìm rồi đặt bộ lọc.
+  subtab.value = 'huyet'
+  huyetSearch.value = ''
   activeTraitId.value = id
+  traitPanelOpen.value = false
+}
+// chọn 1 chip trong bảng đặc tính: bấm lại chip đang chọn = bỏ lọc; chọn xong thì gập bảng
+function pickTrait(id: string) {
+  activeTraitId.value = activeTraitId.value === id ? null : id
+  traitPanelOpen.value = false
+}
+function clearTraitFilter() {
+  activeTraitId.value = null
+  traitPanelOpen.value = false
 }
 
 // ───────────────────────── nạp dữ liệu ─────────────────────────
 onMounted(async () => {
+  // nạp dữ liệu bệnh SONG SONG; lỗi nạp (file thiếu…) chỉ ẩn 2 tab bệnh, KHÔNG làm hỏng Từ Điển
+  const benhLoad = ensureBenhData().catch(() => {})
   try {
     await ensureDictData()
     const W = window as any
@@ -359,6 +500,61 @@ onMounted(async () => {
       facetsReady.value = true
     }
 
+    // —— Bản đồ LINK cho văn bản bệnh: tên huyệt (≥2 âm tiết, giữ dấu, trừ blocklist) + tên/alias nguồn ——
+    benhAcuKey = new Map()
+    benhAcuMaxN = 0
+    for (const r of A) {
+      const k = lkey(r.ten)
+      const nw = k ? k.split(' ').length : 0
+      if (nw >= 2 && !benhLinkBlock.has(k) && !benhAcuKey.has(k)) {
+        benhAcuKey.set(k, r.id)
+        if (nw > benhAcuMaxN) benhAcuMaxN = nw
+      }
+    }
+    benhSrcKey = new Map()
+    benhSrcMaxN = 0
+    for (const [id, s] of Object.entries(rawSources.value)) {
+      for (const nm of [s.ten, ...(s.alias || [])]) {
+        const k = lkey(nm)
+        const nw = k ? k.split(' ').length : 0
+        if (nw >= 2 && !benhSrcKey.has(k)) {
+          benhSrcKey.set(k, id)
+          if (nw > benhSrcMaxN) benhSrcMaxN = nw
+        }
+      }
+    }
+
+    // —— Bệnh: Châm Cứu Trị Bệnh + Bệnh Học (window.BENH do benh.js cung cấp) ——
+    await benhLoad   // đợi benh.js (đã nạp song song); lỗi đã nuốt ở trên → W.BENH có thể undefined
+    const BENHRAW = (W.BENH || {}) as Partial<Record<BenhKind, BenhSet>>
+    acuToBenh = new Map()
+    ;(['ccdt', 'benhhoc'] as BenhKind[]).forEach((kind) => {
+      const set = BENHRAW[kind]
+      if (!set || !set.records?.length) return
+      set.records.forEach((r) => {
+        r._name = norm(r.ten)
+        const bodies = set.fields.map(([k]) => r[k] || '')
+        // gộp cả thân bài vào chỉ mục → tìm được bệnh theo triệu chứng / tên huyệt trong phác đồ
+        r._s = norm([r.ten, r._meta, ...bodies].join(' '))
+        // CHIỀU NGƯỢC: gom mọi huyệt được nhắc trong bài → bệnh này (mỗi huyệt chỉ tính 1 lần / bệnh)
+        const ids = new Set<number>()
+        for (const b of bodies) if (b) for (const id of benhAcuIdsIn(String(b))) ids.add(id)
+        for (const id of ids) {
+          const arr = acuToBenh.get(id) || []
+          arr.push({ kind, id: r.id, ten: r.ten })
+          acuToBenh.set(id, arr)
+        }
+      })
+      benhData.value[kind] = set
+      benhLetters.value[kind] = [
+        ...new Set(set.records.map((r) => norm(r.ten)[0]?.toUpperCase()).filter((c): c is string => !!c)),
+      ].sort()
+      benhActiveId.value[kind] = set.records[0]!.id
+    })
+    // sắp danh sách bệnh của mỗi huyệt theo tên cho gọn mắt
+    for (const arr of acuToBenh.values()) arr.sort((a, b) => fold(a.ten).localeCompare(fold(b.ten)))
+    benhReady.value = !!(benhData.value.ccdt || benhData.value.benhhoc)
+
     ready.value = true
     if (A.length) activeAcuId.value = A[0]!.id
     if (list.length) selectMer(0)
@@ -373,11 +569,16 @@ onMounted(async () => {
 // ═══════════════════════ HUYỆT VỊ ═══════════════════════
 const acuFiltered = computed<AcuRecord[]>(() => {
   if (!ready.value) return []
+  // BỘ LỌC ĐẶC TÍNH: nếu đang chọn 1 loại huyệt → chỉ giữ huyệt thuộc loại đó (kết hợp với ô tìm bên dưới)
+  const tid = activeTraitId.value
+  const base = tid
+    ? acuRecords.value.filter((r) => acuToTraits.value.get(r.id)?.includes(tid))
+    : acuRecords.value
   const q = norm(huyetSearch.value.trim())
-  if (!q) return acuRecords.value
+  if (!q) return base
   const tokens = tokenize(q)
   const hits: { r: AcuRecord; s: number }[] = []
-  for (const r of acuRecords.value) {
+  for (const r of base) {
     const s = relScore(q, tokens, r._name || '', r._code || '', r._s || '')
     if (s >= 0) hits.push({ r, s })
   }
@@ -399,6 +600,9 @@ const SECTION_ICONS: Record<string, string> = {
   'TÊN HUYỆT': '🏷️', 'TÊN KHÁC': '🏷️', 'XUẤT XỨ': '📜', 'VỊ TRÍ': '📍', 'GIẢI PHẪU': '🦴',
   'ĐẶC TÍNH': '⭐', 'TÁC DỤNG': '✨', 'CHỦ TRỊ': '🎯', 'CHÂM CỨU': '📌', 'THAM KHẢO': '📚',
   'PHỐI HUYỆT': '🔗', 'Ý NGHĨA': '💡', 'CHÚ Ý': '⚠️', 'PHỐI HUYỆT ': '🔗', 'GHI CHÚ': '📝',
+  // các mục của Châm Cứu Trị Bệnh / Bệnh Học
+  'ĐẠI CƯƠNG': '📖', 'NGUYÊN NHÂN': '🔬', 'TRIỆU CHỨNG': '🩺', 'CHẨN ĐOÁN': '🔍',
+  'ĐIỀU TRỊ (CHÂM CỨU)': '📌', 'CƠ CHẾ BỆNH SINH': '⚙️', 'BIỆN CHỨNG LUẬN TRỊ': '⚖️', 'BỆNH ÁN': '📋',
 }
 const secIcon = (h: string) => SECTION_ICONS[h.toUpperCase().trim()] || '•'
 const fieldH = (h: string) => `<h3><span class="fi">${secIcon(h)}</span><span class="ft">${esc(h)}</span></h3>`
@@ -439,16 +643,41 @@ const acuDetailHtml = computed<string>(() => {
     ? `<img class="photo" src="${esc(assetUrl(imgSrc))}" alt="${esc(r.ten)}" onerror="this.style.display='none'">`
     : ''
 
-  const sectionCards = (r.sections || [])
-    .filter((s) => s.h && !ACU_META_HEADERS.includes(s.h) && s.body)
-    .map((s) => `<section class="field">${fieldH(s.h)}<div class="body">${formatBody(s.body)}</div></section>`)
-    .join('')
-  const extraCards = ACU_EXTRA.filter(([k]) => r[k])
-    .map(([k, label]) => `<section class="field">${fieldH(label)}<div class="body">${formatBody(r[k] as string)}</div></section>`)
-    .join('')
+  const secCard = (s: AcuSection) => `<section class="field">${fieldH(s.h)}<div class="body">${formatBody(s.body)}</div></section>`
+  const bodySecs = (r.sections || []).filter((s) => s.h && !ACU_META_HEADERS.includes(s.h) && s.body)
+  const isViTri = (s: AcuSection) => s.h.toUpperCase().trim() === 'VỊ TRÍ'
+  // "Vị Trí" tách ra hiện ĐẦU TIÊN (trước thẻ Bệnh); các mục khác + Phối Huyệt/Ghi Chú/Tham Khảo hiện sau
+  const viTriCard = bodySecs.filter(isViTri).map(secCard).join('')
+  const otherCards =
+    bodySecs.filter((s) => !isViTri(s)).map(secCard).join('') +
+    ACU_EXTRA.filter(([k]) => r[k])
+      .map(([k, label]) => `<section class="field">${fieldH(label)}<div class="body">${formatBody(r[k] as string)}</div></section>`)
+      .join('')
 
   const codeChip = code3d ? `<span class="ah-code">${esc(code3d)}</span>` : ''
   const exChip = r._exCode ? `<span class="ah-code ah-code--ex">${esc(r._exCode)}</span>` : ''
+
+  // CHIỀU NGƯỢC: bệnh nào (Châm Cứu Trị Bệnh / Bệnh Học) có dùng huyệt này → chip bấm sang bệnh
+  const benhRefs = acuToBenh.get(r.id) || []
+  const benhKindLabel: Record<BenhKind, string> = { ccdt: 'Châm Cứu Trị Bệnh', benhhoc: 'Bệnh Học' }
+  const benhRefCard = benhRefs.length
+    ? `<section class="field benh-ref-card"><h3><span class="fi">🩹</span><span class="ft">Bệnh Dùng Huyệt Này</span><span class="ft-z">${benhRefs.length}</span></h3>` +
+      (['ccdt', 'benhhoc'] as BenhKind[])
+        .map((kind) => {
+          const items = benhRefs.filter((b) => b.kind === kind)
+          if (!items.length) return ''
+          const CAP = 24 // ở đầu mục cho dễ liếc: hiện 24 chip, phần dư gập trong <details>
+          const chip = (b: BenhRef) =>
+            `<a class="benh-chip benh-chip--${kind}" role="button" data-benh-kind="${kind}" data-benh-id="${b.id}">${esc(b.ten)}</a>`
+          const head = `<div class="benh-ref-chips">${items.slice(0, CAP).map(chip).join('')}</div>`
+          const more = items.length > CAP
+            ? `<details class="benh-more"><summary>+${items.length - CAP} bệnh nữa</summary><div class="benh-ref-chips">${items.slice(CAP).map(chip).join('')}</div></details>`
+            : ''
+          return `<div class="benh-ref-grp"><h5 class="benh-ref-h">${benhKindLabel[kind]} <span class="lz">${items.length}</span></h5>${head}${more}</div>`
+        })
+        .join('') +
+      `</section>`
+    : ''
 
   return `<article class="detail">
       <div class="detail-head">
@@ -460,7 +689,9 @@ const acuDetailHtml = computed<string>(() => {
           ${actions}
         </div>
       </div>
-      ${sectionCards + extraCards || '<p class="empty-note">Chưa có nội dung chi tiết cho huyệt này.</p>'}
+      ${viTriCard}
+      ${benhRefCard}
+      ${otherCards || (viTriCard ? '' : '<p class="empty-note">Chưa có nội dung chi tiết cho huyệt này.</p>')}
     </article>`
 })
 
@@ -471,8 +702,18 @@ function jumpAcuLetter(l: string) {
   const target = acuFiltered.value.find((r) => norm(r.ten)[0]?.toUpperCase() === l)
   if (target) document.getElementById('td-acu-' + target.id)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
 }
-// các nút trong chi tiết huyệt vị (v-html → dùng delegation)
+// các nút/link trong chi tiết huyệt vị + bệnh (v-html → dùng delegation)
 function onAcuDetailClick(e: MouseEvent) {
+  const acuLink = (e.target as HTMLElement).closest<HTMLElement>('[data-acu-id]')
+  if (acuLink) {
+    openAcu(Number(acuLink.dataset.acuId))
+    return
+  }
+  const benhLink = (e.target as HTMLElement).closest<HTMLElement>('[data-benh-id]')
+  if (benhLink) {
+    openBenh(benhLink.dataset.benhKind as BenhKind, Number(benhLink.dataset.benhId))
+    return
+  }
   const map3d = (e.target as HTMLElement).closest<HTMLElement>('[data-map-code]')
   if (map3d) {
     gotoMap(map3d.dataset.mapCode!)
@@ -607,6 +848,78 @@ function scrollToKy(letter: string) {
   merMainEl.value?.querySelector('#tdky-' + letter)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
 }
 
+// ═══════════════════════ BỆNH (Châm Cứu Trị Bệnh / Bệnh Học) ═══════════════════════
+// 2 tab con cùng cấu trúc → 1 khung dùng chung, lái theo `benhKind` (tab đang mở).
+const benhKind = computed<BenhKind | null>(() =>
+  subtab.value === 'ccdt' ? 'ccdt' : subtab.value === 'benhhoc' ? 'benhhoc' : null,
+)
+const curBenhSet = computed<BenhSet | null>(() => (benhKind.value ? benhData.value[benhKind.value] : null))
+const benhLettersCur = computed<string[]>(() => (benhKind.value ? benhLetters.value[benhKind.value] : []))
+const benhActiveIdCur = computed<number | null>(() => (benhKind.value ? benhActiveId.value[benhKind.value] : null))
+// v-model an toàn cho ô tìm (no-op khi không ở tab bệnh)
+const benhSearchModel = computed<string>({
+  get: () => (benhKind.value ? benhSearch.value[benhKind.value] : ''),
+  set: (v) => { if (benhKind.value) benhSearch.value[benhKind.value] = v },
+})
+
+const benhFiltered = computed<BenhRecord[]>(() => {
+  const set = curBenhSet.value
+  if (!set) return []
+  const q = norm(benhSearchModel.value.trim())
+  if (!q) return set.records
+  const tokens = tokenize(q)
+  const hits: { r: BenhRecord; s: number }[] = []
+  for (const r of set.records) {
+    const s = relScore(q, tokens, r._name || '', '', r._s || '')
+    if (s >= 0) hits.push({ r, s })
+  }
+  hits.sort((a, b) => b.s - a.s || (a.r._name || '').localeCompare(b.r._name || ''))
+  return hits.map((h) => h.r)
+})
+const benhActive = computed<BenhRecord | null>(() => {
+  const set = curBenhSet.value
+  const id = benhActiveIdCur.value
+  return set && id != null ? set.records.find((r) => r.id === id) || null : null
+})
+
+// Chi tiết 1 bệnh → HTML (dùng lại fieldH + formatBody y như Huyệt Vị): meta 1 dòng + thẻ mục có nội dung.
+const benhDetailHtml = computed<string>(() => {
+  const set = curBenhSet.value
+  const r = benhActive.value
+  if (!set || !r) return ''
+  const meta = r._meta
+    ? `<dl class="meta"><div class="m-row"><dt>${esc(set.metaLabel)}</dt><dd>${esc(r._meta)}</dd></div></dl>`
+    : ''
+  const cards = set.fields
+    .filter(([k]) => r[k])
+    .map(([k, label]) => `<section class="field">${fieldH(label)}<div class="body">${formatBody(r[k] as string, decorateBenhLine)}</div></section>`)
+    .join('')
+  return `<article class="detail">
+      <div class="detail-head benh-head">
+        <div class="titles">
+          <h2>${esc(r.ten)}</h2>
+          ${meta}
+        </div>
+      </div>
+      ${cards || '<p class="empty-note">Chưa có nội dung chi tiết cho bệnh này.</p>'}
+    </article>`
+})
+
+function selectBenh(id: number) {
+  if (benhKind.value) benhActiveId.value[benhKind.value] = id
+}
+// từ chi tiết huyệt → mở đúng bệnh ở tab Châm Cứu Trị Bệnh / Bệnh Học
+function openBenh(kind: BenhKind, id: number) {
+  if (!benhData.value[kind]) return
+  subtab.value = kind
+  benhActiveId.value[kind] = id
+  nextTick(() => document.getElementById('td-benh-' + id)?.scrollIntoView({ block: 'center' }))
+}
+function jumpBenhLetter(l: string) {
+  const t = benhFiltered.value.find((r) => norm(r.ten)[0]?.toUpperCase() === l)
+  if (t) document.getElementById('td-benh-' + t.id)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+}
+
 // ───────────────────────── điều hướng chéo ─────────────────────────
 function openAcu(id?: number) {
   if (id == null) return
@@ -664,7 +977,8 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
 
 <template>
   <div class="tudien-page">
-    <!-- thanh tab con -->
+    <!-- thanh tab con — ⚠️ "Thư Mục Nguồn" LUÔN để CUỐI cùng: thêm tab mới thì chèn TRƯỚC nút đó.
+         ("Tra theo đặc tính" không còn là tab — đã thành bộ lọc trong tab Huyệt Vị · Châm Cứu.) -->
     <div class="td-tabs">
       <button class="td-tab" :class="{ active: subtab === 'huyet' }" @click="subtab = 'huyet'">
         Huyệt Vị · Châm Cứu
@@ -672,11 +986,15 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
       <button class="td-tab" :class="{ active: subtab === 'kinh' }" @click="subtab = 'kinh'">
         Lý Thuyết · Tra Cứu Kinh
       </button>
+      <button v-if="benhData.ccdt" class="td-tab" :class="{ active: subtab === 'ccdt' }" @click="subtab = 'ccdt'">
+        Châm Cứu Trị Bệnh
+      </button>
+      <button v-if="benhData.benhhoc" class="td-tab" :class="{ active: subtab === 'benhhoc' }" @click="subtab = 'benhhoc'">
+        Bệnh Học
+      </button>
+      <!-- ↓↓↓ luôn giữ Thư Mục Nguồn ở CUỐI cùng ↓↓↓ -->
       <button v-if="facetsReady" class="td-tab" :class="{ active: subtab === 'nguon' }" @click="subtab = 'nguon'">
         Thư Mục Nguồn
-      </button>
-      <button v-if="facetsReady" class="td-tab" :class="{ active: subtab === 'dactinh' }" @click="subtab = 'dactinh'">
-        Tra Theo Đặc Tính
       </button>
     </div>
 
@@ -703,6 +1021,48 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
           />
           <span class="td-count">{{ acuFiltered.length }} / {{ acuRecords.length }}</span>
         </div>
+        <!-- Bộ lọc theo ĐẶC TÍNH (Kỳ Huyệt, Ngũ Du, Ngũ Hành, Huyệt Đặc Dụng…): nút → xổ bảng chip -->
+        <div v-if="facetsReady" class="td-filter">
+          <!-- chưa lọc → nút mở bảng -->
+          <button
+            v-if="!activeTraitId"
+            type="button"
+            class="td-filterbtn"
+            :class="{ open: traitPanelOpen }"
+            @click="traitPanelOpen = !traitPanelOpen"
+          >
+            <span>⚲ Lọc Đặc Tính</span>
+            <span class="chev">{{ traitPanelOpen ? '▴' : '▾' }}</span>
+          </button>
+          <!-- đang lọc → pill (bấm tên để đổi loại, ✕ để bỏ) -->
+          <div v-else class="td-filterpill">
+            <button type="button" class="pill-main" :class="{ open: traitPanelOpen }" @click="traitPanelOpen = !traitPanelOpen">
+              <span class="pill-dot">●</span>{{ traitActive?.ten }}<span class="pill-n">{{ traitActive?.count }}</span>
+            </button>
+            <button type="button" class="pill-x" title="Bỏ lọc đặc tính" @click="clearTraitFilter">✕</button>
+          </div>
+        </div>
+        <!-- bảng chip xổ ra (gom theo nhóm) -->
+        <div v-if="facetsReady && traitPanelOpen" class="td-traitpanel">
+          <div v-for="g in traitGroups" :key="g.nhom" class="tp-grp">
+            <h5 class="tp-grp-h">{{ g.nhom }}</h5>
+            <div class="tp-chips">
+              <button
+                v-for="t in g.items"
+                :key="t.id"
+                type="button"
+                class="tp-chip"
+                :class="{ active: t.id === activeTraitId }"
+                @click="pickTrait(t.id)"
+              >
+                {{ t.ten }}<span class="tp-n">{{ t.count }}</span>
+              </button>
+            </div>
+          </div>
+          <p v-if="!traitGroups.length" class="td-empty">Chưa có dữ liệu đặc tính.</p>
+        </div>
+        <!-- mô tả loại đang lọc (khi bảng đã gập) -->
+        <p v-if="traitActive?.moTa && !traitPanelOpen" class="td-filter-note">{{ traitActive.moTa }}</p>
         <div class="td-alpha">
           <button v-for="l in acuLetters" :key="l" type="button" @click="jumpAcuLetter(l)">{{ l }}</button>
         </div>
@@ -960,50 +1320,37 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
       </div>
     </div>
 
-    <!-- ═════ TRA THEO ĐẶC TÍNH ═════ -->
-    <div v-show="!loading && !error && subtab === 'dactinh'" class="td-shell">
+    <!-- ═════ CHÂM CỨU TRỊ BỆNH · BỆNH HỌC (2 tab con dùng chung khung) ═════ -->
+    <div v-show="!loading && !error && benhKind" class="td-shell">
       <aside class="td-aside">
         <div class="td-search">
-          <input v-model="traitSearch" type="search" class="td-input" placeholder="Tìm loại huyệt (Kỳ Huyệt, Hợp…)" autocomplete="off" />
+          <input
+            v-model="benhSearchModel"
+            type="search"
+            class="td-input"
+            placeholder="Tìm bệnh / triệu chứng / tên huyệt…"
+            autocomplete="off"
+          />
+          <span class="td-count">{{ benhFiltered.length }} / {{ curBenhSet?.count || 0 }}</span>
         </div>
-        <div class="td-list trait-nav">
-          <div v-for="g in traitGroups" :key="g.nhom" class="trait-grp">
-            <h4 class="trait-grp-h">{{ g.nhom }}</h4>
-            <button
-              v-for="t in g.items"
-              :key="t.id"
-              class="trait-item"
-              :class="{ active: t.id === activeTraitId }"
-              @click="activeTraitId = t.id"
-            >
-              <span class="nm">{{ t.ten }}</span><span class="src-count">{{ t.count }}</span>
-            </button>
-          </div>
-          <p v-if="!traitGroups.length" class="td-empty">Không khớp loại nào.</p>
+        <div class="td-alpha">
+          <button v-for="l in benhLettersCur" :key="l" type="button" @click="jumpBenhLetter(l)">{{ l }}</button>
         </div>
+        <ul class="td-list">
+          <li
+            v-for="r in benhFiltered"
+            :id="'td-benh-' + r.id"
+            :key="r.id"
+            :class="{ active: r.id === benhActiveIdCur }"
+            @click="selectBenh(r.id)"
+          >
+            <span class="nm">{{ r.ten }}<small v-if="r._meta">{{ r._meta.split('\n')[0]?.slice(0, 60) }}</small></span>
+          </li>
+          <li v-if="!benhFiltered.length" class="td-empty">Không khớp bệnh nào.</li>
+        </ul>
       </aside>
-
-      <div class="td-main">
-        <template v-if="traitActive">
-          <header class="mer-head">
-            <h2>{{ traitActive.ten }}</h2>
-            <div class="mer-badges">
-              <span class="badge">{{ traitActive.count }} huyệt</span>
-              <span class="badge sec">{{ traitActive.nhom }}</span>
-            </div>
-          </header>
-          <p v-if="traitActive.moTa" class="ky-note">{{ traitActive.moTa }}</p>
-          <div class="mer-points">
-            <a v-for="h in huyetOf(traitActive.huyetIds)" :key="h.id" class="pt link" role="button" @click="openAcu(h.id)">
-              <b v-if="h.code">{{ h.code }}</b> {{ h.ten }}
-            </a>
-          </div>
-        </template>
-        <div v-else class="mer-welcome">
-          <h3>Tra Theo Đặc Tính</h3>
-          <p>Chọn một loại huyệt (Kỳ Huyệt, Ngũ Du, Ngũ Hành, Huyệt Đặc Dụng…) để xem tất cả huyệt thuộc loại đó.</p>
-        </div>
-      </div>
+      <!-- eslint-disable-next-line vue/no-v-html -->
+      <div class="td-main" @click="onAcuDetailClick" v-html="benhDetailHtml"></div>
     </div>
 
   </div>
@@ -1086,6 +1433,31 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
 
 /* ═══ CHI TIẾT HUYỆT VỊ (v-html) ═══ */
 .td-main :deep(.detail) { max-width: 820px; margin: 0 auto; }
+/* Chi tiết BỆNH (Châm Cứu Trị Bệnh / Bệnh Học) — không ảnh; nhãn meta dài hơn nên nới cột nhãn */
+.td-main :deep(.benh-head) { gap: 0; }
+.td-main :deep(.benh-head .meta dt) { flex-basis: 156px; }
+/* link thực thể trong văn bản bệnh: tên HUYỆT → tab Huyệt Vị · tên NGUỒN/SÁCH → Thư Mục Nguồn */
+.td-main :deep(.ent) { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+.td-main :deep(.ent-acu) { color: var(--brown-700); font-weight: 600; text-decoration-color: var(--brown-300); }
+.td-main :deep(.ent-acu):hover { background: var(--brown-100); box-shadow: 0 0 0 2px var(--brown-100); border-radius: 3px; text-decoration: none; }
+.td-main :deep(.ent-src) { color: var(--brown-500); font-style: italic; text-decoration-color: var(--brown-200); }
+.td-main :deep(.ent-src):hover { color: var(--brown-800); text-decoration-style: solid; }
+/* CHIỀU NGƯỢC: thẻ "Bệnh Dùng Huyệt Này" (chip → mở bệnh ở tab Châm Cứu Trị Bệnh / Bệnh Học) */
+.td-main :deep(.field h3 .ft-z) { margin-left: auto; background: var(--brown-100); color: var(--brown-800); font-size: 11px; font-weight: 800; padding: 1px 8px; border-radius: 10px; }
+.td-main :deep(.benh-ref-grp) { margin-bottom: 12px; }
+.td-main :deep(.benh-ref-grp:last-child) { margin-bottom: 0; }
+.td-main :deep(.benh-ref-h) { margin: 0 0 7px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--gray-500); }
+.td-main :deep(.benh-ref-h .lz) { color: var(--brown-500); font-weight: 700; }
+.td-main :deep(.benh-ref-chips) { display: flex; flex-wrap: wrap; gap: 6px; }
+.td-main :deep(.benh-chip) { font-size: 13px; padding: 4px 11px; border-radius: 14px; cursor: pointer; border: 1px solid transparent; text-decoration: none; white-space: nowrap; }
+.td-main :deep(.benh-chip--ccdt) { background: var(--brown-50); color: var(--brown-800); border-color: var(--brown-200); }
+.td-main :deep(.benh-chip--benhhoc) { background: #f0e3d2; color: var(--brown-700); border-color: #e3d2bd; }
+.td-main :deep(.benh-chip):hover { background: var(--brown-600); color: #fff; border-color: var(--brown-700); }
+.td-main :deep(.benh-more) { margin-top: 7px; }
+.td-main :deep(.benh-more summary) { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--brown-600); list-style: none; display: inline-block; padding: 2px 0; }
+.td-main :deep(.benh-more summary)::-webkit-details-marker { display: none; }
+.td-main :deep(.benh-more summary):hover { color: var(--brown-800); text-decoration: underline; }
+.td-main :deep(.benh-more[open] summary) { margin-bottom: 7px; }
 /* Header dạng "hero": ảnh bo tròn + mã (chip) + tên lớn + meta gọn */
 .td-main :deep(.detail-head) { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; padding-bottom: 18px; margin-bottom: 6px; border-bottom: 1px solid var(--brown-100); }
 .td-main :deep(.detail-head .photo) { width: 196px; border-radius: 16px; box-shadow: 0 6px 18px rgba(58, 39, 21, 0.12); background: #fff; border: 1px solid var(--border); }
@@ -1213,7 +1585,7 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
 
 /* danh sách nguồn / đặc tính: chip số đếm */
 .src-count { flex: none; min-width: 34px; height: 22px; padding: 0 8px; border-radius: 11px; background: var(--brown-100); color: var(--brown-800); font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
-.td-list li.active .src-count, .trait-item.active .src-count { background: rgba(255, 255, 255, 0.25); color: #fff; }
+.td-list li.active .src-count { background: rgba(255, 255, 255, 0.25); color: #fff; }
 
 /* chi tiết nguồn */
 .src-meta { margin: 14px 0 4px; display: grid; gap: 8px; }
@@ -1234,14 +1606,32 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
 .rv-skip { background: var(--surface); color: var(--text-muted); border-color: var(--border); }
 .rv-skip:hover { border-color: var(--brown-400); color: var(--brown-700); }
 
-/* điều hướng đặc tính (danh sách trái) */
-.trait-nav { padding: 6px; }
-.trait-grp { margin-bottom: 10px; }
-.trait-grp-h { margin: 8px 6px 4px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); }
-.trait-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px; border: 0; background: none; border-radius: var(--radius-sm); cursor: pointer; font: inherit; font-size: var(--font-size-sm); color: var(--text); text-align: left; }
-.trait-item:hover { background: var(--brown-50); }
-.trait-item.active { background: var(--brown-600); color: #fff; }
-.trait-item .nm { font-weight: 600; }
+/* bộ lọc đặc tính: nút "Lọc Đặc Tính" → xổ bảng chip gom theo nhóm */
+.td-filter { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); }
+/* nút mở bảng (chưa lọc) */
+.td-filterbtn { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px var(--space-3); border: 1px solid var(--brown-300); background: var(--surface); color: var(--brown-800); border-radius: var(--radius-md); font: inherit; font-size: var(--font-size-sm); font-weight: 700; cursor: pointer; transition: all var(--transition-fast); }
+.td-filterbtn:hover, .td-filterbtn.open { background: var(--brown-50); border-color: var(--brown-400); }
+.td-filterbtn .chev { color: var(--brown-500); font-size: 11px; }
+/* pill (đang lọc) */
+.td-filterpill { flex: 1; display: flex; align-items: stretch; gap: 0; border: 1px solid var(--brown-600); border-radius: var(--radius-md); overflow: hidden; }
+.pill-main { flex: 1; display: flex; align-items: center; gap: 7px; min-width: 0; padding: 7px var(--space-3); border: 0; background: var(--brown-600); color: #fff; font: inherit; font-size: var(--font-size-sm); font-weight: 700; cursor: pointer; text-align: left; }
+.pill-main:hover { background: var(--brown-700); }
+.pill-main .pill-dot { font-size: 9px; opacity: 0.85; }
+.pill-main .pill-n { flex: none; margin-left: auto; padding: 1px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.22); font-size: 11.5px; font-weight: 800; }
+.pill-x { flex: none; width: 30px; border: 0; border-left: 1px solid rgba(255, 255, 255, 0.3); background: var(--brown-600); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.pill-x:hover { background: var(--danger, #b3261e); }
+/* bảng chip xổ ra */
+.td-traitpanel { max-height: 320px; overflow-y: auto; padding: var(--space-2) var(--space-3) var(--space-3); border-bottom: 1px solid var(--border); background: var(--brown-50); }
+.tp-grp { margin-top: var(--space-2); }
+.tp-grp-h { margin: 0 0 5px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); }
+.tp-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.tp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border: 1px solid var(--brown-200); background: var(--surface); color: var(--brown-800); border-radius: 999px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all var(--transition-fast); }
+.tp-chip:hover { border-color: var(--brown-500); background: #fff; }
+.tp-chip.active { background: var(--brown-600); border-color: var(--brown-700); color: #fff; }
+.tp-chip .tp-n { padding: 0 6px; border-radius: 8px; background: var(--brown-100); color: var(--brown-800); font-size: 11px; font-weight: 800; }
+.tp-chip.active .tp-n { background: rgba(255, 255, 255, 0.25); color: #fff; }
+/* mô tả loại đang lọc */
+.td-filter-note { margin: 0; padding: var(--space-2) var(--space-3); background: var(--brown-50); border-bottom: 1px solid var(--border); font-size: 12px; font-style: italic; color: var(--gray-600, var(--gray-500)); }
 
 /* ── thu hẹp ── */
 @media (max-width: 1024px) {

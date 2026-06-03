@@ -125,6 +125,18 @@ export function ensureDictData(): Promise<void> {
   return dictPromise
 }
 
+let benhPromise: Promise<void> | null = null
+/**
+ * Nạp riêng dữ liệu BỆNH (window.BENH = Châm Cứu Trị Bệnh + Bệnh Học) — MỘT lần.
+ * CHỈ trang "Từ Điển" cần, nên KHÔNG nằm trong DATA_SCRIPTS → trang Kinh Mạch 3D không tải thừa ~2.3MB.
+ * File này độc lập (chỉ gán window.BENH) nên nạp song song, không phụ thuộc thứ tự với dữ liệu khác.
+ */
+export function ensureBenhData(): Promise<void> {
+  if (benhPromise) return benhPromise
+  benhPromise = loadScript(`${BASE}data/benh.js`).then(() => undefined)
+  return benhPromise
+}
+
 /**
  * Khởi động engine MỘT lần: đặt base path, nạp CSS, dựng khối DOM (ẩn), nạp script.
  * Trả Promise dùng lại cho mọi lần gọi sau.

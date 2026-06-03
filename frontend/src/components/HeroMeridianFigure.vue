@@ -11,19 +11,40 @@
  * khi rời trang. Không có WebGL / lỗi tải → im lặng (banner có lớp rơi-về riêng).
  */
 import { onMounted, onBeforeUnmount, ref } from 'vue'
-import { ensureModelDeps, hasWebGL } from '@/lib/heroThree'
+import { ensureModelDeps, fetchModelBuffer, hasWebGL } from '@/lib/heroThree'
 
 const host = ref<HTMLDivElement | null>(null)
+
+// ── Tiến độ tải (cho người xem yên tâm chờ) ──
+// Chia 3 việc: tải engine 3D (script) · tải mô hình .glb · dựng đường kinh — gộp về 1 thanh %.
+const progress = ref(0) // 0..100, chỉ TĂNG (không lùi)
+const loadState = ref<'idle' | 'loading' | 'done'>('idle')
+const phaseLabel = ref('Đang Tải Hình Kinh Lạc 3D…')
+let scriptsFrac = 0 // 0..1 — nhóm script (three.js…)
+let modelFrac = 0 // 0..1 — file mô hình body-layers.glb
+let buildFrac = 0 // 0..1 — dựng đường kinh (raycast)
+// Trọng số theo dung lượng (KB): script ~738 · model ~612 → chia 90% cho "tải", 10% cho "dựng".
+const W_SCRIPTS = 738
+const W_MODEL = 612
+function recompute() {
+  const dl = (W_SCRIPTS * scriptsFrac + W_MODEL * modelFrac) / (W_SCRIPTS + W_MODEL) // 0..1 phần tải
+  const overall = dl * 0.9 + buildFrac * 0.1
+  const pct = Math.min(100, Math.round(overall * 100))
+  if (pct > progress.value) progress.value = pct
+  phaseLabel.value = dl < 1 ? 'Đang Tải Hình Kinh Lạc 3D…' : 'Đang Dựng Đường Kinh Lạc…'
+}
 
 /** Hiện canvas (mờ vào) — gọi khi ĐÃ đủ thân + đường kinh, để cả khối hiện cùng lúc. */
 function revealCanvas() {
   if (renderer?.domElement) renderer.domElement.style.opacity = '1'
+  buildFrac = 1
+  progress.value = 100
+  loadState.value = 'done' // lớp % mờ đi, nhường cho hình
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
 
-const MODEL_URL = `${import.meta.env.BASE_URL || '/'}kinhmach3d/models/body-layers.glb`
 const BODY_H = 1.7 // chuẩn hoá chiều cao thân về 1.7 đơn vị (giống engine)
 
 let T: Any = null // window.THREE
@@ -175,10 +196,15 @@ function addGlowLine(pts: Any[], color: Any, phase: number, speed: number) {
   flows.push({ tex, speed, phase })
 }
 
+// Mỗi khung hình chỉ dành tối đa chừng này (ms) cho việc dựng → luôn còn chỗ cho render +
+// giữ vòng Âm Dương (SVG xoay trên luồng chính) không bị khựng. ~8ms < 16ms (60fps) → mượt.
+const FRAME_BUDGET_MS = 8
+
 /**
- * Rải đường kinh lên bề mặt mô hình — RẢI DẦN qua nhiều khung hình:
- * raycast ~360 huyệt theo từng lô (BATCH huyệt/khung) để không khựng; xong mới dựng ống + hiện ra.
- * GIỮ figure đứng yên (rotation 0) trong lúc raycast để mọi điểm cùng một hệ toạ độ.
+ * Rải đường kinh lên bề mặt mô hình — RẢI DẦN qua nhiều khung hình theo NGÂN SÁCH THỜI GIAN:
+ * mỗi khung raycast huyệt tới khi hết ~8ms thì NHƯỜNG khung sau (thay vì cố làm 1 lô lớn gây đơ);
+ * xong mới dựng ống (cũng rải theo khung) rồi hiện ra. GIỮ figure đứng yên (rotation 0) trong lúc
+ * raycast để mọi điểm cùng một hệ toạ độ.
  */
 function buildMeridiansDeferred() {
   const C = COORDS()
@@ -192,13 +218,13 @@ function buildMeridiansDeferred() {
   const codes = Object.keys(placed)
   const groups: Record<string, { mer: string; num: number; pos: Any }[]> = {}
   let idx = 0
-  const BATCH = 90 // dựng nhanh hơn (ít khung hơn) — vẫn chia lô để không khựng hẳn
 
   const step = () => {
     if (!alive || !renderer) return
     try {
-      const end = Math.min(idx + BATCH, codes.length)
-      for (; idx < end; idx++) {
+      const start = performance.now()
+      // Làm từng huyệt cho tới khi hết ngân sách thời gian khung này → nhường lại cho render/xoay.
+      while (idx < codes.length) {
         const code = codes[idx]
         const p = placed[code]
         const mer = merOf(code)
@@ -209,6 +235,8 @@ function buildMeridiansDeferred() {
           const right = pointOf(p, true)
           if (right) (groups[mer + '|R'] = groups[mer + '|R'] || []).push({ mer, num, pos: right })
         }
+        idx++
+        if (performance.now() - start > FRAME_BUDGET_MS) break
       }
     } catch (e) {
       console.error('[HeroFigure] lỗi dựng đường kinh:', e)
@@ -216,25 +244,26 @@ function buildMeridiansDeferred() {
       revealCanvas()
       return
     }
+    // raycast chiếm 60% phần "dựng"; 40% còn lại để dành cho dựng ống bên dưới → % nhích đều cả 2 bước.
+    buildFrac = codes.length ? (idx / codes.length) * 0.6 : 0.6
+    recompute()
     if (idx < codes.length) {
       requestAnimationFrame(step)
       return
     }
-    try {
-      finalizeLines(C, groups)
-    } catch (e) {
-      console.error('[HeroFigure] lỗi hoàn tất đường kinh:', e)
-    } finally {
-      linesReady = true
-      revealCanvas() // ĐỦ thân + đường kinh → mới hiện cả khối ra
-    }
+    finalizeLinesDeferred(C, groups)
   }
   requestAnimationFrame(step)
 }
 
-/** Dựng ống phát sáng từ các điểm đã raycast (gom theo kinh|bên, cắt đoạn theo khoảng cách). */
-function finalizeLines(C: Any, groups: Record<string, { mer: string; num: number; pos: Any }[]>) {
+/**
+ * Dựng ống phát sáng từ các điểm đã raycast — cũng RẢI theo khung (mỗi khung ~8ms) để không khựng:
+ * trước hết gom thành các "đoạn" cần vẽ (rẻ), rồi dựng ống vài cái/khung tới khi xong mới hiện ra.
+ */
+function finalizeLinesDeferred(C: Any, groups: Record<string, { mer: string; num: number; pos: Any }[]>) {
   const SPLIT = 0.16 * bodyHeight // nhảy không gian lớn (vd BL lưng↔chân) → cắt đoạn
+  // Bước 1 (rẻ): gom mọi nhóm kinh|bên thành danh sách "đoạn" ống cần dựng.
+  const jobs: { run: Any[]; color: Any; i: number }[] = []
   let i = 0
   for (const key in groups) {
     const all = groups[key].sort((a, b) => a.num - b.num)
@@ -252,21 +281,50 @@ function finalizeLines(C: Any, groups: Record<string, { mer: string; num: number
     runs.push(cur)
     for (const run of runs) {
       if (run.length < 2) continue
-      addGlowLine(run, color, (i * 0.137) % 1, 0.13 + (i % 4) * 0.03)
+      jobs.push({ run, color, i })
       i++
     }
   }
-  linesReady = true
+
+  // Bước 2 (nặng): dựng ống (TubeGeometry + texture) — rải theo ngân sách thời gian từng khung.
+  let j = 0
+  const buildStep = () => {
+    if (!alive || !renderer) return
+    try {
+      const start = performance.now()
+      while (j < jobs.length) {
+        const job = jobs[j]
+        addGlowLine(job.run, job.color, (job.i * 0.137) % 1, 0.13 + (job.i % 4) * 0.03)
+        j++
+        if (performance.now() - start > FRAME_BUDGET_MS) break
+      }
+    } catch (e) {
+      console.error('[HeroFigure] lỗi hoàn tất đường kinh:', e)
+      linesReady = true
+      revealCanvas()
+      return
+    }
+    buildFrac = 0.6 + (jobs.length ? (j / jobs.length) * 0.4 : 0.4) // 60% → 100% phần "dựng"
+    recompute()
+    if (j < jobs.length) {
+      requestAnimationFrame(buildStep)
+      return
+    }
+    linesReady = true
+    revealCanvas() // ĐỦ thân + đường kinh → mới hiện cả khối ra
+  }
+  requestAnimationFrame(buildStep)
 }
 
-/** Nạp + chuẩn hoá mô hình (hướng, tỉ lệ, canh tâm). Trả Promise. */
-function loadModel(): Promise<void> {
+/** Chuẩn hoá mô hình (hướng, tỉ lệ, canh tâm) từ buffer .glb ĐÃ tải (đo % ở nơi gọi). Trả Promise. */
+function parseModel(buf: ArrayBuffer): Promise<void> {
   return new Promise((resolve, reject) => {
     const loader = new T.GLTFLoader()
     const w = window as unknown as { MeshoptDecoder?: Any }
     if (w.MeshoptDecoder) loader.setMeshoptDecoder(w.MeshoptDecoder)
-    loader.load(
-      MODEL_URL,
+    loader.parse(
+      buf,
+      '',
       (gltf: Any) => {
         modelRoot = gltf.scene
         modelRoot.updateMatrixWorld(true)
@@ -321,13 +379,12 @@ function loadModel(): Promise<void> {
         figure.updateMatrixWorld(true) // để raycast (thực hiện ở world-space) đúng
         resolve()
       },
-      undefined,
       (err: Any) => reject(err instanceof Error ? err : new Error(String(err))),
     )
   })
 }
 
-async function init() {
+async function init(modelBuf: ArrayBuffer) {
   const el = host.value
   if (!el) return
   const w = Math.max(1, el.clientWidth)
@@ -358,7 +415,7 @@ async function init() {
   scene.add(figure)
   raycaster = new T.Raycaster()
 
-  await loadModel()
+  await parseModel(modelBuf)
   if (!alive) return
 
   ro = new ResizeObserver(onResize)
@@ -413,12 +470,31 @@ function loop(ms: number) {
 async function boot() {
   if (booted || !alive) return
   booted = true
+  loadState.value = 'loading'
+  scriptsFrac = modelFrac = buildFrac = 0
+  progress.value = 0
   try {
-    T = await ensureModelDeps()
+    // Tải SONG SONG: script engine 3D + dữ liệu .glb — mỗi phần báo % riêng, gộp về 1 thanh.
+    let buf!: ArrayBuffer
+    await Promise.all([
+      ensureModelDeps((f) => {
+        scriptsFrac = f
+        recompute()
+      }).then((t) => {
+        T = t
+      }),
+      fetchModelBuffer((f) => {
+        modelFrac = f
+        recompute()
+      }).then((b) => {
+        buf = b
+      }),
+    ])
     if (!alive) return
-    await init()
+    await init(buf)
   } catch {
-    // Lỗi tải/khởi tạo → im lặng; banner dùng lớp rơi-về.
+    // Lỗi tải/khởi tạo → im lặng; ẩn lớp % và banner dùng lớp rơi-về.
+    loadState.value = 'done'
   }
 }
 
@@ -465,11 +541,20 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="host" class="hero-figure" aria-hidden="true"></div>
+  <div ref="host" class="hero-figure" aria-hidden="true">
+    <!-- Vòng tròn % tải — hiện trong lúc tải engine 3D + mô hình + dựng đường kinh, mờ đi khi xong -->
+    <div v-if="loadState !== 'idle'" class="hf-loader" :class="{ 'is-done': loadState === 'done' }">
+      <div class="hf-ring" :style="{ '--p': progress }">
+        <span class="hf-pct">{{ progress }}<small>%</small></span>
+      </div>
+      <span class="hf-label">{{ phaseLabel }}</span>
+    </div>
+  </div>
 </template>
 
 <style scoped>
 .hero-figure {
+  position: relative;
   width: 100%;
   height: 100%;
   filter: drop-shadow(0 0 14px rgba(255, 224, 170, 0.28));
@@ -478,5 +563,80 @@ onBeforeUnmount(() => {
   width: 100% !important;
   height: 100% !important;
   display: block;
+}
+
+/* ---------- Vòng tròn % tải ---------- */
+.hf-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+.hf-loader.is-done {
+  opacity: 0; /* tải xong → mờ đi, nhường chỗ cho hình người hiện ra */
+}
+/* Vòng tiến độ vẽ bằng conic-gradient theo biến --p (0..100) */
+.hf-ring {
+  --p: 0;
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: conic-gradient(#ffe0aa calc(var(--p) * 1%), rgba(255, 255, 255, 0.16) 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 18px rgba(255, 224, 170, 0.25);
+  animation: hf-breathe 2.4s ease-in-out infinite;
+}
+.hf-ring::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: rgba(20, 11, 4, 0.74); /* "lỗ" giữa vòng — tông tối ấm khớp banner */
+}
+.hf-pct {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.hf-pct small {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.75;
+  margin-left: 1px;
+}
+.hf-label {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+@keyframes hf-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 14px rgba(255, 224, 170, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 26px rgba(255, 224, 170, 0.4);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hf-ring {
+    animation: none;
+  }
 }
 </style>
