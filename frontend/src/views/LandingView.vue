@@ -372,7 +372,57 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
       </div>
     </section>
 
-    <!-- ============ ② Cũ vs Mới — cú chuyển ============ -->
+    <!-- ============ ② Bàn Xoay → Dữ Liệu Lớn (mở màn — hấp dẫn, bắt khách) ============ -->
+    <section class="lp-dials" id="dials">
+      <div class="lp-section-head">
+        <span class="lp-eyebrow">Từ Bàn Xoay Đến Dữ Liệu</span>
+        <h2 class="lp-h2">Cả Tủ Bàn Xoay Biện Chứng, Gói Trong Một Cơ Sở Dữ Liệu.</h2>
+        <p class="lp-section-sub">
+          Bàn xoay cũ mỗi lần chỉ khớp được một cặp: Triệu Chứng – Tạng Phủ, Thể Bệnh – Bài Thuốc. Phần mềm gộp cả tủ đĩa thành một mạng dữ liệu — quan hệ <strong>1–n</strong>, <strong>n–n</strong> nối liền nhau, chạm một điểm là cả mạng sáng lên.
+        </p>
+      </div>
+
+      <!-- Bàn xoay biện chứng THẬT: số hoá, chạy bằng dữ liệu DB, chạm để xoay & lọc sáng. -->
+      <div class="lp-dials-live">
+        <BanXoayBienChung />
+      </div>
+
+      <!-- Hai loại quan hệ: 1→n và n↔n -->
+      <div class="dl-rels">
+        <article v-for="c in relCards" :key="c.tag" class="dl-rel">
+          <div class="dl-rel-head">
+            <span class="dl-rel-tag">{{ c.tag }}</span>
+            <h4 class="dl-rel-title">{{ c.title }}</h4>
+          </div>
+          <p class="dl-rel-desc">{{ c.desc }}</p>
+          <div class="dl-rel-chain">
+            <span class="dl-node dl-node--src">{{ c.head }}</span>
+            <template v-if="c.fan">
+              <span class="dl-rel-sep">↔</span>
+              <span class="dl-fan">
+                <span v-for="n in c.nodes" :key="n" class="dl-node">{{ n }}</span>
+              </span>
+            </template>
+            <template v-else>
+              <template v-for="n in c.nodes" :key="n">
+                <span class="dl-rel-sep">→</span>
+                <span class="dl-node">{{ n }}</span>
+              </template>
+            </template>
+          </div>
+        </article>
+      </div>
+
+      <!-- Cú đấm: 1 ↔ n ↔ n -->
+      <div class="dl-punch">
+        <span class="dl-punch-sym">1 ↔ n ↔ n</span>
+        <p class="dl-punch-text">
+          <strong>Bàn xoay chỉ khớp được một cặp mỗi lần.</strong> Cơ sở dữ liệu quan hệ giữ cả nghìn mối nối hai chiều: chạm vào một triệu chứng, phần mềm truy ngược tác nhân – tạng phủ – thể bệnh, rồi truy xuôi tới pháp trị và bài thuốc. <strong>Cả bộ bàn xoay, chạy trong một cú chạm.</strong>
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ ③ Cũ vs Mới — cú chuyển ============ -->
     <section class="lp-shift">
       <div class="lp-section-head">
         <span class="lp-eyebrow">Cũ &amp; Mới</span>
@@ -598,56 +648,6 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
       <div class="lp-lib-cta">
         <button class="lp-btn lp-btn--primary lp-btn--lg" @click="openDemo('thu-vien')">Mở Thư Viện Tra Cứu →</button>
         <p class="lp-lib-note">Miễn phí · Không cần đăng nhập · Tra cứu &amp; xem huyệt trong 3D ngay</p>
-      </div>
-    </section>
-
-    <!-- ============ ③ Bàn Xoay → Dữ Liệu Lớn (cũ → mới · quan hệ 1-n / n-n) ============ -->
-    <section class="lp-dials" id="dials">
-      <div class="lp-section-head">
-        <span class="lp-eyebrow">Từ Bàn Xoay Đến Dữ Liệu</span>
-        <h2 class="lp-h2">Cả Tủ Bàn Xoay Biện Chứng, Gói Trong Một Cơ Sở Dữ Liệu.</h2>
-        <p class="lp-section-sub">
-          Bàn xoay cũ mỗi lần chỉ khớp được một cặp: Triệu Chứng – Tạng Phủ, Thể Bệnh – Bài Thuốc. Phần mềm gộp cả tủ đĩa thành một mạng dữ liệu — quan hệ <strong>1–n</strong>, <strong>n–n</strong> nối liền nhau, chạm một điểm là cả mạng sáng lên.
-        </p>
-      </div>
-
-      <!-- Bàn xoay biện chứng THẬT: số hoá, chạy bằng dữ liệu DB, chạm để xoay & lọc sáng. -->
-      <div class="lp-dials-live">
-        <BanXoayBienChung />
-      </div>
-
-      <!-- Hai loại quan hệ: 1→n và n↔n -->
-      <div class="dl-rels">
-        <article v-for="c in relCards" :key="c.tag" class="dl-rel">
-          <div class="dl-rel-head">
-            <span class="dl-rel-tag">{{ c.tag }}</span>
-            <h4 class="dl-rel-title">{{ c.title }}</h4>
-          </div>
-          <p class="dl-rel-desc">{{ c.desc }}</p>
-          <div class="dl-rel-chain">
-            <span class="dl-node dl-node--src">{{ c.head }}</span>
-            <template v-if="c.fan">
-              <span class="dl-rel-sep">↔</span>
-              <span class="dl-fan">
-                <span v-for="n in c.nodes" :key="n" class="dl-node">{{ n }}</span>
-              </span>
-            </template>
-            <template v-else>
-              <template v-for="n in c.nodes" :key="n">
-                <span class="dl-rel-sep">→</span>
-                <span class="dl-node">{{ n }}</span>
-              </template>
-            </template>
-          </div>
-        </article>
-      </div>
-
-      <!-- Cú đấm: 1 ↔ n ↔ n -->
-      <div class="dl-punch">
-        <span class="dl-punch-sym">1 ↔ n ↔ n</span>
-        <p class="dl-punch-text">
-          <strong>Bàn xoay chỉ khớp được một cặp mỗi lần.</strong> Cơ sở dữ liệu quan hệ giữ cả nghìn mối nối hai chiều: chạm vào một triệu chứng, phần mềm truy ngược tác nhân – tạng phủ – thể bệnh, rồi truy xuôi tới pháp trị và bài thuốc. <strong>Cả bộ bàn xoay, chạy trong một cú chạm.</strong>
-        </p>
       </div>
     </section>
 

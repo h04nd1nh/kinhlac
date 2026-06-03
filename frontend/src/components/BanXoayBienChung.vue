@@ -98,7 +98,7 @@ const loading = ref(true)
 const failed = ref(false)
 const data = reactive<{ 'dong-y': WheelLink[]; 'tay-y': WheelLink[] }>({ 'dong-y': [], 'tay-y': [] })
 
-const activeType = ref<'dong-y' | 'tay-y'>('dong-y')
+const activeType = ref<'dong-y' | 'tay-y'>('tay-y')
 const schema = computed<Schema>(() => SCHEMAS.find((s) => s.type === activeType.value)!)
 const links = computed<WheelLink[]>(() => data[activeType.value] ?? [])
 
@@ -204,14 +204,16 @@ const quickPicks = computed(() => {
 const reducedMotion =
   typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
 const spinning = ref(!reducedMotion) // công tắc tổng
+const visible = ref(false) // bàn xoay có đang nằm trong tầm nhìn không (do IntersectionObserver cập nhật)
+const rootEl = ref<HTMLElement | null>(null)
 const ang: Record<string, number> = {} // góc hiện tại mỗi vòng (độ)
 const vel: Record<string, number> = {} // tốc độ mỗi vòng (độ/giây)
 const ringEls: Record<string, SVGGElement | null> = {}
 let rafId: number | null = null
 let lastTs = 0
 let liveAcc = 0
-let rampAcc = 0 // tăng tốc êm lúc khởi động (giây)
 let resumeTimer: ReturnType<typeof setTimeout> | null = null
+let io: IntersectionObserver | null = null
 
 function setRingEl(key: string, el: unknown) {
   if (el) ringEls[key] = el as SVGGElement
@@ -222,7 +224,7 @@ function initEngine() {
   for (const k of Object.keys(vel)) delete vel[k]
   schema.value.rings.forEach((r, i) => {
     ang[r.key] = (i * 53) % 360 // lệch pha cho đẹp
-    vel[r.key] = 6 + i * 2.5 // CÙNG chiều, chậm & đều → êm mắt (ngoài chậm, trong nhanh hơn chút)
+    vel[r.key] = (i % 2 === 0 ? 1 : -1) * (12 + i * 6) // quay NGƯỢC chiều xen kẽ, nhanh hơn chút (±12..36°/s)
   })
 }
 function applyTransforms() {
@@ -246,19 +248,19 @@ function readNeedle() {
       best = w
     }
   }
+  // Chỉ ghi trạng thái reactive khi KIM CHỈ chuyển sang mục MỚI. Nếu vẫn là mục cũ thì
+  // ghi đè cũng cho ra y hệt → Vue vẫn re-render lại cả bảng đọc → giật theo nhịp 0,6s. Bỏ qua.
+  if (display.ringKey === key && display.name === best.name) return
   setDisplay(key, best.name, [...best.pts])
 }
 function frame(ts: number) {
   const dt = Math.min(0.05, (lastTs ? ts - lastTs : 0) / 1000)
   lastTs = ts
   // KHÔNG cần kiểm document.hidden: trình duyệt tự tạm dừng rAF khi tab ẩn rồi chạy lại khi hiện.
-  const moving = spinning.value && !frozen.value
+  // CHỈ quay khi bàn xoay đang trong tầm nhìn (visible) → ngoài màn hình thì ngừng hẳn, khỏi tốn khung.
+  const moving = spinning.value && !frozen.value && visible.value
   if (moving) {
-    // Tăng tốc êm: vận tốc nhân hệ số 0→1 trong ~1.4s đầu (easeInOutCubic) để né giật lúc trang còn đang dựng.
-    rampAcc += dt
-    const t = Math.min(1, rampAcc / 1.4)
-    const ramp = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
-    for (const r of schema.value.rings) ang[r.key] = (ang[r.key] || 0) + (vel[r.key] || 0) * ramp * dt
+    for (const r of schema.value.rings) ang[r.key] = (ang[r.key] || 0) + (vel[r.key] || 0) * dt
     liveAcc += dt
     if (liveAcc >= 0.6) {
       liveAcc = 0
@@ -276,9 +278,19 @@ function frame(ts: number) {
 function ensureRaf() {
   if (rafId == null) {
     lastTs = 0
-    rampAcc = 0 // mỗi lần (re)khởi động đều vào êm
     rafId = requestAnimationFrame(frame)
   }
+}
+// Hoãn QUAY tới khi main-thread rảnh tay. Lúc mới mount trang còn dựng nặng (các section landing,
+// tải mô hình 3D hero…) → quay ngay sẽ rớt khung → khựng + lừ đừ. Đợi rảnh rồi quay → mượt ngay từ đầu.
+function startSpinWhenIdle() {
+  const go = () => {
+    if (spinning.value && !frozen.value && visible.value) ensureRaf()
+  }
+  const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void })
+    .requestIdleCallback
+  if (typeof ric === 'function') ric(go, { timeout: 1500 })
+  else setTimeout(go, 800)
 }
 
 // ── Tương tác ──────────────────────────────────────────────────────────────
@@ -310,7 +322,7 @@ function resumeSpin() {
     clearTimeout(resumeTimer)
     resumeTimer = null
   }
-  if (spinning.value) ensureRaf()
+  if (spinning.value && visible.value) ensureRaf()
 }
 function scheduleResume() {
   if (resumeTimer) clearTimeout(resumeTimer)
@@ -330,10 +342,11 @@ async function switchType(t: 'dong-y' | 'tay-y') {
   frozen.value = false
   if (resumeTimer) clearTimeout(resumeTimer)
   initEngine()
+  setDisplay('', '', []) // xoá kết quả cũ → readNeedle chắc chắn ghi lại cho bộ dữ liệu mới (qua được change-guard)
   await nextTick()
   readNeedle()
   applyTransforms()
-  ensureRaf()
+  if (spinning.value && visible.value) ensureRaf()
 }
 
 onMounted(async () => {
@@ -341,37 +354,60 @@ onMounted(async () => {
     const res = await api.get<{ dongY: { links: WheelLink[] }; tayY: { links: WheelLink[] } }>('/demo/ban-xoay')
     data['dong-y'] = Array.isArray(res?.dongY?.links) ? res.dongY.links : []
     data['tay-y'] = Array.isArray(res?.tayY?.links) ? res.tayY.links : []
-    if (data['dong-y'].length === 0 && data['tay-y'].length > 0) activeType.value = 'tay-y'
+    if (data['tay-y'].length === 0 && data['dong-y'].length > 0) activeType.value = 'dong-y'
   } catch {
     failed.value = true
   }
   loading.value = false
   if (failed.value || (data['dong-y'].length === 0 && data['tay-y'].length === 0)) return
-  // Sau khi tắt loading, các vòng mới render → đợi 1 nhịp cho ref gắn xong rồi mới áp transform + quay.
+  // Sau khi tắt loading, các vòng mới render → đợi 1 nhịp cho ref gắn xong rồi mới áp transform.
   initEngine()
   await nextTick()
   readNeedle()
-  applyTransforms()
-  ensureRaf()
+  applyTransforms() // hiện bàn xoay ở vị trí ban đầu ngay (tĩnh)…
+  // …còn QUAY thì CHỈ chạy khi bàn xoay LỌT VÀO TẦM NHÌN và trang đã rảnh tay.
+  // Lúc tải trang, section này nằm dưới màn hình → không quay → không tranh main-thread với
+  // hero 3D phía trên → hết khựng. Cuộn tới (trang đã yên) mới quay → mượt ngay từ đầu.
+  if (typeof IntersectionObserver !== 'undefined' && rootEl.value) {
+    io = new IntersectionObserver(
+      (entries) => {
+        const vis = entries.some((e) => e.isIntersecting)
+        if (vis === visible.value) return
+        visible.value = vis
+        if (vis) startSpinWhenIdle()
+        // Khi ẩn: vòng lặp frame tự dừng (moving=false) → khỏi cần làm gì.
+      },
+      { threshold: 0.12 },
+    )
+    io.observe(rootEl.value)
+  } else {
+    // Trình duyệt không có IntersectionObserver → cứ coi như luôn hiện.
+    visible.value = true
+    startSpinWhenIdle()
+  }
 })
 onBeforeUnmount(() => {
   if (rafId != null) cancelAnimationFrame(rafId)
   if (resumeTimer) clearTimeout(resumeTimer)
+  io?.disconnect()
 })
 
 function tokenVar(token: string, part: 'bg' | 'fg' | 'border') {
   return `var(--chip-${token}-${part})`
 }
 
-// Bảng màu PHÁT QUANG cho cung trên bàn xoay — mượn đúng tông Ngũ Hành của CosmicWheel (banner):
-// fill mờ (kính màu trên nền đá), chữ sáng. Mỗi token vòng ↔ một Hành.
+// Bảng màu cho cung bàn xoay — MỘT họ ấm Nâu/Kem (tông chủ đạo), KHÔNG còn cầu vồng Ngũ Hành.
+// Các vòng chỉ khác nhau ở SẮC ĐỘ: đậm ở ngoài → sáng dần vào tâm, như một đĩa sơn son
+// thếp vàng của tiệm thuốc Đông Y. fill = lớp "men" trong mờ phủ trên nền đá nâu; chữ ấm sáng.
+// (Độ sáng tile do CẢ alpha lẫn độ sáng màu quyết định — vòng trong alpha thấp hơn để ánh
+//  sáng tâm hắt qua, nhưng vẫn sáng nhất nhờ màu nhạt hơn.)
 const GLOW: Record<string, { fill: string; text: string }> = {
-  symptom: { fill: 'rgba(228,216,184,.34)', text: '#faf3e4' }, // Kim — champagne
-  pattern: { fill: 'rgba(126,176,112,.42)', text: '#e7f4dc' }, // Mộc — xanh lá
-  pulse: { fill: 'rgba(92,154,184,.46)', text: '#dcedf3' }, // Thủy — lam
-  herb: { fill: 'rgba(208,168,92,.46)', text: '#f7e7c2' }, // Thổ — vàng đất
-  brand: { fill: 'rgba(204,112,79,.44)', text: '#f9ddcc' }, // Hỏa — cam đỏ
-  method: { fill: 'rgba(204,112,79,.44)', text: '#f9ddcc' }, // Hỏa
+  brand: { fill: 'rgba(150,78,48,.52)', text: '#f3dac4' }, // đất nung trầm — vòng ngoài (Chủng Bệnh / Pháp Trị)
+  pattern: { fill: 'rgba(168,118,64,.46)', text: '#f6e2cb' }, // đồng nâu — Hội Chứng / Bệnh
+  pulse: { fill: 'rgba(190,138,72,.46)', text: '#f9e8c7' }, // hổ phách — Tạng Phủ
+  symptom: { fill: 'rgba(210,172,102,.44)', text: '#fbf0d6' }, // hoàng thổ champagne — Triệu Chứng
+  herb: { fill: 'rgba(228,200,138,.42)', text: '#fdf7e6' }, // kim/kem phát quang — Bài Thuốc (vòng trong)
+  method: { fill: 'rgba(150,78,48,.52)', text: '#f3dac4' }, // đất nung (dự phòng)
 }
 function glow(token: string) {
   return GLOW[token] ?? GLOW.symptom
@@ -379,7 +415,7 @@ function glow(token: string) {
 </script>
 
 <template>
-  <div class="bx">
+  <div class="bx" ref="rootEl">
     <div v-if="loading" class="bx-state">Đang dựng bàn xoay từ dữ liệu…</div>
     <div v-else-if="failed || (data['dong-y'].length === 0 && data['tay-y'].length === 0)" class="bx-state">
       Chưa lấy được dữ liệu bàn xoay. Bạn cứ xem các phần khác phía dưới nhé.
@@ -413,9 +449,10 @@ function glow(token: string) {
                 <stop offset="80%" stop-color="#37230f" />
                 <stop offset="100%" stop-color="#2a1a0a" />
               </radialGradient>
-              <radialGradient id="bx-glow" cx="50%" cy="46%" r="50%">
-                <stop offset="0%" stop-color="rgba(250,240,218,.30)" />
-                <stop offset="55%" stop-color="rgba(248,236,212,.08)" />
+              <radialGradient id="bx-glow" cx="50%" cy="45%" r="52%">
+                <stop offset="0%" stop-color="rgba(252,243,222,.40)" />
+                <stop offset="40%" stop-color="rgba(249,237,214,.14)" />
+                <stop offset="72%" stop-color="rgba(248,236,212,.04)" />
                 <stop offset="100%" stop-color="rgba(248,236,212,0)" />
               </radialGradient>
               <linearGradient id="bx-rim" x1="0" y1="0" x2="0" y2="1">
@@ -425,9 +462,9 @@ function glow(token: string) {
               </linearGradient>
               <radialGradient id="bx-inner-shadow" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stop-color="rgba(0,0,0,0)" />
-                <stop offset="78%" stop-color="rgba(0,0,0,0)" />
-                <stop offset="93%" stop-color="rgba(20,11,4,.32)" />
-                <stop offset="100%" stop-color="rgba(12,6,2,.58)" />
+                <stop offset="68%" stop-color="rgba(0,0,0,0)" />
+                <stop offset="86%" stop-color="rgba(18,10,3,.42)" />
+                <stop offset="100%" stop-color="rgba(8,4,1,.74)" />
               </radialGradient>
             </defs>
 
@@ -475,6 +512,8 @@ function glow(token: string) {
               <circle v-for="r in ringRims" :key="'rim' + r" :cx="CX" :cy="CY" :r="r" />
             </g>
             <!-- Vành đồng hai tông ôm ngoài (khung medallion, như banner) -->
+            <!-- rãnh tối "ngồi" ngay trong vành đồng → khung nổi khối, sâu hơn -->
+            <circle :cx="CX" :cy="CY" r="348" fill="none" stroke="rgba(28,15,5,.55)" stroke-width="1.5" />
             <circle :cx="CX" :cy="CY" r="351" fill="none" stroke="url(#bx-rim)" stroke-width="3" stroke-opacity="0.92" />
 
             <!-- Lõi giữa -->
@@ -547,15 +586,17 @@ function glow(token: string) {
 
             <div class="bx-pt-list">
               <span class="bx-pt-cap">{{ schema.hubName }} khớp ({{ matchedSpokes.length }}) — chạm để soi ngược:</span>
-              <button
-                v-for="p in matchedSpokes"
-                :key="'pt' + p.id"
-                class="bx-pt-chip"
-                :class="{ 'is-active': frozen && display.pts.length === 1 && display.pts[0] === p.id }"
-                @click="onPickPt(p.id)"
-              >
-                {{ p.label }}
-              </button>
+              <div class="bx-pt-chips">
+                <button
+                  v-for="p in matchedSpokes"
+                  :key="'pt' + p.id"
+                  class="bx-pt-chip"
+                  :class="{ 'is-active': frozen && display.pts.length === 1 && display.pts[0] === p.id }"
+                  @click="onPickPt(p.id)"
+                >
+                  {{ p.label }}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -619,7 +660,7 @@ function glow(token: string) {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   gap: clamp(1.25rem, 3vw, 2.5rem);
-  align-items: center;
+  align-items: start; /* ghim 2 cột lên đầu — panel đổi chiều cao KHÔNG làm bàn xoay nhảy */
 }
 
 .bx-dial {
@@ -630,7 +671,15 @@ function glow(token: string) {
   height: auto;
   display: block;
   overflow: visible;
-  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.32));
+  /* Bóng đổ: dùng box-shadow TĨNH (bàn xoay tròn) thay cho filter:drop-shadow —
+     drop-shadow phải tính lại cho cả SVG mỗi khung hình khi các vòng quay → giật.
+     Nhiều lớp ấm: bóng xa nâng medallion lên + bóng gần ôm chân + viền sáng mảnh. */
+  border-radius: 50%;
+  box-shadow:
+    0 26px 56px rgba(24, 13, 4, 0.5),
+    0 10px 22px rgba(0, 0, 0, 0.34),
+    0 2px 6px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(250, 238, 210, 0.05);
 }
 
 /* Vòng quay — transform do JS gán mỗi khung hình (rAF), KHÔNG transition để mượt khi quay liên tục */
@@ -644,7 +693,7 @@ function glow(token: string) {
   cursor: pointer;
 }
 .bx-wedge path {
-  stroke: rgba(247, 242, 233, 0.28);
+  stroke: rgba(252, 240, 212, 0.26);
   stroke-width: 0.8;
   transition: opacity 0.45s ease, filter 0.45s ease;
 }
@@ -681,8 +730,8 @@ function glow(token: string) {
 }
 
 .bx-rims circle {
-  stroke: rgba(248, 240, 224, 0.34);
-  stroke-width: 1;
+  stroke: rgba(250, 236, 206, 0.4);
+  stroke-width: 1.1;
 }
 .bx-needle line {
   stroke: #fbe7b8;
@@ -772,6 +821,13 @@ function glow(token: string) {
 }
 
 .bx-readout {
+  display: flex;
+  flex-direction: column;
+  /* Chiều cao CỐ ĐỊNH (không phải min-height) → box KHÔNG BAO GIỜ phình theo kết quả, dù chuỗi dài / tên
+     dài làm mắt xích xuống dòng / nhiều chip. Nội dung dư sẽ cuộn trong khung (overflow) thay vì đội cao box,
+     nhờ vậy phần dưới trang đứng yên tuyệt đối. Kết quả ngắn thì phần thừa dồn vào giữa (vô hình). */
+  height: 31rem;
+  overflow-y: auto;
   background: var(--surface-2, #faf6ee);
   border: 1px solid var(--border, #e6ddca);
   border-radius: 16px;
@@ -829,17 +885,25 @@ function glow(token: string) {
 }
 
 .bx-pt-list {
+  margin-top: auto; /* ghim cụm chip xuống đáy readout → vị trí cố định, không nhảy theo độ dài chuỗi */
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.bx-pt-cap {
+  font-size: 0.76rem;
+  color: var(--text-muted, #6b6256);
+  font-weight: 600;
+}
+.bx-pt-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
   align-items: center;
-}
-.bx-pt-cap {
-  width: 100%;
-  font-size: 0.76rem;
-  color: var(--text-muted, #6b6256);
-  font-weight: 600;
-  margin-bottom: 0.1rem;
+  /* Tối đa ~2 hàng chip; trúng triệu chứng khớp nhiều bệnh thì CUỘN trong khung,
+     KHÔNG cho phình readout đẩy phần dưới trang xuống. */
+  max-height: 4.4rem;
+  overflow-y: auto;
 }
 .bx-pt-chip {
   border: 1px solid var(--chip-method-border, #e2b89e);
