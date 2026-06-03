@@ -210,6 +210,7 @@ const ringEls: Record<string, SVGGElement | null> = {}
 let rafId: number | null = null
 let lastTs = 0
 let liveAcc = 0
+let rampAcc = 0 // tăng tốc êm lúc khởi động (giây)
 let resumeTimer: ReturnType<typeof setTimeout> | null = null
 
 function setRingEl(key: string, el: unknown) {
@@ -221,7 +222,7 @@ function initEngine() {
   for (const k of Object.keys(vel)) delete vel[k]
   schema.value.rings.forEach((r, i) => {
     ang[r.key] = (i * 53) % 360 // lệch pha cho đẹp
-    vel[r.key] = (i % 2 === 0 ? 1 : -1) * (10 + i * 5) // ngoài chậm → trong nhanh, đổi chiều
+    vel[r.key] = 6 + i * 2.5 // CÙNG chiều, chậm & đều → êm mắt (ngoài chậm, trong nhanh hơn chút)
   })
 }
 function applyTransforms() {
@@ -253,9 +254,13 @@ function frame(ts: number) {
   // KHÔNG cần kiểm document.hidden: trình duyệt tự tạm dừng rAF khi tab ẩn rồi chạy lại khi hiện.
   const moving = spinning.value && !frozen.value
   if (moving) {
-    for (const r of schema.value.rings) ang[r.key] = (ang[r.key] || 0) + (vel[r.key] || 0) * dt
+    // Tăng tốc êm: vận tốc nhân hệ số 0→1 trong ~1.4s đầu (easeInOutCubic) để né giật lúc trang còn đang dựng.
+    rampAcc += dt
+    const t = Math.min(1, rampAcc / 1.4)
+    const ramp = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+    for (const r of schema.value.rings) ang[r.key] = (ang[r.key] || 0) + (vel[r.key] || 0) * ramp * dt
     liveAcc += dt
-    if (liveAcc >= 0.35) {
+    if (liveAcc >= 0.6) {
       liveAcc = 0
       readNeedle()
     }
@@ -271,6 +276,7 @@ function frame(ts: number) {
 function ensureRaf() {
   if (rafId == null) {
     lastTs = 0
+    rampAcc = 0 // mỗi lần (re)khởi động đều vào êm
     rafId = requestAnimationFrame(frame)
   }
 }
