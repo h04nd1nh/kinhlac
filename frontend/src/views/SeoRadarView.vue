@@ -922,16 +922,28 @@ const imgProg = ref<{
   errMsg: string
 }>({ on: false, done: 0, total: 0, stage: '', secImg: 0, secTotal: 0, pct: 0, status: 'running', errMsg: '' })
 
-// Đồng hồ chạy THẬT trong lúc vẽ (mỗi ảnh dall-e-3 ~2 phút → cần nhịp đập để không tưởng bị treo).
-const EST_PER_IMG = 120 // giây/ảnh ước lượng
+// Tiến trình vẽ ẢNH BÌA (1 ảnh) — % thật từ gpt-image-2 qua poll /img-progress.
+const coverProg = ref<{ on: boolean; pct: number; stage: string; status: 'running' | 'done' | 'error' }>({
+  on: false,
+  pct: 0,
+  stage: '',
+  status: 'running',
+})
+
+// Đồng hồ chạy THẬT trong lúc vẽ (mỗi ảnh ~90–150s → cần nhịp đập để không tưởng bị treo).
+const EST_PER_IMG = 120 // giây/ảnh ước lượng (CHỈ dùng khi chưa có % thật từ task)
 let imgTimer: ReturnType<typeof setInterval> | null = null
+let imgPollTimer: ReturnType<typeof setInterval> | null = null // poll % THẬT từ gpt-image-2
+let imgRealPct = -1 // % thật của ẢNH hiện tại (-1 = chưa có → dùng ước lượng theo giờ)
 let imgT0 = 0 // mốc bắt đầu cả mẻ
 let imgImgT0 = 0 // mốc bắt đầu ảnh hiện tại
 function imgTick() {
   const now = Date.now()
   const secImg = Math.round((now - imgImgT0) / 1000)
   const secTotal = Math.round((now - imgT0) / 1000)
-  const within = Math.min(0.95, secImg / EST_PER_IMG) // % ước lượng trong 1 ảnh
+  // Ưu tiên % THẬT của model (gpt-image-2); chưa có thì ước lượng theo thời gian trôi.
+  const within =
+    imgRealPct >= 0 ? Math.min(0.99, imgRealPct / 100) : Math.min(0.95, secImg / EST_PER_IMG)
   const total = imgProg.value.total || 1
   const pct = Math.min(99, Math.round(((imgProg.value.done + within) / total) * 100))
   imgProg.value = { ...imgProg.value, secImg, secTotal, pct }
@@ -969,6 +981,21 @@ async function generateImages(a: BaiViet) {
   imgProg.value = { on: true, done: 0, total, stage: `Đang vẽ ảnh 1/${total}…`, secImg: 0, secTotal: 0, pct: 0, status: 'running', errMsg: '' }
   if (imgTimer) clearInterval(imgTimer)
   imgTimer = setInterval(imgTick, 1000)
+  // Poll % THẬT từ backend (khi đang vẽ bằng gpt-image-2) → bar nhảy theo model, không chỉ theo giờ.
+  imgRealPct = -1
+  if (imgPollTimer) clearInterval(imgPollTimer)
+  imgPollTimer = setInterval(() => {
+    void api
+      .get<{ data: { pct: number; stage: string } | null }>(
+        `/seo/bai-viet/${a.id}/img-progress?kind=body`,
+      )
+      .then((r) => {
+        // pct>1 = task gpt-image-2 đang báo % THẬT → dùng; còn lại (vd dall-e-3) để -1 → ước lượng theo giờ.
+        const real = r.data && typeof r.data.pct === 'number' ? r.data.pct : -1
+        imgRealPct = real > 1 ? real : -1
+      })
+      .catch(() => {})
+  }, 2000)
   try {
     for (let k = 0; k < total; k++) {
       // Tự thử lại 1 lần nếu lỗi (Yescale dall-e hay chập chờn 503).
@@ -976,6 +1003,7 @@ async function generateImages(a: BaiViet) {
       let lastErr: any = null
       for (let attempt = 1; attempt <= 2 && !res; attempt++) {
         imgImgT0 = Date.now()
+        imgRealPct = -1 // ảnh mới → chờ % thật của ảnh này (đừng dùng % ảnh trước)
         imgProg.value = {
           ...imgProg.value,
           secImg: 0,
@@ -1020,6 +1048,10 @@ async function generateImages(a: BaiViet) {
       clearInterval(imgTimer)
       imgTimer = null
     }
+    if (imgPollTimer) {
+      clearInterval(imgPollTimer)
+      imgPollTimer = null
+    }
     // 'done' → ẩn sau 12s; 'error' → giữ lâu (45s) để đọc kỹ lỗi; cả hai chỉ ẩn nếu không có mẻ mới.
     const keep = imgProg.value.status === 'error' ? 45000 : 12000
     setTimeout(() => {
@@ -1040,6 +1072,29 @@ async function generateCover(a: BaiViet) {
   )
     return
   genCoverId.value = a.id
+  coverProg.value = { on: true, pct: 0, stage: 'Bắt đầu…', status: 'running' }
+  const t0 = Date.now()
+  // Poll % THẬT trong lúc chờ; chưa có data thì ước lượng theo thời gian (~90s). Bar chỉ tiến, không lùi.
+  let coverPoll: ReturnType<typeof setInterval> | null = setInterval(() => {
+    void api
+      .get<{ data: { pct: number; stage: string } | null }>(
+        `/seo/bai-viet/${a.id}/img-progress?kind=cover`,
+      )
+      .then((r) => {
+        if (coverProg.value.status !== 'running') return
+        const real = r.data && typeof r.data.pct === 'number' ? r.data.pct : -1
+        const sec = (Date.now() - t0) / 1000
+        const est = Math.min(95, Math.round((sec / 90) * 100)) // ước lượng ~90s
+        // pct>1 = task gpt-image-2 báo % THẬT → ưu tiên; còn lại (vd dall-e-3) dùng ước lượng.
+        const next = real > 1 ? real : est
+        coverProg.value = {
+          ...coverProg.value,
+          pct: Math.max(coverProg.value.pct, next),
+          stage: real > 1 && r.data ? r.data.stage : coverProg.value.stage,
+        }
+      })
+      .catch(() => {})
+  }, 2000)
   try {
     const res = await api.post<{ data: { bai: BaiViet; image: string } }>(
       `/seo/bai-viet/${a.id}/generate-cover`,
@@ -1047,11 +1102,22 @@ async function generateCover(a: BaiViet) {
     )
     // Gắn ?t= để trình duyệt nạp lại ảnh mới (không dính cache bản cũ cùng tên).
     customCover.value = `${res.data.image}?t=${Date.now()}`
+    coverProg.value = { on: true, pct: 100, stage: '✅ Xong', status: 'done' }
     flash('ok', 'Đã vẽ ảnh bìa AI. Giờ bấm Lưu rồi Đăng lại để áp dụng lên web.')
   } catch (e: any) {
+    coverProg.value = { ...coverProg.value, status: 'error', stage: '⚠️ Lỗi' }
     flash('err', String(e?.message || e || 'Vẽ ảnh bìa thất bại').slice(0, 220))
   } finally {
+    if (coverPoll) {
+      clearInterval(coverPoll)
+      coverPoll = null
+    }
     genCoverId.value = null
+    // 'done' ẩn sau 6s; 'error' giữ 20s để đọc; chỉ ẩn nếu không có lượt vẽ mới.
+    const keep = coverProg.value.status === 'error' ? 20000 : 6000
+    setTimeout(() => {
+      if (genCoverId.value === null) coverProg.value = { ...coverProg.value, on: false }
+    }, keep)
   }
 }
 
@@ -2102,6 +2168,23 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
                 >
                   {{ genCoverId === editing.id ? 'Đang vẽ ảnh bìa…' : (customCover ? '🔄 Vẽ lại ảnh bìa AI' : '✨ Vẽ ảnh bìa AI') }}
                 </button>
+              </div>
+            </div>
+            <!-- Thanh tiến trình % THẬT khi vẽ ảnh bìa (gpt-image-2) -->
+            <div
+              v-if="coverProg.on"
+              class="img-prog"
+              :class="{ 'img-prog--done': coverProg.status === 'done', 'img-prog--error': coverProg.status === 'error' }"
+            >
+              <div class="img-prog-head">
+                <span v-if="coverProg.status === 'running'" class="gen-spin" aria-hidden="true"></span>
+                <span v-else-if="coverProg.status === 'done'" aria-hidden="true">✅</span>
+                <span v-else aria-hidden="true">⚠️</span>
+                <span class="img-prog-stage">{{ coverProg.stage }}</span>
+                <span v-if="coverProg.status === 'running'" class="img-prog-count">{{ coverProg.pct }}%</span>
+              </div>
+              <div v-if="coverProg.status !== 'error'" class="gen-bar">
+                <div class="gen-bar-fill" :style="{ width: coverProg.pct + '%' }"></div>
               </div>
             </div>
           </div>

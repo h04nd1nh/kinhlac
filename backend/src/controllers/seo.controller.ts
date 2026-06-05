@@ -21,6 +21,7 @@ import { SeoUrl } from '../models/seo-url.model';
 import { SeoCum } from '../models/seo-cum.model';
 import { SeoBaiViet } from '../models/seo-bai-viet.model';
 import { renderArticleHtml, renderNotFoundHtml } from './seo-blog.renderer';
+import { safeUpstreamStatus } from '../utils/external-error.util';
 import {
   CreateDoiThuDto,
   GenerateDraftDto,
@@ -725,9 +726,9 @@ Hãy đề xuất các cụm chủ đề nên viết theo đúng định dạng 
         ],
       });
     } catch (err: any) {
-      const status = typeof err?.status === 'number' ? err.status : 503;
+      // KHÔNG relay 401/403 của Yescale: frontend sẽ tưởng phiên hết hạn → đá ra /login.
       const detail = err?.error?.message || err?.message || String(err);
-      throw new HttpException(`yescale lỗi: ${detail}`, status);
+      throw new HttpException(`yescale lỗi: ${detail}`, safeUpstreamStatus(err?.status));
     }
 
     const content = response.choices?.[0]?.message?.content?.trim() ?? '';
@@ -1132,7 +1133,9 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
     mkdirSync(outDir, { recursive: true });
     // số thứ tự ảnh = số ảnh đã chèn cho bài này + 1 (không ghi đè ảnh cũ).
     const used = (a.noi_dung_md || '').match(new RegExp(`/blog-images/${slug}/sec-`, 'g'))?.length || 0;
-    const { buf, ext } = await this.genImageBuffer(buildImagePrompt(a.tieu_de || slug, t.heading));
+    const pkey = `body:${id}`;
+    this.setImgProgress(pkey, 1, 'Bắt đầu…');
+    const { buf, ext } = await this.genImageBuffer(buildImagePrompt(a.tieu_de || slug, t.heading), pkey);
     const fname = `sec-${used + 1}.${ext}`;
     writeFileSync(pathResolve(outDir, fname), buf);
 
@@ -1175,7 +1178,12 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
     }
     const outDir = pathResolve(baseDir, slug);
     mkdirSync(outDir, { recursive: true });
-    const { buf, ext } = await this.genImageBuffer(buildCoverPrompt(a.tieu_de || slug, a.tu_khoa || ''));
+    const pkey = `cover:${id}`;
+    this.setImgProgress(pkey, 1, 'Bắt đầu…');
+    const { buf, ext } = await this.genImageBuffer(
+      buildCoverPrompt(a.tieu_de || slug, a.tu_khoa || ''),
+      pkey,
+    );
     // Dọn ảnh bìa đuôi khác (tránh lẫn cover.png & cover.jpg → đọc nhầm bản cũ), rồi ghi bản mới.
     for (const e of ['png', 'jpg', 'jpeg', 'webp']) {
       const old = pathResolve(outDir, `cover.${e}`);
@@ -1197,6 +1205,27 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
     return list.length ? [...new Set(list)] : fallback;
   }
 
+  // ===== Tiến trình % THẬT khi đang vẽ ảnh (dùng cho cả ảnh bìa & ảnh thân bài) =====
+  // Bộ nhớ TẠM trong RAM, key = `${kind}:${id}` (vd 'cover:12', 'body:12'). Backend chạy 1 tiến
+  // trình/bài → đủ dùng; frontend poll GET /img-progress để vẽ thanh %. Tự "hết hạn" sau 5 phút.
+  private imgProgress = new Map<string, { pct: number; stage: string; ts: number }>();
+
+  private setImgProgress(key: string | undefined, pct: number, stage: string): void {
+    if (!key) return;
+    this.imgProgress.set(key, {
+      pct: Math.max(0, Math.min(100, Math.round(pct))),
+      stage,
+      ts: Date.now(),
+    });
+  }
+
+  /** Tiến trình hiện tại của 1 bài (kind='cover'|'body'); null nếu không có / đã cũ hơn 5 phút. */
+  getImgProgress(id: number, kind: string): { pct: number; stage: string } | null {
+    const v = this.imgProgress.get(`${kind}:${id}`);
+    if (!v || Date.now() - v.ts > 300_000) return null;
+    return { pct: v.pct, stage: v.stage };
+  }
+
   /**
    * Tạo 1 ảnh → Buffer với CHUỖI DỰ PHÒNG NHIỀU DỊCH VỤ: thử lần lượt, cái nào bận/lỗi thì NHẢY sang
    * cái kế → luôn ra được ảnh, không để "model bận = tịt". Thứ tự:
@@ -1205,9 +1234,16 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
    *   3) Pollinations (free, cần POLLINATIONS_TOKEN) — chốt chặn cuối.
    * IMAGE_PROVIDER='pollinations' → đưa Pollinations lên ĐẦU; còn lại giữ thứ tự trên.
    */
-  private async genImageBuffer(prompt: string): Promise<{ buf: Buffer; ext: string }> {
+  private async genImageBuffer(
+    prompt: string,
+    progressKey?: string,
+  ): Promise<{ buf: Buffer; ext: string }> {
     const provider = (this.config.get<string>('IMAGE_PROVIDER') || '').toLowerCase();
     const compat: { label: string; run: () => Promise<{ buf: Buffer; ext: string }> }[] = [];
+    // Báo % cho frontend. CHỈ model task (gpt-image-2) có % thật; nguồn khác frontend tự ước lượng theo giờ.
+    const report = progressKey
+      ? (pct: number, stage: string) => this.setImgProgress(progressKey, pct, stage)
+      : undefined;
 
     // 1) Nhà CHÍNH (Yescale / OpenAI-compatible)
     const base1 = (
@@ -1218,6 +1254,24 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
     const key1 =
       this.config.get<string>('IMAGE_API_KEY') || this.config.get<string>('YESCALE_API_KEY') || '';
     if (key1) {
+      // 1a) Model MEDIA dạng "task" (gpt-image-2, nano-banana…): submit → poll → tải ảnh CDN.
+      // ĐẶT TRƯỚC nhóm đồng bộ để làm "nhà chính". Mặc định RỖNG — chỉ bật khi khai báo
+      // YESCALE_TASK_MODELS, tránh gọi nhầm model token chưa mở (Yescale báo "auto group").
+      const taskBase = (
+        this.config.get<string>('YESCALE_TASK_BASE_URL') ||
+        base1.replace(/\/v\d+$/, '') // endpoint task KHÔNG nằm dưới /v1
+      ).replace(/\/$/, '');
+      const taskModels = this.parseModels(
+        this.config.get<string>('YESCALE_TASK_MODELS') || this.config.get<string>('IMAGE_TASK_MODELS'),
+        [],
+      );
+      for (const m of taskModels)
+        compat.push({
+          label: `task "${m}"`,
+          run: () => this.genImageYescaleTask(prompt, taskBase, key1, m, report),
+        });
+
+      // 1b) Model ảnh ĐỒNG BỘ (dall-e-3…) qua /images/generations (kiểu cũ).
       const models1 = this.parseModels(
         this.config.get<string>('YESCALE_IMAGE_MODELS') || this.config.get<string>('IMAGE_MODELS'),
         [
@@ -1397,6 +1451,108 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
   }
 
   /**
+   * Yescale Media dạng "TASK" (bất đồng bộ) — cho các model media như gpt-image-2:
+   *   1) POST {taskBase}/task/submit  → { task_id, status:'SUBMITTED' }
+   *   2) GET  {taskBase}/task/{id}    → poll đến status SUCCESS → task_result.url (CDN)
+   *   3) tải bytes ảnh từ CDN về Buffer.
+   * LƯU Ý: endpoint task KHÔNG nằm dưới /v1 (taskBase = https://api.yescale.vip).
+   * Cần token có quyền gọi model media (tạo token kiểu Auto-tuỳ-chỉnh/Thủ-công gồm nhóm media),
+   * nếu không Yescale báo "not available in any configured auto group".
+   */
+  private async genImageYescaleTask(
+    prompt: string,
+    taskBase: string,
+    key: string,
+    model: string,
+    report?: (pct: number, stage: string) => void,
+  ): Promise<{ buf: Buffer; ext: string }> {
+    if (!key) throw new ServiceUnavailableException('Thiếu API key cho Yescale task.');
+    const size = this.config.get<string>('IMAGE_SIZE') || '1024x1024';
+    // gpt-image-2 BẮT BUỘC config.quality (low/medium/high) — thiếu là lỗi VALIDATION_ERROR.
+    const quality = (this.config.get<string>('YESCALE_TASK_QUALITY') || 'medium').toLowerCase();
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` };
+
+    // 1) Gửi việc
+    const subRes = await fetch(`${taskBase}/task/submit`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ model, prompt, config: { size, quality } }),
+    });
+    const subText = await subRes.text();
+    if (!subRes.ok && subRes.status !== 202) {
+      throw new ServiceUnavailableException(
+        `Tạo task lỗi (model "${model}"): HTTP ${subRes.status} ${subText.slice(0, 160)}`,
+      );
+    }
+    let sub: any;
+    try {
+      sub = JSON.parse(subText);
+    } catch {
+      throw new ServiceUnavailableException(`Task trả về không phải JSON: ${subText.slice(0, 140)}`);
+    }
+    const taskId = sub?.task_id || sub?.data?.task_id || sub?.id;
+    if (!taskId) {
+      throw new ServiceUnavailableException(`Task không có task_id: ${subText.slice(0, 160)}`);
+    }
+    report?.(3, 'Đã nhận việc, đang vẽ…');
+
+    // 2) Poll đến khi xong (mặc định tối đa 180s — gpt-image-2 ~90s, quality cao có thể lâu hơn).
+    const maxMs = Number(this.config.get<string>('YESCALE_TASK_TIMEOUT_MS')) || 180_000;
+    const stepMs = 3_000;
+    const started = Date.now();
+    let lastStatus = '';
+    while (Date.now() - started < maxMs) {
+      await new Promise((r) => setTimeout(r, stepMs));
+      let pollRes: Awaited<ReturnType<typeof fetch>>;
+      try {
+        pollRes = await fetch(`${taskBase}/task/${taskId}`, { headers });
+      } catch {
+        continue; // mạng chớp nhoáng → thử lại vòng sau
+      }
+      if (pollRes.status === 404) continue; // task chưa kịp index → chờ
+      const pollText = await pollRes.text();
+      let j: any;
+      try {
+        j = JSON.parse(pollText);
+      } catch {
+        continue;
+      }
+      const status = String(j?.status || j?.data?.status || '').toUpperCase();
+      lastStatus = status || lastStatus;
+      // progress thường dạng "13%" → bóc số, báo cho frontend (kẹp 3–99 để bar không nhảy về 0/100 non).
+      const pctNum = parseInt(String(j?.progress ?? j?.data?.progress ?? '').replace('%', ''), 10);
+      if (!isNaN(pctNum)) report?.(Math.max(3, Math.min(99, pctNum)), `Đang vẽ ${pctNum}%…`);
+      if (status === 'SUCCESS' || status === 'COMPLETED') {
+        const url =
+          j?.task_result?.url || j?.data?.task_result?.url || j?.result?.url || j?.url;
+        if (!url) {
+          throw new ServiceUnavailableException(`Task "${model}" xong nhưng không có URL ảnh.`);
+        }
+        report?.(99, 'Đang tải ảnh về…');
+        const ir = await fetch(url);
+        if (!ir.ok) throw new ServiceUnavailableException('Tải ảnh task từ CDN thất bại.');
+        const ab = await ir.arrayBuffer();
+        const low = url.toLowerCase();
+        const ext = low.includes('.png') ? 'png' : low.includes('.webp') ? 'webp' : 'jpg';
+        report?.(100, '✅ Xong');
+        return { buf: Buffer.from(ab), ext };
+      }
+      if (['FAILED', 'FAILURE', 'ERROR'].includes(status)) {
+        const reason = j?.error?.message || j?.error || j?.message || j?.task_result?.error;
+        throw new ServiceUnavailableException(
+          `Task "${model}" thất bại: ${
+            typeof reason === 'string' ? reason : JSON.stringify(reason || {}).slice(0, 160)
+          }`,
+        );
+      }
+      // còn SUBMITTED / IN_PROGRESS / PROCESSING → chờ vòng kế
+    }
+    throw new ServiceUnavailableException(
+      `Task "${model}" quá thời gian ${Math.round(maxMs / 1000)}s (status cuối: ${lastStatus || '?'}).`,
+    );
+  }
+
+  /**
    * Render 1 bài "Đã đăng" (hoặc "Đã duyệt" = xem trước, noindex) thành HTML từ DB.
    * Phục vụ nginx fallback: /blog/<slug>/ chưa có bản tĩnh → backend render ngay.
    * Trả null nếu không có bài hợp lệ (router → 404).
@@ -1540,9 +1696,9 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
         ],
       });
     } catch (err: any) {
-      const status = typeof err?.status === 'number' ? err.status : 503;
+      // KHÔNG relay 401/403 của Yescale: frontend sẽ tưởng phiên hết hạn → đá ra /login.
       const detail = err?.error?.message || err?.message || String(err);
-      throw new HttpException(`yescale lỗi: ${detail}`, status);
+      throw new HttpException(`yescale lỗi: ${detail}`, safeUpstreamStatus(err?.status));
     }
     const content = response.choices?.[0]?.message?.content?.trim() ?? '';
     if (!content) throw new ServiceUnavailableException('yescale trả về nội dung rỗng');

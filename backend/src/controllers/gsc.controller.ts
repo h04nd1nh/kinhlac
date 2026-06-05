@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { google, searchconsole_v1 } from 'googleapis';
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, resolve as pathResolve } from 'node:path';
+import { safeUpstreamStatus } from '../utils/external-error.util';
 
 /**
  * ============================================================================
@@ -198,7 +199,9 @@ export class GscService {
       } else if (status === 404) {
         hint = ` — Không tìm thấy property "${this.siteUrl()}". Kiểm tra GSC_SITE_URL khớp đúng property trong Search Console.`;
       }
-      throw new HttpException(`GSC ${label} lỗi: ${gMsg}${hint}`, status >= 400 && status < 600 ? status : 503);
+      // Giữ lời nhắc (hint) trong message, nhưng KHÔNG relay 401/403 ra client (frontend coi
+      // 401 = phiên hết hạn → đá ra /login). safeUpstreamStatus quy 401/403 về 502.
+      throw new HttpException(`GSC ${label} lỗi: ${gMsg}${hint}`, safeUpstreamStatus(status));
     }
   }
 

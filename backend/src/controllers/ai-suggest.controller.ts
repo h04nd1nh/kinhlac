@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import OpenAI from 'openai';
 import { KinhMach } from '../models/kinh-mach.model';
+import { safeUpstreamStatus } from '../utils/external-error.util';
 
 export interface ViThuocAiSuggestion {
   tinh: string;
@@ -156,9 +157,9 @@ export class AiSuggestService {
         ],
       });
     } catch (err: any) {
-      const status = typeof err?.status === 'number' ? err.status : 503;
+      // KHÔNG relay 401/403 của Yescale: frontend sẽ tưởng phiên hết hạn → đá ra /login.
       const detail = err?.error?.message || err?.message || String(err);
-      throw new HttpException(`yescale lỗi: ${detail}`, status);
+      throw new HttpException(`yescale lỗi: ${detail}`, safeUpstreamStatus(err?.status));
     }
 
     const content = response.choices?.[0]?.message?.content?.trim() ?? '';
@@ -247,9 +248,9 @@ export class AiSuggestService {
         ],
       });
     } catch (err: any) {
-      const status = typeof err?.status === 'number' ? err.status : 503;
+      // KHÔNG relay 401/403 của Yescale: frontend sẽ tưởng phiên hết hạn → đá ra /login.
       const detail = err?.error?.message || err?.message || String(err);
-      throw new HttpException(`yescale lỗi: ${detail}`, status);
+      throw new HttpException(`yescale lỗi: ${detail}`, safeUpstreamStatus(err?.status));
     }
 
     const content = response.choices?.[0]?.message?.content?.trim() ?? '';

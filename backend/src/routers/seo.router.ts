@@ -159,6 +159,14 @@ export class SeoRouter {
     return { success: true, data };
   }
 
+  // Tiến trình % THẬT đang vẽ ảnh (frontend poll trong lúc chờ generate-cover/generate-image).
+  // kind='cover'|'body'. data = {pct,stage} hoặc null nếu chưa có.
+  @Get('bai-viet/:id/img-progress')
+  imgProgress(@Param('id') id: string, @Query('kind') kind?: string) {
+    const data = this.service.getImgProgress(+id, kind === 'cover' ? 'cover' : 'body');
+    return { success: true, data };
+  }
+
   @Put('bai-viet/:id')
   async updateBaiViet(@Param('id') id: string, @Body() dto: UpdateBaiVietDto) {
     const data = await this.service.updateBaiViet(+id, dto);
