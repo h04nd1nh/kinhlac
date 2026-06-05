@@ -327,7 +327,8 @@
       // Cách A — chống "nhấp nháy": ẩn lớp huyệt + đường kinh cho tới khi đã căn theo điểm Chấm Tay
       // (xem revealAcuOverlay). Hình người vẫn hiện NGAY; chỉ huyệt/đường kinh chờ ~0,3s để khỏi nhảy vị trí.
       dotsGroup.visible = false; linesGroup.visible = false;
-      setTimeout(revealAcuOverlay, 2000); // lưới an toàn: server lỗi/treo thì tối đa 2s vẫn hiện ra
+      console.log('[ACU-DEBUG] ẨN lúc', Math.round(performance.now()), 'ms · dotsGroup.visible =', dotsGroup.visible);
+      setTimeout(() => revealAcuOverlay('het-gio-2s'), 2000); // lưới an toàn: server lỗi/treo thì tối đa 2s vẫn hiện ra
       loadUserAnchors();                 // tải điểm CHẤM TAY đã lưu (nếu có) → căn lại RỒI mới reveal
       placeAllPoints();
       applyVisibility();                 // đặt model + chấm (đường kinh dựng trễ); lớp huyệt còn ẩn tới reveal
@@ -995,7 +996,8 @@
   // tải & căn theo điểm Chấm Tay XONG — hoặc khi không có chốt / lỗi mạng / hết-giờ-chờ — để người dùng
   // không thấy đường kinh hiện ở vị trí mặc định rồi NHẢY về vị trí đã chấm.
   let _acuRevealed = false;
-  function revealAcuOverlay() {
+  function revealAcuOverlay(reason) {
+    console.log('[ACU-DEBUG] HIỆN lúc', Math.round(performance.now()), 'ms · do:', reason || '?', '· đã-hiện-trước-đó:', _acuRevealed);
     if (_acuRevealed) return;
     _acuRevealed = true;
     dotsGroup.visible = true; linesGroup.visible = true;
@@ -1007,14 +1009,15 @@
       let n = 0; for (const k in pts) { if (pts[k] && typeof pts[k].x === 'number') { userPlaced[k] = pts[k]; n++; } }
       const nd = (j && j.needles) || {};              // HƯỚNG KIM tự chỉnh đã lưu → áp khi chọn huyệt
       for (const k in nd) { const v = nd[k]; if (v && typeof v.x === 'number') userNeedle[k] = { x: v.x, y: v.y, z: v.z }; }
-      if (!n) { revealAcuOverlay(); return; }         // chưa có chốt → toạ độ mặc định là bản cuối → hiện luôn
+      console.log('[ACU-DEBUG] anchors xong lúc', Math.round(performance.now()), 'ms · số chốt n =', n);
+      if (!n) { revealAcuOverlay('khong-co-chot'); return; }   // chưa có chốt → toạ độ mặc định là bản cuối → hiện luôn
       // căn theo chốt bằng solver (gold) như bản gốc; lỗi (mạng/đăng nhập) → fallback nội suy thô.
       // Dù thành công hay lỗi, CĂN XONG rồi mới revealAcuOverlay() → huyệt/đường kinh hiện ở ĐÚNG vị trí.
       recomputeGold((ok) => {
         if (!ok) { deriveAll(); if (inited && modelRoot && dotMeshes.length) rebuild(); }
-        revealAcuOverlay();
+        revealAcuOverlay('da-can-theo-chot');
       });
-    }).catch(() => { revealAcuOverlay(); });           // mạng/đăng nhập lỗi → vẫn hiện (giữ toạ độ mặc định)
+    }).catch((e) => { console.log('[ACU-DEBUG] anchors LỖI:', e && e.message); revealAcuOverlay('loi-mang'); });
   }
   // ===================================================
 
