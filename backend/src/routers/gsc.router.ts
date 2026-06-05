@@ -51,6 +51,25 @@ export class GscRouter {
     return { success: true, data };
   }
 
+  // "Sắp Lên Top" (striking distance): từ khoá hạng 5–20 + đủ hiển thị = cơ hội vàng để bồi/viết.
+  @Get('striking-distance')
+  async strikingDistance(
+    @Query('days') days?: string,
+    @Query('posMin') posMin?: string,
+    @Query('posMax') posMax?: string,
+    @Query('minImpr') minImpr?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.service.strikingDistance(
+      toInt(days, 28),
+      toInt(posMin, 5),
+      toInt(posMax, 20),
+      toInt(minImpr, 10),
+      toInt(limit, 50),
+    );
+    return { success: true, data };
+  }
+
   // Danh sách sitemap + tình trạng đọc.
   @Get('sitemaps')
   async sitemaps() {

@@ -7,6 +7,7 @@
  * Các trang con chỉ cần đặt nội dung vào <slot> bằng h2/p/ul thông thường — style prose lo phần còn lại.
  */
 import PublicTopBar from '@/components/PublicTopBar.vue'
+import AppBreadcrumb from '@/components/AppBreadcrumb.vue'
 import SiteFooter from '@/components/SiteFooter.vue'
 
 defineProps<{
@@ -22,6 +23,7 @@ defineProps<{
 <template>
   <div class="legal-page">
     <PublicTopBar :title="title" badge="" />
+    <AppBreadcrumb />
 
     <main class="legal-main">
       <article class="legal-prose">

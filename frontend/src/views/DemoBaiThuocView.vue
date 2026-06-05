@@ -11,6 +11,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/services/api'
 import PublicTopBar from '@/components/PublicTopBar.vue'
+import AppBreadcrumb from '@/components/AppBreadcrumb.vue'
 import BaiThuocAnalysis from '@/components/BaiThuocAnalysis.vue'
 import MedicalDisclaimer from '@/components/MedicalDisclaimer.vue'
 
@@ -104,6 +105,7 @@ onMounted(async () => {
 <template>
   <div class="dbt">
     <PublicTopBar title="Phân Tích Bài Thuốc" />
+    <AppBreadcrumb />
 
     <div class="dbt-body">
       <div v-if="loading" class="dbt-loading">

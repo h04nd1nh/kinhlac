@@ -10,6 +10,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/services/api'
 import PublicTopBar from '@/components/PublicTopBar.vue'
+import AppBreadcrumb from '@/components/AppBreadcrumb.vue'
 import MedicalDisclaimer from '@/components/MedicalDisclaimer.vue'
 import {
   rawUpper,
@@ -168,6 +169,7 @@ onMounted(async () => {
 <template>
   <div class="dkq">
     <PublicTopBar title="Kết Quả Đo Kinh Lạc" />
+    <AppBreadcrumb />
 
     <div class="dkq-body">
       <div v-if="loading" class="dkq-loading">

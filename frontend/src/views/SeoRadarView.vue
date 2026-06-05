@@ -1149,6 +1149,7 @@ interface GscSitemap {
   contents: { type: string; submitted: number; indexed: number }[]
 }
 
+interface GscStriking { query: string; page: string; clicks: number; impressions: number; ctr: number; position: number; coHoi: number }
 const gscStatus = ref<GscStatus | null>(null)
 const gscChecking = ref(false)
 const gscDays = ref(28)
@@ -1158,6 +1159,7 @@ const gscSummary = ref<GscSummary | null>(null)
 const gscQueries = ref<GscPerfRow[]>([])
 const gscPages = ref<GscPerfRow[]>([])
 const gscCannibal = ref<GscCannibal[]>([])
+const gscStriking = ref<GscStriking[]>([]) // "Sắp lên top" — cơ hội vàng (vòng tự sửa)
 const gscSitemaps = ref<GscSitemap[]>([])
 const gscMetric = ref<'clicks' | 'impressions'>('clicks') // chỉ số vẽ biểu đồ
 const newSitemap = ref('https://kinhlac.online/sitemap.xml')
@@ -1219,12 +1221,24 @@ async function loadGscData() {
     gscPages.value = p.data
     gscCannibal.value = c.data
     gscSitemaps.value = sm.data
+    // "Sắp lên top" tách riêng để nếu backend chưa có endpoint cũng KHÔNG vỡ phần còn lại.
+    gscStriking.value = await api
+      .get<{ data: GscStriking[] }>(`/seo/gsc/striking-distance?days=${d}`)
+      .then((r) => r.data)
+      .catch(() => [])
     gscLoaded.value = true
   } catch (e: any) {
     flash('err', e.message || 'Tải dữ liệu GSC thất bại')
   } finally {
     gscLoading.value = false
   }
+}
+
+// "Tai → tay": đưa 1 từ khoá "sắp lên top" sang Lò Viết Bài cho AI viết bài nhắm vào nó (đóng vòng tự sửa).
+function vietTuKhoa(query: string) {
+  freeChuDe.value = query
+  tab.value = 'viet'
+  flash('info', `Đã đưa "${query}" sang Lò Viết Bài — bấm "Sinh Nháp" để AI viết bài nhắm từ khoá sắp lên top này.`)
 }
 
 async function submitNewSitemap() {
@@ -1796,6 +1810,28 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
           <p v-else class="muted">Chưa có dữ liệu theo ngày (site mới hoặc chưa có lượt tìm kiếm — kết nối vẫn OK).</p>
         </section>
 
+        <!-- 🎯 SẮP LÊN TOP — cơ hội vàng (vòng tự sửa: GSC "tai" → Lò Viết Bài "tay") -->
+        <section class="card gsc-striking">
+          <div class="card-head"><h3>🎯 Sắp Lên Top — Cơ Hội Vàng ({{ gscStriking.length }})</h3></div>
+          <p class="muted gsc-striking-note">Từ khoá đang ở <b>hạng 5–20</b> với đủ lượt hiển thị: <b>gần top, chỉ cần viết/bồi thêm là lên trang 1</b>. Bấm “Viết bài” để AI soạn nháp nhắm thẳng từ khoá đó.</p>
+          <div v-if="gscStriking.length" class="table-wrap">
+            <table class="tbl">
+              <thead><tr><th>Từ khoá (sắp lên top)</th><th class="gsc-num">Hạng</th><th class="gsc-num">Hiển thị</th><th class="gsc-num">Nhấp</th><th>Trang đang xếp</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="r in gscStriking" :key="r.query + r.page">
+                  <td><b>{{ r.query }}</b></td>
+                  <td class="gsc-num">{{ fmtPos(r.position) }}</td>
+                  <td class="gsc-num">{{ fmtNum(r.impressions) }}</td>
+                  <td class="gsc-num">{{ fmtNum(r.clicks) }}</td>
+                  <td class="gsc-url"><a :href="r.page" target="_blank" rel="noopener">{{ r.page }}</a></td>
+                  <td><button class="btn btn--sm btn--primary" @click="vietTuKhoa(r.query)">✍️ Viết bài</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else class="muted">Chưa có cơ hội nào — site vừa lên sóng, GSC cần <b>vài tuần</b> để Google index xong &amp; tích luỹ lượt tìm kiếm. Khi có dữ liệu, mục này tự hiện các từ khoá “sắp lên top” để anh xử trước.</p>
+        </section>
+
         <!-- Top từ khoá -->
         <section class="card">
           <div class="card-head"><h3>Top từ khoá ({{ gscQueries.length }})</h3></div>
@@ -2324,6 +2360,8 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
 
 /* Từ khoá bị ăn thịt */
 .gsc-cannibal { display: flex; flex-direction: column; gap: var(--space-2); }
+.gsc-striking { border-left: 4px solid #c9962f; }
+.gsc-striking-note { margin-top: 0; }
 .gsc-can { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); }
 .gsc-can > summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; list-style: none; }
 .gsc-can > summary::-webkit-details-marker { display: none; }

@@ -10,6 +10,7 @@
     {
       "name": "landing",
       "path": "/",
+      "breadcrumb": [],
       "priority": "1.0",
       "changefreq": "weekly",
       "ogType": "website",
@@ -60,6 +61,7 @@
     {
       "name": "thu-vien",
       "path": "/thu-vien",
+      "breadcrumb": [{ "name": "Từ Điển", "path": "/thu-vien" }],
       "priority": "0.9",
       "changefreq": "weekly",
       "ogType": "website",
@@ -92,6 +94,7 @@
     {
       "name": "xem-3d",
       "path": "/xem-3d",
+      "breadcrumb": [{ "name": "Đồ Hình 3D", "path": "/xem-3d" }],
       "priority": "0.9",
       "changefreq": "monthly",
       "ogType": "website",
@@ -126,6 +129,7 @@
     {
       "name": "xem-ket-qua-do",
       "path": "/xem-ket-qua-do",
+      "breadcrumb": [{ "name": "Kết Quả Đo Kinh Lạc", "path": "/xem-ket-qua-do" }],
       "priority": "0.9",
       "changefreq": "weekly",
       "ogType": "website",
@@ -161,6 +165,7 @@
     {
       "name": "xem-bai-thuoc",
       "path": "/xem-bai-thuoc",
+      "breadcrumb": [{ "name": "Phân Tích Bài Thuốc", "path": "/xem-bai-thuoc" }],
       "priority": "0.8",
       "changefreq": "weekly",
       "ogType": "website",
@@ -190,6 +195,7 @@
     {
       "name": "ve-chung-toi",
       "path": "/ve-chung-toi",
+      "breadcrumb": [{ "name": "Về Chúng Tôi", "path": "/ve-chung-toi" }],
       "priority": "0.5",
       "changefreq": "monthly",
       "ogType": "website",
@@ -219,6 +225,7 @@
     {
       "name": "lien-he",
       "path": "/lien-he",
+      "breadcrumb": [{ "name": "Liên Hệ", "path": "/lien-he" }],
       "priority": "0.4",
       "changefreq": "yearly",
       "ogType": "website",
@@ -236,6 +243,7 @@
     {
       "name": "chinh-sach-bao-mat",
       "path": "/chinh-sach-bao-mat",
+      "breadcrumb": [{ "name": "Chính Sách Bảo Mật", "path": "/chinh-sach-bao-mat" }],
       "priority": "0.3",
       "changefreq": "yearly",
       "ogType": "website",
@@ -253,6 +261,7 @@
     {
       "name": "dieu-khoan",
       "path": "/dieu-khoan",
+      "breadcrumb": [{ "name": "Điều Khoản Sử Dụng", "path": "/dieu-khoan" }],
       "priority": "0.3",
       "changefreq": "yearly",
       "ogType": "website",
@@ -270,6 +279,7 @@
     {
       "name": "quy-trinh-bien-tap",
       "path": "/quy-trinh-bien-tap",
+      "breadcrumb": [{ "name": "Quy Trình Biên Tập", "path": "/quy-trinh-bien-tap" }],
       "priority": "0.4",
       "changefreq": "yearly",
       "ogType": "website",

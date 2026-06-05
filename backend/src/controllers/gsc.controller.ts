@@ -372,6 +372,54 @@ export class GscService {
   }
 
   // ===========================================================================
+  // 2b) "SẮP LÊN TOP" (Striking Distance) — CƠ HỘI VÀNG (SEO-PLAN §6)
+  // ===========================================================================
+
+  /**
+   * Từ khoá đang ở hạng [posMin..posMax] (mặc định 5–20) với đủ hiển thị = GẦN TOP:
+   * chỉ cần bồi đắp/viết thêm nội dung là lên được trang 1 → ƯU TIÊN cải thiện trước.
+   * Đây là tín hiệu "tự sửa" cốt lõi: nó nói cho ta biết NÊN viết/bồi gì để có kết quả NHANH NHẤT.
+   * Kèm trang đang xếp hạng + "điểm cơ hội" (hiển thị càng nhiều + càng gần top → điểm càng cao).
+   */
+  async strikingDistance(
+    days = DEFAULT_DAYS,
+    posMin = 5,
+    posMax = 20,
+    minImpr = 10,
+    limit = 50,
+  ) {
+    const rows = await this.queryAnalytics({
+      ...this.rangeForDays(days),
+      dimensions: ['query', 'page'],
+      rowLimit: CANNIBAL_ROW_LIMIT,
+      dataState: 'all',
+    });
+    const lo = Math.max(1, Math.floor(posMin) || 5);
+    const hi = Math.max(lo + 1, Math.floor(posMax) || 20);
+    const minI = Math.max(1, Math.floor(minImpr) || 1);
+    return rows
+      .filter(
+        (r) => (r.position || 0) >= lo && (r.position || 0) <= hi && (r.impressions || 0) >= minI,
+      )
+      .map((r) => {
+        const impressions = r.impressions || 0;
+        const position = r.position || 0;
+        return {
+          query: (r.keys && r.keys[0]) || '',
+          page: (r.keys && r.keys[1]) || '',
+          clicks: r.clicks || 0,
+          impressions,
+          ctr: r.ctr || 0,
+          position,
+          // Điểm cơ hội = hiển thị × độ-gần-top. Nhiều người tìm + sắp lên top → đáng làm TRƯỚC.
+          coHoi: Math.round(impressions * (hi + 1 - position)),
+        };
+      })
+      .sort((a, b) => b.coHoi - a.coHoi)
+      .slice(0, Math.min(Math.max(1, limit), 200));
+  }
+
+  // ===========================================================================
   // 3) SITEMAP
   // ===========================================================================
 

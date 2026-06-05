@@ -23,6 +23,11 @@ export interface SeoData {
   ogImage?: string
   /** Dữ liệu có cấu trúc Schema.org (JSON-LD). null/undefined => gỡ thẻ. */
   jsonLd?: Record<string, unknown> | null
+  /**
+   * Lối breadcrumb (trừ "Trang Chủ" — tự thêm ở vị trí 1). Mỗi mục { name, path }.
+   * Rỗng/undefined => không sinh BreadcrumbList. Item cuối là trang hiện tại.
+   */
+  breadcrumb?: { name: string; path: string }[]
 }
 
 const DOMAIN = 'https://kinhlac.online'
@@ -65,6 +70,38 @@ function setJsonLd(data: Record<string, unknown> | null | undefined) {
   el.textContent = JSON.stringify(data)
 }
 
+/**
+ * BreadcrumbList JSON-LD — script RIÊNG (id="seo-jsonld-crumb") để KHÔNG đụng JSON-LD chính.
+ * "Trang Chủ" luôn ở vị trí 1; mỗi mục `item` là URL tuyệt đối (Google yêu cầu).
+ * Rỗng => gỡ thẻ (vd Trang Chủ không cần breadcrumb).
+ */
+function setBreadcrumbLd(items: { name: string; path: string }[] | undefined) {
+  const id = 'seo-jsonld-crumb'
+  let el = document.getElementById(id) as HTMLScriptElement | null
+  if (!items || !items.length) {
+    if (el) el.remove()
+    return
+  }
+  const trail = [{ name: 'Trang Chủ', path: '/' }, ...items]
+  const data = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: trail.map((c, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: c.name,
+      item: DOMAIN + c.path,
+    })),
+  }
+  if (!el) {
+    el = document.createElement('script')
+    el.id = id
+    el.type = 'application/ld+json'
+    document.head.appendChild(el)
+  }
+  el.textContent = JSON.stringify(data)
+}
+
 /** Áp toàn bộ thẻ SEO cho 1 trang. Gọi lại mỗi lần đổi route. */
 export function applySeo(seo: SeoData, path: string) {
   const canonical = seo.canonical || DOMAIN + path
@@ -93,4 +130,5 @@ export function applySeo(seo: SeoData, path: string) {
   upsertMeta('name', 'twitter:image', ogImage)
 
   setJsonLd(seo.jsonLd)
+  setBreadcrumbLd(seo.breadcrumb)
 }
