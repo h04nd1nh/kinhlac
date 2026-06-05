@@ -8,6 +8,7 @@ interface ThongKe {
   cho: number
   da_phan_tich: number
   loi: number
+  ngoai_nganh: number
 }
 interface DoiThu {
   id: number
@@ -21,7 +22,7 @@ interface SeoUrlRow {
   id: number
   doi_thu_id: number
   url: string
-  trang_thai: 'cho' | 'da_phan_tich' | 'loi'
+  trang_thai: 'cho' | 'da_phan_tich' | 'loi' | 'ngoai_nganh'
   chu_de: string | null
   tu_khoa: string | null
   tom_tat: string | null
@@ -43,7 +44,7 @@ const doiThuList = ref<DoiThu[]>([])
 const cumList = ref<Cum[]>([])
 const urlRows = ref<SeoUrlRow[]>([])
 const selectedDoiThuId = ref<number | null>(null)
-const urlFilter = ref<'all' | 'cho' | 'da_phan_tich' | 'loi'>('all')
+const urlFilter = ref<'all' | 'cho' | 'da_phan_tich' | 'loi' | 'ngoai_nganh'>('all')
 
 const loadingList = ref(false)
 const loadingUrls = ref(false)
@@ -122,6 +123,7 @@ const TRANG_THAI_LABEL: Record<string, string> = {
   cho: 'Chờ',
   da_phan_tich: 'Đã phân tích',
   loi: 'Lỗi',
+  ngoai_nganh: 'Ngoài ngành',
 }
 
 // ===== API calls =====
@@ -222,14 +224,16 @@ async function analyzeBatch(d: DoiThu) {
   setBusy(d.id, true)
   flash('info', `Đang phân tích tối đa ${lim} bài của ${d.domain} (AI có thể mất 1-2 phút)…`)
   try {
-    const res = await api.post<{ data: { analyzed: number; ok: number; loi: number } }>(
-      `/seo/doi-thu/${d.id}/analyze-batch`,
-      { limit: lim },
-    )
+    const res = await api.post<{
+      data: { analyzed: number; ok: number; loi: number; ngoai_nganh: number }
+    }>(`/seo/doi-thu/${d.id}/analyze-batch`, { limit: lim })
     const conLai = Math.max(0, choTruoc - res.data.analyzed)
+    const ngoai = res.data.ngoai_nganh || 0
     flash(
       'ok',
-      `Đã phân tích ${res.data.analyzed} bài (thành công ${res.data.ok}, lỗi ${res.data.loi}).` +
+      `Đã phân tích ${res.data.analyzed} bài (thuộc ngách ${res.data.ok}` +
+        (ngoai > 0 ? `, ngoài ngành ${ngoai} — bỏ qua khỏi tốn AI` : '') +
+        `, lỗi ${res.data.loi}).` +
         (conLai > 0
           ? ` Còn ${conLai} bài đang chờ — chỉnh số rồi bấm "Phân Tích" lần nữa để chạy tiếp.`
           : ' Đã hết bài chờ 🎉'),
@@ -246,10 +250,14 @@ async function analyzeBatch(d: DoiThu) {
 async function analyzeOne(u: SeoUrlRow) {
   setBusy(u.id, true)
   try {
-    const res = await api.post<{ data: SeoUrlRow }>(`/seo/url/${u.id}/analyze`, {})
+    // URL đã bị đánh "ngoài ngành" → bấm lại = ÉP phân tích (bỏ qua bộ lọc ngách).
+    const q = u.trang_thai === 'ngoai_nganh' ? '?force=true' : ''
+    const res = await api.post<{ data: SeoUrlRow }>(`/seo/url/${u.id}/analyze${q}`, {})
     const idx = urlRows.value.findIndex((x) => x.id === u.id)
     if (idx >= 0) urlRows.value[idx] = res.data
     if (res.data.trang_thai === 'loi') flash('err', `Lỗi: ${res.data.loi}`)
+    else if (res.data.trang_thai === 'ngoai_nganh')
+      flash('info', 'Trang này ngoài ngách Đông Y nên đã bỏ qua. Bấm "Ép PT" nếu vẫn muốn phân tích.')
     await loadDoiThu()
   } catch (e: any) {
     flash('err', e.message || 'Phân tích URL thất bại')
@@ -325,6 +333,7 @@ const baiVietList = ref<BaiViet[]>([])
 const genBusy = ref<number | null>(null) // cum_id đang sinh, -1 = viết tự do
 const freeChuDe = ref('')
 const freeTuKhoa = ref('')
+const seedingDatTrong = ref(false) // đang bơm gợi ý "đất trống thực thể"
 
 // Tiến trình ước lượng cho "Viết nháp" (AI chạy 2 lượt: viết thân bài → rà soát YMYL + bóc metadata).
 // Backend xử lý đồng bộ trong 1 request nên KHÔNG có % thật — đây là ước lượng theo thời gian cho đỡ sốt ruột.
@@ -473,6 +482,30 @@ async function genFromCum(c: Cum) {
   } finally {
     genBusy.value = null
     stopGenProgress()
+  }
+}
+
+// Bơm sẵn các "thực thể đất trống" (huyệt/kinh/bệnh/bài thuốc + chủ đề đặc sản) vào hàng chờ.
+// Không cần đối thủ; nếu đã có radar thì cụm "đối thủ chưa đụng" được cộng điểm ưu tiên.
+async function goiYDatTrong() {
+  if (seedingDatTrong.value) return
+  const truoc = goiYCums.value.length
+  seedingDatTrong.value = true
+  flash('info', 'Đang bơm gợi ý "đất trống thực thể" Đông Y…')
+  try {
+    const res = await api.post<{ data: Cum[] }>('/seo/cum/dat-trong', {})
+    cumList.value = res.data
+    const them = Math.max(0, goiYCums.value.length - truoc)
+    flash(
+      'ok',
+      them > 0
+        ? `Đã bổ sung ${them} cụm "đất trống". Chọn cụm điểm cao để viết trước (🌱 = đối thủ chưa đụng).`
+        : 'Các thực thể đất trống đều đã có cụm/bài rồi — viết bớt rồi bấm lại để bổ sung lứa mới.',
+    )
+  } catch (e: any) {
+    flash('err', e.message || 'Bơm gợi ý đất trống thất bại')
+  } finally {
+    seedingDatTrong.value = false
   }
 }
 
@@ -1398,6 +1431,11 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
             <span class="stat">Tổng <b>{{ d.thong_ke.tong }}</b></span>
             <span class="stat stat--cho">Chờ <b>{{ d.thong_ke.cho }}</b></span>
             <span class="stat stat--ok">Đã PT <b>{{ d.thong_ke.da_phan_tich }}</b></span>
+            <span
+              v-if="d.thong_ke.ngoai_nganh"
+              class="stat stat--skip"
+              title="Bài KHÔNG thuộc ngách Đông Y/kinh lạc — đã bỏ qua để khỏi tốn AI"
+            >Ngoài ngành <b>{{ d.thong_ke.ngoai_nganh }}</b></span>
             <span v-if="d.thong_ke.loi" class="stat stat--err">Lỗi <b>{{ d.thong_ke.loi }}</b></span>
           </div>
 
@@ -1425,7 +1463,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
         <h3>URL của «{{ selectedDoiThu.domain }}»</h3>
         <div class="filters">
           <button
-            v-for="f in (['all', 'cho', 'da_phan_tich', 'loi'] as const)"
+            v-for="f in (['all', 'cho', 'da_phan_tich', 'ngoai_nganh', 'loi'] as const)"
             :key="f"
             class="chip-btn"
             :class="{ on: urlFilter === f }"
@@ -1461,6 +1499,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
               <td>
                 <span v-if="u.chu_de" :title="u.tom_tat || ''">{{ u.chu_de }}</span>
                 <span v-else-if="u.trang_thai === 'loi'" class="err-text" :title="u.loi || ''">{{ u.loi }}</span>
+                <span v-else-if="u.trang_thai === 'ngoai_nganh'" class="muted" :title="u.loi || ''">Ngoài ngách Đông Y — đã bỏ qua</span>
                 <span v-else class="muted">—</span>
               </td>
               <td>
@@ -1468,8 +1507,13 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
                 <span v-else class="muted">—</span>
               </td>
               <td class="col-act">
-                <button class="btn btn--xs" :disabled="isBusy(u.id)" @click="analyzeOne(u)">
-                  {{ isBusy(u.id) ? '…' : u.trang_thai === 'da_phan_tich' ? 'Lại' : 'Phân tích' }}
+                <button
+                  class="btn btn--xs"
+                  :disabled="isBusy(u.id)"
+                  :title="u.trang_thai === 'ngoai_nganh' ? 'Ép phân tích dù trông ngoài ngách' : ''"
+                  @click="analyzeOne(u)"
+                >
+                  {{ isBusy(u.id) ? '…' : u.trang_thai === 'da_phan_tich' ? 'Lại' : u.trang_thai === 'ngoai_nganh' ? 'Ép PT' : 'Phân tích' }}
                 </button>
                 <button class="icon-btn" :disabled="isBusy(u.id)" title="Xoá URL" @click="removeUrl(u)">×</button>
               </td>
@@ -1582,9 +1626,20 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
 
       <!-- Viết từ cụm gợi ý -->
       <section class="card">
-        <div class="card-head"><h3>Viết bài từ cụm gợi ý ({{ goiYCums.length }})</h3></div>
+        <div class="card-head">
+          <h3>Viết bài từ cụm gợi ý ({{ goiYCums.length }})</h3>
+          <button
+            class="btn btn--sm btn--accent"
+            :disabled="seedingDatTrong"
+            title="Bơm sẵn các thực thể Đông Y giá trị cao (huyệt, kinh, bệnh, bài thuốc) mà đối thủ Tây Y bỏ ngỏ — không cần đối thủ"
+            @click="goiYDatTrong"
+          >
+            {{ seedingDatTrong ? 'Đang bơm…' : '🌱 Gợi Ý Đất Trống' }}
+          </button>
+        </div>
         <p v-if="!goiYCums.length" class="muted">
-          Chưa có cụm nào. Sang tab <b>Radar Đối Thủ</b> (bước 3), bấm "Tìm Khoảng Trống" cho 1 đối thủ để AI gợi ý cụm trước.
+          Chưa có cụm nào. Bấm <b>🌱 Gợi Ý Đất Trống</b> để bơm sẵn các thực thể Đông Y nên viết trước,
+          hoặc sang tab <b>Radar Đối Thủ</b> (bước 3) bấm "Tìm Khoảng Trống" cho 1 đối thủ.
         </p>
         <div v-else class="cum-grid">
           <div v-for="c in goiYCums" :key="c.id" class="cum">
@@ -1593,6 +1648,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
               <h4 class="cum-name">{{ c.ten_cum }}</h4>
             </div>
             <div v-if="c.doi_thu_id && domainById[c.doi_thu_id]" class="cum-kw"><b>Đối thủ:</b> {{ domainById[c.doi_thu_id] }}</div>
+            <div v-else-if="c.ly_do" class="cum-kw cum-kw--seed" :title="c.ly_do">{{ c.ly_do }}</div>
             <div v-if="c.tu_khoa_muc_tieu" class="cum-kw"><b>Từ khoá:</b> {{ c.tu_khoa_muc_tieu }}</div>
             <button class="btn btn--accent btn--sm" :disabled="genBusy !== null" @click="genFromCum(c)">
               {{ genBusy === c.id ? 'Đang viết…' : '✍️ Viết nháp' }}
@@ -2264,11 +2320,13 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
 .st--cho { background: var(--warning-bg); color: var(--warning-fg); }
 .st--da_phan_tich { background: var(--success-bg); color: var(--success-fg); }
 .st--loi { background: var(--danger-bg); color: var(--danger); }
+.st--ngoai_nganh { background: var(--brown-100); color: var(--text-muted); }
 
 .stats { display: flex; gap: var(--space-3); flex-wrap: wrap; font-size: var(--font-size-xs); color: var(--text-muted); }
 .stat b { color: var(--text); }
 .stat--cho b { color: var(--warning-fg); }
 .stat--ok b { color: var(--success-fg); }
+.stat--skip b { color: var(--text-muted); }
 .stat--err b { color: var(--danger); }
 
 .doithu-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
@@ -2297,6 +2355,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
 .cum-name { font-size: var(--font-size-sm); font-weight: 700; color: var(--brown-800); }
 .cum-kw, .cum-idea { font-size: var(--font-size-xs); color: var(--text-muted); line-height: 1.5; }
 .cum-kw b, .cum-idea b { color: var(--text); }
+.cum-kw--seed { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cum-why { font-size: var(--font-size-xs); color: var(--text-subtle); font-style: italic; }
 
 /* Bước 3: mỗi đối thủ một thanh gọn, bấm mở/đóng (accordion) */

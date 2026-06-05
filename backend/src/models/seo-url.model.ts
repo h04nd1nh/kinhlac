@@ -6,7 +6,7 @@ import {
   Index,
 } from 'typeorm';
 
-export type SeoUrlTrangThai = 'cho' | 'da_phan_tich' | 'loi';
+export type SeoUrlTrangThai = 'cho' | 'da_phan_tich' | 'loi' | 'ngoai_nganh';
 
 /** Một URL blog gom từ sitemap đối thủ + kết quả AI bóc tách (chủ đề / từ khoá / tóm tắt). */
 @Entity('seo_url')
@@ -21,7 +21,7 @@ export class SeoUrl {
   @Column({ type: 'text' })
   url: string;
 
-  /** cho = chờ phân tích · da_phan_tich = xong · loi = lỗi (xem cột `loi`). */
+  /** cho = chờ · da_phan_tich = xong · loi = lỗi · ngoai_nganh = không thuộc ngách Đông Y (bỏ qua, khỏi tốn AI). */
   @Index()
   @Column({ type: 'varchar', length: 20, default: 'cho' })
   trang_thai: SeoUrlTrangThai;

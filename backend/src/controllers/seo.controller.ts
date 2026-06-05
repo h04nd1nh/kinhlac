@@ -172,6 +172,94 @@ const TREND_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 // mà nginx cắt sau 120s (frontend/nginx.conf) → giữ ở 2 để không vượt timeout proxy.
 const TREND_MAX_DRAFTS = 2;
 
+// ---- Bộ lọc ngách (B): nhận diện trang ĐỐI THỦ có thuộc Đông Y / kinh lạc không -------
+// Mục tiêu: với đối thủ "khổng lồ" Tây Y (vd Vinmec), đa số bài KHÔNG dính ngách của mình.
+// Trang nào không chứa thuật ngữ Đông Y thì đánh dấu 'ngoai_nganh' và BỎ QUA — khỏi tốn
+// lượt gọi AI + khỏi làm loãng gap analysis. So khớp KHÔNG dấu (normLoose) cho nhẹ & chắc.
+// Lưu ý: tránh dùng "huyet" trần (trùng "huyết áp" Tây Y) → chỉ dùng cụm cụ thể.
+const DONG_Y_TERMS = [
+  'dong y', 'y hoc co truyen', 'yhct', 'co truyen',
+  'kinh lac', 'kinh mach', 'duong kinh', '12 duong kinh', 'tinh huyet',
+  'cham cuu', 'bam huyet', 'an huyet', 'huyet vi', 'huyet dao', 'xoa bop',
+  'bai thuoc', 'vi thuoc', 'thao duoc', 'thuoc nam', 'thuoc bac', 'duoc lieu', 'thang thuoc',
+  'tinh vi quy kinh', 'quy kinh', 'tu khi ngu vi',
+  'bien chung luan tri', 'luan tri', 'bat cuong', 'tang phu', 'khi huyet', 'am duong', 'ngu hanh',
+  'cay chi', 'dien chan', 'thuy cham', 'cuu ngai', 'mach chan', 'vong chan',
+];
+
+// ---- Hạt giống "đất trống thực thể" (A): thực thể Đông Y giá trị cao để bơm vào Lò Viết --
+// Đây là lứa bài NÊN VIẾT TRƯỚC: những thực thể mà đối thủ Tây Y (Vinmec…) gần như bỏ ngỏ,
+// còn mình có sẵn dữ liệu (thư viện huyệt/kinh/bài thuốc + công cụ 3D/đo/radar).
+//   nhom    : nhóm thực thể (để gắn nhãn lý do)
+//   ten     : tên thực thể TRẦN — dùng để bỏ trùng & dò xem đối thủ đã đụng chưa (so KHÔNG dấu)
+//   ten_cum : tiêu đề bài (đặt sẵn dạng chuẩn SEO)
+//   tu_khoa : từ khoá mục tiêu (cách nhau dấu phẩy)
+//   y_tuong : vài ý chính (cách nhau dấu chấm phẩy) — Lò Viết dùng làm dàn ý
+//   diem    : điểm nền (chưa cộng thưởng "đối thủ chưa có")
+const DAT_TRONG_MARK = '🌱 Đất trống';
+const DAT_TRONG_SEED: ReadonlyArray<{
+  nhom: string;
+  ten: string;
+  ten_cum: string;
+  tu_khoa: string;
+  y_tuong: string;
+  diem: number;
+}> = [
+  // ----- Đặc sản thương hiệu: Vinmec & Tây Y KHÔNG có (đất trống thật, ưu tiên cao nhất) -----
+  { nhom: 'Đặc sản', ten: 'đo nhiệt độ kinh lạc', ten_cum: 'Đo Nhiệt Độ Kinh Lạc Là Gì? Đọc Cơ Thể Bằng Dữ Liệu', tu_khoa: 'đo nhiệt độ kinh lạc, đo kinh lạc, chẩn đoán kinh lạc', y_tuong: 'Giải thích nguyên lý đo 24 tỉnh huyệt; con số đo nói gì về tạng phủ; mời xem demo biểu đồ đo và đồ hình 3D', diem: 13 },
+  { nhom: 'Đặc sản', ten: 'chẩn đoán kinh lạc', ten_cum: 'Chẩn Đoán Kinh Lạc Qua 24 Tỉnh Huyệt: Hiểu Trong 5 Phút', tu_khoa: 'chẩn đoán kinh lạc, tỉnh huyệt, 24 tỉnh huyệt', y_tuong: 'Tỉnh huyệt là gì; vì sao đo ở đầu chi; đọc kết quả ra sao; dẫn về công cụ đo và thư viện', diem: 13 },
+  { nhom: 'Đặc sản', ten: 'đồng hồ kinh lạc', ten_cum: 'Đồng Hồ Kinh Lạc: 12 Đường Kinh Vượng Theo Giờ Trong Ngày', tu_khoa: 'đồng hồ kinh lạc, giờ kinh lạc, 12 đường kinh', y_tuong: 'Bảng giờ vượng của 12 kinh; ứng dụng sinh hoạt; mời xem đường kinh trên đồ hình 3D', diem: 12 },
+  { nhom: 'Đặc sản', ten: 'tính vị quy kinh', ten_cum: 'Tính Vị Quy Kinh Là Gì? Cách Đọc Một Vị Thuốc Đông Y', tu_khoa: 'tính vị quy kinh, quy kinh, tứ khí ngũ vị', y_tuong: 'Tứ khí, ngũ vị, quy kinh là gì; ví dụ vài vị thuốc; mời phân tích bài thuốc bằng biểu đồ radar', diem: 12 },
+  { nhom: 'Đặc sản', ten: 'biện chứng luận trị', ten_cum: 'Biện Chứng Luận Trị: Tư Duy Cốt Lõi Của Đông Y', tu_khoa: 'biện chứng luận trị, bát cương, biện chứng', y_tuong: 'Biện chứng vs biện bệnh; bát cương (âm dương, biểu lý, hàn nhiệt, hư thực); vì sao Đông Y cá thể hoá', diem: 12 },
+
+  // ----- Huyệt nổi tiếng (người dân tự tra nhiều) -----
+  { nhom: 'Huyệt', ten: 'hợp cốc', ten_cum: 'Huyệt Hợp Cốc (LI4): Vị Trí, Tác Dụng Và Cách Bấm', tu_khoa: 'huyệt hợp cốc, vị trí huyệt hợp cốc, bấm huyệt hợp cốc', y_tuong: 'Vị trí trên bàn tay; chủ trị đau đầu, đau răng; CẤM với thai phụ; mời xem huyệt trên đồ hình 3D', diem: 11 },
+  { nhom: 'Huyệt', ten: 'túc tam lý', ten_cum: 'Huyệt Túc Tam Lý (ST36): Vị Trí Và Công Dụng Bồi Bổ', tu_khoa: 'huyệt túc tam lý, vị trí túc tam lý, tác dụng túc tam lý', y_tuong: 'Cách xác định dưới gối; vai trò kiện tỳ, bổ khí; mời tra trong thư viện huyệt', diem: 11 },
+  { nhom: 'Huyệt', ten: 'tam âm giao', ten_cum: 'Huyệt Tam Âm Giao (SP6): Vị Trí, Tác Dụng, Lưu Ý', tu_khoa: 'huyệt tam âm giao, vị trí tam âm giao, tác dụng tam âm giao', y_tuong: 'Giao của 3 kinh âm; liên quan phụ khoa; lưu ý thai phụ; mời xem trên đồ hình 3D', diem: 11 },
+  { nhom: 'Huyệt', ten: 'nội quan', ten_cum: 'Huyệt Nội Quan (PC6): Giảm Buồn Nôn Và An Thần', tu_khoa: 'huyệt nội quan, vị trí nội quan, tác dụng nội quan', y_tuong: 'Vị trí cổ tay; chủ trị buồn nôn, hồi hộp; cách bấm; mời tra thư viện', diem: 10 },
+  { nhom: 'Huyệt', ten: 'phong trì', ten_cum: 'Huyệt Phong Trì (GB20): Vị Trí Và Cách Bấm Giảm Đau Đầu', tu_khoa: 'huyệt phong trì, vị trí phong trì, bấm phong trì đau đầu', y_tuong: 'Vị trí sau gáy; trị đau đầu, mỏi cổ; mời xem trên đồ hình 3D', diem: 10 },
+  { nhom: 'Huyệt', ten: 'bách hội', ten_cum: 'Huyệt Bách Hội (GV20): Vị Trí Đỉnh Đầu Và Tác Dụng', tu_khoa: 'huyệt bách hội, vị trí bách hội, tác dụng bách hội', y_tuong: 'Điểm hội của các kinh dương; an thần, thăng dương; mời tra thư viện', diem: 10 },
+  { nhom: 'Huyệt', ten: 'thái xung', ten_cum: 'Huyệt Thái Xung (LR3): Hạ Can Hoả, Ổn Định Cảm Xúc', tu_khoa: 'huyệt thái xung, vị trí thái xung, tác dụng thái xung', y_tuong: 'Vị trí mu bàn chân; sơ can, hạ hoả; phối Hợp Cốc (tứ quan); mời xem 3D', diem: 10 },
+  { nhom: 'Huyệt', ten: 'dũng tuyền', ten_cum: 'Huyệt Dũng Tuyền (KI1): Vị Trí Gan Bàn Chân Và Tác Dụng', tu_khoa: 'huyệt dũng tuyền, vị trí dũng tuyền, tác dụng dũng tuyền', y_tuong: 'Điểm thấp nhất của kinh Thận; bổ thận, an thần; mời tra thư viện', diem: 9 },
+  { nhom: 'Huyệt', ten: 'quan nguyên', ten_cum: 'Huyệt Quan Nguyên (CV4): Bồi Bổ Nguyên Khí', tu_khoa: 'huyệt quan nguyên, vị trí quan nguyên, tác dụng quan nguyên', y_tuong: 'Vị trí dưới rốn; bổ nguyên khí; thường cứu ngải; mời xem 3D', diem: 9 },
+  { nhom: 'Huyệt', ten: 'khúc trì', ten_cum: 'Huyệt Khúc Trì (LI11): Vị Trí Khuỷu Tay Và Công Dụng', tu_khoa: 'huyệt khúc trì, vị trí khúc trì, tác dụng khúc trì', y_tuong: 'Vị trí nếp khuỷu; thanh nhiệt, trị ngoài da; mời tra thư viện', diem: 9 },
+
+  // ----- 12 đường kinh chính (mỗi kinh một trang thực thể) -----
+  { nhom: 'Đường kinh', ten: 'kinh phế', ten_cum: 'Kinh Phế (Thủ Thái Âm): Đường Đi, Huyệt Chính Và Chủ Trị', tu_khoa: 'kinh phế, kinh thủ thái âm phế, đường kinh phế', y_tuong: 'Lộ trình đường kinh; vài huyệt quan trọng; chứng bệnh liên quan; mời xem kinh động trên đồ hình 3D', diem: 9 },
+  { nhom: 'Đường kinh', ten: 'kinh đại trường', ten_cum: 'Kinh Đại Trường (Thủ Dương Minh): Lộ Trình Và Huyệt Vị', tu_khoa: 'kinh đại trường, kinh thủ dương minh, đường kinh đại trường', y_tuong: 'Lộ trình; huyệt Hợp Cốc, Khúc Trì; chủ trị; mời xem trên đồ hình 3D', diem: 9 },
+  { nhom: 'Đường kinh', ten: 'kinh vị', ten_cum: 'Kinh Vị (Túc Dương Minh): Đường Đi Và Các Huyệt Quan Trọng', tu_khoa: 'kinh vị, kinh túc dương minh, đường kinh vị', y_tuong: 'Lộ trình; huyệt Túc Tam Lý; chủ trị tiêu hoá; mời xem 3D', diem: 9 },
+  { nhom: 'Đường kinh', ten: 'kinh tỳ', ten_cum: 'Kinh Tỳ (Túc Thái Âm): Lộ Trình, Huyệt Vị Và Chủ Trị', tu_khoa: 'kinh tỳ, kinh túc thái âm tỳ, đường kinh tỳ', y_tuong: 'Lộ trình; huyệt Tam Âm Giao; vai trò kiện tỳ; mời xem 3D', diem: 9 },
+  { nhom: 'Đường kinh', ten: 'kinh tâm', ten_cum: 'Kinh Tâm (Thủ Thiếu Âm): Đường Đi Và Huyệt Vị', tu_khoa: 'kinh tâm, kinh thủ thiếu âm tâm, đường kinh tâm', y_tuong: 'Lộ trình; huyệt Thần Môn; chủ trị an thần; mời xem 3D', diem: 9 },
+  { nhom: 'Đường kinh', ten: 'kinh tiểu trường', ten_cum: 'Kinh Tiểu Trường (Thủ Thái Dương): Lộ Trình Và Chủ Trị', tu_khoa: 'kinh tiểu trường, kinh thủ thái dương, đường kinh tiểu trường', y_tuong: 'Lộ trình; huyệt chính; chủ trị; mời xem 3D', diem: 8 },
+  { nhom: 'Đường kinh', ten: 'kinh bàng quang', ten_cum: 'Kinh Bàng Quang (Túc Thái Dương): Đường Kinh Dài Nhất Cơ Thể', tu_khoa: 'kinh bàng quang, kinh túc thái dương, đường kinh bàng quang', y_tuong: 'Đường kinh dài nhất; hệ du huyệt sau lưng; chủ trị; mời xem 3D', diem: 9 },
+  { nhom: 'Đường kinh', ten: 'kinh thận', ten_cum: 'Kinh Thận (Túc Thiếu Âm): Lộ Trình, Huyệt Vị Và Chủ Trị', tu_khoa: 'kinh thận, kinh túc thiếu âm thận, đường kinh thận', y_tuong: 'Lộ trình; huyệt Dũng Tuyền; vai trò bổ thận; mời xem 3D', diem: 9 },
+  { nhom: 'Đường kinh', ten: 'kinh tâm bào', ten_cum: 'Kinh Tâm Bào (Thủ Quyết Âm): Đường Đi Và Huyệt Vị', tu_khoa: 'kinh tâm bào, kinh thủ quyết âm, đường kinh tâm bào', y_tuong: 'Lộ trình; huyệt Nội Quan; chủ trị; mời xem 3D', diem: 8 },
+  { nhom: 'Đường kinh', ten: 'kinh tam tiêu', ten_cum: 'Kinh Tam Tiêu (Thủ Thiếu Dương): Lộ Trình Và Chủ Trị', tu_khoa: 'kinh tam tiêu, kinh thủ thiếu dương, đường kinh tam tiêu', y_tuong: 'Lộ trình; huyệt chính; khái niệm tam tiêu; mời xem 3D', diem: 8 },
+  { nhom: 'Đường kinh', ten: 'kinh đởm', ten_cum: 'Kinh Đởm (Túc Thiếu Dương): Đường Đi Và Các Huyệt Chính', tu_khoa: 'kinh đởm, kinh túc thiếu dương, đường kinh đởm', y_tuong: 'Lộ trình; huyệt Phong Trì; chủ trị đau đầu, sườn; mời xem 3D', diem: 9 },
+  { nhom: 'Đường kinh', ten: 'kinh can', ten_cum: 'Kinh Can (Túc Quyết Âm): Lộ Trình, Huyệt Vị Và Chủ Trị', tu_khoa: 'kinh can, kinh túc quyết âm can, đường kinh can', y_tuong: 'Lộ trình; huyệt Thái Xung; vai trò sơ can; mời xem 3D', diem: 9 },
+
+  // ----- Bệnh thường gặp — đánh từ GÓC ĐÔNG Y/châm cứu (đất chen với Tây Y) -----
+  { nhom: 'Bệnh thường gặp', ten: 'mất ngủ', ten_cum: 'Châm Cứu, Bấm Huyệt Hỗ Trợ Mất Ngủ Theo Đông Y', tu_khoa: 'mất ngủ đông y, bấm huyệt chữa mất ngủ, châm cứu mất ngủ', y_tuong: 'Nguyên nhân theo tạng phủ (tâm, tỳ, can); vài huyệt thường dùng (tham khảo); cần thầy thuốc thăm khám; mời tra huyệt trong thư viện', diem: 11 },
+  { nhom: 'Bệnh thường gặp', ten: 'đau vai gáy', ten_cum: 'Đau Vai Gáy: Huyệt Đạo Và Cách Bấm Theo Đông Y', tu_khoa: 'đau vai gáy đông y, bấm huyệt đau vai gáy, huyệt trị đau vai gáy', y_tuong: 'Nguyên nhân phong hàn, khí trệ; huyệt vùng cổ gáy (tham khảo); lưu ý an toàn; mời xem đồ hình 3D', diem: 11 },
+  { nhom: 'Bệnh thường gặp', ten: 'đau lưng', ten_cum: 'Đau Lưng (Yêu Thống): Nguyên Nhân Và Huyệt Vị Theo Đông Y', tu_khoa: 'đau lưng đông y, yêu thống, bấm huyệt đau lưng', y_tuong: 'Yêu thống do thận hư/hàn thấp; huyệt vùng thắt lưng (tham khảo); cần thăm khám; mời tra thư viện', diem: 11 },
+  { nhom: 'Bệnh thường gặp', ten: 'đau đầu', ten_cum: 'Đau Đầu Theo Đông Y: Phân Loại Và Huyệt Bấm Tham Khảo', tu_khoa: 'đau đầu đông y, bấm huyệt đau đầu, huyệt trị đau đầu', y_tuong: 'Phân loại đau đầu theo kinh; huyệt Hợp Cốc, Phong Trì (tham khảo); khi nào cần đi khám; mời xem 3D', diem: 11 },
+  { nhom: 'Bệnh thường gặp', ten: 'liệt dây thần kinh số 7', ten_cum: 'Liệt Dây Thần Kinh Số 7 (Méo Miệng): Châm Cứu Theo Đông Y', tu_khoa: 'liệt dây thần kinh số 7, méo miệng, châm cứu liệt mặt', y_tuong: 'Khẩu nhãn oa tà theo Đông Y; vai trò châm cứu phục hồi (tham khảo); nhấn mạnh điều trị tại cơ sở y tế', diem: 10 },
+  { nhom: 'Bệnh thường gặp', ten: 'đau thần kinh toạ', ten_cum: 'Đau Thần Kinh Toạ: Huyệt Vị Và Châm Cứu Theo Đông Y', tu_khoa: 'đau thần kinh toạ đông y, châm cứu thần kinh toạ, huyệt trị đau toạ', y_tuong: 'Toạ cốt phong; đường kinh Bàng Quang/Đởm liên quan; huyệt tham khảo; cần thăm khám', diem: 10 },
+  { nhom: 'Bệnh thường gặp', ten: 'thoái hoá khớp gối', ten_cum: 'Thoái Hoá Khớp Gối: Bấm Huyệt Hỗ Trợ Theo Đông Y', tu_khoa: 'thoái hoá khớp gối đông y, bấm huyệt khớp gối, huyệt quanh gối', y_tuong: 'Tý chứng do can thận hư; huyệt quanh gối (tham khảo); kết hợp vận động; cần thăm khám', diem: 10 },
+  { nhom: 'Bệnh thường gặp', ten: 'rối loạn tiền đình', ten_cum: 'Rối Loạn Tiền Đình: Góc Nhìn Và Huyệt Đạo Đông Y', tu_khoa: 'rối loạn tiền đình đông y, huyễn vựng, bấm huyệt tiền đình', y_tuong: 'Huyễn vựng do đàm thấp/can dương; huyệt tham khảo; cần loại trừ nguyên nhân nguy hiểm', diem: 10 },
+  { nhom: 'Bệnh thường gặp', ten: 'táo bón', ten_cum: 'Táo Bón: Bấm Huyệt Và Điều Hoà Tạng Phủ Theo Đông Y', tu_khoa: 'táo bón đông y, bấm huyệt táo bón, huyệt trị táo bón', y_tuong: 'Phân thể nhiệt/khí/huyết hư; huyệt Thiên Khu, Túc Tam Lý (tham khảo); ăn uống; mời tra thư viện', diem: 9 },
+  { nhom: 'Bệnh thường gặp', ten: 'đau bụng kinh', ten_cum: 'Đau Bụng Kinh: Huyệt Bấm Giảm Đau Tham Khảo Theo Đông Y', tu_khoa: 'đau bụng kinh đông y, bấm huyệt đau bụng kinh, huyệt thống kinh', y_tuong: 'Thống kinh do hàn/khí trệ huyết ứ; huyệt Tam Âm Giao, Quan Nguyên (tham khảo); chườm ấm; cần thăm khám nếu nặng', diem: 10 },
+  { nhom: 'Bệnh thường gặp', ten: 'suy nhược thần kinh', ten_cum: 'Suy Nhược Thần Kinh: An Thần Bằng Huyệt Đạo Đông Y', tu_khoa: 'suy nhược thần kinh đông y, an thần đông y, bấm huyệt an thần', y_tuong: 'Tâm tỳ lưỡng hư; huyệt Thần Môn, Tam Âm Giao (tham khảo); lối sống; mời tra thư viện', diem: 9 },
+
+  // ----- Bài thuốc kinh điển (mời phân tích bằng công cụ radar tính vị quy kinh) -----
+  { nhom: 'Bài thuốc', ten: 'lục vị địa hoàng', ten_cum: 'Bài Thuốc Lục Vị Địa Hoàng: Thành Phần Và Công Dụng', tu_khoa: 'lục vị địa hoàng, lục vị địa hoàng hoàn, bổ thận âm', y_tuong: 'Xuất xứ; cấu trúc tam bổ tam tả; công dụng bổ thận âm theo lý luận; KHÔNG kê liều; mời phân tích bằng biểu đồ radar', diem: 10 },
+  { nhom: 'Bài thuốc', ten: 'bát trân thang', ten_cum: 'Bát Trân Thang: Bài Thuốc Bổ Khí Huyết Kinh Điển', tu_khoa: 'bát trân thang, bổ khí huyết, bài thuốc bổ', y_tuong: 'Ghép Tứ Quân + Tứ Vật; công dụng song bổ khí huyết; KHÔNG kê liều; mời phân tích radar', diem: 10 },
+  { nhom: 'Bài thuốc', ten: 'tứ quân tử thang', ten_cum: 'Tứ Quân Tử Thang: Bài Thuốc Kiện Tỳ Ích Khí', tu_khoa: 'tứ quân tử thang, kiện tỳ ích khí, bài thuốc bổ khí', y_tuong: 'Bốn vị quân tử; vai trò kiện tỳ; nền của nhiều bài bổ; mời phân tích radar', diem: 10 },
+  { nhom: 'Bài thuốc', ten: 'tứ vật thang', ten_cum: 'Tứ Vật Thang: Bài Thuốc Bổ Huyết Cho Phụ Nữ', tu_khoa: 'tứ vật thang, bổ huyết, bài thuốc cho phụ nữ', y_tuong: 'Bốn vị bổ huyết; ứng dụng phụ khoa theo lý luận; KHÔNG kê liều; mời phân tích radar', diem: 10 },
+  { nhom: 'Bài thuốc', ten: 'bổ trung ích khí', ten_cum: 'Bổ Trung Ích Khí Thang: Nâng Khí, Kiện Tỳ', tu_khoa: 'bổ trung ích khí, thăng dương ích khí, bài thuốc bổ khí', y_tuong: 'Của Lý Đông Viên; thăng dương cử hãm; công dụng theo lý luận; mời phân tích radar', diem: 9 },
+  { nhom: 'Bài thuốc', ten: 'quy tỳ thang', ten_cum: 'Quy Tỳ Thang: Dưỡng Tâm, Kiện Tỳ, An Thần', tu_khoa: 'quy tỳ thang, dưỡng tâm an thần, bài thuốc bổ tâm tỳ', y_tuong: 'Bổ tâm tỳ, ích khí dưỡng huyết; liên quan mất ngủ/hồi hộp; KHÔNG kê liều; mời phân tích radar', diem: 9 },
+];
+
 @Injectable()
 export class SeoService implements OnModuleInit {
   /** Cron tuần (opt-in): chỉ bật khi env SEO_TREND_CRON=true. */
@@ -237,21 +325,25 @@ export class SeoService implements OnModuleInit {
       .addGroupBy('u.trang_thai')
       .getRawMany<{ doi_thu_id: number; trang_thai: string; c: string }>();
 
-    const byId = new Map<number, { tong: number; cho: number; da_phan_tich: number; loi: number }>();
+    const byId = new Map<
+      number,
+      { tong: number; cho: number; da_phan_tich: number; loi: number; ngoai_nganh: number }
+    >();
     for (const r of counts) {
       const id = Number(r.doi_thu_id);
-      const entry = byId.get(id) || { tong: 0, cho: 0, da_phan_tich: 0, loi: 0 };
+      const entry = byId.get(id) || { tong: 0, cho: 0, da_phan_tich: 0, loi: 0, ngoai_nganh: 0 };
       const n = Number(r.c) || 0;
       entry.tong += n;
       if (r.trang_thai === 'cho') entry.cho += n;
       else if (r.trang_thai === 'da_phan_tich') entry.da_phan_tich += n;
       else if (r.trang_thai === 'loi') entry.loi += n;
+      else if (r.trang_thai === 'ngoai_nganh') entry.ngoai_nganh += n;
       byId.set(id, entry);
     }
 
     return list.map((d) => ({
       ...d,
-      thong_ke: byId.get(d.id) || { tong: 0, cho: 0, da_phan_tich: 0, loi: 0 },
+      thong_ke: byId.get(d.id) || { tong: 0, cho: 0, da_phan_tich: 0, loi: 0, ngoai_nganh: 0 },
     }));
   }
 
@@ -328,7 +420,8 @@ export class SeoService implements OnModuleInit {
   // PHÂN TÍCH 1 URL (tải HTML → đưa text cho Yescale → lưu kết quả)
   // ===========================================================================
 
-  async analyzeUrl(urlId: number): Promise<SeoUrl> {
+  /** force=true: bỏ qua bộ lọc ngách (admin ép phân tích 1 URL kể cả khi trông "ngoài ngành"). */
+  async analyzeUrl(urlId: number, force = false): Promise<SeoUrl> {
     const row = await this.urlRepo.findOneBy({ id: urlId });
     if (!row) throw new NotFoundException(`URL #${urlId} không tồn tại`);
 
@@ -347,6 +440,21 @@ export class SeoService implements OnModuleInit {
 
       if (pageText.replace(/\s/g, '').length < 40) {
         throw new Error('Trang gần như không có chữ để phân tích.');
+      }
+
+      // Bộ lọc ngách (B): trang KHÔNG dính Đông Y/kinh lạc → đánh dấu 'ngoai_nganh' & DỪNG,
+      // khỏi tốn lượt gọi AI và khỏi làm loãng gap analysis. Không xoá (vẫn xem/ép lại được).
+      // CHỈ soi URL + tiêu đề + meta description (tín hiệu RIÊNG của trang) — KHÔNG soi body,
+      // vì body chứa cả menu điều hướng toàn site (vd menu đối thủ có mục "Y học cổ truyền")
+      // sẽ khiến mọi trang lọt lưới. Tiêu đề/description phản ánh đúng chủ đề từng bài.
+      if (!force && !looksDongY(`${row.url}\n${title}\n${description}`)) {
+        row.chu_de = null;
+        row.tu_khoa = null;
+        row.tom_tat = null;
+        row.trang_thai = 'ngoai_nganh';
+        row.loi = 'Ngoài ngách Đông Y/kinh lạc — bỏ qua để khỏi tốn AI. Bấm "Phân tích" lại để ép phân tích.';
+        row.analyzed_at = new Date();
+        return await this.urlRepo.save(row);
       }
 
       const result = await this.extractWithAi(row.url, pageText);
@@ -370,7 +478,7 @@ export class SeoService implements OnModuleInit {
   async analyzeBatch(
     doiThuId: number,
     limit = 10,
-  ): Promise<{ analyzed: number; ok: number; loi: number }> {
+  ): Promise<{ analyzed: number; ok: number; loi: number; ngoai_nganh: number }> {
     const d = await this.doiThuRepo.findOneBy({ id: doiThuId });
     if (!d) throw new NotFoundException(`Đối thủ #${doiThuId} không tồn tại`);
 
@@ -383,13 +491,15 @@ export class SeoService implements OnModuleInit {
 
     let ok = 0;
     let loi = 0;
+    let ngoai = 0;
     // Tuần tự để không đập quá nhiều request lên Yescale cùng lúc.
     for (const row of pending) {
       const updated = await this.analyzeUrl(row.id);
       if (updated.trang_thai === 'da_phan_tich') ok++;
+      else if (updated.trang_thai === 'ngoai_nganh') ngoai++;
       else loi++;
     }
-    return { analyzed: pending.length, ok, loi };
+    return { analyzed: pending.length, ok, loi, ngoai_nganh: ngoai };
   }
 
   async listUrls(doiThuId?: number, trangThai?: string): Promise<SeoUrl[]> {
@@ -503,6 +613,75 @@ Hãy đề xuất các cụm chủ đề nên viết theo đúng định dạng 
       );
 
     await this.cumRepo.save(entities);
+    return this.listCum();
+  }
+
+  /**
+   * GỢI Ý "ĐẤT TRỐNG THỰC THỂ" (A) — bơm sẵn danh sách thực thể Đông Y giá trị cao
+   * (huyệt, đường kinh, bệnh thường gặp, bài thuốc, chủ đề đặc sản) vào hàng chờ Lò Viết.
+   * KHÔNG cần đối thủ — chạy được cả khi site mới tinh. Nếu ĐÃ có dữ liệu radar thì
+   * cộng điểm ưu tiên cho thực thể mà đối thủ CHƯA đụng tới (đất trống thật vs đất chen).
+   * Ghi đè đúng các gợi ý đất trống cũ (nhận diện qua marker trong `ly_do`), KHÔNG đụng
+   * cụm gap của đối thủ.
+   */
+  async goiYDatTrong(): Promise<SeoCum[]> {
+    // 1) Xoá đúng gợi ý đất trống CŨ của mình TRƯỚC (de_xuat + doi_thu_id NULL + marker trong
+    //    ly_do) — phải xoá trước khi đọc danh sách cụm hiện có, nếu không các cụm cũ sẽ tự
+    //    "chặn trùng" chính mình ở bước dưới khiến lần bấm thứ 2 không bơm lại được gì.
+    await this.cumRepo
+      .createQueryBuilder()
+      .delete()
+      .where('trang_thai = :tt', { tt: 'de_xuat' })
+      .andWhere('doi_thu_id IS NULL')
+      .andWhere('ly_do LIKE :mk', { mk: `${DAT_TRONG_MARK}%` })
+      .execute();
+
+    // 2) Đã có gì rồi để khỏi gợi trùng: bài đã viết + các cụm CÒN LẠI (gap đối thủ, đã chọn/đã viết).
+    const [daViet, dangCo] = await Promise.all([
+      this.baiVietRepo.find({ select: { tieu_de: true, slug: true } }),
+      this.cumRepo.find({ select: { ten_cum: true } }),
+    ]);
+    const writtenBlob = normLoose(
+      [
+        ...daViet.map((b) => `${b.tieu_de} ${b.slug || ''}`),
+        ...dangCo.map((c) => c.ten_cum),
+      ].join(' | '),
+    );
+
+    // 3) Đối thủ (KHÔNG phải site của mình) đã phủ chủ đề gì → để chấm "đất trống thật".
+    const doiThus = await this.doiThuRepo.find();
+    const laMinh = new Map(doiThus.map((d) => [d.id, d.la_cua_minh]));
+    const analyzed = await this.urlRepo.find({ where: { trang_thai: 'da_phan_tich' } });
+    const compBlob = normLoose(
+      analyzed
+        .filter((u) => !laMinh.get(u.doi_thu_id))
+        .map((u) => `${u.chu_de || ''} ${u.tu_khoa || ''}`)
+        .join(' | '),
+    );
+
+    // 4) Lọc thực thể chưa viết → chấm điểm (đối thủ chưa có = +2; đã có = đất chen).
+    const rows: SeoCum[] = [];
+    for (const s of DAT_TRONG_SEED) {
+      const key = normLoose(s.ten);
+      if (writtenBlob.includes(key)) continue; // đã có bài/cụm cho thực thể này → bỏ
+      const doiThuCo = compBlob.length > 0 && compBlob.includes(key);
+      const diem = clampInt(s.diem + (doiThuCo ? 0 : 2), 0, 15);
+      const ghiChu = doiThuCo
+        ? 'đối thủ cũng đang làm — chen vào bằng chiều sâu Đông Y + công cụ'
+        : 'đối thủ Tây Y chưa đụng — đất trống thật, chiếm trước';
+      rows.push(
+        this.cumRepo.create({
+          ten_cum: s.ten_cum.slice(0, 255),
+          diem_uu_tien: diem,
+          tu_khoa_muc_tieu: s.tu_khoa,
+          y_tuong_noi_dung: s.y_tuong,
+          ly_do: `${DAT_TRONG_MARK} (${s.nhom}): ${ghiChu}`,
+          doi_thu_id: null,
+          trang_thai: 'de_xuat' as const,
+        }),
+      );
+    }
+    if (rows.length) await this.cumRepo.save(rows);
     return this.listCum();
   }
 
@@ -1712,6 +1891,12 @@ function normLoose(s: string): string {
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** true nếu đoạn text (URL + nội dung) có chứa ÍT NHẤT một thuật ngữ Đông Y/kinh lạc. */
+function looksDongY(raw: string): boolean {
+  const t = normLoose(raw);
+  return DONG_Y_TERMS.some((k) => t.includes(k));
 }
 
 /** Chuyển tên/tiêu đề thành slug ASCII (không dấu, dùng -). */

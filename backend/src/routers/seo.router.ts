@@ -75,8 +75,9 @@ export class SeoRouter {
   }
 
   @Post('url/:id/analyze')
-  async analyzeUrl(@Param('id') id: string) {
-    const data = await this.service.analyzeUrl(+id);
+  async analyzeUrl(@Param('id') id: string, @Query('force') force?: string) {
+    // force=true: ép phân tích kể cả khi URL trông "ngoài ngách Đông Y" (bỏ qua bộ lọc).
+    const data = await this.service.analyzeUrl(+id, force === 'true');
     return { success: true, data };
   }
 
@@ -96,6 +97,14 @@ export class SeoRouter {
   @Post('gap-analysis')
   async gapAnalysis(@Body() dto: GapAnalysisDto) {
     const data = await this.service.gapAnalysis(dto?.doiThuId);
+    return { success: true, data };
+  }
+
+  // Gợi ý "đất trống thực thể": bơm sẵn các thực thể Đông Y giá trị cao vào hàng chờ Lò Viết
+  // (không cần đối thủ). Trả về TOÀN BỘ cụm (như gap-analysis) để frontend nạp lại.
+  @Post('cum/dat-trong')
+  async goiYDatTrong() {
+    const data = await this.service.goiYDatTrong();
     return { success: true, data };
   }
 
