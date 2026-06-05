@@ -57,7 +57,7 @@ const form = ref<{ domain: string; ten: string; la_cua_minh: boolean }>({
   la_cua_minh: false,
 })
 const adding = ref(false)
-const batchLimit = ref(5) // mặc định nhỏ để tránh timeout proxy (nginx 60s) khi AI chạy lâu
+const batchLimit = ref(5) // mặc định nhỏ để tránh timeout proxy (nginx cắt sau 120s) khi AI chạy lâu
 
 // ===== Helpers =====
 function flash(kind: 'ok' | 'err' | 'info', text: string) {
@@ -309,6 +309,63 @@ const savingEditor = ref(false)
 const exportingId = ref<number | null>(null)
 const publishingId = ref<number | null>(null)
 
+// ===== Tiến trình khi Đăng (overlay: chạy bar tới khi xong → bật nút Xem) =====
+const pubModal = ref(false) // overlay tiến trình đang hiện
+const pubProgress = ref(0)
+const pubStage = ref('')
+const pubNote = ref('') // ghi chú backend khi xong (vd "deploy lại để lên web")
+const pubDone = ref(false) // đăng xong → cho bấm Xem
+const pubError = ref('')
+const pubTarget = ref<{ id: number; slug: string; tieu_de: string } | null>(null)
+let pubTimer: ReturnType<typeof setInterval> | null = null
+
+function startPubProgress(a: BaiViet) {
+  pubModal.value = true
+  pubDone.value = false
+  pubError.value = ''
+  pubNote.value = ''
+  pubProgress.value = 0
+  pubTarget.value = { id: a.id, slug: a.slug || '', tieu_de: a.tieu_de }
+  pubStage.value = 'Đang gửi yêu cầu đăng…'
+  const t0 = Date.now()
+  const EST = 6000 // ~6s: ghi file .md + cập nhật trạng thái (không có % thật → ước lượng)
+  if (pubTimer) clearInterval(pubTimer)
+  pubTimer = setInterval(() => {
+    const elapsed = Date.now() - t0
+    pubProgress.value = Math.min(92, Math.round((1 - Math.exp(-elapsed / (EST * 0.5))) * 100))
+    if (pubProgress.value < 30) pubStage.value = 'Đang ghi file bài viết (.md)…'
+    else if (pubProgress.value < 70) pubStage.value = 'Đang cập nhật trạng thái “Đã đăng”…'
+    else pubStage.value = 'Sắp xong…'
+  }, 200)
+}
+function finishPubProgress(ok: boolean, opts: { slug?: string; note?: string; error?: string } = {}) {
+  if (pubTimer) {
+    clearInterval(pubTimer)
+    pubTimer = null
+  }
+  if (ok) {
+    pubProgress.value = 100
+    pubDone.value = true
+    if (opts.slug && pubTarget.value) pubTarget.value.slug = opts.slug
+    pubStage.value = 'Hoàn tất! Bài đã đăng.'
+    pubNote.value = opts.note || ''
+  } else {
+    pubError.value = opts.error || 'Đăng thất bại.'
+  }
+}
+function closePubModal() {
+  if (pubTimer) {
+    clearInterval(pubTimer)
+    pubTimer = null
+  }
+  pubModal.value = false
+  pubDone.value = false
+  pubError.value = ''
+  pubNote.value = ''
+  pubProgress.value = 0
+  pubTarget.value = null
+}
+
 // ===== Phase 3: Xu Hướng =====
 const DEFAULT_SEEDS = 'đo kinh lạc\nhuyệt\nbấm huyệt\nchâm cứu\nbài thuốc đông y\ntính vị quy kinh'
 const trendSeeds = ref(DEFAULT_SEEDS)
@@ -485,6 +542,37 @@ const nguonText = computed<string>({
   },
 })
 
+// FAQ lưu dạng JSON [{q,a}] nhưng cho sửa thân thiện: mỗi dòng "Câu hỏi | Trả lời" (chỉ tách ở dấu | đầu tiên).
+const faqText = computed<string>({
+  get() {
+    const a = editing.value
+    if (!a?.faq) return ''
+    try {
+      const arr = JSON.parse(a.faq)
+      return (Array.isArray(arr) ? arr : [])
+        .map((f: any) => [f.q || '', f.a || ''].filter(Boolean).join(' | '))
+        .join('\n')
+    } catch {
+      return a.faq
+    }
+  },
+  set(v: string) {
+    if (!editing.value) return
+    const arr = v
+      .split('\n')
+      .map((ln) => ln.trim())
+      .filter(Boolean)
+      .map((ln) => {
+        const i = ln.indexOf('|')
+        const q = (i >= 0 ? ln.slice(0, i) : ln).trim()
+        const a = (i >= 0 ? ln.slice(i + 1) : '').trim()
+        return { q, a }
+      })
+      .filter((f) => f.q && f.a)
+    editing.value.faq = arr.length ? JSON.stringify(arr) : null
+  },
+})
+
 async function saveEditor() {
   if (!editing.value) return
   savingEditor.value = true
@@ -497,6 +585,7 @@ async function saveEditor() {
       tu_khoa: e.tu_khoa,
       category: e.category,
       cta: e.cta,
+      faq: e.faq,
       nguon_tham_khao: e.nguon_tham_khao,
       noi_dung_md: e.noi_dung_md,
       kiem_duyet: e.kiem_duyet,
@@ -560,6 +649,7 @@ async function publishArticle(a: BaiViet) {
   )
     return
   publishingId.value = a.id
+  startPubProgress(a)
   try {
     const res = await api.post<{ data: { slug: string; wrote: boolean; note: string } }>(
       `/seo/bai-viet/${a.id}/publish`,
@@ -568,15 +658,15 @@ async function publishArticle(a: BaiViet) {
     const idx = baiVietList.value.findIndex((x) => x.id === a.id)
     if (idx >= 0) baiVietList.value[idx] = { ...baiVietList.value[idx], trang_thai: 'da_dang', slug: res.data.slug }
     if (editing.value?.id === a.id) editing.value = { ...editing.value, trang_thai: 'da_dang', slug: res.data.slug }
-    flash('ok', res.data.note)
+    finishPubProgress(true, { slug: res.data.slug, note: res.data.note })
   } catch (e: any) {
-    flash('err', e.message || 'Đăng thất bại')
+    finishPubProgress(false, { error: e.message || 'Đăng thất bại' })
   } finally {
     publishingId.value = null
   }
 }
 
-function viewArticle(a: BaiViet) {
+function viewArticle(a: { slug: string | null }) {
   const slug = (a.slug || '').trim()
   if (!slug) {
     flash('err', 'Bài chưa có slug để xem.')
@@ -615,7 +705,8 @@ function toggleCand(k: string) {
 }
 
 async function runTrendDrafts() {
-  const kws = [...trendSelected.value]
+  // Chỉ gửi tối đa TREND_MAX chủ đề/lần (khớp backend) để tránh nginx cắt request giữa chừng.
+  const kws = [...trendSelected.value].slice(0, TREND_MAX)
   if (!kws.length) {
     flash('err', 'Chọn ít nhất 1 chủ đề.')
     return
@@ -625,8 +716,10 @@ async function runTrendDrafts() {
   try {
     const res = await api.post<{ data: BaiViet[] }>('/seo/trends/run', { keywords: kws })
     flash('ok', `Đã tạo ${res.data.length} nháp. Mở tab "Lò Viết Bài" để duyệt.`)
-    trendCandidates.value = trendCandidates.value.filter((k) => !trendSelected.value.has(k))
-    trendSelected.value = new Set()
+    // CHỈ gỡ những chủ đề đã thực sự gửi đi (không gỡ phần dư chưa viết).
+    const done = new Set(kws)
+    trendCandidates.value = trendCandidates.value.filter((k) => !done.has(k))
+    trendSelected.value = new Set([...trendSelected.value].filter((k) => !done.has(k)))
     await loadBaiViet()
     tab.value = 'viet'
   } catch (e: any) {
@@ -980,7 +1073,7 @@ onMounted(() => {
             :disabled="runningTrend || trendSelected.size === 0"
             @click="runTrendDrafts"
           >
-            {{ runningTrend ? 'Đang viết…' : `✍️ Viết Nháp (${trendSelected.size})` }}
+            {{ runningTrend ? 'Đang viết…' : `✍️ Viết Nháp (${Math.min(trendSelected.size, TREND_MAX)})` }}
           </button>
         </div>
         <div class="cand-grid">
@@ -989,8 +1082,11 @@ onMounted(() => {
             <span>{{ k }}</span>
           </label>
         </div>
+        <p v-if="trendSelected.size > TREND_MAX" class="muted" style="margin-top: var(--space-3); color: var(--brown-700)">
+          Đang chọn {{ trendSelected.size }} nhưng mỗi lần chỉ viết <b>{{ TREND_MAX }}</b> bài đầu (tránh quá thời gian). Viết xong cứ bấm tiếp cho các bài còn lại.
+        </p>
         <p class="muted" style="margin-top: var(--space-3)">
-          Tối đa 5 bài/lần (mỗi bài ~30s). Bài viết xong nằm ở tab "Lò Viết Bài", mặc định <b>chờ duyệt / noindex</b> theo van an toàn YMYL.
+          Tối đa {{ TREND_MAX }} bài/lần (mỗi bài ~30s). Bài viết xong nằm ở tab "Lò Viết Bài", mặc định <b>chờ duyệt / noindex</b> theo van an toàn YMYL.
         </p>
       </section>
 
@@ -1034,6 +1130,17 @@ onMounted(() => {
               rows="3"
               spellcheck="false"
               placeholder="Lê Văn Sửu — Biện Chứng Luận Trị&#10;Viện Y học cổ truyền Trung ương | https://..."
+            ></textarea>
+          </label>
+
+          <label class="ed-field">
+            <span>Câu hỏi thường gặp (FAQ) <small>(mỗi dòng 1 câu: <b>Câu hỏi | Trả lời</b> — xuất ra schema FAQPage)</small></span>
+            <textarea
+              v-model="faqText"
+              class="inp ta"
+              rows="4"
+              spellcheck="false"
+              placeholder="Đo kinh lạc có đau không? | Không, đầu đo chỉ chạm nhẹ ngoài da tại tỉnh huyệt.&#10;Đo mất bao lâu? | Khoảng 5–10 phút cho 24 tỉnh huyệt."
             ></textarea>
           </label>
 
@@ -1107,6 +1214,46 @@ onMounted(() => {
           </button>
           <button class="btn btn--primary" :disabled="savingEditor" @click="saveEditor">
             {{ savingEditor ? 'Đang lưu…' : 'Lưu' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overlay tiến trình khi Đăng (chạy bar tới khi xong → bật nút Xem) -->
+    <div v-if="pubModal" class="ed-overlay" @click.self="(pubDone || pubError) && closePubModal()">
+      <div class="pub-card" role="status" aria-live="polite">
+        <h3 class="pub-title">
+          {{ pubError ? '✗ Đăng thất bại' : pubDone ? '✓ Đã đăng bài' : '🚀 Đang đăng bài…' }}
+        </h3>
+        <p v-if="pubTarget" class="pub-name">{{ pubTarget.tieu_de }}</p>
+
+        <template v-if="!pubError">
+          <div class="gen-prog-head">
+            <span v-if="!pubDone" class="gen-spin" aria-hidden="true"></span>
+            <span class="gen-prog-stage">{{ pubStage }}</span>
+            <span class="gen-prog-pct">{{ pubProgress }}%</span>
+          </div>
+          <div class="gen-bar"><div class="gen-bar-fill" :style="{ width: pubProgress + '%' }"></div></div>
+        </template>
+        <p v-else class="pub-err">{{ pubError }}</p>
+
+        <p v-if="!pubDone && !pubError" class="gen-prog-note">
+          Đang ghi bài lên máy này. Đừng đóng cửa sổ. (% là ước lượng theo thời gian, không phải tiến độ thật.)
+        </p>
+        <p v-if="pubDone && pubNote" class="gen-prog-note">{{ pubNote }}</p>
+
+        <div class="pub-foot">
+          <button
+            v-if="pubDone"
+            class="btn btn--primary"
+            :disabled="!pubTarget?.slug"
+            title="Mở bài trên web (chỉ hiện sau khi build/deploy)"
+            @click="pubTarget && viewArticle(pubTarget)"
+          >
+            👁 Xem Bài
+          </button>
+          <button class="btn btn--ghost" :disabled="!pubDone && !pubError" @click="closePubModal">
+            {{ pubDone || pubError ? 'Đóng' : 'Đang xử lý…' }}
           </button>
         </div>
       </div>
@@ -1281,6 +1428,17 @@ onMounted(() => {
 .kd-status { margin: var(--space-2) 0 0; font-size: var(--font-size-xs); font-weight: 600; }
 .kd-status--ok { color: var(--success, #2e7d32); }
 .kd-status--warn { color: var(--warning, #b26a00); }
+
+/* Overlay tiến trình khi Đăng */
+.pub-card {
+  width: min(440px, 92vw); background: var(--surface, #fff); border: 1px solid var(--brown-200);
+  border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-lg, 0 12px 32px rgba(0,0,0,.18));
+  display: flex; flex-direction: column; gap: var(--space-3);
+}
+.pub-title { font-size: var(--font-size-lg); font-weight: 800; color: var(--brown-800); }
+.pub-name { font-size: var(--font-size-sm); color: var(--text-muted); font-weight: 600; margin-top: calc(-1 * var(--space-2)); }
+.pub-err { font-size: var(--font-size-sm); color: var(--danger, #c0392b); line-height: 1.5; }
+.pub-foot { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
 
 @media (max-width: 768px) {
   .add-form { flex-direction: column; align-items: stretch; }
