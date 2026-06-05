@@ -17,6 +17,7 @@ import {
 import {
   meridianList, records, classify, recOfPoint, sec, kinhSlugOf,
   LOAI_LABEL, HUYET_SECTIONS, KINH_SECTIONS, huyetIndexable, kinhIndexable,
+  BENH, BENH_SETS, benhIndexable, benhCross, huyetLinkTargets,
 } from './dict-data.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -256,6 +257,9 @@ const DICT_STYLE = `<style>
   .dl-info-tb th{text-align:left;vertical-align:top;color:#7a6a55;font-weight:600;padding:.32rem .8rem .32rem 0;white-space:nowrap;width:1%}
   .dl-info-tb td{vertical-align:top;padding:.32rem 0;border-bottom:1px solid #efe6d6}
   .dl-lead{font-size:1.08rem;line-height:1.7;background:#fffdf8;border-left:4px solid #6b4423;padding:.8rem 1rem;border-radius:0 8px 8px 0;margin:0 0 1.6rem}
+  .dl-cross{margin:0 0 1.5rem;padding:.7rem 1rem;background:#f3ebdd;border:1px solid #e3d6c2;border-left:4px solid #9a7b53;border-radius:0 8px 8px 0}
+  .dl-cross a{font-weight:600;color:#5a4427;text-decoration:none}
+  .dl-cross a:hover{text-decoration:underline}
   .dl-caution{background:#fbf4ea;border:1px solid #ecdcc2;border-radius:10px;padding:.4rem 1rem;margin:1rem 0}
   .dl-caution-note{font-size:.88rem;color:#8a5a2b;background:#f6e9d6;border-radius:8px;padding:.5rem .8rem;margin:.4rem 0}
   .dl-rel{margin-top:2rem;border-top:1px dashed #e3d6c2;padding-top:1rem}
@@ -334,6 +338,118 @@ function huyetIndexPage() {
   })
 }
 
+// ───────────────────────── TRANG BỆNH (bệnh học / châm cứu trị bệnh) ─────────
+// "Thư viện trung thành": in NGUYÊN VĂN từng trường (theo set.fields), không AI viết lại.
+function benhPage(rec, set, cfg) {
+  const slug = rec._slug
+  const url = `${DOMAIN}/${cfg.dir}/${slug}/`
+  const title = rec.ten
+  const firstBody = (() => { for (const [k] of set.fields) if (rec[k]) return rec[k]; return '' })()
+  const lead = clip(
+    [`${rec.ten}${rec._meta ? ` (${set.metaLabel}: ${rec._meta})` : ''}.`, clip(firstBody, 170)].filter(Boolean).join(' '),
+    240,
+  )
+  const indexable = benhIndexable(rec, set.fields)
+
+  // Thân bài: in nguyên văn từng trường có nội dung; trường "điều trị" châm cứu → đóng khung cảnh báo.
+  let body = ''
+  for (const [k, label] of set.fields) {
+    if (!rec[k]) continue
+    body += bodySection(label, rec[k], cfg.cautionKey === k)
+  }
+
+  // Bệnh liên quan cùng bộ (lân cận trong danh mục) — tăng liên kết nội bộ + độ sâu crawl.
+  const idx = set.records.indexOf(rec)
+  const around = []
+  for (let d = 1; around.length < 12 && d < set.records.length; d++) {
+    const b = set.records[idx + d], a = set.records[idx - d]
+    if (b && b.ten && b._slug !== slug) around.push(b)
+    if (a && a.ten && a._slug !== slug) around.push(a)
+  }
+  const relHtml = around.length
+    ? `<section class="dl-rel"><h2>Bệnh Khác Trong ${escText(set.title)}</h2><ul class="dl-rel-list">${around
+        .slice(0, 12).map((r) => `<li><a href="/${escAttr(cfg.dir)}/${escAttr(r._slug)}/">${escText(r.ten)}</a></li>`).join('')}</ul></section>`
+    : ''
+
+  // Lớp 1 — cùng tên bệnh ở bộ KIA (2 góc nhìn) → khối nổi bật gần đầu trang.
+  const cross = benhCross(rec, cfg.key)
+  const crossCfg = cross ? BENH_SETS.find((c) => c.key !== cfg.key) : null
+  const crossHtml = cross && crossCfg
+    ? `<div class="dl-cross"><a href="/${escAttr(crossCfg.dir)}/${escAttr(cross._slug)}/">${crossCfg.key === 'ccdt' ? '🩺 Xem cách Châm Cứu Trị' : '📖 Xem Bệnh Học về'} “${escText(rec.ten)}” →</a></div>`
+    : ''
+
+  // Lớp 2 — huyệt được NHẮC trong nội dung → khối "Huyệt Vị Liên Quan" (KHÔNG sửa nguyên văn thân bài).
+  const fullText = set.fields.map(([k]) => rec[k] || '').join('\n')
+  const huyetHits = []
+  const seenHuyet = new Set()
+  for (const t of huyetLinkTargets()) {
+    if (huyetHits.length >= 16) break
+    if (seenHuyet.has(t.slug)) continue
+    if (t.re.test(fullText)) { huyetHits.push(t); seenHuyet.add(t.slug) }
+  }
+  const huyetRelHtml = huyetHits.length
+    ? `<section class="dl-rel"><h2>Huyệt Vị Nhắc Trong Bài (${huyetHits.length})</h2><ul class="dl-rel-list">${huyetHits
+        .map((t) => `<li><a href="/huyet/${escAttr(t.slug)}/">${escText(t.ten)}</a></li>`).join('')}</ul></section>`
+    : ''
+
+  const infobox = rec._meta
+    ? `<aside class="dl-info"><div class="dl-info-head">Hồ Sơ ${escText(set.title)}</div><div class="dl-info-body"><table class="dl-info-tb"><tbody>${infoRow(set.metaLabel, escText(rec._meta))}</tbody></table></div></aside>`
+    : ''
+
+  const jsonLds = [
+    ld({
+      '@context': 'https://schema.org', '@type': 'MedicalWebPage',
+      name: title, description: clip(lead, 200), inLanguage: 'vi', url,
+      about: { '@type': cfg.aboutType, name: rec.ten, ...(rec._meta ? { alternateName: rec._meta } : {}) },
+      publisher: { '@type': 'Organization', name: SITE, logo: { '@type': 'ImageObject', url: `${DOMAIN}/favicon.svg` } },
+      image: GENERIC_OG,
+    }),
+    ld({
+      '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Trang Chủ', item: DOMAIN + '/' },
+        { '@type': 'ListItem', position: 2, name: 'Từ Điển', item: DOMAIN + '/thu-vien' },
+        { '@type': 'ListItem', position: 3, name: set.title, item: `${DOMAIN}/${cfg.dir}/` },
+        { '@type': 'ListItem', position: 4, name: title, item: url },
+      ],
+    }),
+  ]
+
+  const htmlDoc = head({
+    title: `${title} — ${set.title} — ${SITE}`,
+    description: clip(lead, 160), canonical: url, jsonLds, ogImage: GENERIC_OG, index: indexable, extraHead: DICT_STYLE,
+  }) +
+    `<body>${topbar}
+<main class="bl-main"><article class="bl-article dl-article">
+  <nav class="bl-crumb"><a href="/">Trang Chủ</a> › <a href="/thu-vien">Từ Điển</a> › <a href="/${escAttr(cfg.dir)}/">${escText(set.title)}</a> › <span>${escText(title)}</span></nav>
+  <h1>${escText(title)} <span class="dl-badge dl-badge-alt">${escText(set.title)}</span></h1>
+  <p class="dl-byline"><span class="bl-review-badge">✔ Đã rà soát chuyên môn</span> ${escText(DEFAULT_REVIEWER)} · Cập nhật ${escText(BUILD_DATE)}</p>
+  ${infobox}
+  <p class="dl-lead">${escText(lead)}</p>
+  ${crossHtml}
+  <div class="bl-body">${body}</div>
+  <div class="bl-cta"><a href="/xem-ket-qua-do">Đo Kinh Lạc — Đọc Kết Quả Thành Biểu Đồ →</a></div>
+  ${huyetRelHtml}
+  ${relHtml}
+  <p class="dl-up">↑ <a href="/${escAttr(cfg.dir)}/">Về danh mục ${escText(set.title)}</a></p>
+  ${disclaimer({ note: `Thông tin về ${rec.ten} trên trang này` })}
+</article></main>
+${footer}</body></html>`
+  return { htmlDoc, indexable }
+}
+
+function benhIndexPage(set, cfg) {
+  const items = set.records.filter((r) => r && r.ten).map((r) => chip(`/${cfg.dir}/${r._slug}/`, r.ten)).join('')
+  const fieldNames = (set.fields || []).map((f) => f[1]).slice(0, 4).join(', ')
+  return hubDoc({
+    title: `${set.title}: ${set.records.length} Bệnh Theo Y Văn Cổ Truyền — ${SITE}`,
+    desc: `Danh mục ${set.records.length} bệnh trong "${set.title}" theo y văn Đông Y: ${fieldNames}…`,
+    url: `${DOMAIN}/${cfg.dir}/`, h1: set.title, badge: `${set.records.length} bệnh`,
+    intro: `Toàn bộ ${set.records.length} bệnh trong phần "${set.title}", trình bày nguyên văn theo y văn cổ truyền. Bấm tên bệnh để xem chi tiết (${fieldNames}…).`,
+    sections: `<section class="dl-rel"><ul class="dl-rel-list">${items}</ul></section>`,
+  })
+}
+
 // ───────────────────────── Chạy ─────────────────────────────────────────────
 function writePage(kind, slug, html) {
   const dir = join(distDir, kind, slug)
@@ -370,3 +486,23 @@ for (const rec of subset) {
 
 console.log(`✓ build-dict: ${nKinh} trang kinh (${nKinhNoindex} noindex) + ${nHuyet} trang huyệt → ${distDir}`)
 console.log(`  Huyệt: Kinh ${stat.kinh} · Kỳ ${stat.ky} · A Thị ${stat.athi} | noindex (corrupt/mỏng) ${stat.noindex} · thiếu ảnh ${stat.noimg}`)
+
+// ── Bệnh học + Châm cứu trị bệnh (2 nhánh riêng) ──
+let nBenh = 0
+for (const cfg of BENH_SETS) {
+  const set = BENH[cfg.key]
+  if (!set || !Array.isArray(set.records)) continue
+  writePage(cfg.dir, '', benhIndexPage(set, cfg)) // hub mục lục
+  let n = 0
+  let noindex = 0
+  for (const rec of set.records) {
+    if (!rec || !rec.ten) continue
+    const { htmlDoc, indexable } = benhPage(rec, set, cfg)
+    writePage(cfg.dir, rec._slug, htmlDoc)
+    n++
+    nBenh++
+    if (!indexable) noindex++
+  }
+  console.log(`  ${set.title}: ${n} trang (${noindex} noindex) → /${cfg.dir}/`)
+}
+console.log(`✓ build-dict bệnh: tổng ${nBenh} trang.`)

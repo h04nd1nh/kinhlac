@@ -146,6 +146,103 @@ export function kinhIndexable(m) {
   return kinhBodyLen(m) >= MIN_BODY_CHARS
 }
 
+// ───────────────────────── Bệnh học + Châm cứu trị bệnh ─────────────────────
+// benh.js: window.BENH = { ccdt:{title,metaLabel,fields,records[]}, benhhoc:{…} }.
+// Mỗi record: { id, ten, slug, _meta?, <các khoá có trong fields> }. fields = [[khoá, Nhãn],…].
+export const BENH = (() => {
+  // KHÔNG dùng loadGlobalJson chung: dòng comment đầu file chứa "window.BENH = { ccdt, benhhoc }"
+  // (có dấu ngoặc) làm indexOf('{') ăn nhầm. → bám LẦN CUỐI "window.BENH" (lệnh gán thật, sau comment).
+  try {
+    const txt = readFileSync(join(dataDir, 'benh.js'), 'utf8')
+    const asn = txt.lastIndexOf('window.BENH')
+    const a = txt.indexOf('{', asn >= 0 ? asn : 0)
+    const b = txt.lastIndexOf('}')
+    if (a < 0 || b <= a) return {}
+    return JSON.parse(txt.slice(a, b + 1))
+  } catch {
+    return {}
+  }
+})()
+
+// 2 bộ → 2 NHÁNH URL RIÊNG (KHÔNG gộp bệnh học với châm cứu trị bệnh).
+// cautionKey: trường "điều trị" cần đóng khung cảnh báo (thủ thuật châm/cứu).
+export const BENH_SETS = [
+  { key: 'ccdt', dir: 'cham-cuu-tri-benh', aboutType: 'MedicalCondition', cautionKey: 'dieuTri' },
+  { key: 'benhhoc', dir: 'benh-hoc', aboutType: 'MedicalCondition', cautionKey: null },
+]
+
+// Gán _slug DUY NHẤT trong TỪNG bộ (slug nguồn có thể trùng giữa 2 bộ → tách theo nhánh URL).
+for (const cfg of BENH_SETS) {
+  const set = BENH[cfg.key]
+  if (!set || !Array.isArray(set.records)) continue
+  const seen = new Set()
+  for (const r of set.records) {
+    let s = r.slug || slugify(r.ten)
+    if (seen.has(s)) { let i = 2; while (seen.has(`${s}-${i}`)) i++; s = `${s}-${i}` }
+    r._slug = s
+    seen.add(s)
+  }
+}
+
+// Độ dài thân bài (meta + mọi trường trong fields) → quyết noindex nếu quá mỏng.
+export function benhBodyLen(rec, fields) {
+  let n = rec._meta ? rec._meta.length : 0
+  for (const [k] of fields || []) if (rec[k]) n += String(rec[k]).length
+  return n
+}
+export function benhIndexable(rec, fields) {
+  return benhBodyLen(rec, fields) >= MIN_BODY_CHARS
+}
+
+// ── Lớp 1: liên kết chéo bệnh học ↔ châm cứu trị bệnh (cùng tên bệnh) ──
+// fold(tên) → { ccdt?:rec, benhhoc?:rec }. 2 góc nhìn (lý thuyết vs cách trị) của 1 bệnh.
+export const benhByName = new Map()
+for (const cfg of BENH_SETS) {
+  const set = BENH[cfg.key]
+  if (!set || !Array.isArray(set.records)) continue
+  for (const r of set.records) {
+    if (!r || !r.ten) continue
+    const k = fold(r.ten)
+    if (!k) continue
+    const e = benhByName.get(k) || {}
+    e[cfg.key] = r
+    benhByName.set(k, e)
+  }
+}
+/** Bản ghi cùng tên ở bộ KIA (hoặc null). */
+export function benhCross(rec, fromKey) {
+  const e = benhByName.get(fold(rec.ten))
+  if (!e) return null
+  return e[fromKey === 'ccdt' ? 'benhhoc' : 'ccdt'] || null
+}
+
+// ── Lớp 2: đích link HUYỆT (để bệnh→huyệt). Lọc an toàn (giống relink-blog.mjs --huyet) ──
+// (Cố ý lặp logic với relink-blog để KHÔNG đụng script đó; nếu sửa blocklist nhớ sửa cả 2 nơi.)
+const HUYET_NAME_BLOCK = new Set([
+  'thái dương', 'nhân trung', 'thái âm', 'thiếu âm', 'dương minh',
+  'âm dương', 'trung bình', 'tử cung', 'thượng vị',
+])
+const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+let _huyetTargets = null
+/** [{ten, slug, re, len}] cho mọi tên huyệt ≥2 âm tiết & ≥5 ký tự, không trong blocklist; cụm dài trước. */
+export function huyetLinkTargets() {
+  if (_huyetTargets) return _huyetTargets
+  const seen = new Set()
+  const out = []
+  for (const r of records) {
+    if (!r || !r.ten || !r._slug) continue
+    const name = String(r.ten).trim()
+    const key = name.toLowerCase()
+    if (name.split(/\s+/).length < 2 || name.length < 5) continue
+    if (HUYET_NAME_BLOCK.has(key) || seen.has(key)) continue
+    seen.add(key)
+    out.push({ ten: name, slug: r._slug, re: new RegExp(`(?<![\\p{L}\\p{N}])${escRe(name)}(?![\\p{L}\\p{N}])`, 'iu'), len: name.length })
+  }
+  out.sort((a, b) => b.len - a.len) // Túc Tam Lý trước Tam Lý
+  _huyetTargets = out
+  return out
+}
+
 /**
  * Liệt kê MỌI trang từ điển kèm đường dẫn + cờ index — dùng cho sitemap & IndexNow.
  * Gồm 2 trang HUB mục lục (/kinh/ , /huyet/) + từng trang kinh + từng trang huyệt.
@@ -158,5 +255,15 @@ export function listDictPages() {
   ]
   for (const m of meridianList) if (m && m.ten) out.push({ loc: `/kinh/${kinhSlugOf(m)}/`, index: kinhIndexable(m), kind: 'kinh' })
   for (const rec of records) if (rec && rec.ten) out.push({ loc: `/huyet/${rec._slug}/`, index: huyetIndexable(rec), kind: 'huyet' })
+  // Bệnh học + Châm cứu trị bệnh: mỗi bộ 1 hub mục lục + từng trang bệnh.
+  for (const cfg of BENH_SETS) {
+    const set = BENH[cfg.key]
+    if (!set || !Array.isArray(set.records)) continue
+    out.push({ loc: `/${cfg.dir}/`, index: true, kind: 'benh-hub' })
+    for (const rec of set.records) {
+      if (!rec || !rec.ten) continue
+      out.push({ loc: `/${cfg.dir}/${rec._slug}/`, index: benhIndexable(rec, set.fields), kind: cfg.key })
+    }
+  }
   return out
 }

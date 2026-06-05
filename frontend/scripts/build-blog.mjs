@@ -5,89 +5,21 @@
 //
 // Mỗi bài -> dist/blog/<slug>/index.html (đủ meta + Open Graph + JSON-LD Article/Breadcrumb/FAQ).
 // Trang danh sách -> dist/blog/index.html.
-import { writeFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { writeFileSync, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve, join } from 'node:path'
 import { marked } from 'marked'
 import { readArticles } from './blog-lib.mjs'
+// Khung <head>/header/footer/escape/JSON-LD/CTA dùng CHUNG với build-dict (gỡ "2 nguồn sự thật").
+import {
+  DOMAIN, SITE, OG_IMAGE, DEFAULT_AUTHOR, DEFAULT_REVIEWER, DEFAULT_REVIEWER_TITLE,
+  escText, escAttr, ld, toAbs, CTA_LABELS, head, topbar, footer,
+} from './seo-html.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, '..')
 const distDir = process.env.DIST_DIR ? resolve(process.env.DIST_DIR) : resolve(root, 'dist')
 const blogOut = join(distDir, 'blog')
-
-// Domain/site/OG đọc CHUNG từ src/seo/route-seo.json (giống indexnow.mjs) → đổi domain 1 CHỖ DUY NHẤT,
-// không còn cảnh build-blog hard-code khác sitemap/indexnow làm sai canonical & ảnh chia sẻ.
-const seoCfg = JSON.parse(readFileSync(resolve(root, 'src/seo/route-seo.json'), 'utf8'))
-const DOMAIN = String(seoCfg.domain || 'https://kinhlac.online').replace(/\/+$/, '')
-const SITE = seoCfg.siteName || 'Kinh Lạc Trương Gia'
-const OG_IMAGE = seoCfg.ogImage || `${DOMAIN}/og-default.png`
-const GA_ID = process.env.GA_ID || 'G-E71BLBZXFH'
-const DEFAULT_AUTHOR = 'Ban Biên Tập Kinh Lạc'
-// Người duyệt chuyên môn mặc định (E-E-A-T). Bài có thể ghi đè bằng frontmatter reviewer/reviewerTitle.
-const DEFAULT_REVIEWER = 'Trương Đình Trang'
-const DEFAULT_REVIEWER_TITLE = 'Y Sỹ Y Học Cổ Truyền (đang theo học)'
-
-const escText = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-const escAttr = (s) => escText(s).replace(/"/g, '&quot;')
-const ld = (obj) =>
-  `<script type="application/ld+json">${JSON.stringify(obj).replace(/</g, '\\u003c')}</script>`
-
-// Ảnh -> URL tuyệt đối cho og:image (social cần URL đầy đủ).
-const toAbs = (s) => (/^https?:/.test(s) ? s : DOMAIN + (s.startsWith('/') ? s : '/' + s))
-
-const CTA_LABELS = {
-  '/xem-ket-qua-do': 'Xem Demo Kết Quả Đo Kinh Lạc →',
-  '/xem-3d': 'Khám Phá Đồ Hình Kinh Lạc 3D →',
-  '/xem-bai-thuoc': 'Xem Phân Tích Bài Thuốc →',
-  '/thu-vien': 'Tra Cứu Từ Điển Huyệt Vị →',
-  '/app': 'Dùng Thử Phần Mềm →',
-}
-
-function head({ title, description, canonical, jsonLds, ogType = 'article', index = true, ogImage = OG_IMAGE }) {
-  return `<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#6b4423">
-  <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
-  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');</script>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="alternate icon" href="/favicon.ico">
-  <title>${escText(title)}</title>
-  <meta name="description" content="${escAttr(description)}">
-  <meta name="robots" content="${index === false ? 'noindex, nofollow' : 'index, follow'}">
-  <link rel="canonical" href="${escAttr(canonical)}">
-  <meta property="og:type" content="${ogType}">
-  <meta property="og:site_name" content="${SITE}">
-  <meta property="og:locale" content="vi_VN">
-  <meta property="og:title" content="${escAttr(title)}">
-  <meta property="og:description" content="${escAttr(description)}">
-  <meta property="og:url" content="${escAttr(canonical)}">
-  <meta property="og:image" content="${ogImage}">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="${escAttr(title)}">
-  <meta name="twitter:description" content="${escAttr(description)}">
-  <meta name="twitter:image" content="${ogImage}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/blog/blog.css">
-  ${jsonLds.join('\n  ')}
-</head>`
-}
-
-const topbar = `<header class="bl-top"><div class="bl-top-in">
-  <a class="bl-brand" href="/">🌿 ${SITE}</a>
-  <nav class="bl-nav"><a href="/blog/">Cẩm Nang</a><a href="/thu-vien">Từ Điển</a><a href="/xem-3d">Đồ Hình 3D</a><a class="bl-nav-cta" href="/app">Vào Phần Mềm</a></nav>
-</div></header>`
-
-const footer = `<footer class="bl-foot"><div class="bl-foot-in">
-  <p><strong>${SITE}</strong> — Đông Y nghìn năm, giờ đọc được bằng dữ liệu.</p>
-  <p><a href="/">Trang Chủ</a> · <a href="/blog/">Cẩm Nang</a> · <a href="/thu-vien">Từ Điển</a> · <a href="/xem-ket-qua-do">Demo Đo Kinh Lạc</a></p>
-  <p class="bl-foot-note">Nội dung mang tính tham khảo theo lý luận Đông Y, không thay thế chẩn đoán/điều trị của thầy thuốc.</p>
-</div></footer>`
 
 function articlePage(a, all) {
   const url = `${DOMAIN}/blog/${a.slug}/`
