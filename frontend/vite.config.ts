@@ -29,6 +29,16 @@ export default defineConfig({
       '.ngrok.app',
       '.ngrok.dev',
     ],
+    // ĐỪNG reload trang khi backend ghi ảnh/bài (sinh ảnh AI vào public/blog-images, đăng bài vào content/blog).
+    // Nếu không, Vite thấy file mới → full reload → HUỶ request đang chờ → trình duyệt báo "Failed to fetch"
+    // (dù backend đã làm xong). Các file này vẫn được Vite phục vụ tĩnh bình thường.
+    watch: {
+      ignored: [
+        '**/public/blog-images/**',
+        '**/public/blog-assets/**',
+        '**/content/blog/**',
+      ],
+    },
   },
   preview: {
     allowedHosts: [

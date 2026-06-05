@@ -30,6 +30,11 @@ export class SeoCum {
   @Column({ type: 'text', nullable: true })
   ly_do: string | null;
 
+  /** Khoảng trống này tìm ra khi so với đối thủ nào (để gom nhóm theo đối thủ). null = gộp tất cả. */
+  @Index()
+  @Column({ type: 'int', nullable: true })
+  doi_thu_id: number | null;
+
   @Index()
   @Column({ type: 'varchar', length: 20, default: 'de_xuat' })
   trang_thai: SeoCumTrangThai;

@@ -12,6 +12,11 @@ export interface AnalyzeBatchDto {
   limit?: number;
 }
 
+export interface GapAnalysisDto {
+  /** Chỉ tìm khoảng trống so với 1 đối thủ (id). Bỏ trống = gộp tất cả đối thủ. */
+  doiThuId?: number;
+}
+
 // ---- Phase 2: Lò Viết Bài --------------------------------------------------
 
 export interface GenerateDraftDto {

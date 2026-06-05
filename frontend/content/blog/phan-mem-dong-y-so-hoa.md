@@ -2,16 +2,16 @@
 title: "Phần mềm Đông Y: Giải pháp Số hóa Toàn diện cho Phòng khám"
 description: "Khám phá tính năng vượt trội của phần mềm quản lý phòng khám Đông Y. Số hóa hồ sơ, lịch hẹn, kho thuốc và nâng cao hiệu quả điều trị. Tìm hiểu ngay!"
 slug: "phan-mem-dong-y-so-hoa"
-image: "/kinhmach3d/images/meridians/kinh-03-ngang.jpg"
+date: "2026-06-05"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Số Hoá Phòng Khám"
 cta: "/app"
 keywords: ["phần mềm đông y","quản lý phòng khám đông y","số hóa phòng khám đông y","phần mềm y học cổ truyền","tính năng phần mềm đông y","lợi ích số hóa phòng khám đông y"]
 faq: [{"q":"Phần mềm quản lý phòng khám Đông Y có những tính năng chính nào?","a":"Phần mềm bao gồm quản lý hồ sơ bệnh nhân, lịch hẹn, kho thuốc, công cụ chẩn đoán chuyên sâu (huyệt vị, kinh lạc, đo nhiệt độ), và báo cáo thống kê."},{"q":"Lợi ích của việc số hóa phòng khám Đông Y là gì?","a":"Số hóa giúp tăng hiệu quả hoạt động, nâng cao trải nghiệm bệnh nhân, cải thiện khả năng ra quyết định và tăng tính cạnh tranh cho phòng khám."},{"q":"Làm thế nào để lựa chọn phần mềm quản lý phòng khám Đông Y phù hợp?","a":"Cần xem xét tính năng chuyên biệt cho Đông Y, khả năng tùy chỉnh, giao diện thân thiện, chi phí và dịch vụ hỗ trợ kỹ thuật."},{"q":"Phần mềm Kinhlac có những điểm gì nổi bật cho phòng khám Đông Y?","a":"Kinhlac nổi bật với tính năng tra cứu và phân tích bài thuốc, đồ hình kinh lạc 3D, và khả năng kết nối thiết bị đo nhiệt độ kinh lạc."}]
 sources: [{"title":"Viện Y học cổ truyền Trung ương"},{"title":"Bệnh viện Y học cổ truyền"},{"title":"Giáo trình Y học cổ truyền các trường Đại học Y - Dược"}]
+image: "/kinhmach3d/images/meridians/kinh-03-ngang.jpg"
 seoCumId: 3
 aiModel: "Yescale gemini-2.5-flash-lite"
-index: false
 ---
 Trong dòng chảy không ngừng của y học hiện đại, Y học Cổ truyền (Đông Y) vẫn giữ vững vị thế và ngày càng khẳng định giá trị trong việc chăm sóc sức khỏe. Tuy nhiên, để theo kịp xu thế phát triển, việc ứng dụng công nghệ số vào quản lý và vận hành phòng khám Đông Y là điều không thể tránh khỏi. Bài viết này sẽ đưa bạn đi sâu vào thế giới của [phần mềm đông y](/app) – một công cụ đắc lực giúp các phòng khám Đông Y "số hóa" hoạt động, nâng cao hiệu quả và mang đến trải nghiệm tốt nhất cho bệnh nhân.
 

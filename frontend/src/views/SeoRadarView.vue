@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '@/services/api'
 
 // ===== Kiểu dữ liệu =====
@@ -34,6 +34,7 @@ interface Cum {
   tu_khoa_muc_tieu: string | null
   y_tuong_noi_dung: string | null
   ly_do: string | null
+  doi_thu_id: number | null
   trang_thai: string
 }
 
@@ -46,7 +47,6 @@ const urlFilter = ref<'all' | 'cho' | 'da_phan_tich' | 'loi'>('all')
 
 const loadingList = ref(false)
 const loadingUrls = ref(false)
-const runningGap = ref(false)
 const busyIds = ref<Set<number>>(new Set()) // id đối thủ / url đang chạy
 const message = ref<{ kind: 'ok' | 'err' | 'info'; text: string } | null>(null)
 
@@ -57,7 +57,11 @@ const form = ref<{ domain: string; ten: string; la_cua_minh: boolean }>({
   la_cua_minh: false,
 })
 const adding = ref(false)
-const batchLimit = ref(5) // mặc định nhỏ để tránh timeout proxy (nginx cắt sau 120s) khi AI chạy lâu
+const batchLimit = ref(5) // số URL phân tích mỗi đợt — nhập tay (1–30). Nhỏ để tránh timeout proxy (nginx cắt sau 120s).
+
+// ===== Khoảng trống nội dung (gap) — gom theo từng đối thủ =====
+const gapBusyId = ref<number | null>(null) // id đối thủ đang chạy tìm khoảng trống
+const openGroupId = ref<number | null>(null) // nhóm đối thủ đang mở (accordion — mỗi lúc 1 nhóm cho gọn)
 
 // ===== Helpers =====
 function flash(kind: 'ok' | 'err' | 'info', text: string) {
@@ -80,8 +84,38 @@ const selectedDoiThu = computed(() => doiThuList.value.find((d) => d.id === sele
 const filteredUrls = computed(() =>
   urlFilter.value === 'all' ? urlRows.value : urlRows.value.filter((u) => u.trang_thai === urlFilter.value),
 )
-const hasCompetitorAnalyzed = computed(() =>
-  doiThuList.value.some((d) => !d.la_cua_minh && d.thong_ke.da_phan_tich > 0),
+// Đối thủ ĐÃ có bài phân tích → mỗi đối thủ là 1 nhóm tìm khoảng trống ở bước 3.
+const analyzedCompetitors = computed(() =>
+  doiThuList.value.filter((d) => !d.la_cua_minh && d.thong_ke.da_phan_tich > 0),
+)
+// Các cụm khoảng trống (đang đề xuất) thuộc về 1 đối thủ — đã sắp theo điểm giảm dần từ API.
+function gapsFor(doiThuId: number): Cum[] {
+  return cumList.value.filter((c) => c.doi_thu_id === doiThuId && c.trang_thai === 'de_xuat')
+}
+// Tra nhanh domain theo id (gắn nhãn đối thủ cho thẻ cụm bên Lò Viết Bài).
+const domainById = computed<Record<number, string>>(() => {
+  const m: Record<number, string> = {}
+  for (const d of doiThuList.value) m[d.id] = d.domain
+  return m
+})
+// Cụm còn "đang đề xuất" (chưa viết) — danh sách gợi ý để viết bên Lò Viết Bài.
+const goiYCums = computed(() => cumList.value.filter((c) => c.trang_thai === 'de_xuat'))
+
+// Accordion bước 3: mở 1 nhóm đối thủ tại một thời điểm cho gọn (đỡ phải kéo dài).
+let groupTouched = false
+function toggleGroup(id: number) {
+  groupTouched = true
+  openGroupId.value = openGroupId.value === id ? null : id
+}
+// Lần đầu có dữ liệu: tự mở nhóm đầu tiên ĐÃ có gợi ý (hoặc nhóm đầu) cho dễ thấy; sau đó để người tự điều khiển.
+watch(
+  [analyzedCompetitors, cumList],
+  () => {
+    if (groupTouched || openGroupId.value !== null) return
+    const first = analyzedCompetitors.value.find((d) => gapsFor(d.id).length) || analyzedCompetitors.value[0]
+    if (first) openGroupId.value = first.id
+  },
+  { immediate: true },
 )
 
 const TRANG_THAI_LABEL: Record<string, string> = {
@@ -181,14 +215,25 @@ async function crawl(d: DoiThu) {
 }
 
 async function analyzeBatch(d: DoiThu) {
+  // Số nhập tay, kẹp về 1–30 (trần backend MAX_ANALYZE_BATCH=30, tránh nginx cắt sau 120s).
+  const lim = Math.min(30, Math.max(1, Math.floor(Number(batchLimit.value) || 5)))
+  batchLimit.value = lim
+  const choTruoc = d.thong_ke.cho || 0
   setBusy(d.id, true)
-  flash('info', `Đang phân tích tối đa ${batchLimit.value} bài của ${d.domain} (AI có thể mất 1-2 phút)…`)
+  flash('info', `Đang phân tích tối đa ${lim} bài của ${d.domain} (AI có thể mất 1-2 phút)…`)
   try {
     const res = await api.post<{ data: { analyzed: number; ok: number; loi: number } }>(
       `/seo/doi-thu/${d.id}/analyze-batch`,
-      { limit: batchLimit.value },
+      { limit: lim },
     )
-    flash('ok', `Đã phân tích ${res.data.analyzed} bài (thành công ${res.data.ok}, lỗi ${res.data.loi}).`)
+    const conLai = Math.max(0, choTruoc - res.data.analyzed)
+    flash(
+      'ok',
+      `Đã phân tích ${res.data.analyzed} bài (thành công ${res.data.ok}, lỗi ${res.data.loi}).` +
+        (conLai > 0
+          ? ` Còn ${conLai} bài đang chờ — chỉnh số rồi bấm "Phân Tích" lần nữa để chạy tiếp.`
+          : ' Đã hết bài chờ 🎉'),
+    )
     await loadDoiThu()
     if (selectedDoiThuId.value === d.id) await loadUrls(d.id)
   } catch (e: any) {
@@ -214,6 +259,7 @@ async function analyzeOne(u: SeoUrlRow) {
 }
 
 async function removeUrl(u: SeoUrlRow) {
+  if (!confirm(`Xoá URL này khỏi danh sách?\n${shortUrl(u.url)}`)) return
   setBusy(u.id, true)
   try {
     await api.delete(`/seo/url/${u.id}`)
@@ -226,22 +272,31 @@ async function removeUrl(u: SeoUrlRow) {
   }
 }
 
-async function runGap() {
-  runningGap.value = true
-  flash('info', 'AI đang so sánh nội dung đối thủ với của bạn để tìm khoảng trống…')
+// Tìm khoảng trống RIÊNG cho 1 đối thủ (so bài của đối thủ đó ↔ bài của mình).
+async function runGapFor(d: DoiThu) {
+  gapBusyId.value = d.id
+  flash('info', `AI đang so nội dung của ${d.domain} với của bạn để tìm khoảng trống…`)
   try {
-    const res = await api.post<{ data: Cum[] }>('/seo/gap-analysis', {})
-    cumList.value = res.data
-    flash('ok', `Xong! AI đề xuất ${res.data.length} cụm chủ đề nên viết.`)
+    const res = await api.post<{ data: Cum[] }>('/seo/gap-analysis', { doiThuId: d.id })
+    cumList.value = res.data // API trả về toàn bộ cụm (mọi đối thủ) → gapsFor() tự lọc theo đối thủ
+    groupTouched = true
+    openGroupId.value = d.id // mở luôn nhóm vừa tìm xong
+    flash('ok', `Xong! Đã gợi ý ${gapsFor(d.id).length} cụm nên viết cho ${d.domain}.`)
   } catch (e: any) {
     flash('err', e.message || 'Phân tích khoảng trống thất bại')
   } finally {
-    runningGap.value = false
+    gapBusyId.value = null
   }
 }
 
 function shortUrl(u: string): string {
   return u.replace(/^https?:\/\//, '').replace(/\/$/, '')
+}
+
+// Bấm "Viết" ngay trong bảng khoảng trống → sang tab Lò Viết Bài (nơi có thanh tiến trình) rồi viết nháp.
+function writeFromGap(c: Cum) {
+  tab.value = 'viet'
+  void genFromCum(c)
 }
 
 // ===== Phase 2: Lò Viết Bài =====
@@ -537,11 +592,106 @@ function coverImageFor(a: BaiViet | null): string {
   // Tầng 2: tên kinh/tạng → 1 biến thể của đúng kinh (xoay theo slug).
   for (const m of MERIDIAN_KEYWORDS_FE) {
     if (m.phrases.some((p) => hay.includes(` ${p} `)))
-      return meridianImgFE(m.idx, MERIDIAN_VARIANTS_FE[hashStrFE(slug) % MERIDIAN_VARIANTS_FE.length])
+      return meridianImgFE(m.idx, MERIDIAN_VARIANTS_FE[hashStrFE(slug) % MERIDIAN_VARIANTS_FE.length] ?? 'sodo')
   }
   // Tầng 3: sơ đồ kinh phân bố ổn định theo slug (12 × 3 biến thể bìa). (>>> = dịch KHÔNG dấu.)
   const h = hashStrFE(slug || 'bai-viet')
-  return meridianImgFE((h % 12) + 1, COVER_VARIANTS_FE[(h >>> 4) % COVER_VARIANTS_FE.length])
+  return meridianImgFE((h % 12) + 1, COVER_VARIANTS_FE[(h >>> 4) % COVER_VARIANTS_FE.length] ?? 'sodo')
+}
+
+// ===== Kiểm duyệt TỰ ĐỘNG (phụ tay người duyệt) =====
+// Quét bài rồi TỰ TICK 3 mục ĐO ĐƯỢC (SEO · Nguồn · Ảnh) nếu đạt.
+// Mục An toàn Y khoa (YMYL) CHỈ cảnh báo, KHÔNG tự tick — người vẫn gật cuối (van an toàn).
+type KdAuto = { key: string; label: string; status: 'ok' | 'warn' | 'info'; lines: string[] }
+const autoReport = ref<KdAuto[] | null>(null)
+// Đổi bài đang sửa → xoá báo cáo cũ cho khỏi nhầm.
+watch(() => editing.value?.id, () => { autoReport.value = null })
+
+// Cụm chữ nguy hiểm cho nội dung Y tế — viết dạng KHÔNG dấu vì quét trên normLooseFE().
+const YMYL_RISK_PATTERNS: { re: RegExp; canh_bao: string }[] = [
+  { re: /chua khoi|chua dut diem|tri dut diem|tri khoi han|khoi han|khoi hoan toan|dac tri|het benh hoan toan/, canh_bao: 'Khẳng định chữa khỏi / dứt điểm' },
+  { re: /cam ket khoi|bao dam khoi|dam bao khoi|chac chan khoi|100\s?%|hieu qua tuyet doi|tuyet doi an toan/, canh_bao: 'Cam kết / tuyệt đối hoá kết quả' },
+  { re: /thay the thuoc|thay the bac si|thay the bac sy|khong can di vien|khong can dung thuoc|bo thuoc tay|ngung thuoc tay/, canh_bao: 'Khuyên thay thế / bỏ điều trị Tây Y' },
+  { re: /\bung thu\b|tieu duong|u buou|dot quy|tai bien|suy than|xo gan|\bhiv\b|viem gan b/, canh_bao: 'Có nhắc bệnh nặng — rà kỹ tránh hứa hẹn chữa khỏi' },
+]
+
+// Ảnh bìa khớp chủ đề khi tiêu đề/từ khoá trúng tên huyệt (Tầng 1) hoặc tên kinh/tạng (Tầng 2).
+function coverMatchedTopic(a: BaiViet | null): boolean {
+  if (!a) return false
+  const hay = ` ${normLooseFE([a.tieu_de, a.tu_khoa, a.slug].filter(Boolean).join(' '))
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()} `
+  if (hay.includes(' huyet ')) {
+    for (const [name] of acuIndex.value) if (hay.includes(` ${name} `)) return true
+  }
+  return MERIDIAN_KEYWORDS_FE.some((m) => m.phrases.some((p) => hay.includes(` ${p} `)))
+}
+
+function runAutoKiemDuyet() {
+  const a = editing.value
+  if (!a) return
+  const report: KdAuto[] = []
+
+  // 1) SEO — đo được: độ dài tiêu đề / mô tả, slug, từ khoá.
+  const seo: string[] = []
+  let seoFail = false
+  const tdLen = (a.tieu_de || '').trim().length
+  if (tdLen < 30) { seo.push(`Tiêu đề ngắn (${tdLen} ký tự, nên 30–65).`); seoFail = true }
+  else if (tdLen > 65) { seo.push(`Tiêu đề dài (${tdLen} ký tự, nên 30–65).`); seoFail = true }
+  const mdesc = (a.meta_description || '').trim()
+  if (!mdesc) { seo.push('Thiếu mô tả (meta description).'); seoFail = true }
+  else if (mdesc.length < 120) { seo.push(`Mô tả ngắn (${mdesc.length} ký tự, nên 120–160).`); seoFail = true }
+  else if (mdesc.length > 160) { seo.push(`Mô tả dài (${mdesc.length} ký tự, nên 120–160).`); seoFail = true }
+  const slug = (a.slug || '').trim()
+  if (!slug) { seo.push('Chưa có slug.'); seoFail = true }
+  else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) { seo.push('Slug chưa chuẩn (chỉ chữ thường, số, gạch ngang).'); seoFail = true }
+  const kw = normLooseFE((a.tu_khoa || '').split(',')[0] || '')
+  if (!kw) seo.push('Mẹo: chưa nhập từ khoá chính.')
+  else if (!normLooseFE(a.tieu_de || '').includes(kw)) seo.push('Mẹo: từ khoá chính chưa có trong tiêu đề.')
+  report.push({ key: 'seo', label: 'SEO', status: seoFail ? 'warn' : 'ok', lines: seoFail ? seo : ['Tiêu đề · mô tả · slug đạt chuẩn.', ...seo] })
+
+  // 2) Nguồn — có ít nhất 1 nguồn kèm link (E-E-A-T).
+  let nSrc = 0
+  try {
+    const arr = JSON.parse(a.nguon_tham_khao || '[]')
+    if (Array.isArray(arr)) nSrc = arr.filter((s: any) => s && (s.url || (typeof s === 'string' && /https?:\/\//.test(s)))).length
+  } catch { /* JSON hỏng → coi như 0 nguồn */ }
+  const mdLinks = (a.noi_dung_md.match(/\[[^\]]+\]\(https?:\/\/[^)]+\)/g) || []).length
+  const nguonOk = nSrc >= 1
+  const nguon: string[] = nguonOk
+    ? [`Có ${nSrc} nguồn (kèm link) ở mục Nguồn tham khảo.`]
+    : ['Chưa có nguồn nào kèm link ở mục “Nguồn tham khảo”.']
+  if (!nguonOk && mdLinks > 0) nguon.push(`Thân bài có ${mdLinks} link ngoài — nên đưa vào mục Nguồn cho rõ.`)
+  report.push({ key: 'nguon', label: 'Nguồn', status: nguonOk ? 'ok' : 'warn', lines: nguon })
+
+  // 3) Ảnh bìa — khớp huyệt/kinh trong tiêu đề (Tầng 1/2) thì coi là khớp chủ đề.
+  const anhOk = coverMatchedTopic(a)
+  report.push({
+    key: 'anh', label: 'Ảnh bìa', status: anhOk ? 'ok' : 'warn',
+    lines: anhOk
+      ? ['Ảnh bìa khớp huyệt/kinh nêu trong tiêu đề.']
+      : ['Ảnh bìa đang là sơ đồ minh hoạ chung (chưa khớp huyệt/kinh cụ thể). Bài khái niệm chung thì vẫn ổn — bạn tự xem rồi tick.'],
+  })
+
+  // 4) An toàn Y khoa (YMYL) — CHỈ cảnh báo, KHÔNG tự tick.
+  const hay = normLooseFE(`${a.tieu_de} ${a.meta_description || ''} ${a.noi_dung_md}`)
+  const hits = YMYL_RISK_PATTERNS.filter((p) => p.re.test(hay)).map((p) => p.canh_bao)
+  if (/\b\d+([.,]\d+)?\s?(mg|g|gam|gram|ml|cc)\b/.test(hay)) hits.push('Có liều lượng cụ thể (mg/g/ml) — rà lại cho an toàn')
+  const y: string[] = []
+  if (a.do_rui_ro === 'rui_ro') y.push(`AI đã xếp bài này RỦI RO${a.ly_do_rui_ro ? ': ' + a.ly_do_rui_ro : ''}.`)
+  if (hits.length) { y.push('Cụm cần soát lại:'); for (const h of [...new Set(hits)]) y.push(`• ${h}`) }
+  else if (a.do_rui_ro !== 'rui_ro') y.push('Không thấy cụm nguy hiểm rõ rệt.')
+  y.push('→ YMYL: máy KHÔNG tự tick. Bạn đọc lại lần cuối rồi tự tick mục này.')
+  report.push({ key: 'yKhoa', label: 'An toàn Y khoa', status: hits.length || a.do_rui_ro === 'rui_ro' ? 'warn' : 'info', lines: y })
+
+  // TỰ TICK 3 mục đo được nếu đạt (KHÔNG đụng mục Y khoa). Mục chưa đạt thì để nguyên cho người quyết.
+  for (const r of report) {
+    if (r.status === 'ok' && (r.key === 'seo' || r.key === 'nguon' || r.key === 'anh')) toggleKiem(r.key, true)
+  }
+  autoReport.value = report
+  const okN = report.filter((r) => r.key !== 'yKhoa' && r.status === 'ok').length
+  flash(okN === 3 ? 'ok' : 'info', `Đã tự kiểm: ${okN}/3 mục đo được đạt & được tick. Mục Y khoa cần bạn tự gật.`)
 }
 
 // Nguồn tham khảo lưu dạng JSON [{title,url?}] nhưng cho sửa thân thiện: mỗi dòng "Tên | URL".
@@ -688,8 +838,9 @@ async function publishArticle(a: BaiViet) {
       {},
     )
     const idx = baiVietList.value.findIndex((x) => x.id === a.id)
-    if (idx >= 0) baiVietList.value[idx] = { ...baiVietList.value[idx], trang_thai: 'da_dang', slug: res.data.slug }
-    if (editing.value?.id === a.id) editing.value = { ...editing.value, trang_thai: 'da_dang', slug: res.data.slug }
+    const cur = baiVietList.value[idx]
+    if (cur) baiVietList.value[idx] = { ...cur, trang_thai: 'da_dang', slug: res.data.slug }
+    if (editing.value && editing.value.id === a.id) editing.value = { ...editing.value, trang_thai: 'da_dang', slug: res.data.slug }
     finishPubProgress(true, { slug: res.data.slug, note: res.data.note, wrote: res.data.wrote })
   } catch (e: any) {
     finishPubProgress(false, { error: e.message || 'Đăng thất bại' })
@@ -698,30 +849,122 @@ async function publishArticle(a: BaiViet) {
   }
 }
 
-// Sinh ảnh minh hoạ AI cho từng mục H2 (on-demand — tốn credit nên tách riêng, không tự chạy khi viết nháp).
+// ===== Sinh ảnh minh hoạ AI cho từng mục H2 (on-demand — vẽ TUẦN TỰ, có tiến trình thật) =====
+const imgProg = ref<{
+  on: boolean
+  done: number
+  total: number
+  stage: string
+  secImg: number
+  secTotal: number
+  pct: number
+  status: 'running' | 'done' | 'error'
+  errMsg: string
+}>({ on: false, done: 0, total: 0, stage: '', secImg: 0, secTotal: 0, pct: 0, status: 'running', errMsg: '' })
+
+// Đồng hồ chạy THẬT trong lúc vẽ (mỗi ảnh dall-e-3 ~2 phút → cần nhịp đập để không tưởng bị treo).
+const EST_PER_IMG = 120 // giây/ảnh ước lượng
+let imgTimer: ReturnType<typeof setInterval> | null = null
+let imgT0 = 0 // mốc bắt đầu cả mẻ
+let imgImgT0 = 0 // mốc bắt đầu ảnh hiện tại
+function imgTick() {
+  const now = Date.now()
+  const secImg = Math.round((now - imgImgT0) / 1000)
+  const secTotal = Math.round((now - imgT0) / 1000)
+  const within = Math.min(0.95, secImg / EST_PER_IMG) // % ước lượng trong 1 ảnh
+  const total = imgProg.value.total || 1
+  const pct = Math.min(99, Math.round(((imgProg.value.done + within) / total) * 100))
+  imgProg.value = { ...imgProg.value, secImg, secTotal, pct }
+}
+
+// Đếm số mục ## (H2) chưa có ảnh ngay dưới — để biết sẽ vẽ bao nhiêu ảnh.
+function countPendingH2(md: string): number {
+  const lines = (md || '').split('\n')
+  let n = 0
+  for (let i = 0; i < lines.length; i++) {
+    if (/^##\s+/.test(lines[i] || '') && !/^!\[/.test((lines[i + 1] || '').trim())) n++
+  }
+  return n
+}
+
 async function generateImages(a: BaiViet) {
+  const md = editing.value?.id === a.id ? editing.value.noi_dung_md : a.noi_dung_md
+  const total = Math.min(countPendingH2(md), 6)
+  if (!total) {
+    flash('err', 'Không có mục ## (H2) nào chưa có ảnh để vẽ. (FAQ & mở bài không tính.)')
+    return
+  }
   if (
     !confirm(
-      `Sinh ảnh minh hoạ (AI) cho bài "${a.tieu_de}"?\n\nAI tạo 1 ảnh cho mỗi mục lớn (## H2) chưa có ảnh, lưu vào frontend/public/blog-images/ trên máy này. Tốn credit AI, mất ~10–60 giây.`,
+      `Sinh ${total} ảnh minh hoạ (AI) cho bài "${a.tieu_de}"?\n\n` +
+        `• Mỗi mục lớn (## H2) 1 ảnh, lưu vào frontend/public/blog-images/ trên máy này.\n` +
+        `• Dùng nhà cung cấp ảnh cấu hình ở backend (hiện tại: dall-e-3 qua Yescale — TRẢ PHÍ ~vài trăm đồng/ảnh).\n` +
+        `• Mỗi ảnh ~30–150 giây tuỳ nhà cung cấp (dall-e-3 đang ~2 phút/ảnh). Có thanh tiến trình — cứ để chạy.`,
     )
   )
     return
   genImagesId.value = a.id
-  flash('info', 'AI đang vẽ ảnh minh hoạ cho từng mục… (đừng đóng tab)')
+  imgT0 = Date.now()
+  imgImgT0 = Date.now()
+  imgProg.value = { on: true, done: 0, total, stage: `Đang vẽ ảnh 1/${total}…`, secImg: 0, secTotal: 0, pct: 0, status: 'running', errMsg: '' }
+  if (imgTimer) clearInterval(imgTimer)
+  imgTimer = setInterval(imgTick, 1000)
   try {
-    const res = await api.post<{ data: { bai: BaiViet; added: number } }>(
-      `/seo/bai-viet/${a.id}/generate-images`,
-      { max: 4 },
-    )
-    const bai = res.data.bai
-    const idx = baiVietList.value.findIndex((x) => x.id === a.id)
-    if (idx >= 0) baiVietList.value[idx] = bai
-    if (editing.value?.id === a.id) editing.value = { ...editing.value, noi_dung_md: bai.noi_dung_md }
-    flash('ok', `Đã chèn ${res.data.added} ảnh minh hoạ vào bài. Xem ở ô Nội dung rồi bấm Lưu.`)
+    for (let k = 0; k < total; k++) {
+      // Tự thử lại 1 lần nếu lỗi (Yescale dall-e hay chập chờn 503).
+      let res: { data: { bai: BaiViet; heading: string | null; remaining: number } } | null = null
+      let lastErr: any = null
+      for (let attempt = 1; attempt <= 2 && !res; attempt++) {
+        imgImgT0 = Date.now()
+        imgProg.value = {
+          ...imgProg.value,
+          secImg: 0,
+          stage: attempt === 1 ? `Đang vẽ ảnh ${k + 1}/${total}…` : `Thử lại ảnh ${k + 1}/${total}…`,
+        }
+        try {
+          res = await api.post<{ data: { bai: BaiViet; heading: string | null; remaining: number } }>(
+            `/seo/bai-viet/${a.id}/generate-image`,
+            {},
+          )
+        } catch (e) {
+          lastErr = e
+        }
+      }
+      if (!res) throw lastErr // cả 2 lần đều lỗi → dừng & hiện lỗi rõ
+      const { bai, heading, remaining } = res.data
+      const idx = baiVietList.value.findIndex((x) => x.id === a.id)
+      if (idx >= 0) baiVietList.value[idx] = bai
+      if (editing.value?.id === a.id) editing.value = { ...editing.value, noi_dung_md: bai.noi_dung_md }
+      imgProg.value = { ...imgProg.value, done: k + 1, stage: heading ? `✅ Xong ảnh ${k + 1}/${total}` : 'Hoàn tất' }
+      if (!heading || remaining <= 0) break
+    }
+    imgProg.value = {
+      ...imgProg.value,
+      status: 'done',
+      pct: 100,
+      stage: `✅ Hoàn tất ${imgProg.value.done}/${imgProg.value.total} ảnh`,
+    }
+    flash('ok', `Đã chèn ${imgProg.value.done} ảnh. Giờ bấm Lưu rồi Đăng.`)
   } catch (e: any) {
-    flash('err', e.message || 'Sinh ảnh thất bại (kiểm tra đã bật YESCALE_IMAGE_MODEL chưa)')
+    const msg = String(e?.message || e || 'Lỗi không rõ').slice(0, 220)
+    imgProg.value = {
+      ...imgProg.value,
+      status: 'error',
+      stage: `⚠️ Dừng ở ảnh ${imgProg.value.done + 1}/${imgProg.value.total} vì lỗi`,
+      errMsg: msg,
+    }
+    flash('err', msg)
   } finally {
     genImagesId.value = null
+    if (imgTimer) {
+      clearInterval(imgTimer)
+      imgTimer = null
+    }
+    // 'done' → ẩn sau 12s; 'error' → giữ lâu (45s) để đọc kỹ lỗi; cả hai chỉ ẩn nếu không có mẻ mới.
+    const keep = imgProg.value.status === 'error' ? 45000 : 12000
+    setTimeout(() => {
+      if (genImagesId.value === null) imgProg.value = { ...imgProg.value, on: false }
+    }, keep)
   }
 }
 
@@ -805,12 +1048,24 @@ async function runTrendDrafts() {
   }
 }
 
+// ESC = đóng nhanh overlay đang mở (chuẩn a11y). Ưu tiên overlay "Đăng" trước editor.
+function onGlobalKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (pubModal.value) {
+    if (pubDone.value || pubError.value) closePubModal()
+    return
+  }
+  if (editing.value) closeEditor()
+}
+
 onMounted(() => {
   loadDoiThu()
   loadCum()
   loadBaiViet()
   loadAcuIndex()
+  window.addEventListener('keydown', onGlobalKeydown)
 })
+onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
 </script>
 
 <template>
@@ -834,10 +1089,10 @@ onMounted(() => {
     </Transition>
 
     <!-- Thanh chuyển tab -->
-    <div class="tabbar">
-      <button class="tab" :class="{ on: tab === 'radar' }" @click="tab = 'radar'">🛰️ Radar Đối Thủ</button>
-      <button class="tab" :class="{ on: tab === 'viet' }" @click="tab = 'viet'">✍️ Lò Viết Bài</button>
-      <button class="tab" :class="{ on: tab === 'trend' }" @click="tab = 'trend'">📈 Xu Hướng</button>
+    <div class="tabbar" role="tablist" aria-label="Khu vực SEO">
+      <button type="button" role="tab" :aria-selected="tab === 'radar'" class="tab" :class="{ on: tab === 'radar' }" @click="tab = 'radar'">🛰️ Radar Đối Thủ</button>
+      <button type="button" role="tab" :aria-selected="tab === 'viet'" class="tab" :class="{ on: tab === 'viet' }" @click="tab = 'viet'">✍️ Lò Viết Bài</button>
+      <button type="button" role="tab" :aria-selected="tab === 'trend'" class="tab" :class="{ on: tab === 'trend' }" @click="tab = 'trend'">📈 Xu Hướng</button>
     </div>
 
     <!-- ===== TAB RADAR ===== -->
@@ -870,14 +1125,23 @@ onMounted(() => {
       <div class="card-head">
         <h3>2 · Danh sách & quét</h3>
         <label class="batch-limit">
-          Phân tích mỗi lần:
-          <select v-model.number="batchLimit" class="inp inp--sm">
-            <option :value="5">5 bài</option>
-            <option :value="10">10 bài</option>
-            <option :value="15">15 bài</option>
-          </select>
+          Mỗi lần phân tích:
+          <input
+            type="number"
+            v-model.number="batchLimit"
+            class="inp inp--sm inp--num"
+            min="1"
+            max="30"
+            title="Số URL đang chờ sẽ phân tích trong 1 lần bấm (1–30). Số càng lớn càng lâu & dễ bị quá thời gian."
+          />
+          bài
         </label>
       </div>
+      <p class="muted step-hint">
+        Quy trình: <b>Quét Sitemap</b> (gom URL) → <b>Phân Tích</b> (AI đọc tối đa <b>{{ batchLimit }}</b> bài đang chờ
+        mỗi lần; còn bài chờ thì chỉnh số &amp; bấm lại để chạy tiếp) → khi đã có đối thủ được phân tích, xuống
+        <b>bước 3</b> để tìm khoảng trống.
+      </p>
 
       <p v-if="loadingList" class="muted">Đang tải…</p>
       <p v-else-if="!doiThuList.length" class="muted">Chưa có đối thủ nào. Thêm ở bước 1 phía trên.</p>
@@ -914,9 +1178,10 @@ onMounted(() => {
             <button
               class="btn btn--sm btn--accent"
               :disabled="isBusy(d.id) || d.thong_ke.cho === 0"
+              :title="`Phân tích ${Math.min(batchLimit, d.thong_ke.cho)} trong ${d.thong_ke.cho} bài đang chờ. Bấm lại để chạy tiếp số còn lại.`"
               @click="analyzeBatch(d)"
             >
-              Phân Tích ({{ d.thong_ke.cho }})
+              {{ isBusy(d.id) ? '…' : `Phân Tích ${Math.min(batchLimit, d.thong_ke.cho)}/${d.thong_ke.cho}` }}
             </button>
             <button class="btn btn--sm btn--ghost" :disabled="isBusy(d.id)" @click="loadUrls(d.id)">Xem URL</button>
           </div>
@@ -984,35 +1249,88 @@ onMounted(() => {
       </div>
     </section>
 
-    <!-- Bước 3: gap analysis -->
+    <!-- Bước 3: gap analysis — mỗi đối thủ một nhóm khoảng trống riêng -->
     <section class="card">
       <div class="card-head">
         <h3>3 · Khoảng trống nội dung — bạn nên viết gì</h3>
-        <button
-          class="btn btn--primary"
-          :disabled="runningGap || !hasCompetitorAnalyzed"
-          @click="runGap"
-        >
-          {{ runningGap ? 'Đang phân tích…' : 'Tìm Khoảng Trống' }}
-        </button>
       </div>
 
-      <p v-if="!hasCompetitorAnalyzed" class="muted">
-        Cần ít nhất 1 đối thủ đã được phân tích (bước 2) thì mới chạy được.
+      <p v-if="!analyzedCompetitors.length" class="muted">
+        Cần ít nhất 1 đối thủ đã được phân tích (bước 2) thì mới tìm khoảng trống được.
       </p>
-      <p v-else-if="!cumList.length" class="muted">Chưa có gợi ý. Bấm "Tìm Khoảng Trống" để AI đề xuất.</p>
 
-      <div v-else class="cum-grid">
-        <div v-for="c in cumList" :key="c.id" class="cum">
-          <div class="cum-top">
-            <span class="cum-score" :title="'Điểm ưu tiên (1-15)'">{{ c.diem_uu_tien }}</span>
-            <h4 class="cum-name">{{ c.ten_cum }}</h4>
+      <template v-else>
+        <p class="muted step-hint">
+          Mỗi đối thủ một thanh — <b>bấm vào tên đối thủ để mở/đóng</b> danh sách (mỗi lúc mở 1 cái cho gọn).
+          Bấm <b>🔍 Tìm Khoảng Trống</b> để AI gợi ý cụm; bấm <b>✍️ Viết</b> ở từng cụm để đẩy sang Lò Viết Bài.
+        </p>
+
+        <div class="gap-groups">
+          <div
+            v-for="d in analyzedCompetitors"
+            :key="d.id"
+            class="gap-group"
+            :class="{ 'gap-group--open': openGroupId === d.id }"
+          >
+            <div class="gap-group-head">
+              <button
+                type="button"
+                class="gap-group-toggle"
+                :aria-expanded="openGroupId === d.id"
+                @click="toggleGroup(d.id)"
+              >
+                <span class="gap-chevron" aria-hidden="true">▸</span>
+                <span class="badge badge--comp">Đối thủ</span>
+                <span class="gap-group-domain">{{ d.domain }}</span>
+                <span class="muted gap-group-count">· {{ gapsFor(d.id).length }} cụm</span>
+              </button>
+              <button class="btn btn--sm btn--accent" :disabled="gapBusyId !== null" @click="runGapFor(d)">
+                {{ gapBusyId === d.id ? 'Đang tìm…' : gapsFor(d.id).length ? '🔄 Làm lại' : '🔍 Tìm Khoảng Trống' }}
+              </button>
+            </div>
+
+            <div v-show="openGroupId === d.id" class="gap-group-body">
+              <div v-if="gapsFor(d.id).length" class="table-wrap">
+                <table class="tbl tbl--gap">
+                  <thead>
+                    <tr>
+                      <th class="col-score" title="Điểm ưu tiên 1–15">Điểm</th>
+                      <th>Cụm chủ đề</th>
+                      <th>Từ khoá mục tiêu</th>
+                      <th>Ý tưởng nội dung</th>
+                      <th class="col-act"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="c in gapsFor(d.id)" :key="c.id">
+                      <td class="col-score"><span class="cum-score cum-score--sm">{{ c.diem_uu_tien }}</span></td>
+                      <td>
+                        <strong :title="c.ten_cum">{{ c.ten_cum }}</strong>
+                        <div v-if="c.ly_do" class="gap-why" :title="c.ly_do">{{ c.ly_do }}</div>
+                      </td>
+                      <td class="kw">{{ c.tu_khoa_muc_tieu || '—' }}</td>
+                      <td class="gap-idea" :title="c.y_tuong_noi_dung || ''">{{ c.y_tuong_noi_dung || '—' }}</td>
+                      <td class="col-act">
+                        <button
+                          class="btn btn--xs"
+                          :disabled="genBusy !== null"
+                          title="Viết nháp từ cụm này (chuyển sang Lò Viết Bài)"
+                          @click="writeFromGap(c)"
+                        >
+                          {{ genBusy === c.id ? '…' : '✍️ Viết' }}
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p v-else class="muted gap-empty">
+                Chưa có gợi ý. Bấm “🔍 Tìm Khoảng Trống” cho đối thủ này.
+              </p>
+            </div>
           </div>
-          <div v-if="c.tu_khoa_muc_tieu" class="cum-kw"><b>Từ khoá:</b> {{ c.tu_khoa_muc_tieu }}</div>
-          <div v-if="c.y_tuong_noi_dung" class="cum-idea"><b>Ý tưởng:</b> {{ c.y_tuong_noi_dung }}</div>
-          <div v-if="c.ly_do" class="cum-why">{{ c.ly_do }}</div>
         </div>
-      </div>
+      </template>
     </section>
     </div>
     <!-- /TAB RADAR -->
@@ -1034,16 +1352,17 @@ onMounted(() => {
 
       <!-- Viết từ cụm gợi ý -->
       <section class="card">
-        <div class="card-head"><h3>Viết bài từ cụm gợi ý</h3></div>
-        <p v-if="!cumList.length" class="muted">
-          Chưa có cụm nào. Sang tab <b>Radar Đối Thủ</b>, chạy "Tìm Khoảng Trống" để AI gợi ý cụm trước.
+        <div class="card-head"><h3>Viết bài từ cụm gợi ý ({{ goiYCums.length }})</h3></div>
+        <p v-if="!goiYCums.length" class="muted">
+          Chưa có cụm nào. Sang tab <b>Radar Đối Thủ</b> (bước 3), bấm "Tìm Khoảng Trống" cho 1 đối thủ để AI gợi ý cụm trước.
         </p>
         <div v-else class="cum-grid">
-          <div v-for="c in cumList" :key="c.id" class="cum">
+          <div v-for="c in goiYCums" :key="c.id" class="cum">
             <div class="cum-top">
               <span class="cum-score">{{ c.diem_uu_tien }}</span>
               <h4 class="cum-name">{{ c.ten_cum }}</h4>
             </div>
+            <div v-if="c.doi_thu_id && domainById[c.doi_thu_id]" class="cum-kw"><b>Đối thủ:</b> {{ domainById[c.doi_thu_id] }}</div>
             <div v-if="c.tu_khoa_muc_tieu" class="cum-kw"><b>Từ khoá:</b> {{ c.tu_khoa_muc_tieu }}</div>
             <button class="btn btn--accent btn--sm" :disabled="genBusy !== null" @click="genFromCum(c)">
               {{ genBusy === c.id ? 'Đang viết…' : '✍️ Viết nháp' }}
@@ -1179,12 +1498,46 @@ onMounted(() => {
 
     <!-- Modal sửa bản nháp -->
     <div v-if="editing" class="ed-overlay" @click.self="closeEditor">
-      <div class="ed-modal">
+      <div class="ed-modal" role="dialog" aria-modal="true" aria-labelledby="ed-title">
         <div class="ed-head">
-          <h3>Sửa Bản Nháp</h3>
-          <button class="tc-close" @click="closeEditor" aria-label="Đóng">×</button>
+          <h3 id="ed-title">Sửa Bản Nháp</h3>
+          <button type="button" class="tc-close" @click="closeEditor" aria-label="Đóng">×</button>
         </div>
         <div class="ed-body">
+          <!-- Tiến trình sinh ảnh AI (vẽ tuần tự từng mục H2) -->
+          <div
+            v-if="imgProg.on"
+            class="img-prog"
+            :class="{ 'img-prog--done': imgProg.status === 'done', 'img-prog--error': imgProg.status === 'error' }"
+            role="status"
+            aria-live="polite"
+          >
+            <div class="img-prog-head">
+              <span v-if="imgProg.status === 'running'" class="gen-spin" aria-hidden="true"></span>
+              <span v-else-if="imgProg.status === 'done'" aria-hidden="true">✅</span>
+              <span v-else aria-hidden="true">⚠️</span>
+              <span class="img-prog-stage">{{ imgProg.stage }}</span>
+              <span class="img-prog-count">{{ imgProg.done }}/{{ imgProg.total }} ảnh<span v-if="imgProg.status === 'running'"> · {{ imgProg.pct }}%</span></span>
+            </div>
+            <div v-if="imgProg.status !== 'error'" class="gen-bar">
+              <div class="gen-bar-fill" :style="{ width: imgProg.pct + '%' }"></div>
+            </div>
+            <p class="gen-prog-note">
+              <template v-if="imgProg.status === 'running'">
+                ⏱ Ảnh này: <b>{{ imgProg.secImg }}s</b> · Tổng: <b>{{ imgProg.secTotal }}s</b>.
+                dall-e-3 thường ~2 phút/ảnh — vẫn đang chạy, đừng đóng tab.
+              </template>
+              <template v-else-if="imgProg.status === 'done'">
+                Xong sau {{ imgProg.secTotal }}s. Ảnh đã chèn vào bài — bấm <b>Lưu</b> rồi <b>Đăng</b>.
+              </template>
+              <template v-else>
+                <b>Lý do:</b> {{ imgProg.errMsg }}
+                <br />Thường do: <b>chưa restart backend</b> sau khi sửa <code>.env</code>, hoặc model ảnh chưa sẵn / hết credit.
+                <span v-if="imgProg.done > 0"> ({{ imgProg.done }} ảnh đã vẽ vẫn được giữ — có thể Lưu.)</span>
+                Bấm <b>🖼 Sinh ảnh</b> lần nữa để thử tiếp (ảnh đã có sẽ bỏ qua).
+              </template>
+            </p>
+          </div>
           <div v-if="editing.do_rui_ro === 'rui_ro'" class="ymyl-warn">
             🔴 <b>Nội dung y tế cần duyệt kỹ (YMYL).</b>
             {{ editing.ly_do_rui_ro }} Hãy rà soát kỹ trước khi đăng; cân nhắc để noindex tới khi chắc chắn.
@@ -1233,6 +1586,9 @@ onMounted(() => {
           <!-- Checklist kiểm duyệt thủ công (van YMYL: đủ 4 mới được "Đã duyệt") -->
           <fieldset class="kd-box" :class="{ 'kd-box--ok': kiemDuyetDu }">
             <legend>Checklist kiểm duyệt <small>(tick đủ 4 mới chuyển được "Đã duyệt")</small></legend>
+            <button type="button" class="btn btn--ghost kd-auto-btn" @click="runAutoKiemDuyet">
+              🔍 Kiểm duyệt tự động <small>(máy tick hộ 3 mục đo được, Y khoa bạn tự gật)</small>
+            </button>
             <label v-for="it in KIEM_DUYET_ITEMS" :key="it.key" class="kd-item">
               <input
                 type="checkbox"
@@ -1241,6 +1597,13 @@ onMounted(() => {
               />
               <span>{{ it.label }}</span>
             </label>
+            <!-- Báo cáo của máy: mỗi mục một dòng OK/cảnh báo + gợi ý sửa -->
+            <ul v-if="autoReport" class="kd-report">
+              <li v-for="r in autoReport" :key="r.key" class="kd-report-item" :class="`kd-report-item--${r.status}`">
+                <strong>{{ r.status === 'ok' ? '✔' : r.status === 'warn' ? '⚠' : 'ℹ' }} {{ r.label }}</strong>
+                <span v-for="(ln, i) in r.lines" :key="i" class="kd-report-line">{{ ln }}</span>
+              </li>
+            </ul>
             <p class="kd-status" :class="kiemDuyetDu ? 'kd-status--ok' : 'kd-status--warn'">
               {{ kiemDuyetDu ? '✔ Đủ điều kiện duyệt' : '⚠ Chưa đủ — còn mục chưa tick, chưa thể "Đã duyệt"' }}
             </p>
@@ -1269,37 +1632,50 @@ onMounted(() => {
           </label>
         </div>
         <div class="ed-foot">
-          <button class="btn btn--ghost" @click="closeEditor">Đóng</button>
-          <button class="btn btn--ghost" :disabled="exportingId === editing.id" @click="exportMd(editing)">
-            {{ exportingId === editing.id ? '…' : 'Xuất JSON' }}
-          </button>
-          <button
-            class="btn btn--ghost"
-            :disabled="genImagesId === editing.id"
-            title="AI vẽ 1 ảnh minh hoạ cho mỗi mục ## H2 (tốn credit AI)"
-            @click="generateImages(editing)"
-          >
-            {{ genImagesId === editing.id ? 'Đang vẽ ảnh…' : '🖼 Sinh ảnh minh hoạ (AI)' }}
-          </button>
-          <button
-            class="btn btn--ghost btn--pub-ghost"
-            :disabled="publishingId === editing.id || (editing.trang_thai !== 'da_duyet' && editing.trang_thai !== 'da_dang')"
-            title="Ghi file blog + chuyển Đã đăng (cần Đã duyệt)"
-            @click="publishArticle(editing)"
-          >
-            {{ publishingId === editing.id ? 'Đang đăng…' : '🚀 Đăng' }}
-          </button>
-          <button
-            v-if="editing.trang_thai === 'da_dang'"
-            class="btn btn--ghost"
-            title="Mở bài trên web (sau khi build/deploy)"
-            @click="viewArticle(editing)"
-          >
-            👁 Xem
-          </button>
-          <button class="btn btn--primary" :disabled="savingEditor" @click="saveEditor">
-            {{ savingEditor ? 'Đang lưu…' : 'Lưu' }}
-          </button>
+          <div class="ed-foot-left">
+            <button type="button" class="btn btn--ghost" @click="closeEditor">Đóng</button>
+            <button
+              type="button"
+              class="btn btn--ghost btn--muted"
+              :disabled="exportingId === editing.id"
+              title="Nâng cao: tải file để đăng THỦ CÔNG bằng script (publish-article.mjs). Người mới có thể bỏ qua — cứ dùng nút Đăng."
+              @click="exportMd(editing)"
+            >
+              {{ exportingId === editing.id ? '…' : '⬇ Xuất JSON' }}
+            </button>
+            <button
+              type="button"
+              class="btn btn--ghost"
+              :disabled="genImagesId === editing.id"
+              title="AI vẽ 1 ảnh minh hoạ cho mỗi mục ## H2 (tốn credit AI)"
+              @click="generateImages(editing)"
+            >
+              {{ genImagesId === editing.id ? 'Đang vẽ ảnh…' : '🖼 Sinh ảnh minh hoạ (AI)' }}
+            </button>
+          </div>
+          <div class="ed-foot-right">
+            <button
+              v-if="editing.trang_thai === 'da_dang'"
+              type="button"
+              class="btn btn--ghost"
+              title="Mở bài trên web (sau khi build/deploy)"
+              @click="viewArticle(editing)"
+            >
+              👁 Xem
+            </button>
+            <button type="button" class="btn btn--primary" :disabled="savingEditor" @click="saveEditor">
+              {{ savingEditor ? 'Đang lưu…' : '💾 Lưu' }}
+            </button>
+            <button
+              type="button"
+              class="btn btn--pub"
+              :disabled="publishingId === editing.id || (editing.trang_thai !== 'da_duyet' && editing.trang_thai !== 'da_dang')"
+              title="Ghi file blog + chuyển Đã đăng (cần Đã duyệt)"
+              @click="publishArticle(editing)"
+            >
+              {{ publishingId === editing.id ? 'Đang đăng…' : '🚀 Đăng' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1355,7 +1731,7 @@ onMounted(() => {
 
 /* Banner */
 .banner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); font-weight: 500; }
-.banner--ok { background: var(--success-bg, #e8f5e9); color: var(--success, #2e7d32); }
+.banner--ok { background: var(--success-bg); color: var(--success-fg); }
 .banner--err { background: var(--danger-bg); color: var(--danger); }
 .banner--info { background: var(--brown-50); color: var(--brown-700); }
 .banner-x { font-size: 20px; line-height: 1; color: inherit; opacity: .7; }
@@ -1375,6 +1751,8 @@ onMounted(() => {
 .inp--domain { flex: 1; min-width: 220px; }
 .inp--ten { flex: 1; min-width: 180px; }
 .inp--sm { height: 34px; min-width: 90px; }
+.inp--num { width: 68px; min-width: 0; text-align: center; }
+.step-hint { margin: calc(-1 * var(--space-2)) 0 var(--space-3); line-height: 1.6; }
 .chk { display: flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-sm); color: var(--text-muted); white-space: nowrap; }
 .batch-limit { font-size: var(--font-size-sm); color: var(--text-muted); display: flex; align-items: center; gap: var(--space-2); }
 
@@ -1391,9 +1769,14 @@ onMounted(() => {
 .btn--sm:not(:disabled):hover { background: var(--brown-50); }
 .btn--xs { height: 28px; padding: 0 var(--space-2); font-size: var(--font-size-xs); background: var(--brown-50); color: var(--brown-700); }
 .btn--xs:not(:disabled):hover { background: var(--brown-100); }
-.btn--xs.btn--pub { background: var(--brown-600); color: #fff; }
-.btn--xs.btn--pub:not(:disabled):hover { background: var(--brown-700); }
+.btn--xs.btn--pub { background: var(--success); color: #fff; }
+.btn--xs.btn--pub:not(:disabled):hover { background: var(--success-fg); }
 .btn--pub-ghost { color: var(--brown-700); border-color: var(--brown-300); }
+/* Nút "Đăng" (publish = lên web) = xanh lá trên hệ Nâu/Kem để tách khỏi "Lưu" (nâu). */
+.btn--pub { background: var(--success); color: #fff; border-color: transparent; }
+.btn--pub:not(:disabled):hover { background: var(--success-fg); }
+/* Nút phụ/nâng cao trong footer editor — mờ nhẹ để không tranh chú ý với Lưu/Đăng. */
+.btn--muted { opacity: .8; }
 .icon-btn { width: 30px; height: 30px; border-radius: var(--radius-sm); color: var(--gray-500); font-size: 16px; }
 .icon-btn:not(:disabled):hover { background: var(--danger-bg); color: var(--danger); }
 
@@ -1411,14 +1794,14 @@ onMounted(() => {
 .badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: var(--radius-full); white-space: nowrap; }
 .badge--comp { background: var(--brown-100); color: var(--brown-700); }
 .badge--mine { background: #e3f2fd; color: #1565c0; }
-.st--cho { background: #fff3e0; color: #e65100; }
-.st--da_phan_tich { background: #e8f5e9; color: #2e7d32; }
+.st--cho { background: var(--warning-bg); color: var(--warning-fg); }
+.st--da_phan_tich { background: var(--success-bg); color: var(--success-fg); }
 .st--loi { background: var(--danger-bg); color: var(--danger); }
 
 .stats { display: flex; gap: var(--space-3); flex-wrap: wrap; font-size: var(--font-size-xs); color: var(--text-muted); }
 .stat b { color: var(--text); }
-.stat--cho b { color: #e65100; }
-.stat--ok b { color: #2e7d32; }
+.stat--cho b { color: var(--warning-fg); }
+.stat--ok b { color: var(--success-fg); }
 .stat--err b { color: var(--danger); }
 
 .doithu-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
@@ -1449,6 +1832,28 @@ onMounted(() => {
 .cum-kw b, .cum-idea b { color: var(--text); }
 .cum-why { font-size: var(--font-size-xs); color: var(--text-subtle); font-style: italic; }
 
+/* Bước 3: mỗi đối thủ một thanh gọn, bấm mở/đóng (accordion) */
+.gap-groups { display: flex; flex-direction: column; gap: var(--space-2); }
+.gap-group { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); }
+.gap-group--open { border-color: var(--brown-300); background: var(--brown-50); }
+.gap-group-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.gap-group-toggle { display: flex; align-items: center; gap: var(--space-2); flex: 1; min-width: 0; text-align: left; padding: var(--space-1) 0; background: transparent; border: 0; cursor: pointer; }
+.gap-group-toggle:hover .gap-group-domain { text-decoration: underline; }
+.gap-chevron { flex-shrink: 0; color: var(--brown-600); font-size: 12px; transition: transform var(--transition-fast); }
+.gap-group--open .gap-chevron { transform: rotate(90deg); }
+.gap-group-domain { font-weight: 700; color: var(--brown-800); word-break: break-all; }
+.gap-group-count { font-size: var(--font-size-xs); white-space: nowrap; }
+.gap-group-body { margin-top: var(--space-3); }
+.gap-empty { margin: 0; }
+.cum-score--sm { width: 28px; height: 28px; font-size: var(--font-size-xs); margin: 0 auto; }
+.tbl--gap td { vertical-align: middle; }
+.tbl--gap .col-score { width: 52px; text-align: center; }
+.tbl--gap .gap-why,
+.tbl--gap .gap-idea { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.tbl--gap .gap-why { font-size: var(--font-size-xs); color: var(--text-subtle); font-style: italic; margin-top: 2px; line-height: 1.45; -webkit-line-clamp: 2; line-clamp: 2; }
+.tbl--gap .gap-idea { font-size: var(--font-size-xs); color: var(--text-muted); line-height: 1.45; max-width: 340px; -webkit-line-clamp: 3; line-clamp: 3; }
+.tbl--gap .kw { font-size: var(--font-size-xs); }
+
 /* Tab */
 .tabbar { display: flex; gap: var(--space-2); border-bottom: 1px solid var(--border); }
 .tab { height: 42px; padding: 0 var(--space-5); font-size: var(--font-size-sm); font-weight: 700; color: var(--text-muted); border-bottom: 3px solid transparent; margin-bottom: -1px; }
@@ -1470,7 +1875,8 @@ onMounted(() => {
 .ed-row .ed-field { flex: 1; }
 .ta { padding: var(--space-2) var(--space-3); height: auto; resize: vertical; font-family: inherit; line-height: 1.5; }
 .ta--big { min-height: 320px; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 13px; }
-.ed-foot { display: flex; justify-content: flex-end; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--gray-100); background: var(--surface-2); }
+.ed-foot { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--gray-100); background: var(--surface-2); flex-wrap: wrap; }
+.ed-foot-left, .ed-foot-right { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
 .ymyl-warn { background: var(--danger-bg); color: var(--danger); padding: var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-sm); line-height: 1.5; }
 
 /* Lưới chủ đề ứng viên (Xu Hướng) */
@@ -1491,6 +1897,17 @@ onMounted(() => {
 .gen-spin { width: 16px; height: 16px; flex-shrink: 0; border: 2px solid var(--brown-200); border-top-color: var(--brown-600); border-radius: 50%; animation: gen-spin 0.8s linear infinite; }
 @keyframes gen-spin { to { transform: rotate(360deg); } }
 
+/* Tiến trình "Sinh ảnh minh hoạ (AI)" trong modal */
+.img-prog { background: var(--brown-50); border: 1px solid var(--brown-200); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-2); }
+.img-prog--done { background: var(--success-bg, #e8f5e9); border-color: #a5d6a7; }
+.img-prog--done .img-prog-stage, .img-prog--done .img-prog-count { color: var(--success, #2e7d32); }
+.img-prog--error { background: var(--danger-bg); border-color: var(--danger); }
+.img-prog--error .img-prog-stage, .img-prog--error .img-prog-count { color: var(--danger); }
+.img-prog--error .gen-prog-note { color: var(--text); }
+.img-prog-head { display: flex; align-items: center; gap: var(--space-2); }
+.img-prog-stage { flex: 1; font-size: var(--font-size-sm); font-weight: 600; color: var(--brown-800); }
+.img-prog-count { font-size: var(--font-size-sm); font-weight: 800; color: var(--brown-700); font-variant-numeric: tabular-nums; }
+
 .fade-enter-active, .fade-leave-active { transition: opacity var(--transition-base); }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
@@ -1506,29 +1923,47 @@ onMounted(() => {
   margin: var(--space-3) 0; padding: var(--space-3); border: 1px solid var(--brown-200);
   border-radius: var(--radius-md); background: var(--brown-50);
 }
-.kd-box--ok { border-color: var(--success, #2e7d32); background: color-mix(in srgb, var(--success, #2e7d32) 8%, transparent); }
+.kd-box--ok { border-color: var(--success); background: color-mix(in srgb, var(--success) 8%, transparent); }
 .kd-box legend { font-weight: 600; font-size: var(--font-size-sm); padding: 0 var(--space-2); }
 .kd-box legend small { font-weight: 400; color: var(--text-subtle); }
 .kd-item { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-1) 0; font-size: var(--font-size-sm); cursor: pointer; }
 .kd-item input { margin-top: 3px; flex-shrink: 0; }
 .kd-status { margin: var(--space-2) 0 0; font-size: var(--font-size-xs); font-weight: 600; }
-.kd-status--ok { color: var(--success, #2e7d32); }
-.kd-status--warn { color: var(--warning, #b26a00); }
+.kd-status--ok { color: var(--success); }
+.kd-status--warn { color: var(--warning); }
+.kd-auto-btn { margin: 0 0 var(--space-2); }
+.kd-auto-btn small { font-weight: 400; color: var(--text-subtle); }
+.kd-report { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.kd-report-item {
+  display: flex; flex-direction: column; gap: 2px; padding: var(--space-2);
+  border-left: 3px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--gray-100); font-size: var(--font-size-xs);
+}
+.kd-report-item--ok { border-left-color: var(--success); }
+.kd-report-item--warn { border-left-color: var(--warning); }
+.kd-report-item--info { border-left-color: var(--brown-300); }
+.kd-report-item strong { font-size: var(--font-size-sm); }
+.kd-report-line { color: var(--text-muted); }
 
 /* Overlay tiến trình khi Đăng */
 .pub-card {
-  width: min(440px, 92vw); background: var(--surface, #fff); border: 1px solid var(--brown-200);
-  border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-lg, 0 12px 32px rgba(0,0,0,.18));
+  width: min(440px, 92vw); background: var(--surface); border: 1px solid var(--brown-200);
+  border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-lg);
   display: flex; flex-direction: column; gap: var(--space-3);
 }
 .pub-title { font-size: var(--font-size-lg); font-weight: 800; color: var(--brown-800); }
 .pub-name { font-size: var(--font-size-sm); color: var(--text-muted); font-weight: 600; margin-top: calc(-1 * var(--space-2)); }
-.pub-err { font-size: var(--font-size-sm); color: var(--danger, #c0392b); line-height: 1.5; }
+.pub-err { font-size: var(--font-size-sm); color: var(--danger); line-height: 1.5; }
 .pub-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
-.pub-hint { margin-right: auto; font-size: var(--font-size-xs); font-weight: 600; color: var(--warning, #b26a00); }
+.pub-hint { margin-right: auto; font-size: var(--font-size-xs); font-weight: 600; color: var(--warning); }
+
+.hint-next { margin-top: var(--space-3); }
 
 @media (max-width: 768px) {
   .add-form { flex-direction: column; align-items: stretch; }
   .inp--domain, .inp--ten { min-width: 0; }
+}
+@media (max-width: 560px) {
+  .ed-row { flex-direction: column; gap: var(--space-2); }
 }
 </style>

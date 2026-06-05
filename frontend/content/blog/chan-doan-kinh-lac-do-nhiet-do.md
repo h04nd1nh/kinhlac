@@ -2,18 +2,17 @@
 title: "Chẩn Đoán Kinh Lạc Bằng Đo Nhiệt Độ: Phương Pháp 24 Tỉnh Huyệt"
 description: "Khám phá phương pháp chẩn đoán kinh lạc bằng đo nhiệt độ theo 24 tỉnh huyệt. Hướng dẫn chi tiết cách thực hiện, diễn giải kết quả và giới thiệu thiết bị đo hiện đại."
 slug: "chan-doan-kinh-lac-do-nhiet-do"
-image: "/kinhmach3d/images/meridians/kinh-07-chinh.jpg"
 date: "2026-06-05"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Chẩn Đoán Kinh Lạc"
 cta: "/xem-ket-qua-do"
 keywords: ["đo nhiệt độ kinh lạc","chẩn đoán kinh lạc","24 tỉnh huyệt","phương pháp đo kinh lạc","thiết bị đo kinh lạc","y học cổ truyền","đông y"]
 faq: [{"q":"Nguyên lý của phương pháp đo nhiệt độ kinh lạc là gì?","a":"Phương pháp dựa trên nguyên lý Đông Y 'thể tại âm, dụng tại dương', nhiệt độ huyệt vị phản ánh tình trạng khí huyết và tạng phủ."},{"q":"Các bước cơ bản để thực hiện đo nhiệt độ kinh lạc?","a":"Chuẩn bị bệnh nhân và môi trường, xác định các huyệt vị cần đo (theo 24 tỉnh huyệt), tiến hành đo và ghi lại kết quả."},{"q":"Làm thế nào để diễn giải kết quả đo nhiệt độ kinh lạc?","a":"So sánh nhiệt độ giữa hai bên, giữa các huyệt trên cùng đường kinh, với tiêu chuẩn và kết hợp với triệu chứng lâm sàng."},{"q":"Lợi ích của việc số hóa trong chẩn đoán kinh lạc là gì?","a":"Tăng tính khách quan, chính xác, lưu trữ và quản lý dữ liệu hiệu quả, hỗ trợ chẩn đoán chuyên sâu và nâng cao hiệu quả quản lý phòng khám."}]
+image: "/kinhmach3d/images/meridians/kinh-07-chinh.jpg"
 seoCumId: 1
 aiModel: "Yescale gemini-2.5-flash-lite"
-index: false
 ---
-Trong Y học cổ truyền (Đông Y), sức khỏe con người được ví như một dòng chảy năng lượng tinh tế, vận hành thông qua hệ thống kinh lạc. Sự cân bằng và thông suốt của dòng chảy này là yếu tố then chốt quyết định trạng thái khỏe mạnh. Khi có bất kỳ sự tắc nghẽn hay rối loạn nào trên hệ thống kinh lạc, cơ thể sẽ biểu hiện ra những dấu hiệu bất thường, mà một trong những phương pháp phát hiện sớm và hiệu quả là **[đo nhiệt độ kinh lạc](/xem-ket-qua-do)**. Đây là một kỹ thuật chẩn đoán độc đáo, mang đậm triết lý Đông Y, giúp thầy thuốc "nhìn" thấy những thay đổi tinh vi bên trong cơ thể mà các phương pháp thông thường có thể bỏ sót.
+Trong Y học cổ truyền (Đông Y), sức khỏe con người được ví như một dòng chảy năng lượng tinh tế, vận hành thông qua hệ thống kinh lạc. Sự cân bằng và thông suốt của dòng chảy này là yếu tố then chốt quyết định trạng thái khỏe mạnh. Khi có bất kỳ sự tắc nghẽn hay rối loạn nào trên hệ thống kinh lạc, cơ thể sẽ biểu hiện ra những dấu hiệu bất thường, mà một trong những phương pháp phát hiện sớm và hiệu quả là **đo nhiệt độ kinh lạc**. Đây là một kỹ thuật chẩn đoán độc đáo, mang đậm triết lý Đông Y, giúp thầy thuốc "nhìn" thấy những thay đổi tinh vi bên trong cơ thể mà các phương pháp thông thường có thể bỏ sót.
 
 ## Nguyên Lý Đo Nhiệt Độ Kinh Lạc Theo Phương Pháp 24 Tỉnh Huyệt
 

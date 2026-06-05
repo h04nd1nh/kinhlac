@@ -15,14 +15,14 @@ COPY package*.json ./
 RUN npm ci --no-audit --no-fund
 
 COPY . .
-# Chỉ chạy vite build, KHÔNG chạy vue-tsc song song.
-# Lý do: `npm run build` = `run-p type-check build-only` -> chạy vue-tsc + vite cùng lúc,
-# trên VPS RAM thấp (<= 2GB) sẽ bị OOM kill (exit 137).
-# Type-check là việc của dev/CI, không phải của bước deploy.
-# Sinh sitemap (vào public/ TRƯỚC khi vite copy sang dist) -> build SPA
-# -> chèn meta SEO tĩnh vào dist/<route>/index.html (mini-prerender chạy thuần Node, không cần Chrome).
-# Van an toàn YMYL: bài auto (aiModel/seoCumId) chưa duyệt -> noindex, để KHÔNG tự lên Google khi deploy.
-RUN node scripts/qa-auto-articles.mjs --gate && node scripts/gen-sitemap.mjs && npm run build-only && node scripts/prerender-seo.mjs && node scripts/build-blog.mjs
+# Dùng CHUNG bộ bước với `npm run build` (blog:pre + blog:post) → 1 nguồn sự thật, không lệch.
+# KHÁC biệt DUY NHẤT: ở đây gọi `build-only` (chỉ vite) thay vì `npm run build` (run-p type-check + vite).
+# Lý do bỏ type-check: trên VPS RAM thấp (<= 2GB) chạy vue-tsc song song sẽ OOM kill (exit 137);
+# type-check là việc của dev/CI, không phải bước deploy.
+#   blog:pre  = van YMYL (--gate: bài auto chưa duyệt -> noindex) + sinh sitemap (vào public/ TRƯỚC vite)
+#   build-only= vite build (SPA -> dist/)
+#   blog:post = mini-prerender meta SEO tĩnh + build-blog (Markdown -> HTML tĩnh), đều cần dist/ đã có
+RUN npm run blog:pre && npm run build-only && npm run blog:post
 
 ############################
 # 2. Phục vụ static bằng nginx

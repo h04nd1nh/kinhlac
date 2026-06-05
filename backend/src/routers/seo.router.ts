@@ -7,11 +7,14 @@ import {
   Post,
   Put,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { SeoService } from '../controllers/seo.controller';
+import { QuanTriGuard } from '../middlewares/auth/quan-tri.guard';
 import {
   AnalyzeBatchDto,
   CreateDoiThuDto,
+  GapAnalysisDto,
   GenerateDraftDto,
   GenerateImagesDto,
   RunTrendsDto,
@@ -19,6 +22,10 @@ import {
 } from '../models/seo.dto';
 
 // Guard JWT là TOÀN CỤC (APP_GUARD) → mọi endpoint dưới đây đã yêu cầu đăng nhập.
+// QuanTriGuard (chạy SAU JwtAuthGuard) siết thêm: CHỈ Quản Trị Viên (kind='staff' & quanTri=true).
+// Lý do: các route này đốt credit AI, spawn script, ghi file, xoá dữ liệu — token bệnh nhân/nhân viên
+// thường KHÔNG được phép. Route blog công khai nằm ở SeoBlogRouter (controller khác, vẫn @Public).
+@UseGuards(QuanTriGuard)
 @Controller('seo')
 export class SeoRouter {
   constructor(private readonly service: SeoService) {}
@@ -87,8 +94,8 @@ export class SeoRouter {
   }
 
   @Post('gap-analysis')
-  async gapAnalysis() {
-    const data = await this.service.gapAnalysis();
+  async gapAnalysis(@Body() dto: GapAnalysisDto) {
+    const data = await this.service.gapAnalysis(dto?.doiThuId);
     return { success: true, data };
   }
 
@@ -126,6 +133,13 @@ export class SeoRouter {
   @Post('bai-viet/:id/generate-images')
   async generateImages(@Param('id') id: string, @Body() dto: GenerateImagesDto) {
     const data = await this.service.generateBodyImages(+id, dto?.max ?? 4);
+    return { success: true, data };
+  }
+
+  // Vẽ TỪNG ảnh một (frontend gọi lặp để hiện tiến trình thật + tránh timeout).
+  @Post('bai-viet/:id/generate-image')
+  async generateOneImage(@Param('id') id: string) {
+    const data = await this.service.generateOneBodyImage(+id);
     return { success: true, data };
   }
 

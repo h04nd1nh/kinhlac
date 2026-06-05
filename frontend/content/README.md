@@ -83,10 +83,12 @@ Thân bài Markdown ở đây (không có tiêu đề H1, dùng ## cho đề m�
 
 ## 5. Build & deploy
 
-- Local: `npm run build` (tự chạy `gen-sitemap` → `vite build` → `prerender-seo` → `build-blog`).
-  Chỉ build blog: `npm run build-blog`. Chỉ sitemap: `npm run sitemap`.
-- Docker/VPS: `Dockerfile` đã nối các bước này. Deploy: trên VPS `git pull` rồi
-  `docker compose up -d --build frontend` (xem DEPLOYMENT.md).
+- Local: `npm run build` chạy `blog:pre` (van YMYL `--gate` → `gen-sitemap`) → `vite build`
+  → `blog:post` (`prerender-seo` → `build-blog`). Chỉ build blog: `npm run build-blog`. Chỉ sitemap: `npm run sitemap`.
+- Docker/VPS: `Dockerfile` dùng **CHUNG** `blog:pre`/`blog:post` (chỉ bỏ `type-check` để tránh OOM trên VPS)
+  → 1 nguồn sự thật, không lệch. Deploy: trên VPS `git pull` rồi `docker compose up -d --build frontend` (xem DEPLOYMENT.md).
+- ⚠️ Vì `blog:pre` có `--gate`, chạy `npm run build` ở local CÓ THỂ sửa `index:` của vài bài auto
+  trong `content/blog/*.md` (bài auto chưa duyệt → `index:false`). Đây là **van an toàn**, không phải lỗi.
 - nginx phục vụ `/blog/*` sẵn (không cần sửa). Bài index:false vẫn truy cập được qua URL.
 
 ## 6. Gợi ý nối từ module SEO Radar (backend)
@@ -96,7 +98,8 @@ Thân bài Markdown ở đây (không có tiêu đề H1, dùng ## cho đề m�
    theo mục 3) trong bước build/deploy của frontend.
 3. Bài chờ duyệt: xuất với `index:false`; duyệt xong xuất lại với `index` bỏ trống.
 
-> File `scripts/import-articles.mjs` là ví dụ nhập lô (đã dùng cho 10 bài seed).
+> Nhập LÔ nhiều bài cùng lúc: vẫn dùng `publish-article.mjs`, truyền JSON `{articles:[...]}`
+> hoặc một mảng `[...]` (script tự lặp). *(Script `import-articles.mjs` cũ đã gộp vào đây và bị gỡ.)*
 
 ## 7. IndexNow — báo công cụ tìm kiếm index ngay
 
@@ -114,6 +117,9 @@ node scripts/indexnow.mjs --dry        # xem trước, không gửi
   Cốc Cốc thì CÓ → hữu ích cho lượng tìm kiếm tại Việt Nam.
 - Phải chạy **SAU deploy** (IndexNow xác minh `https://kinhlac.online/<key>.txt` phải truy cập được).
 - Module SEO Radar (Phase 3, cron tuần) có thể gọi `node scripts/indexnow.mjs <url>` sau khi đăng bài mới.
+- **Backend TỰ ping IndexNow ngay khi bấm "Đăng"** một bài được index (cần env `INDEXNOW_KEY` ở backend;
+  domain qua `SITE_DOMAIN`, mặc định `kinhlac.online`). Bài "rủi ro" chưa tick đủ checklist sẽ KHÔNG ping.
+  Lệnh `npm run indexnow` (sau deploy) vẫn dùng để gửi LÔ toàn bộ URL.
 
 ## 8. Ảnh trong bài viết
 

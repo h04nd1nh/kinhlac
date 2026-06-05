@@ -5,7 +5,7 @@
 //
 // Mỗi bài -> dist/blog/<slug>/index.html (đủ meta + Open Graph + JSON-LD Article/Breadcrumb/FAQ).
 // Trang danh sách -> dist/blog/index.html.
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { writeFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve, join } from 'node:path'
 import { marked } from 'marked'
@@ -16,10 +16,13 @@ const root = resolve(here, '..')
 const distDir = process.env.DIST_DIR ? resolve(process.env.DIST_DIR) : resolve(root, 'dist')
 const blogOut = join(distDir, 'blog')
 
-const DOMAIN = 'https://kinhlac.online'
-const SITE = 'Kinh Lạc Trương Gia'
-const GA_ID = 'G-E71BLBZXFH'
-const OG_IMAGE = `${DOMAIN}/og-default.png`
+// Domain/site/OG đọc CHUNG từ src/seo/route-seo.json (giống indexnow.mjs) → đổi domain 1 CHỖ DUY NHẤT,
+// không còn cảnh build-blog hard-code khác sitemap/indexnow làm sai canonical & ảnh chia sẻ.
+const seoCfg = JSON.parse(readFileSync(resolve(root, 'src/seo/route-seo.json'), 'utf8'))
+const DOMAIN = String(seoCfg.domain || 'https://kinhlac.online').replace(/\/+$/, '')
+const SITE = seoCfg.siteName || 'Kinh Lạc Trương Gia'
+const OG_IMAGE = seoCfg.ogImage || `${DOMAIN}/og-default.png`
+const GA_ID = process.env.GA_ID || 'G-E71BLBZXFH'
 const DEFAULT_AUTHOR = 'Ban Biên Tập Kinh Lạc'
 // Người duyệt chuyên môn mặc định (E-E-A-T). Bài có thể ghi đè bằng frontmatter reviewer/reviewerTitle.
 const DEFAULT_REVIEWER = 'Trương Đình Trang'

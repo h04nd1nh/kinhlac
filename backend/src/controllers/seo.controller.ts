@@ -8,11 +8,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, IsNull, Repository } from 'typeorm';
 import OpenAI from 'openai';
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve as pathResolve } from 'node:path';
+import { promises as dns } from 'node:dns';
+import { isIP } from 'node:net';
 
 import { SeoDoiThu } from '../models/seo-doi-thu.model';
 import { SeoUrl } from '../models/seo-url.model';
@@ -415,10 +417,24 @@ export class SeoService implements OnModuleInit {
     return this.cumRepo.find({ order: { diem_uu_tien: 'DESC', id: 'ASC' } });
   }
 
-  /** So nội dung đối thủ ↔ của mình → AI đề xuất các cụm nên viết. Ghi đè các cụm 'de_xuat' cũ. */
-  async gapAnalysis(): Promise<SeoCum[]> {
+  /**
+   * So nội dung đối thủ ↔ của mình → AI đề xuất các cụm nên viết. Ghi đè các cụm 'de_xuat' cũ.
+   * doiThuId: chỉ so với 1 đối thủ (bỏ trống = gộp tất cả đối thủ).
+   */
+  async gapAnalysis(doiThuId?: number): Promise<SeoCum[]> {
     const doiThus = await this.doiThuRepo.find();
     const laMinh = new Map(doiThus.map((d) => [d.id, d.la_cua_minh]));
+
+    // Nếu lọc theo 1 đối thủ: phải tồn tại & KHÔNG phải site của mình.
+    if (doiThuId) {
+      const target = doiThus.find((d) => d.id === doiThuId);
+      if (!target) throw new NotFoundException(`Đối thủ #${doiThuId} không tồn tại`);
+      if (target.la_cua_minh) {
+        throw new BadRequestException(
+          'Hãy chọn một ĐỐI THỦ (không phải site của bạn) để tìm khoảng trống.',
+        );
+      }
+    }
 
     const analyzed = await this.urlRepo.find({ where: { trang_thai: 'da_phan_tich' } });
     if (!analyzed.length) {
@@ -431,13 +447,19 @@ export class SeoService implements OnModuleInit {
     const myTopics: string[] = [];
     for (const u of analyzed) {
       const line = `- ${u.chu_de || '(không rõ)'} | từ khoá: ${u.tu_khoa || ''}`;
-      if (laMinh.get(u.doi_thu_id)) myTopics.push(line);
-      else compTopics.push(line);
+      if (laMinh.get(u.doi_thu_id)) {
+        myTopics.push(line);
+      } else if (!doiThuId || u.doi_thu_id === doiThuId) {
+        // Đối thủ: nếu đang lọc theo 1 đối thủ thì chỉ lấy đúng đối thủ đó.
+        compTopics.push(line);
+      }
     }
 
     if (!compTopics.length) {
       throw new BadRequestException(
-        'Chưa có dữ liệu ĐỐI THỦ đã phân tích (mọi URL hiện thuộc site của mình). Thêm domain đối thủ và phân tích trước.',
+        doiThuId
+          ? 'Đối thủ này chưa có URL nào được phân tích. Bấm "Phân Tích" cho đối thủ đó (bước 2) trước đã.'
+          : 'Chưa có dữ liệu ĐỐI THỦ đã phân tích (mọi URL hiện thuộc site của mình). Thêm domain đối thủ và phân tích trước.',
       );
     }
 
@@ -462,8 +484,8 @@ Hãy đề xuất các cụm chủ đề nên viết theo đúng định dạng 
       throw new ServiceUnavailableException('AI không trả về cụm nào hợp lệ. Thử lại sau.');
     }
 
-    // Ghi đè các cụm 'de_xuat' cũ; giữ lại cụm đã chọn/đã viết.
-    await this.cumRepo.delete({ trang_thai: 'de_xuat' });
+    // Ghi đè các cụm 'de_xuat' CŨ CỦA ĐÚNG đối thủ này (giữ cụm đã viết & cụm của đối thủ khác).
+    await this.cumRepo.delete({ trang_thai: 'de_xuat', doi_thu_id: doiThuId ?? IsNull() });
 
     const entities = clustersRaw
       .filter((c: any) => c && typeof c === 'object' && (c.ten_cum || c.cluster_name))
@@ -475,6 +497,7 @@ Hãy đề xuất các cụm chủ đề nên viết theo đúng định dạng 
           tu_khoa_muc_tieu: toCommaText(c.tu_khoa_muc_tieu ?? c.target_keywords),
           y_tuong_noi_dung: toSemicolonText(c.y_tuong_noi_dung ?? c.content_opportunities),
           ly_do: c.ly_do ? String(c.ly_do).trim() : null,
+          doi_thu_id: doiThuId ?? null,
           trang_thai: 'de_xuat' as const,
         }),
       );
@@ -799,6 +822,13 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
     }
     a.trang_thai = 'da_dang';
     await this.baiVietRepo.save(a);
+
+    // Báo IndexNow NGAY khi đăng (bài hiển thị tức thì qua render động) — nhưng CHỈ khi bài thật sự
+    // được index (an toàn, hoặc rủi ro đã tick đủ checklist). Fire-and-forget: không chặn phản hồi.
+    if (a.do_rui_ro !== 'rui_ro' || isKiemDuyetDu(a.kiem_duyet)) {
+      void this.pingIndexNow(article.slug);
+    }
+
     return {
       slug: article.slug,
       trang_thai: a.trang_thai,
@@ -807,6 +837,36 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
         ? `Đã ghi frontend/content/blog/${article.slug}.md. Bài xem được ngay; bản tĩnh chuẩn SEO sẽ thay thế ở lần build/deploy tới.`
         : 'Đã đăng. Bài XEM ĐƯỢC NGAY trên web (backend tự render từ dữ liệu); bản tĩnh chuẩn SEO sẽ thay thế ở lần deploy/build tới.',
     };
+  }
+
+  /**
+   * Báo URL bài mới cho IndexNow (Bing, Cốc Cốc, Yandex, Seznam, Naver) → index gần như tức thì.
+   * Google KHÔNG dùng IndexNow (Google đi qua sitemap.xml + GSC); Cốc Cốc CÓ → quan trọng cho VN.
+   * Chỉ chạy khi có env INDEXNOW_KEY (khoá phải khớp file public/<key>.txt đã deploy). Thiếu → bỏ qua êm.
+   * SITE_DOMAIN ghi đè domain (mặc định https://kinhlac.online).
+   */
+  private async pingIndexNow(slug: string): Promise<void> {
+    const key = this.config.get<string>('INDEXNOW_KEY');
+    if (!key) return; // chưa cấu hình khoá → bỏ qua, không báo lỗi
+    const domain = (this.config.get<string>('SITE_DOMAIN') || 'https://kinhlac.online').replace(
+      /\/+$/,
+      '',
+    );
+    try {
+      const payload = {
+        host: new URL(domain).host,
+        key,
+        keyLocation: `${domain}/${key}.txt`,
+        urlList: [`${domain}/blog/${slug}/`],
+      };
+      await fetch('https://api.indexnow.org/indexnow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      // IndexNow chỉ là "điểm cộng" — tuyệt đối không để nó làm hỏng việc đăng bài.
+    }
   }
 
   // ===========================================================================
@@ -859,39 +919,252 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
     return { bai, added };
   }
 
-  /** Gọi Yescale tạo 1 ảnh → Buffer PNG. Nhận cả b64_json lẫn url. */
-  private async genImageBuffer(prompt: string): Promise<{ buf: Buffer; ext: string }> {
-    const client = this.getClient();
-    const model = this.config.get<string>('YESCALE_IMAGE_MODEL') || 'dall-e-3';
-    const size = this.config.get<string>('YESCALE_IMAGE_SIZE') || '1024x1024';
-    let resp: any;
-    try {
-      resp = await client.images.generate({
-        model,
-        prompt,
-        n: 1,
-        size: size as any,
-        response_format: 'b64_json' as any,
-      });
-    } catch {
-      // Vài model (vd gpt-image-1) không nhận response_format → thử lại không kèm.
-      try {
-        resp = await client.images.generate({ model, prompt, n: 1, size: size as any });
-      } catch (err: any) {
-        const detail = err?.error?.message || err?.message || String(err);
-        throw new ServiceUnavailableException(
-          `Yescale sinh ảnh lỗi (model "${model}"): ${detail}. Đặt env YESCALE_IMAGE_MODEL = model hỗ trợ tạo ảnh và đảm bảo tài khoản còn credit.`,
-        );
+  /**
+   * Sinh ẢNH CHO MỘT mục H2 chưa có ảnh ĐẦU TIÊN (để frontend gọi lặp → tiến trình thật từng ảnh).
+   * remaining = số mục H2 còn lại chưa có ảnh (sau lần này). heading=null nghĩa là không còn gì để vẽ.
+   */
+  async generateOneBodyImage(
+    id: number,
+  ): Promise<{ bai: SeoBaiViet; heading: string | null; remaining: number }> {
+    const a = await this.getBaiViet(id);
+    const slug = slugify(a.slug || a.tieu_de || `bai-${a.id}`);
+    const baseDir =
+      this.config.get<string>('BLOG_IMAGES_DIR') ||
+      pathResolve(process.cwd(), '..', 'frontend', 'public', 'blog-images');
+    if (!existsSync(pathResolve(baseDir, '..'))) {
+      throw new ServiceUnavailableException(
+        'Không thấy thư mục frontend/public — "Sinh ảnh minh hoạ" chỉ chạy trên MÁY CÓ MÃ NGUỒN frontend.',
+      );
+    }
+
+    const lines = (a.noi_dung_md || '').split('\n');
+    const targets: { i: number; heading: string }[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const h = lines[i].match(/^##\s+(.+?)\s*$/); // chỉ H2
+      if (h && !/^!\[/.test((lines[i + 1] || '').trim())) {
+        targets.push({ i, heading: h[1].replace(/[*_`#]/g, '').trim() });
       }
     }
-    const d: any = resp?.data?.[0];
+    if (!targets.length) return { bai: a, heading: null, remaining: 0 };
+
+    const t = targets[0];
+    const outDir = pathResolve(baseDir, slug);
+    mkdirSync(outDir, { recursive: true });
+    // số thứ tự ảnh = số ảnh đã chèn cho bài này + 1 (không ghi đè ảnh cũ).
+    const used = (a.noi_dung_md || '').match(new RegExp(`/blog-images/${slug}/sec-`, 'g'))?.length || 0;
+    const { buf, ext } = await this.genImageBuffer(buildImagePrompt(a.tieu_de || slug, t.heading));
+    const fname = `sec-${used + 1}.${ext}`;
+    writeFileSync(pathResolve(outDir, fname), buf);
+
+    lines.splice(t.i + 1, 0, '', `![${t.heading}](/blog-images/${slug}/${fname})`);
+    a.noi_dung_md = lines.join('\n');
+    const bai = await this.baiVietRepo.save(a);
+    return { bai, heading: t.heading, remaining: targets.length - 1 };
+  }
+
+  /** Tách danh sách model từ chuỗi env "a,b,c" → mảng (bỏ trùng/rỗng); rỗng thì dùng fallback. */
+  private parseModels(raw: string | undefined, fallback: string[]): string[] {
+    const list = (raw || '').split(',').map((s) => s.trim()).filter(Boolean);
+    return list.length ? [...new Set(list)] : fallback;
+  }
+
+  /**
+   * Tạo 1 ảnh → Buffer với CHUỖI DỰ PHÒNG NHIỀU DỊCH VỤ: thử lần lượt, cái nào bận/lỗi thì NHẢY sang
+   * cái kế → luôn ra được ảnh, không để "model bận = tịt". Thứ tự:
+   *   1) Nhà CHÍNH (Yescale): IMAGE_API_* | YESCALE_* — lần lượt các model trong YESCALE_IMAGE_MODELS.
+   *   2) Nhà PHỤ (tuỳ chọn, vd Together.ai FLUX free): IMAGE_API_BASE2 / IMAGE_API_KEY2 / IMAGE_MODELS2.
+   *   3) Pollinations (free, cần POLLINATIONS_TOKEN) — chốt chặn cuối.
+   * IMAGE_PROVIDER='pollinations' → đưa Pollinations lên ĐẦU; còn lại giữ thứ tự trên.
+   */
+  private async genImageBuffer(prompt: string): Promise<{ buf: Buffer; ext: string }> {
+    const provider = (this.config.get<string>('IMAGE_PROVIDER') || '').toLowerCase();
+    const compat: { label: string; run: () => Promise<{ buf: Buffer; ext: string }> }[] = [];
+
+    // 1) Nhà CHÍNH (Yescale / OpenAI-compatible)
+    const base1 = (
+      this.config.get<string>('IMAGE_API_BASE') ||
+      this.config.get<string>('YESCALE_BASE_URL') ||
+      'https://api.yescale.vip/v1'
+    ).replace(/\/$/, '');
+    const key1 =
+      this.config.get<string>('IMAGE_API_KEY') || this.config.get<string>('YESCALE_API_KEY') || '';
+    if (key1) {
+      const models1 = this.parseModels(
+        this.config.get<string>('YESCALE_IMAGE_MODELS') || this.config.get<string>('IMAGE_MODELS'),
+        [
+          this.config.get<string>('IMAGE_MODEL') ||
+            this.config.get<string>('YESCALE_IMAGE_MODEL') ||
+            'dall-e-3',
+        ],
+      );
+      for (const m of models1)
+        compat.push({ label: `chính "${m}"`, run: () => this.genImageOpenAICompat(prompt, base1, key1, m) });
+    }
+
+    // 2) Nhà PHỤ (tuỳ chọn) — dịch vụ ảnh ĐỘC LẬP, key riêng (vd Together.ai FLUX free)
+    const base2 = (this.config.get<string>('IMAGE_API_BASE2') || '').replace(/\/$/, '');
+    const key2 = this.config.get<string>('IMAGE_API_KEY2') || '';
+    if (base2 && key2) {
+      const models2 = this.parseModels(this.config.get<string>('IMAGE_MODELS2'), [
+        'black-forest-labs/FLUX.1-schnell-Free',
+      ]);
+      for (const m of models2)
+        compat.push({ label: `phụ "${m}"`, run: () => this.genImageOpenAICompat(prompt, base2, key2, m) });
+    }
+
+    // Hugging Face (free, KHÔNG cần thẻ): bật khi có HF_API_KEY / HUGGINGFACE_TOKEN.
+    const hf =
+      this.config.get<string>('HF_API_KEY') || this.config.get<string>('HUGGINGFACE_TOKEN')
+        ? [{ label: 'Hugging Face (free)', run: () => this.genImageHuggingFace(prompt) }]
+        : [];
+    const poll = { label: 'Pollinations (free)', run: () => this.genImagePollinations(prompt) };
+    const attempts =
+      provider === 'pollinations' ? [poll, ...compat, ...hf] : [...compat, ...hf, poll];
+
+    const errors: string[] = [];
+    for (const at of attempts) {
+      try {
+        return await at.run();
+      } catch (e: any) {
+        const msg = (e?.error?.message || e?.message || String(e)).slice(0, 140);
+        errors.push(`${at.label}: ${msg}`);
+        // eslint-disable-next-line no-console
+        console.warn(`[SEO ảnh] ${at.label} lỗi → thử nguồn kế. (${msg})`);
+      }
+    }
+    throw new ServiceUnavailableException(
+      `Tất cả ${attempts.length} nguồn ảnh đều bận/không dùng được. Đã thử:\n- ` +
+        errors.join('\n- ') +
+        `\nMẹo (đều MIỄN PHÍ, KHÔNG cần thẻ): HF_API_KEY (Hugging Face) hoặc POLLINATIONS_TOKEN ` +
+        `(auth.pollinations.ai); hoặc nhà OpenAI-compat thứ 2 IMAGE_API_BASE2/IMAGE_API_KEY2/IMAGE_MODELS2.`,
+    );
+  }
+
+  /** Pollinations.ai — free, NAY cần POLLINATIONS_TOKEN (đăng ký miễn phí). Trả thẳng bytes ảnh. */
+  private async genImagePollinations(prompt: string): Promise<{ buf: Buffer; ext: string }> {
+    const model = this.config.get<string>('POLLINATIONS_MODEL') || 'flux';
+    const token = this.config.get<string>('POLLINATIONS_TOKEN') || '';
+    const seed = hashStr(prompt) % 1_000_000; // seed theo prompt → mỗi mục 1 ảnh khác
+    let url =
+      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
+      `?width=1024&height=1024&nologo=true&model=${encodeURIComponent(model)}&seed=${seed}`;
+    if (token) url += `&token=${encodeURIComponent(token)}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90_000); // ảnh free có thể chậm
+    try {
+      const r = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'KinhlacSEOBot/1.0 (+https://kinhlac.online)',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (r.status === 401 || r.status === 402) {
+        throw new ServiceUnavailableException(
+          'Pollinations nay cần đăng ký: lấy TOKEN MIỄN PHÍ ở auth.pollinations.ai rồi đặt POLLINATIONS_TOKEN trong backend/.env (hoặc đổi IMAGE_PROVIDER sang together/openai).',
+        );
+      }
+      if (!r.ok) throw new ServiceUnavailableException(`Pollinations lỗi HTTP ${r.status}. Thử lại sau.`);
+      const ct = r.headers.get('content-type') || '';
+      const ab = await r.arrayBuffer();
+      if (!ct.startsWith('image/') || ab.byteLength < 1000) {
+        throw new ServiceUnavailableException('Pollinations chưa trả về ảnh hợp lệ (đang bận). Thử lại sau.');
+      }
+      return { buf: Buffer.from(ab), ext: ct.includes('png') ? 'png' : 'jpg' };
+    } catch (e: any) {
+      if (e instanceof HttpException) throw e;
+      throw new ServiceUnavailableException(`Pollinations lỗi: ${e?.message || e}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Hugging Face Inference API — token MIỄN PHÍ, KHÔNG cần thẻ (huggingface.co → Settings → Access Tokens).
+   * Trả thẳng bytes ảnh. Mặc định model FLUX.1-schnell; đổi qua HF_IMAGE_MODEL.
+   */
+  private async genImageHuggingFace(prompt: string): Promise<{ buf: Buffer; ext: string }> {
+    const token =
+      this.config.get<string>('HF_API_KEY') || this.config.get<string>('HUGGINGFACE_TOKEN') || '';
+    if (!token) throw new ServiceUnavailableException('Thiếu HF_API_KEY cho Hugging Face.');
+    const model = this.config.get<string>('HF_IMAGE_MODEL') || 'black-forest-labs/FLUX.1-schnell';
+    const base = (
+      this.config.get<string>('HF_API_BASE') || 'https://api-inference.huggingface.co'
+    ).replace(/\/$/, '');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 60_000);
+    try {
+      const r = await fetch(`${base}/models/${model}`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'image/png',
+        },
+        body: JSON.stringify({ inputs: prompt }),
+      });
+      if (!r.ok) {
+        // 503 = model đang "nguội"/tải lại; chuỗi sẽ thử nguồn kế (hoặc bạn bấm lại sau).
+        throw new ServiceUnavailableException(
+          `Hugging Face lỗi (model "${model}"): HTTP ${r.status} ${(await r.text()).slice(0, 160)}`,
+        );
+      }
+      const ct = r.headers.get('content-type') || '';
+      const ab = await r.arrayBuffer();
+      if (!ct.startsWith('image/') || ab.byteLength < 1000) {
+        throw new ServiceUnavailableException('Hugging Face chưa trả về ảnh hợp lệ (model đang tải/bận). Thử lại sau.');
+      }
+      return { buf: Buffer.from(ab), ext: ct.includes('png') ? 'png' : 'jpg' };
+    } catch (e: any) {
+      if (e instanceof HttpException) throw e;
+      throw new ServiceUnavailableException(`Hugging Face lỗi: ${e?.message || e}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * OpenAI-compatible /images/generations cho 1 (base, key, model) cụ thể — dùng cho Yescale,
+   * Together.ai (FLUX.1-schnell-Free MIỄN PHÍ), OpenAI… base/key do genImageBuffer truyền theo từng nhà.
+   */
+  private async genImageOpenAICompat(
+    prompt: string,
+    base: string,
+    key: string,
+    model: string,
+  ): Promise<{ buf: Buffer; ext: string }> {
+    const size = this.config.get<string>('IMAGE_SIZE') || '1024x1024';
+    if (!key) {
+      throw new ServiceUnavailableException('Thiếu API key cho nhà cung cấp ảnh OpenAI-compatible.');
+    }
+    // Giới hạn thời gian mỗi model để 1 model treo không "ăn" hết budget của cả chuỗi dự phòng.
+    const post = (body: Record<string, unknown>) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 40_000);
+      return fetch(`${base}/images/generations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timer));
+    };
+    let r = await post({ model, prompt, n: 1, size, response_format: 'b64_json' });
+    if (r.status === 400) r = await post({ model, prompt, n: 1, size }); // chỉ thử lại khi model chê tham số (KHÔNG gọi đôi khi 503)
+    if (!r.ok) {
+      throw new ServiceUnavailableException(
+        `Sinh ảnh lỗi (model "${model}" @ ${base}): HTTP ${r.status} ${(await r.text()).slice(0, 160)}`,
+      );
+    }
+    const data: any = await r.json();
+    const d: any = data?.data?.[0];
     if (d?.b64_json) return { buf: Buffer.from(d.b64_json, 'base64'), ext: 'png' };
     if (d?.url) {
-      const r = await fetch(d.url);
-      if (!r.ok) throw new ServiceUnavailableException('Tải ảnh AI về thất bại.');
-      return { buf: Buffer.from(await r.arrayBuffer()), ext: 'png' };
+      const ir = await fetch(d.url);
+      if (!ir.ok) throw new ServiceUnavailableException('Tải ảnh AI về thất bại.');
+      return { buf: Buffer.from(await ir.arrayBuffer()), ext: 'png' };
     }
-    throw new ServiceUnavailableException('Yescale không trả về ảnh (thiếu b64_json/url).');
+    throw new ServiceUnavailableException('Nhà cung cấp không trả về ảnh (thiếu b64_json/url).');
   }
 
   /**
@@ -920,6 +1193,13 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
       .slice(0, 4)
       .map((x) => ({ slug: keyOf(x), title: x.tieu_de }));
 
+    // Van YMYL: bài phân loại "rủi ro" (có lời khuyên chẩn đoán/điều trị) chỉ được
+    // cho Google index khi đã tick ĐỦ 4 mục checklist kiểm duyệt. Chưa duyệt → noindex
+    // (vẫn xem được trên web, nhưng KHÔNG đẩy cho Google) → an toàn theo SEO-PLAN §6.
+    const indexable =
+      a.trang_thai === 'da_dang' &&
+      (a.do_rui_ro !== 'rui_ro' || isKiemDuyetDu(a.kiem_duyet));
+
     return renderArticleHtml(
       {
         slug: json.slug,
@@ -934,8 +1214,8 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
         keywords: (json.keywords as string[]) || undefined,
         faq: (json.faq as { q: string; a: string }[]) || undefined,
         sources: (json.sources as ({ title: string; url?: string } | string)[]) || undefined,
-        // Chỉ "Đã đăng" mới cho index; "Đã duyệt" (xem trước) → noindex.
-        index: a.trang_thai === 'da_dang',
+        // "Đã đăng" + (an toàn HOẶC rủi ro-đã-duyệt) mới cho index; còn lại noindex.
+        index: indexable,
       },
       related,
     );
@@ -1057,8 +1337,73 @@ function normalizeDomain(input: string): string {
   return s.trim();
 }
 
-/** Fetch text với timeout + User-Agent giống trình duyệt; lỗi/timeout → trả ''. */
+// ---- Chống SSRF (Server-Side Request Forgery) ------------------------------
+// Người dùng nhập domain đối thủ → server tự đi tải URL của họ. Nếu không chặn,
+// kẻ xấu có thể trỏ tới hạ tầng NỘI BỘ (localhost, 169.254.169.254 = metadata cloud,
+// 10.x/192.168.x…) để dò mạng riêng. Ta phân giải DNS rồi từ chối mọi IP nội bộ.
+/** true nếu IPv4 thuộc dải nội bộ/đặc biệt (loopback, private, link-local, CGNAT, multicast…). */
+function ipv4IsBlocked(ip: string): boolean {
+  const p = ip.split('.').map((n) => parseInt(n, 10));
+  if (p.length !== 4 || p.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
+  const [a, b] = p;
+  if (a === 0 || a === 10 || a === 127) return true; // 0.x · 10/8 · loopback
+  if (a === 169 && b === 254) return true; // link-local + metadata cloud 169.254.169.254
+  if (a === 172 && b >= 16 && b <= 31) return true; // 172.16/12
+  if (a === 192 && b === 168) return true; // 192.168/16
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64/10
+  if (a === 192 && b === 0 && p[2] === 0) return true; // 192.0.0/24
+  if (a >= 224) return true; // multicast (224–239) + reserved (240–255)
+  return false;
+}
+
+/** true nếu IP (v4/v6) là nội bộ/không hợp lệ → KHÔNG được fetch tới. */
+function ipIsBlocked(ip: string): boolean {
+  const v = isIP(ip);
+  if (v === 4) return ipv4IsBlocked(ip);
+  if (v === 6) {
+    const low = ip.toLowerCase();
+    if (low === '::1' || low === '::') return true; // loopback / unspecified
+    const mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(low); // IPv4-mapped
+    if (mapped) return ipv4IsBlocked(mapped[1]);
+    if (low.startsWith('fc') || low.startsWith('fd')) return true; // fc00::/7 unique-local
+    if (/^fe[89ab]/.test(low)) return true; // fe80::/10 link-local
+    return false;
+  }
+  return true; // không phải IP hợp lệ → chặn cho chắc
+}
+
+/**
+ * Ném lỗi nếu URL không phải http(s) công khai. Phân giải DNS và chặn nếu host
+ * trỏ tới IP nội bộ (chống cả domain "ngụy trang" trỏ về 127.0.0.1).
+ * Lưu ý: chưa pin IP nên không tuyệt đối với DNS-rebinding tinh vi, nhưng đã chặn
+ * mọi trường hợp phổ biến; cộng QuanTriGuard (chỉ admin) là đủ an toàn cho bối cảnh này.
+ */
+async function assertPublicHttpUrl(raw: string): Promise<void> {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new Error('URL không hợp lệ');
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('Chỉ cho phép http/https');
+  const host = u.hostname.replace(/^\[|\]$/g, ''); // bỏ ngoặc vuông IPv6
+  if (!host || host.toLowerCase() === 'localhost') throw new Error('Chặn host nội bộ');
+  if (isIP(host)) {
+    if (ipIsBlocked(host)) throw new Error('Chặn IP nội bộ');
+    return;
+  }
+  const addrs = await dns.lookup(host, { all: true });
+  if (!addrs.length) throw new Error('Không phân giải được host');
+  for (const a of addrs) if (ipIsBlocked(a.address)) throw new Error('Host trỏ tới IP nội bộ');
+}
+
+/** Fetch text với timeout + User-Agent giống trình duyệt; lỗi/timeout/SSRF → trả ''. */
 async function fetchTextSafe(url: string): Promise<string> {
+  try {
+    await assertPublicHttpUrl(url); // chặn SSRF trước khi gửi request
+  } catch {
+    return '';
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {

@@ -29,12 +29,16 @@ function loadEnv() {
   return env
 }
 const env = loadEnv()
-const API_KEY = env.YESCALE_API_KEY
-const BASE_URL = (env.YESCALE_BASE_URL || 'https://api.yescale.vip/v1').replace(/\/$/, '')
-const IMAGE_MODEL = env.YESCALE_IMAGE_MODEL || 'dall-e-3'
-const IMAGE_SIZE = env.YESCALE_IMAGE_SIZE || '1024x1024'
-if (!API_KEY) {
-  console.error('❌ Thiếu YESCALE_API_KEY (backend/.env). Dừng.')
+// 'pollinations' (free, nay cần POLLINATIONS_TOKEN) | khác = OpenAI-compatible (together/openai/yescale)
+const PROVIDER = (env.IMAGE_PROVIDER || 'pollinations').toLowerCase()
+const POLLINATIONS_MODEL = env.POLLINATIONS_MODEL || 'flux'
+const POLLINATIONS_TOKEN = env.POLLINATIONS_TOKEN || ''
+const IMG_BASE = (env.IMAGE_API_BASE || env.YESCALE_BASE_URL || 'https://api.yescale.vip/v1').replace(/\/$/, '')
+const IMG_KEY = env.IMAGE_API_KEY || env.YESCALE_API_KEY || ''
+const IMAGE_MODEL = env.IMAGE_MODEL || env.YESCALE_IMAGE_MODEL || 'dall-e-3'
+const IMAGE_SIZE = env.IMAGE_SIZE || '1024x1024'
+if (PROVIDER !== 'pollinations' && !IMG_KEY) {
+  console.error('❌ Provider OpenAI-compatible nhưng thiếu IMAGE_API_KEY (hoặc YESCALE_API_KEY). Dừng.')
   process.exit(1)
 }
 
@@ -61,30 +65,52 @@ function buildImagePrompt(title, heading) {
   ].join(' ')
 }
 
+function hashStr(s) {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return h
+}
+
+// → { buf, ext }. Mặc định Pollinations; provider khác = OpenAI-compatible (together/openai/yescale).
 async function genImage(prompt) {
-  const body = { model: IMAGE_MODEL, prompt, n: 1, size: IMAGE_SIZE, response_format: 'b64_json' }
-  let res = await fetch(`${BASE_URL}/images/generations`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}` },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    // thử lại không kèm response_format (vài model không nhận)
-    delete body.response_format
-    res = await fetch(`${BASE_URL}/images/generations`, {
+  return PROVIDER === 'pollinations' ? genPollinations(prompt) : genOpenAICompat(prompt)
+}
+
+async function genPollinations(prompt) {
+  const seed = hashStr(prompt) % 1000000
+  let url =
+    `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
+    `?width=1024&height=1024&nologo=true&model=${encodeURIComponent(POLLINATIONS_MODEL)}&seed=${seed}`
+  if (POLLINATIONS_TOKEN) url += `&token=${encodeURIComponent(POLLINATIONS_TOKEN)}`
+  const headers = { 'User-Agent': 'KinhlacSEOBot/1.0 (+https://kinhlac.online)' }
+  if (POLLINATIONS_TOKEN) headers.Authorization = `Bearer ${POLLINATIONS_TOKEN}`
+  const r = await fetch(url, { headers })
+  if (r.status === 401 || r.status === 402)
+    throw new Error('Pollinations cần POLLINATIONS_TOKEN miễn phí (auth.pollinations.ai) hoặc đổi IMAGE_PROVIDER=together')
+  if (!r.ok) throw new Error(`Pollinations ${r.status}`)
+  const ct = r.headers.get('content-type') || ''
+  const ab = await r.arrayBuffer()
+  if (!ct.startsWith('image/') || ab.byteLength < 1000) throw new Error('Pollinations chưa trả ảnh hợp lệ (bận)')
+  return { buf: Buffer.from(ab), ext: ct.includes('png') ? 'png' : 'jpg' }
+}
+
+async function genOpenAICompat(prompt) {
+  const post = (body) =>
+    fetch(`${IMG_BASE}/images/generations`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${IMG_KEY}` },
       body: JSON.stringify(body),
     })
-  }
-  if (!res.ok) throw new Error(`Yescale ${res.status}: ${(await res.text()).slice(0, 200)}`)
+  let res = await post({ model: IMAGE_MODEL, prompt, n: 1, size: IMAGE_SIZE, response_format: 'b64_json' })
+  if (!res.ok) res = await post({ model: IMAGE_MODEL, prompt, n: 1, size: IMAGE_SIZE })
+  if (!res.ok) throw new Error(`${IMAGE_MODEL} @ ${IMG_BASE}: HTTP ${res.status} ${(await res.text()).slice(0, 160)}`)
   const data = await res.json()
   const d = data?.data?.[0]
-  if (d?.b64_json) return Buffer.from(d.b64_json, 'base64')
+  if (d?.b64_json) return { buf: Buffer.from(d.b64_json, 'base64'), ext: 'png' }
   if (d?.url) {
     const r = await fetch(d.url)
     if (!r.ok) throw new Error('tải ảnh url thất bại')
-    return Buffer.from(await r.arrayBuffer())
+    return { buf: Buffer.from(await r.arrayBuffer()), ext: 'png' }
   }
   throw new Error('không có b64_json/url trong kết quả')
 }
@@ -126,10 +152,10 @@ async function processFile(file) {
     if (!force && /^!\[/.test((lines[i + 1] || '').trim())) continue
     const heading = h[1].replace(/[*_`#]/g, '').trim()
     try {
-      const buf = await genImage(buildImagePrompt(title, heading))
+      const { buf, ext } = await genImage(buildImagePrompt(title, heading))
       const dir = join(imgRoot, slug)
       mkdirSync(dir, { recursive: true })
-      const fname = `sec-${added + 1}.png`
+      const fname = `sec-${added + 1}.${ext}`
       writeFileSync(join(dir, fname), buf)
       out.push('', `![${heading}](/blog-images/${slug}/${fname})`)
       added++
@@ -143,7 +169,11 @@ async function processFile(file) {
 }
 
 const files = (all ? readdirSync(blogDir).filter((f) => f.endsWith('.md') && f.toLowerCase() !== 'readme.md') : slugs.map((s) => `${s}.md`))
-console.log(`Model ảnh: ${IMAGE_MODEL} · size ${IMAGE_SIZE} · tối đa ${MAX} ảnh/bài\n`)
+console.log(
+  PROVIDER === 'pollinations'
+    ? `Nhà cung cấp: Pollinations · model ${POLLINATIONS_MODEL}${POLLINATIONS_TOKEN ? ' (có token)' : ' (KHÔNG token → có thể bị 402)'} · tối đa ${MAX} ảnh/bài\n`
+    : `Nhà cung cấp: ${PROVIDER} (OpenAI-compat) · ${IMAGE_MODEL} @ ${IMG_BASE} · tối đa ${MAX} ảnh/bài\n`,
+)
 let total = 0
 for (const f of files) {
   if (!existsSync(join(blogDir, f))) {

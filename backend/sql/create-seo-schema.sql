@@ -53,8 +53,10 @@ CREATE TABLE IF NOT EXISTS seo_cum (
   tu_khoa_muc_tieu TEXT,                             -- từ khoá mục tiêu (cách nhau dấu phẩy)
   y_tuong_noi_dung TEXT,                             -- vài ý tưởng bài viết
   ly_do            TEXT,                             -- vì sao AI gợi ý cụm này
+  doi_thu_id       INTEGER REFERENCES seo_doi_thu(id) ON DELETE CASCADE, -- so với đối thủ nào (gom nhóm); NULL = gộp tất cả
   trang_thai       VARCHAR(20) NOT NULL DEFAULT 'de_xuat', -- de_xuat | da_chon | da_viet | bo_qua
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_seo_cum_trang_thai ON seo_cum (trang_thai);
+CREATE INDEX IF NOT EXISTS idx_seo_cum_doi_thu ON seo_cum (doi_thu_id);
