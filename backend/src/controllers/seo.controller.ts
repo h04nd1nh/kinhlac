@@ -725,6 +725,7 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
       author: BLOG_AUTHOR,
       category: a.category || undefined,
       cta: a.cta || undefined,
+      image: pickCoverImage(slug), // ảnh bìa = 1 sơ đồ đường kinh (ảnh sở hữu của web)
       keywords: keywords.length ? keywords : undefined,
       faq: faqArr.length ? faqArr : undefined,
       sources: sourcesArr.length ? sourcesArr : undefined,
@@ -1034,6 +1035,20 @@ function runPublishScript(scriptPath: string, articleObj: unknown): Promise<void
       reject(new Error(`Lỗi ghi stdin: ${e?.message || e}`));
     }
   });
+}
+
+// 12 sơ đồ đường kinh (ảnh sở hữu của web, public/kinhmach3d/images/meridians) — bìa blog, không rủi ro bản quyền.
+const MERIDIAN_COVERS = Array.from(
+  { length: 12 },
+  (_, i) => `/kinhmach3d/images/meridians/kinh-${String(i + 1).padStart(2, '0')}-sodo.jpg`,
+);
+
+/** Gán 1 sơ đồ đường kinh làm ảnh bìa, phân bố theo slug để các bài khác ảnh nhau (ổn định, không đổi mỗi lần build). */
+function pickCoverImage(slug: string): string {
+  const s = slug || 'bai-viet';
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return MERIDIAN_COVERS[h % MERIDIAN_COVERS.length];
 }
 
 /** Chuẩn hoá lỏng để so trùng: bỏ dấu, thường hoá, gộp khoảng trắng. */

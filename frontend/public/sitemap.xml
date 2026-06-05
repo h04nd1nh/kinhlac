@@ -31,6 +31,36 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://kinhlac.online/ve-chung-toi</loc>
+    <lastmod>2026-06-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://kinhlac.online/lien-he</loc>
+    <lastmod>2026-06-05</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://kinhlac.online/chinh-sach-bao-mat</loc>
+    <lastmod>2026-06-05</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://kinhlac.online/dieu-khoan</loc>
+    <lastmod>2026-06-05</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://kinhlac.online/quy-trinh-bien-tap</loc>
+    <lastmod>2026-06-05</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
     <loc>https://kinhlac.online/blog/</loc>
     <lastmod>2026-06-05</lastmod>
     <changefreq>weekly</changefreq>
@@ -50,6 +80,12 @@
   </url>
   <url>
     <loc>https://kinhlac.online/blog/do-nhiet-do-kinh-lac-la-gi/</loc>
+    <lastmod>2026-06-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://kinhlac.online/blog/do-nhiet-do-kinh-lac/</loc>
     <lastmod>2026-06-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
