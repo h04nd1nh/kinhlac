@@ -2,6 +2,7 @@
 title: "Huyệt Hợp Cốc (LI4): Vị Trí, Tác Dụng Và Cách Bấm"
 description: "Huyệt Hợp Cốc (LI4): vị trí chính xác trên bàn tay, công năng, chủ trị, cách bấm theo Đông Y và lưu ý an toàn quan trọng cho phụ nữ có thai."
 slug: "huyet-hop-coc"
+image: "/kinhmach3d/images/meridians/kinh-02-sodo.jpg"
 date: "2026-06-05"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Huyệt Vị"

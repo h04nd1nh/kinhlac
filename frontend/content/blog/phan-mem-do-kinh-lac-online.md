@@ -2,6 +2,7 @@
 title: "Phần Mềm Đo Kinh Lạc Online: Hướng Dẫn Dùng Miễn Phí"
 description: "Phần mềm đo kinh lạc online số hoá phép đo nhiệt 12 đường kinh. Hướng dẫn trải nghiệm demo miễn phí, đọc biểu đồ kết quả và đồ hình kinh lạc 3D."
 slug: "phan-mem-do-kinh-lac-online"
+image: "/kinhmach3d/images/meridians/kinh-02-sodo.jpg"
 date: "2026-06-05"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Phần Mềm"

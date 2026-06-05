@@ -2,6 +2,7 @@
 title: "Huyệt Túc Tam Lý: Vị Trí, Tác Dụng Và Cách Bấm"
 description: "Huyệt Túc Tam Lý (ST36): vị trí chính xác, tác dụng kiện tỳ ích khí, hỗ trợ tiêu hoá và cách bấm đúng theo Đông Y, kèm lưu ý an toàn cần biết."
 slug: "huyet-tuc-tam-ly"
+image: "/kinhmach3d/images/meridians/kinh-08-sodo.jpg"
 date: "2026-06-05"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Huyệt Vị"

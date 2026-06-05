@@ -57,6 +57,10 @@ export class SeoBaiViet {
   @Column({ type: 'text', nullable: true })
   ly_do_rui_ro: string | null;
 
+  /** Checklist kiểm duyệt thủ công (JSON {yKhoa,seo,nguon,anh}). Đủ 4 mục mới cho chuyển "da_duyet". */
+  @Column({ type: 'text', nullable: true })
+  kiem_duyet: string | null;
+
   @Index()
   @Column({ type: 'varchar', length: 20, default: 'nhap' })
   trang_thai: SeoBaiVietTrangThai;

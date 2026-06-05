@@ -144,3 +144,14 @@ node scripts/indexnow.mjs --dry        # xem trước, không gửi
 5. (Tuỳ) nén ảnh nhẹ qua squoosh.app → `.webp`.
 
 Gợi ý ảnh cho 10 bài: huyệt (Hợp Cốc/Túc Tam Lý/Tam Âm Giao) → `/xem-3d` hoặc `/thu-vien`; đo kinh lạc / cách đọc kết quả / Lê Văn Sửu → `/xem-ket-qua-do`; 12 đường kinh → `/xem-3d`; tính vị quy kinh → `/xem-bai-thuoc`; số hoá phòng khám → ảnh `/app`.
+
+## 9. Van an toàn cho bài viết TỰ ĐỘNG (Lò Viết Bài)
+
+Bài **auto** (frontmatter có `aiModel` hoặc `seoCumId`, do Lò Viết Bài/Yescale tạo) PHẢI được duyệt mới lên Google. Bài seed do người soạn (không có `aiModel`) không bị ảnh hưởng.
+
+- `npm run blog:review` — liệt kê bài auto + trạng thái (đã duyệt / chưa).
+- `npm run blog:gate` — đặt `index: false` (noindex + ngoài sitemap/danh sách) cho bài auto **chưa** duyệt. Bài vẫn xem được qua URL để rà soát.
+- `node scripts/qa-auto-articles.mjs --approve <slug>...` — **DUYỆT**: đánh dấu `approved: true` + bỏ `index:false` → bài được lên Google. *(Người duyệt nên là người có chuyên môn Đông Y.)*
+- **Build (Dockerfile) tự chạy `--gate`** → khi deploy, bài auto chưa duyệt KHÔNG bao giờ tự lên index.
+
+Quy trình: Lò Viết Bài đăng → `npm run blog:gate` (hoặc deploy tự gate) → người duyệt rà từng bài → `--approve <slug>` → `npm run build-blog && npm run sitemap` → bài lên Google.

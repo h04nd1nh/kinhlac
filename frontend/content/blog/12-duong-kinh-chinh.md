@@ -2,6 +2,7 @@
 title: "12 Đường Kinh Chính Trong Cơ Thể: Đồ Hình & Chức Năng"
 description: "Tìm hiểu 12 đường kinh chính trong Đông Y: lộ trình, tạng phủ tương ứng và chức năng. Kèm đồ hình kinh lạc 3D hơn 1.000 huyệt."
 slug: "12-duong-kinh-chinh"
+image: "/kinhmach3d/images/meridians/kinh-12-sodo.jpg"
 date: "2026-06-05"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Kinh Lạc"

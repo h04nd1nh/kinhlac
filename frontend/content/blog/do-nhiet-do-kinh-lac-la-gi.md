@@ -2,6 +2,7 @@
 title: "Đo Nhiệt Độ Kinh Lạc Là Gì? Nguyên Lý 24 Tỉnh Huyệt"
 description: "Đo nhiệt độ kinh lạc là gì? Hiểu nguyên lý 24 tỉnh huyệt, lịch sử, ai nên dùng và cách đọc kết quả đo kinh lạc một cách dễ hiểu, an toàn."
 slug: "do-nhiet-do-kinh-lac-la-gi"
+image: "/kinhmach3d/images/meridians/kinh-04-sodo.jpg"
 date: "2026-06-05"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Đo Kinh Lạc"

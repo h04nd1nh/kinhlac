@@ -33,3 +33,7 @@ CREATE INDEX IF NOT EXISTS idx_seo_bai_viet_cum        ON seo_bai_viet (cum_id);
 
 -- Bổ sung sau (idempotent): nguồn tham khảo uy tín (E-E-A-T) — JSON [{title, url?}] → frontmatter `sources`.
 ALTER TABLE seo_bai_viet ADD COLUMN IF NOT EXISTS nguon_tham_khao TEXT;
+
+-- Bổ sung (idempotent): checklist kiểm duyệt thủ công trước khi đăng (van YMYL nhiều bước).
+-- JSON {"yKhoa":bool,"seo":bool,"nguon":bool,"anh":bool}. Phải đủ 4 mục true mới cho chuyển sang "da_duyet".
+ALTER TABLE seo_bai_viet ADD COLUMN IF NOT EXISTS kiem_duyet TEXT;

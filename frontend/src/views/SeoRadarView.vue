@@ -262,6 +262,7 @@ interface BaiViet {
   noi_dung_md: string
   do_rui_ro: 'an_toan' | 'rui_ro'
   ly_do_rui_ro: string | null
+  kiem_duyet: string | null
   trang_thai: 'nhap' | 'da_duyet' | 'bo_qua' | 'da_dang'
 }
 
@@ -315,6 +316,8 @@ const trendCandidates = ref<string[]>([])
 const trendSelected = ref<Set<string>>(new Set())
 const discovering = ref(false)
 const runningTrend = ref(false)
+// Trần số nháp viết mỗi lần — PHẢI khớp TREND_MAX_DRAFTS ở backend (nginx cắt request sau 120s).
+const TREND_MAX = 2
 
 const CTA_OPTIONS = ['/xem-ket-qua-do', '/xem-3d', '/xem-bai-thuoc', '/thu-vien', '/app']
 const TT_BAIVIET: Record<string, string> = {
@@ -377,10 +380,79 @@ async function genFree() {
 }
 
 function openEditor(a: BaiViet) {
-  editing.value = { ...a }
+  const copy = { ...a }
+  // Bài cũ đã duyệt/đăng (trước khi có checklist) → coi như đã tick đủ, khỏi kẹt khi lưu lại.
+  if (!copy.kiem_duyet && (copy.trang_thai === 'da_duyet' || copy.trang_thai === 'da_dang')) {
+    copy.kiem_duyet = JSON.stringify({ yKhoa: true, seo: true, nguon: true, anh: true })
+  }
+  editing.value = copy
 }
 function closeEditor() {
   editing.value = null
+}
+
+// ===== Checklist kiểm duyệt thủ công (van YMYL nhiều bước) =====
+const KIEM_DUYET_ITEMS: { key: string; label: string }[] = [
+  { key: 'yKhoa', label: 'An toàn y khoa (YMYL): không có chẩn đoán/liều lượng nguy hiểm' },
+  { key: 'seo', label: 'SEO đạt: tiêu đề, mô tả, từ khoá, slug đã chuẩn' },
+  { key: 'nguon', label: 'Có nguồn tham khảo uy tín (E-E-A-T)' },
+  { key: 'anh', label: 'Ảnh bìa khớp chủ đề (đã xem bên dưới)' },
+]
+const kiemDuyet = computed<Record<string, boolean>>(() => {
+  const raw = editing.value?.kiem_duyet
+  if (!raw) return {}
+  try {
+    return (JSON.parse(raw) as Record<string, boolean>) || {}
+  } catch {
+    return {}
+  }
+})
+function toggleKiem(key: string, val: boolean) {
+  if (!editing.value) return
+  editing.value.kiem_duyet = JSON.stringify({ ...kiemDuyet.value, [key]: val })
+}
+const kiemDuyetDu = computed(() => KIEM_DUYET_ITEMS.every((it) => kiemDuyet.value[it.key] === true))
+
+// ===== Ảnh bìa tự chọn theo chủ đề — PHẢI khớp pickCoverImage ở backend (seo.controller.ts) =====
+const MERIDIAN_KEYWORDS_FE: { idx: number; phrases: string[] }[] = [
+  { idx: 1, phrases: ['kinh phe', 'tang phe', 'thai am phe', 'phoi', 'lung'] },
+  { idx: 2, phrases: ['dai truong', 'duong minh dai truong', 'hop coc', 'large intestine'] },
+  { idx: 3, phrases: ['kinh vi', 'tang vi', 'duong minh vi', 'da day', 'tuc tam ly', 'stomach'] },
+  { idx: 4, phrases: ['kinh ty', 'tang ty', 'thai am ty', 'tam am giao', 'lach', 'spleen'] },
+  { idx: 5, phrases: ['kinh tam', 'tang tam', 'thieu am tam', 'tim mach', 'benh tim', 'heart'] },
+  { idx: 6, phrases: ['tieu truong', 'thai duong tieu truong', 'small intestine'] },
+  { idx: 7, phrases: ['bang quang', 'thai duong bang quang', 'bladder'] },
+  { idx: 8, phrases: ['kinh than', 'tang than', 'thieu am than', 'bo than', 'kidney'] },
+  { idx: 9, phrases: ['tam bao', 'quyet am tam bao', 'pericardium'] },
+  { idx: 10, phrases: ['tam tieu', 'thieu duong tam tieu', 'san jiao', 'triple energizer'] },
+  { idx: 11, phrases: ['kinh dom', 'tang dom', 'thieu duong dom', 'tui mat', 'gallbladder'] },
+  { idx: 12, phrases: ['kinh can', 'tang can', 'quyet am can', 'la gan', 'bo gan', 'gan mat', 'liver'] },
+]
+function normLooseFE(s: string): string {
+  return (s || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+const meridianCoverFE = (i: number) =>
+  `/kinhmach3d/images/meridians/kinh-${String(i).padStart(2, '0')}-sodo.jpg`
+function coverImageFor(a: BaiViet | null): string {
+  if (!a) return ''
+  const slug = a.slug || ''
+  const hay = ` ${normLooseFE([a.tieu_de, a.tu_khoa, slug].filter(Boolean).join(' '))
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()} `
+  for (const m of MERIDIAN_KEYWORDS_FE) {
+    if (m.phrases.some((p) => hay.includes(` ${p} `))) return meridianCoverFE(m.idx)
+  }
+  const s = slug || 'bai-viet'
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return meridianCoverFE((h % 12) + 1)
 }
 
 // Nguồn tham khảo lưu dạng JSON [{title,url?}] nhưng cho sửa thân thiện: mỗi dòng "Tên | URL".
@@ -427,6 +499,7 @@ async function saveEditor() {
       cta: e.cta,
       nguon_tham_khao: e.nguon_tham_khao,
       noi_dung_md: e.noi_dung_md,
+      kiem_duyet: e.kiem_duyet,
       trang_thai: e.trang_thai,
     })
     const idx = baiVietList.value.findIndex((x) => x.id === e.id)
@@ -488,14 +561,14 @@ async function publishArticle(a: BaiViet) {
     return
   publishingId.value = a.id
   try {
-    const res = await api.post<{ data: { slug: string; file: string } }>(`/seo/bai-viet/${a.id}/publish`, {})
+    const res = await api.post<{ data: { slug: string; wrote: boolean; note: string } }>(
+      `/seo/bai-viet/${a.id}/publish`,
+      {},
+    )
     const idx = baiVietList.value.findIndex((x) => x.id === a.id)
     if (idx >= 0) baiVietList.value[idx] = { ...baiVietList.value[idx], trang_thai: 'da_dang', slug: res.data.slug }
     if (editing.value?.id === a.id) editing.value = { ...editing.value, trang_thai: 'da_dang', slug: res.data.slug }
-    flash(
-      'ok',
-      `Đã ghi ${res.data.file}. Bấm 👁 Xem để mở bài (hiện được sau khi build/deploy). Xem thử local: cd frontend && npm run build-blog. Lên web thật: git pull && docker compose up -d --build frontend trên VPS.`,
-    )
+    flash('ok', res.data.note)
   } catch (e: any) {
     flash('err', e.message || 'Đăng thất bại')
   } finally {
@@ -631,8 +704,7 @@ onMounted(() => {
           <select v-model.number="batchLimit" class="inp inp--sm">
             <option :value="5">5 bài</option>
             <option :value="10">10 bài</option>
-            <option :value="20">20 bài</option>
-            <option :value="30">30 bài</option>
+            <option :value="15">15 bài</option>
           </select>
         </label>
       </div>
@@ -964,6 +1036,32 @@ onMounted(() => {
               placeholder="Lê Văn Sửu — Biện Chứng Luận Trị&#10;Viện Y học cổ truyền Trung ương | https://..."
             ></textarea>
           </label>
+
+          <!-- Ảnh bìa tự chọn theo chủ đề (đổi bằng cách sửa tiêu đề/từ khoá) -->
+          <div class="ed-field">
+            <span>Ảnh bìa <small>(tự chọn theo chủ đề — đổi bằng cách sửa tiêu đề / từ khoá)</small></span>
+            <div class="cover-prev">
+              <img :src="coverImageFor(editing)" :alt="editing.tieu_de" class="cover-prev-img" loading="lazy" />
+              <code class="cover-prev-path">{{ coverImageFor(editing) }}</code>
+            </div>
+          </div>
+
+          <!-- Checklist kiểm duyệt thủ công (van YMYL: đủ 4 mới được "Đã duyệt") -->
+          <fieldset class="kd-box" :class="{ 'kd-box--ok': kiemDuyetDu }">
+            <legend>Checklist kiểm duyệt <small>(tick đủ 4 mới chuyển được "Đã duyệt")</small></legend>
+            <label v-for="it in KIEM_DUYET_ITEMS" :key="it.key" class="kd-item">
+              <input
+                type="checkbox"
+                :checked="kiemDuyet[it.key] === true"
+                @change="toggleKiem(it.key, ($event.target as HTMLInputElement).checked)"
+              />
+              <span>{{ it.label }}</span>
+            </label>
+            <p class="kd-status" :class="kiemDuyetDu ? 'kd-status--ok' : 'kd-status--warn'">
+              {{ kiemDuyetDu ? '✔ Đủ điều kiện duyệt' : '⚠ Chưa đủ — còn mục chưa tick, chưa thể "Đã duyệt"' }}
+            </p>
+          </fieldset>
+
           <div class="ed-row">
             <label class="ed-field">
               <span>CTA</span>
@@ -975,9 +1073,9 @@ onMounted(() => {
               <span>Trạng thái</span>
               <select v-model="editing.trang_thai" class="inp">
                 <option value="nhap">Nháp</option>
-                <option value="da_duyet">Đã duyệt</option>
+                <option value="da_duyet" :disabled="!kiemDuyetDu">Đã duyệt{{ kiemDuyetDu ? '' : ' (cần đủ checklist)' }}</option>
                 <option value="bo_qua">Bỏ qua</option>
-                <option value="da_dang">Đã đăng</option>
+                <option value="da_dang" :disabled="!kiemDuyetDu">Đã đăng{{ kiemDuyetDu ? '' : ' (cần đủ checklist)' }}</option>
               </select>
             </label>
           </div>
@@ -1162,6 +1260,27 @@ onMounted(() => {
 
 .fade-enter-active, .fade-leave-active { transition: opacity var(--transition-base); }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* Ảnh bìa preview + checklist kiểm duyệt */
+.cover-prev { display: flex; align-items: center; gap: var(--space-3); }
+.cover-prev-img {
+  width: 160px; height: 84px; object-fit: cover; border-radius: var(--radius-md);
+  border: 1px solid var(--brown-200); background: var(--brown-50); flex-shrink: 0;
+}
+.cover-prev-path { font-size: var(--font-size-xs); color: var(--text-subtle); word-break: break-all; }
+
+.kd-box {
+  margin: var(--space-3) 0; padding: var(--space-3); border: 1px solid var(--brown-200);
+  border-radius: var(--radius-md); background: var(--brown-50);
+}
+.kd-box--ok { border-color: var(--success, #2e7d32); background: color-mix(in srgb, var(--success, #2e7d32) 8%, transparent); }
+.kd-box legend { font-weight: 600; font-size: var(--font-size-sm); padding: 0 var(--space-2); }
+.kd-box legend small { font-weight: 400; color: var(--text-subtle); }
+.kd-item { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-1) 0; font-size: var(--font-size-sm); cursor: pointer; }
+.kd-item input { margin-top: 3px; flex-shrink: 0; }
+.kd-status { margin: var(--space-2) 0 0; font-size: var(--font-size-xs); font-weight: 600; }
+.kd-status--ok { color: var(--success, #2e7d32); }
+.kd-status--warn { color: var(--warning, #b26a00); }
 
 @media (max-width: 768px) {
   .add-form { flex-direction: column; align-items: stretch; }

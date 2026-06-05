@@ -11,6 +11,8 @@
     "blog:relink": "node scripts/relink-blog.mjs",
     "indexnow": "node scripts/indexnow.mjs",
     "link-images": "node scripts/link-blog-images.mjs",
+    "blog:gate": "node scripts/qa-auto-articles.mjs --gate",
+    "blog:review": "node scripts/qa-auto-articles.mjs",
     "prebuild": "node scripts/gen-sitemap.mjs",
     "build": "run-p type-check \"build-only {@}\" --",
     "postbuild": "node scripts/prerender-seo.mjs && node scripts/build-blog.mjs",

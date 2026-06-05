@@ -135,6 +135,22 @@ const ALLOWED_CTA = new Set(['/xem-ket-qua-do', '/xem-3d', '/xem-bai-thuoc', '/t
 const BAI_VIET_TRANG_THAI = new Set(['nhap', 'da_duyet', 'bo_qua', 'da_dang']);
 const BLOG_AUTHOR = 'Ban Biên Tập Kinh Lạc';
 
+// Checklist kiểm duyệt thủ công (van YMYL nhiều bước). Lưu JSON {yKhoa,seo,nguon,anh}.
+// Phải tick ĐỦ 4 mục mới được chuyển bài sang "Đã duyệt"/"Đã đăng".
+const KIEM_DUYET_KEYS = ['yKhoa', 'seo', 'nguon', 'anh'] as const;
+
+/** true khi cả 4 mục checklist đều = true. JSON hỏng / thiếu mục → false. */
+function isKiemDuyetDu(raw: string | null): boolean {
+  if (!raw) return false;
+  let o: Record<string, unknown>;
+  try {
+    o = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return false;
+  }
+  return KIEM_DUYET_KEYS.every((k) => o?.[k] === true);
+}
+
 // Phase 3: từ khoá gốc của ngách (seed cho Google Suggest) + chu kỳ cron tuần.
 const DEFAULT_TREND_SEEDS = [
   'đo kinh lạc',
@@ -149,7 +165,9 @@ const DEFAULT_TREND_SEEDS = [
   '12 đường kinh',
 ];
 const TREND_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-const TREND_MAX_DRAFTS = 5; // trần số bài sinh mỗi lần (giới hạn thời gian + chi phí AI)
+// Trần số bài sinh mỗi lần. Mỗi bài = 2 lượt gọi AI (~40s) chạy ĐỒNG BỘ trong 1 request,
+// mà nginx cắt sau 120s (frontend/nginx.conf) → giữ ở 2 để không vượt timeout proxy.
+const TREND_MAX_DRAFTS = 2;
 
 @Injectable()
 export class SeoService implements OnModuleInit {
@@ -684,7 +702,19 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
     if (dto.faq !== undefined) a.faq = dto.faq || null;
     if (dto.nguon_tham_khao !== undefined) a.nguon_tham_khao = dto.nguon_tham_khao || null;
     if (dto.noi_dung_md !== undefined) a.noi_dung_md = dto.noi_dung_md;
+    if (dto.kiem_duyet !== undefined) a.kiem_duyet = dto.kiem_duyet || null;
     if (dto.trang_thai !== undefined && BAI_VIET_TRANG_THAI.has(dto.trang_thai)) {
+      // Van YMYL: chỉ chặn LÚC NÂNG CẤP từ chưa-duyệt → "Đã duyệt"/"Đã đăng" (bài cũ đã đăng vẫn lưu lại được).
+      const prev = a.trang_thai;
+      const dangNangCap =
+        (dto.trang_thai === 'da_duyet' || dto.trang_thai === 'da_dang') &&
+        prev !== 'da_duyet' &&
+        prev !== 'da_dang';
+      if (dangNangCap && !isKiemDuyetDu(a.kiem_duyet)) {
+        throw new BadRequestException(
+          'Chưa đủ checklist kiểm duyệt (Y khoa · SEO · Nguồn · Ảnh) — tick đủ 4 mục mới chuyển sang "Đã duyệt".',
+        );
+      }
       a.trang_thai = dto.trang_thai;
     }
     return this.baiVietRepo.save(a);
@@ -725,7 +755,7 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
       author: BLOG_AUTHOR,
       category: a.category || undefined,
       cta: a.cta || undefined,
-      image: pickCoverImage(slug), // ảnh bìa = 1 sơ đồ đường kinh (ảnh sở hữu của web)
+      image: pickCoverImage(slug, a.tieu_de || '', a.tu_khoa || ''), // ảnh bìa = sơ đồ đường kinh KHỚP chủ đề
       keywords: keywords.length ? keywords : undefined,
       faq: faqArr.length ? faqArr : undefined,
       sources: sourcesArr.length ? sourcesArr : undefined,
@@ -747,7 +777,9 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
    * "Đăng": tự ghi file content/blog/<slug>.md (qua publish-article.mjs) rồi chuyển trạng thái 'da_dang'.
    * CHỈ chạy trên máy có mã nguồn frontend (máy đang code). Lên web thật vẫn cần build lại + deploy.
    */
-  async publishArticle(id: number): Promise<{ slug: string; trang_thai: string; file: string }> {
+  async publishArticle(
+    id: number,
+  ): Promise<{ slug: string; trang_thai: string; wrote: boolean; note: string }> {
     const a = await this.getBaiViet(id);
     if (a.trang_thai !== 'da_duyet' && a.trang_thai !== 'da_dang') {
       throw new BadRequestException(
@@ -759,16 +791,21 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
       this.config.get<string>('PUBLISH_SCRIPT_PATH') ||
       pathResolve(process.cwd(), '..', 'frontend', 'scripts', 'publish-article.mjs');
 
-    if (!existsSync(scriptPath)) {
-      throw new ServiceUnavailableException(
-        `Không tìm thấy publish-article.mjs (đã tìm: ${scriptPath}). Nút "Đăng" chỉ chạy trên MÁY CÓ MÃ NGUỒN frontend. Trên server hãy đăng bằng cách deploy.`,
-      );
+    // Có mã nguồn frontend (máy local) → ghi file luôn. Không có (container VPS) → chỉ đánh dấu, đăng khi deploy.
+    const wrote = existsSync(scriptPath);
+    if (wrote) {
+      await runPublishScript(scriptPath, article);
     }
-
-    await runPublishScript(scriptPath, article);
     a.trang_thai = 'da_dang';
     await this.baiVietRepo.save(a);
-    return { slug: article.slug, trang_thai: a.trang_thai, file: `frontend/content/blog/${article.slug}.md` };
+    return {
+      slug: article.slug,
+      trang_thai: a.trang_thai,
+      wrote,
+      note: wrote
+        ? `Đã ghi frontend/content/blog/${article.slug}.md — deploy lại để lên web.`
+        : 'Đã đánh dấu "Đã đăng". Bài sẽ lên web ở lần deploy tới (chạy "npm run blog:sync" ở nơi có mã nguồn để xuất ra file, rồi build/deploy).',
+    };
   }
 
   // ===========================================================================
@@ -1037,18 +1074,46 @@ function runPublishScript(scriptPath: string, articleObj: unknown): Promise<void
   });
 }
 
-// 12 sơ đồ đường kinh (ảnh sở hữu của web, public/kinhmach3d/images/meridians) — bìa blog, không rủi ro bản quyền.
-const MERIDIAN_COVERS = Array.from(
-  { length: 12 },
-  (_, i) => `/kinhmach3d/images/meridians/kinh-${String(i + 1).padStart(2, '0')}-sodo.jpg`,
-);
+// Ảnh bìa = sơ đồ đường kinh (ảnh sở hữu của web, public/kinhmach3d/images/meridians) — không rủi ro bản quyền.
+// kinh-01..12 theo thứ tự kinh chuẩn: 01 Phế · 02 Đại Trường · 03 Vị · 04 Tỳ · 05 Tâm · 06 Tiểu Trường ·
+// 07 Bàng Quang · 08 Thận · 09 Tâm Bào · 10 Tam Tiêu · 11 Đởm · 12 Can.
+const meridianCover = (i: number) =>
+  `/kinhmach3d/images/meridians/kinh-${String(i).padStart(2, '0')}-sodo.jpg`;
 
-/** Gán 1 sơ đồ đường kinh làm ảnh bìa, phân bố theo slug để các bài khác ảnh nhau (ổn định, không đổi mỗi lần build). */
-function pickCoverImage(slug: string): string {
+// Cụm chữ ĐẶC TRƯNG (đã bỏ dấu) → chỉ số đường kinh. Tránh âm tiết đơn dễ trùng (tâm, can, vị, thận…):
+// dùng bigram "kinh X"/"tạng X", tên kinh đầy đủ, huyệt phổ biến, và từ tiếng Anh.
+const MERIDIAN_KEYWORDS: { idx: number; phrases: string[] }[] = [
+  { idx: 1, phrases: ['kinh phe', 'tang phe', 'thai am phe', 'phoi', 'lung'] },
+  { idx: 2, phrases: ['dai truong', 'duong minh dai truong', 'hop coc', 'large intestine'] },
+  { idx: 3, phrases: ['kinh vi', 'tang vi', 'duong minh vi', 'da day', 'tuc tam ly', 'stomach'] },
+  { idx: 4, phrases: ['kinh ty', 'tang ty', 'thai am ty', 'tam am giao', 'lach', 'spleen'] },
+  { idx: 5, phrases: ['kinh tam', 'tang tam', 'thieu am tam', 'tim mach', 'benh tim', 'heart'] },
+  { idx: 6, phrases: ['tieu truong', 'thai duong tieu truong', 'small intestine'] },
+  { idx: 7, phrases: ['bang quang', 'thai duong bang quang', 'bladder'] },
+  { idx: 8, phrases: ['kinh than', 'tang than', 'thieu am than', 'bo than', 'kidney'] },
+  { idx: 9, phrases: ['tam bao', 'quyet am tam bao', 'pericardium'] },
+  { idx: 10, phrases: ['tam tieu', 'thieu duong tam tieu', 'san jiao', 'triple energizer'] },
+  { idx: 11, phrases: ['kinh dom', 'tang dom', 'thieu duong dom', 'tui mat', 'gallbladder'] },
+  { idx: 12, phrases: ['kinh can', 'tang can', 'quyet am can', 'la gan', 'bo gan', 'gan mat', 'liver'] },
+];
+
+/**
+ * Chọn ảnh bìa = sơ đồ đường kinh KHỚP chủ đề (dò tiêu đề + từ khoá + slug, khớp nguyên cụm).
+ * Không khớp được kinh nào → phân bố ỔN ĐỊNH theo slug (không đổi mỗi lần build).
+ * LƯU Ý: bản xem trước ở frontend (SeoRadarView.vue → coverImageFor) phải khớp logic này.
+ */
+function pickCoverImage(slug: string, tieuDe = '', tuKhoa = ''): string {
+  const hay = ` ${normLoose([tieuDe, tuKhoa, slug].filter(Boolean).join(' '))
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()} `;
+  for (const m of MERIDIAN_KEYWORDS) {
+    if (m.phrases.some((p) => hay.includes(` ${p} `))) return meridianCover(m.idx);
+  }
   const s = slug || 'bai-viet';
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return MERIDIAN_COVERS[h % MERIDIAN_COVERS.length];
+  return meridianCover((h % 12) + 1);
 }
 
 /** Chuẩn hoá lỏng để so trùng: bỏ dấu, thường hoá, gộp khoảng trắng. */

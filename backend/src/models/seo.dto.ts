@@ -32,6 +32,8 @@ export interface UpdateBaiVietDto {
   faq?: string;
   nguon_tham_khao?: string;
   noi_dung_md?: string;
+  /** JSON checklist kiểm duyệt {yKhoa,seo,nguon,anh}. Đủ 4 mục mới cho chuyển "da_duyet". */
+  kiem_duyet?: string;
   trang_thai?: 'nhap' | 'da_duyet' | 'bo_qua' | 'da_dang';
 }
 

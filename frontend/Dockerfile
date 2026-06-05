@@ -21,7 +21,8 @@ COPY . .
 # Type-check là việc của dev/CI, không phải của bước deploy.
 # Sinh sitemap (vào public/ TRƯỚC khi vite copy sang dist) -> build SPA
 # -> chèn meta SEO tĩnh vào dist/<route>/index.html (mini-prerender chạy thuần Node, không cần Chrome).
-RUN node scripts/gen-sitemap.mjs && npm run build-only && node scripts/prerender-seo.mjs && node scripts/build-blog.mjs
+# Van an toàn YMYL: bài auto (aiModel/seoCumId) chưa duyệt -> noindex, để KHÔNG tự lên Google khi deploy.
+RUN node scripts/qa-auto-articles.mjs --gate && node scripts/gen-sitemap.mjs && npm run build-only && node scripts/prerender-seo.mjs && node scripts/build-blog.mjs
 
 ############################
 # 2. Phục vụ static bằng nginx
