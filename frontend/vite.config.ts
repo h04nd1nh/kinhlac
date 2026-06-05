@@ -19,18 +19,11 @@ export default defineConfig(({ command }) => ({
     // nó làm chậm build trên VPS RAM thấp và nhét overlay/đồ nghề debug vào bundle người dùng.
     ...(command === 'serve' ? [vueDevTools()] : []),
   ],
-  // Gom thư viện lõi (vue + router + pinia) thành 1 chunk "vendor" riêng, ổn định.
-  // → Sửa code app KHÔNG làm đổi hash của vendor → trình duyệt giữ nguyên cache vendor giữa các lần deploy.
-  // (chart.js, xlsx, three… đã được nạp động ở nơi cần nên Vite tự tách chunk riêng, không cần liệt kê.)
+  // Vite 8 dùng bộ đóng gói Rolldown — nó TỰ tách chunk vendor + tách theo route lazy-load khá tốt,
+  // nên KHÔNG cấu hình manualChunks thủ công (Rolldown không nhận kiểu object như Rollup cũ → lỗi build).
+  // (chart.js, xlsx, three… đã nạp động ở nơi cần nên tự thành chunk riêng, chỉ tải khi cần.)
   build: {
     chunkSizeWarningLimit: 900,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['vue', 'vue-router', 'pinia'],
-        },
-      },
-    },
   },
   resolve: {
     alias: {
