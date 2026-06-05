@@ -13,6 +13,7 @@ import {
   AnalyzeBatchDto,
   CreateDoiThuDto,
   GenerateDraftDto,
+  GenerateImagesDto,
   RunTrendsDto,
   UpdateBaiVietDto,
 } from '../models/seo.dto';
@@ -119,6 +120,12 @@ export class SeoRouter {
   @Post('bai-viet/:id/publish')
   async publishArticle(@Param('id') id: string) {
     const data = await this.service.publishArticle(+id);
+    return { success: true, data };
+  }
+
+  @Post('bai-viet/:id/generate-images')
+  async generateImages(@Param('id') id: string, @Body() dto: GenerateImagesDto) {
+    const data = await this.service.generateBodyImages(+id, dto?.max ?? 4);
     return { success: true, data };
   }
 

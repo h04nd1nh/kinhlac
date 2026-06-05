@@ -1,32 +1,42 @@
-// add-covers.mjs — Gắn ảnh bìa (frontmatter `image`) cho các bài content/blog/*.md còn thiếu.
+// add-covers.mjs — Gắn/đổi ảnh bìa (frontmatter `image`) cho content/blog/*.md.
 //
-// Ảnh bìa = 1 trong 12 sơ đồ đường kinh (ảnh sở hữu của web, không rủi ro bản quyền),
-// phân bố theo slug để các bài khác ảnh nhau. CÙNG công thức với backend (pickCoverImage)
-// để nhất quán với bài đăng từ module SEO.
+// Ảnh bìa = ảnh "của nhà" KHỚP chủ đề, chọn bằng cover-lib.mjs (3 tầng: tên huyệt → tên kinh → sơ đồ).
+// CÙNG thuật toán với backend (pickCoverImage) & editor (coverImageFor) để nhất quán.
+//
+// Cần chạy `node scripts/_build-acu-index.mjs` trước (sinh acu-index.json) để bật tầng "tên huyệt".
 //
 // Dùng:  node scripts/add-covers.mjs          (bỏ qua bài đã có image)
-//        node scripts/add-covers.mjs --force  (ghi đè image cũ)
+//        node scripts/add-covers.mjs --force  (ghi đè image cũ — nên dùng để sửa ảnh trùng/lệch)
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve, join } from 'node:path'
+import { pickCover, loadAcuIndex } from './cover-lib.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const dir = resolve(here, '../content/blog')
 
-const COVERS = Array.from(
-  { length: 12 },
-  (_, i) => `/kinhmach3d/images/meridians/kinh-${String(i + 1).padStart(2, '0')}-sodo.jpg`,
-)
-function pickCover(slug) {
-  const s = slug || 'bai-viet'
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return COVERS[h % COVERS.length]
+const acu = loadAcuIndex()
+if (!acu.length) {
+  console.warn('⚠ Chưa có acu-index.json — chạy: node scripts/_build-acu-index.mjs (tạm bỏ tầng tên huyệt).')
+}
+
+// Lấy 1 trường frontmatter dạng chuỗi (title/slug) hoặc mảng JSON (keywords).
+function fmField(fm, key) {
+  const m = fm.match(new RegExp(`^${key}:\\s*(.+)$`, 'm'))
+  if (!m) return ''
+  const raw = m[1].trim()
+  try {
+    const v = JSON.parse(raw)
+    return Array.isArray(v) ? v.join(' ') : String(v)
+  } catch {
+    return raw.replace(/^["']|["']$/g, '')
+  }
 }
 
 const force = process.argv.includes('--force')
 let n = 0
-for (const f of readdirSync(dir).filter((x) => x.endsWith('.md'))) {
+const all = readdirSync(dir).filter((x) => x.endsWith('.md') && x.toLowerCase() !== 'readme.md')
+for (const f of all) {
   const p = join(dir, f)
   let raw = readFileSync(p, 'utf8')
   const m = raw.match(/^---\s*\n([\s\S]*?)\n---/)
@@ -39,8 +49,8 @@ for (const f of readdirSync(dir).filter((x) => x.endsWith('.md'))) {
     console.log('  đã có image, bỏ qua:', f)
     continue
   }
-  const slug = (fm.match(/^slug:\s*"?([^"\n]+)"?/m)?.[1] || f.replace(/\.md$/, '')).trim()
-  const img = pickCover(slug)
+  const slug = (fmField(fm, 'slug') || f.replace(/\.md$/, '')).trim()
+  const img = pickCover(slug, fmField(fm, 'title'), fmField(fm, 'keywords'), acu)
 
   // gỡ image cũ (nếu --force) rồi chèn lại — đặt ngay sau dòng slug cho gọn.
   fm = fm
@@ -55,4 +65,4 @@ for (const f of readdirSync(dir).filter((x) => x.endsWith('.md'))) {
   console.log(`  ✓ ${f} → ${img}`)
   n++
 }
-console.log(`✓ add-covers: gắn ảnh bìa cho ${n} bài (tổng ${readdirSync(dir).filter((x) => x.endsWith('.md')).length} bài).`)
+console.log(`✓ add-covers: gắn ảnh bìa cho ${n} bài (tổng ${all.length} bài).`)

@@ -2,7 +2,7 @@
 title: "Số Hoá Phòng Khám Đông Y: Lợi Ích Và Cách Bắt Đầu"
 description: "Số hoá phòng khám Đông Y giúp quản lý hồ sơ, kê đơn và đo kinh lạc gọn gàng. Lợi ích cụ thể và lộ trình bắt đầu thực tế cho chủ phòng khám."
 slug: "so-hoa-phong-kham-dong-y"
-image: "/kinhmach3d/images/meridians/kinh-12-sodo.jpg"
+image: "/kinhmach3d/images/meridians/kinh-12-ngang.jpg"
 date: "2026-06-05"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Quản Lý Phòng Khám"

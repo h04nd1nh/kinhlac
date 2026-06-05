@@ -43,3 +43,10 @@ export interface RunTrendsDto {
   /** Các từ khoá (chủ đề) chọn từ kết quả quét xu hướng để viết nháp (trần 5). */
   keywords: string[];
 }
+
+// ---- Sinh ảnh minh hoạ AI cho thân bài (chèn dưới mỗi mục H2) --------------
+
+export interface GenerateImagesDto {
+  /** Số ảnh tối đa chèn trong 1 lần (mặc định 4, trần 6 — tránh tốn thời gian/chi phí). */
+  max?: number;
+}

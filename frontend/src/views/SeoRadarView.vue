@@ -308,12 +308,14 @@ const editing = ref<BaiViet | null>(null)
 const savingEditor = ref(false)
 const exportingId = ref<number | null>(null)
 const publishingId = ref<number | null>(null)
+const genImagesId = ref<number | null>(null)
 
 // ===== Tiến trình khi Đăng (overlay: chạy bar tới khi xong → bật nút Xem) =====
 const pubModal = ref(false) // overlay tiến trình đang hiện
 const pubProgress = ref(0)
 const pubStage = ref('')
 const pubNote = ref('') // ghi chú backend khi xong (vd "deploy lại để lên web")
+const pubWrote = ref(false) // true = đã ghi file .md (máy có mã nguồn) → trang có thể xem; false = chỉ đánh dấu DB
 const pubDone = ref(false) // đăng xong → cho bấm Xem
 const pubError = ref('')
 const pubTarget = ref<{ id: number; slug: string; tieu_de: string } | null>(null)
@@ -324,6 +326,7 @@ function startPubProgress(a: BaiViet) {
   pubDone.value = false
   pubError.value = ''
   pubNote.value = ''
+  pubWrote.value = false
   pubProgress.value = 0
   pubTarget.value = { id: a.id, slug: a.slug || '', tieu_de: a.tieu_de }
   pubStage.value = 'Đang gửi yêu cầu đăng…'
@@ -338,7 +341,10 @@ function startPubProgress(a: BaiViet) {
     else pubStage.value = 'Sắp xong…'
   }, 200)
 }
-function finishPubProgress(ok: boolean, opts: { slug?: string; note?: string; error?: string } = {}) {
+function finishPubProgress(
+  ok: boolean,
+  opts: { slug?: string; note?: string; error?: string; wrote?: boolean } = {},
+) {
   if (pubTimer) {
     clearInterval(pubTimer)
     pubTimer = null
@@ -346,6 +352,7 @@ function finishPubProgress(ok: boolean, opts: { slug?: string; note?: string; er
   if (ok) {
     pubProgress.value = 100
     pubDone.value = true
+    pubWrote.value = opts.wrote === true
     if (opts.slug && pubTarget.value) pubTarget.value.slug = opts.slug
     pubStage.value = 'Hoàn tất! Bài đã đăng.'
     pubNote.value = opts.note || ''
@@ -362,6 +369,7 @@ function closePubModal() {
   pubDone.value = false
   pubError.value = ''
   pubNote.value = ''
+  pubWrote.value = false
   pubProgress.value = 0
   pubTarget.value = null
 }
@@ -494,8 +502,25 @@ function normLooseFE(s: string): string {
     .replace(/\s+/g, ' ')
     .trim()
 }
-const meridianCoverFE = (i: number) =>
-  `/kinhmach3d/images/meridians/kinh-${String(i).padStart(2, '0')}-sodo.jpg`
+const MERIDIAN_VARIANTS_FE = ['sodo', 'chinh', 'biet', 'can', 'doc', 'ngang', 'gen']
+const COVER_VARIANTS_FE = ['sodo', 'chinh', 'ngang']
+const meridianImgFE = (idx: number, variant: string) =>
+  `/kinhmach3d/images/meridians/kinh-${String(idx).padStart(2, '0')}-${variant}.jpg`
+function hashStrFE(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return h
+}
+// Manifest tên huyệt → ảnh (public/blog-assets/acu-index.json) — nạp 1 lần khi mở trang.
+const acuIndex = ref<[string, string][]>([])
+async function loadAcuIndex() {
+  try {
+    const r = await fetch('/blog-assets/acu-index.json')
+    if (r.ok) acuIndex.value = await r.json()
+  } catch {
+    /* không có manifest → bỏ qua tầng huyệt, vẫn chạy tầng kinh */
+  }
+}
 function coverImageFor(a: BaiViet | null): string {
   if (!a) return ''
   const slug = a.slug || ''
@@ -503,13 +528,20 @@ function coverImageFor(a: BaiViet | null): string {
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()} `
-  for (const m of MERIDIAN_KEYWORDS_FE) {
-    if (m.phrases.some((p) => hay.includes(` ${p} `))) return meridianCoverFE(m.idx)
+  // Tầng 1: tên huyệt cụ thể — CHỈ khi bài nói về "huyệt" (tránh bài khái niệm khớp nhầm).
+  if (hay.includes(' huyet ')) {
+    for (const [name, file] of acuIndex.value) {
+      if (hay.includes(` ${name} `)) return file
+    }
   }
-  const s = slug || 'bai-viet'
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return meridianCoverFE((h % 12) + 1)
+  // Tầng 2: tên kinh/tạng → 1 biến thể của đúng kinh (xoay theo slug).
+  for (const m of MERIDIAN_KEYWORDS_FE) {
+    if (m.phrases.some((p) => hay.includes(` ${p} `)))
+      return meridianImgFE(m.idx, MERIDIAN_VARIANTS_FE[hashStrFE(slug) % MERIDIAN_VARIANTS_FE.length])
+  }
+  // Tầng 3: sơ đồ kinh phân bố ổn định theo slug (12 × 3 biến thể bìa). (>>> = dịch KHÔNG dấu.)
+  const h = hashStrFE(slug || 'bai-viet')
+  return meridianImgFE((h % 12) + 1, COVER_VARIANTS_FE[(h >>> 4) % COVER_VARIANTS_FE.length])
 }
 
 // Nguồn tham khảo lưu dạng JSON [{title,url?}] nhưng cho sửa thân thiện: mỗi dòng "Tên | URL".
@@ -658,7 +690,7 @@ async function publishArticle(a: BaiViet) {
     const idx = baiVietList.value.findIndex((x) => x.id === a.id)
     if (idx >= 0) baiVietList.value[idx] = { ...baiVietList.value[idx], trang_thai: 'da_dang', slug: res.data.slug }
     if (editing.value?.id === a.id) editing.value = { ...editing.value, trang_thai: 'da_dang', slug: res.data.slug }
-    finishPubProgress(true, { slug: res.data.slug, note: res.data.note })
+    finishPubProgress(true, { slug: res.data.slug, note: res.data.note, wrote: res.data.wrote })
   } catch (e: any) {
     finishPubProgress(false, { error: e.message || 'Đăng thất bại' })
   } finally {
@@ -666,14 +698,58 @@ async function publishArticle(a: BaiViet) {
   }
 }
 
-function viewArticle(a: { slug: string | null }) {
+// Sinh ảnh minh hoạ AI cho từng mục H2 (on-demand — tốn credit nên tách riêng, không tự chạy khi viết nháp).
+async function generateImages(a: BaiViet) {
+  if (
+    !confirm(
+      `Sinh ảnh minh hoạ (AI) cho bài "${a.tieu_de}"?\n\nAI tạo 1 ảnh cho mỗi mục lớn (## H2) chưa có ảnh, lưu vào frontend/public/blog-images/ trên máy này. Tốn credit AI, mất ~10–60 giây.`,
+    )
+  )
+    return
+  genImagesId.value = a.id
+  flash('info', 'AI đang vẽ ảnh minh hoạ cho từng mục… (đừng đóng tab)')
+  try {
+    const res = await api.post<{ data: { bai: BaiViet; added: number } }>(
+      `/seo/bai-viet/${a.id}/generate-images`,
+      { max: 4 },
+    )
+    const bai = res.data.bai
+    const idx = baiVietList.value.findIndex((x) => x.id === a.id)
+    if (idx >= 0) baiVietList.value[idx] = bai
+    if (editing.value?.id === a.id) editing.value = { ...editing.value, noi_dung_md: bai.noi_dung_md }
+    flash('ok', `Đã chèn ${res.data.added} ảnh minh hoạ vào bài. Xem ở ô Nội dung rồi bấm Lưu.`)
+  } catch (e: any) {
+    flash('err', e.message || 'Sinh ảnh thất bại (kiểm tra đã bật YESCALE_IMAGE_MODEL chưa)')
+  } finally {
+    genImagesId.value = null
+  }
+}
+
+async function viewArticle(a: { slug: string | null }) {
   const slug = (a.slug || '').trim()
   if (!slug) {
     flash('err', 'Bài chưa có slug để xem.')
     return
   }
-  // Bài tĩnh nằm ở /blog/<slug>/ (chỉ hiện sau khi build/deploy).
-  window.open(`/blog/${slug}/`, '_blank')
+  const url = `/blog/${slug}/`
+  // Mở tab TRƯỚC trong cử chỉ click (tránh trình duyệt chặn popup sau await).
+  const win = window.open('about:blank', '_blank')
+  try {
+    // Trang blog tĩnh thật có class "bl-article". Nếu nginx trả về vỏ SPA (fallback)
+    // = bài CHƯA build/deploy → đừng quăng người dùng về trang chủ, báo cho rõ.
+    const r = await fetch(url, { headers: { Accept: 'text/html' }, cache: 'no-store' })
+    const html = r.ok ? await r.text() : ''
+    if (/bl-article/.test(html)) {
+      if (win) win.location.href = url
+      else window.location.href = url
+    } else {
+      if (win) win.close()
+      flash('info', 'Bài chưa có trên web (chưa build/deploy). Sau khi deploy lại, nút Xem sẽ mở đúng bài.')
+    }
+  } catch {
+    if (win) win.close()
+    flash('err', 'Không mở được bài — có thể bài chưa được build/deploy lên web.')
+  }
 }
 
 async function discoverTrends() {
@@ -733,6 +809,7 @@ onMounted(() => {
   loadDoiThu()
   loadCum()
   loadBaiViet()
+  loadAcuIndex()
 })
 </script>
 
@@ -1197,6 +1274,14 @@ onMounted(() => {
             {{ exportingId === editing.id ? '…' : 'Xuất JSON' }}
           </button>
           <button
+            class="btn btn--ghost"
+            :disabled="genImagesId === editing.id"
+            title="AI vẽ 1 ảnh minh hoạ cho mỗi mục ## H2 (tốn credit AI)"
+            @click="generateImages(editing)"
+          >
+            {{ genImagesId === editing.id ? 'Đang vẽ ảnh…' : '🖼 Sinh ảnh minh hoạ (AI)' }}
+          </button>
+          <button
             class="btn btn--ghost btn--pub-ghost"
             :disabled="publishingId === editing.id || (editing.trang_thai !== 'da_duyet' && editing.trang_thai !== 'da_dang')"
             title="Ghi file blog + chuyển Đã đăng (cần Đã duyệt)"
@@ -1243,11 +1328,12 @@ onMounted(() => {
         <p v-if="pubDone && pubNote" class="gen-prog-note">{{ pubNote }}</p>
 
         <div class="pub-foot">
+          <span v-if="pubDone && !pubWrote" class="pub-hint">ⓘ Bản tĩnh chuẩn SEO sẽ thay thế ở lần deploy tới</span>
           <button
             v-if="pubDone"
             class="btn btn--primary"
             :disabled="!pubTarget?.slug"
-            title="Mở bài trên web (chỉ hiện sau khi build/deploy)"
+            title="Mở bài trên web (backend tự render từ dữ liệu nếu chưa build tĩnh)"
             @click="pubTarget && viewArticle(pubTarget)"
           >
             👁 Xem Bài
@@ -1438,7 +1524,8 @@ onMounted(() => {
 .pub-title { font-size: var(--font-size-lg); font-weight: 800; color: var(--brown-800); }
 .pub-name { font-size: var(--font-size-sm); color: var(--text-muted); font-weight: 600; margin-top: calc(-1 * var(--space-2)); }
 .pub-err { font-size: var(--font-size-sm); color: var(--danger, #c0392b); line-height: 1.5; }
-.pub-foot { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+.pub-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+.pub-hint { margin-right: auto; font-size: var(--font-size-xs); font-weight: 600; color: var(--warning, #b26a00); }
 
 @media (max-width: 768px) {
   .add-form { flex-direction: column; align-items: stretch; }

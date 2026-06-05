@@ -2,7 +2,7 @@
 title: "Tính Vị Quy Kinh Là Gì? Đọc Bài Thuốc Bằng Dữ Liệu"
 description: "Tính vị quy kinh là gì? Hiểu Tứ Khí, Ngũ Vị, Quy Kinh và cấu trúc Quân-Thần-Tá-Sứ để đọc một bài thuốc Đông Y trực quan bằng biểu đồ radar."
 slug: "tinh-vi-quy-kinh-la-gi"
-image: "/kinhmach3d/images/meridians/kinh-06-sodo.jpg"
+image: "/kinhmach3d/images/meridians/kinh-06-ngang.jpg"
 date: "2026-06-05"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Bài Thuốc"

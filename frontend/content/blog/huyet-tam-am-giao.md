@@ -2,7 +2,7 @@
 title: "Huyệt Tam Âm Giao (SP6): Vị Trí, Tác Dụng Và Cách Bấm"
 description: "Huyệt Tam Âm Giao (SP6) trên kinh Tỳ, giao hội 3 kinh âm. Vị trí, tác dụng hỗ trợ phụ khoa, tiêu hoá theo Đông Y và lưu ý chống chỉ định thai kỳ."
 slug: "huyet-tam-am-giao"
-image: "/kinhmach3d/images/meridians/kinh-07-sodo.jpg"
+image: "/kinhmach3d/images/acupoints/0701-tam-am-giao.png"
 date: "2026-06-05"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Huyệt Vị"

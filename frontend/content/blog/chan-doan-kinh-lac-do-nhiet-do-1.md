@@ -2,12 +2,12 @@
 title: "Chẩn Đoán Kinh Lạc Bằng Đo Nhiệt Độ: Phương Pháp 24 Tỉnh Huyệt"
 description: "Khám phá phương pháp chẩn đoán kinh lạc bằng đo nhiệt độ theo 24 tỉnh huyệt. Hướng dẫn chi tiết cách thực hiện, diễn giải kết quả và giới thiệu thiết bị đo hiện đại."
 slug: "chan-doan-kinh-lac-do-nhiet-do-1"
+image: "/kinhmach3d/images/meridians/kinh-11-chinh.jpg"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Chẩn Đoán Kinh Lạc"
 cta: "/xem-ket-qua-do"
 keywords: ["đo nhiệt độ kinh lạc","chẩn đoán kinh lạc","24 tỉnh huyệt","phương pháp đo kinh lạc","thiết bị đo kinh lạc","y học cổ truyền","đông y"]
 faq: [{"q":"Nguyên lý của phương pháp đo nhiệt độ kinh lạc là gì?","a":"Phương pháp dựa trên nguyên lý Đông Y 'thể tại âm, dụng tại dương', nhiệt độ huyệt vị phản ánh tình trạng khí huyết và tạng phủ."},{"q":"Các bước cơ bản để thực hiện đo nhiệt độ kinh lạc?","a":"Chuẩn bị bệnh nhân và môi trường, xác định các huyệt vị cần đo (theo 24 tỉnh huyệt), tiến hành đo và ghi lại kết quả."},{"q":"Làm thế nào để diễn giải kết quả đo nhiệt độ kinh lạc?","a":"So sánh nhiệt độ giữa hai bên, giữa các huyệt trên cùng đường kinh, với tiêu chuẩn và kết hợp với triệu chứng lâm sàng."},{"q":"Lợi ích của việc số hóa trong chẩn đoán kinh lạc là gì?","a":"Tăng tính khách quan, chính xác, lưu trữ và quản lý dữ liệu hiệu quả, hỗ trợ chẩn đoán chuyên sâu và nâng cao hiệu quả quản lý phòng khám."}]
-image: "/kinhmach3d/images/meridians/kinh-11-sodo.jpg"
 seoCumId: 1
 aiModel: "Yescale gemini-2.5-flash-lite"
 index: false

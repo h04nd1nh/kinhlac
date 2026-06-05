@@ -2,7 +2,7 @@
 title: "Chẩn Đoán Kinh Lạc Bằng Đo Nhiệt Độ: Phương Pháp 24 Tỉnh Huyệt"
 description: "Khám phá phương pháp chẩn đoán kinh lạc bằng đo nhiệt độ theo 24 tỉnh huyệt. Hướng dẫn chi tiết cách thực hiện, diễn giải kết quả và giới thiệu thiết bị đo hiện đại."
 slug: "chan-doan-kinh-lac-do-nhiet-do"
-image: "/kinhmach3d/images/meridians/kinh-07-sodo.jpg"
+image: "/kinhmach3d/images/meridians/kinh-07-chinh.jpg"
 date: "2026-06-05"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Chẩn Đoán Kinh Lạc"

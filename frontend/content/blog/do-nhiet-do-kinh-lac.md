@@ -2,7 +2,7 @@
 title: "Cách Đo Kinh Lạc: Quy Trình Và Bảng 24 Tỉnh Huyệt"
 description: "Hướng dẫn cách đo kinh lạc theo 24 tỉnh huyệt: quy trình từng bước, bảng tra 12 đường kinh và mẹo đọc nhanh kết quả để tham khảo biện chứng Đông Y."
 slug: "do-nhiet-do-kinh-lac"
-image: "/kinhmach3d/images/meridians/kinh-03-sodo.jpg"
+image: "/kinhmach3d/images/meridians/kinh-03-chinh.jpg"
 date: "2026-06-05"
 author: "Ban Biên Tập Kinh Lạc"
 category: "Đo Kinh Lạc"

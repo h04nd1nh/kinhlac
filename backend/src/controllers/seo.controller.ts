@@ -11,13 +11,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
 import OpenAI from 'openai';
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve as pathResolve } from 'node:path';
 
 import { SeoDoiThu } from '../models/seo-doi-thu.model';
 import { SeoUrl } from '../models/seo-url.model';
 import { SeoCum } from '../models/seo-cum.model';
 import { SeoBaiViet } from '../models/seo-bai-viet.model';
+import { renderArticleHtml, renderNotFoundHtml } from './seo-blog.renderer';
 import {
   CreateDoiThuDto,
   GenerateDraftDto,
@@ -803,9 +804,146 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
       trang_thai: a.trang_thai,
       wrote,
       note: wrote
-        ? `Đã ghi frontend/content/blog/${article.slug}.md — deploy lại để lên web.`
-        : 'Đã đánh dấu "Đã đăng". Bài sẽ lên web ở lần deploy tới (chạy "npm run blog:sync" ở nơi có mã nguồn để xuất ra file, rồi build/deploy).',
+        ? `Đã ghi frontend/content/blog/${article.slug}.md. Bài xem được ngay; bản tĩnh chuẩn SEO sẽ thay thế ở lần build/deploy tới.`
+        : 'Đã đăng. Bài XEM ĐƯỢC NGAY trên web (backend tự render từ dữ liệu); bản tĩnh chuẩn SEO sẽ thay thế ở lần deploy/build tới.',
     };
+  }
+
+  // ===========================================================================
+  // ẢNH MINH HOẠ AI cho thân bài (chèn 1 ảnh dưới mỗi mục ## H2 chưa có ảnh)
+  // ===========================================================================
+
+  /**
+   * Sinh ảnh minh hoạ bằng AI cho các mục H2 chưa có ảnh → lưu frontend/public/blog-images/<slug>/
+   * rồi chèn Markdown ![..](..) vào thân bài. CHỈ chạy trên MÁY CÓ MÃ NGUỒN frontend.
+   * Cần env YESCALE_IMAGE_MODEL (model hỗ trợ tạo ảnh) + tài khoản Yescale còn credit ảnh.
+   */
+  async generateBodyImages(id: number, max = 4): Promise<{ bai: SeoBaiViet; added: number }> {
+    const a = await this.getBaiViet(id);
+    const slug = slugify(a.slug || a.tieu_de || `bai-${a.id}`);
+
+    const baseDir =
+      this.config.get<string>('BLOG_IMAGES_DIR') ||
+      pathResolve(process.cwd(), '..', 'frontend', 'public', 'blog-images');
+    if (!existsSync(pathResolve(baseDir, '..'))) {
+      throw new ServiceUnavailableException(
+        'Không thấy thư mục frontend/public — "Sinh ảnh minh hoạ" chỉ chạy trên MÁY CÓ MÃ NGUỒN frontend.',
+      );
+    }
+    const outDir = pathResolve(baseDir, slug);
+    mkdirSync(outDir, { recursive: true });
+
+    const lines = (a.noi_dung_md || '').split('\n');
+    const cap = Math.min(Math.max(1, max || 4), 6);
+    const out: string[] = [];
+    let added = 0;
+    for (let i = 0; i < lines.length; i++) {
+      out.push(lines[i]);
+      const h = lines[i].match(/^##\s+(.+?)\s*$/); // chỉ H2 (## ...), bỏ qua ### trở lên
+      if (!h || added >= cap) continue;
+      if (/^!\[/.test((lines[i + 1] || '').trim())) continue; // đã có ảnh ngay dưới → bỏ qua
+      const heading = h[1].replace(/[*_`#]/g, '').trim();
+      const { buf, ext } = await this.genImageBuffer(buildImagePrompt(a.tieu_de || slug, heading));
+      const fname = `sec-${added + 1}.${ext}`;
+      writeFileSync(pathResolve(outDir, fname), buf);
+      out.push('', `![${heading}](/blog-images/${slug}/${fname})`);
+      added++;
+    }
+    if (!added) {
+      throw new BadRequestException(
+        'Không có mục ## (H2) nào để chèn ảnh (hoặc các mục đã có ảnh sẵn). Thêm tiêu đề ## trong bài rồi thử lại.',
+      );
+    }
+    a.noi_dung_md = out.join('\n');
+    const bai = await this.baiVietRepo.save(a);
+    return { bai, added };
+  }
+
+  /** Gọi Yescale tạo 1 ảnh → Buffer PNG. Nhận cả b64_json lẫn url. */
+  private async genImageBuffer(prompt: string): Promise<{ buf: Buffer; ext: string }> {
+    const client = this.getClient();
+    const model = this.config.get<string>('YESCALE_IMAGE_MODEL') || 'dall-e-3';
+    const size = this.config.get<string>('YESCALE_IMAGE_SIZE') || '1024x1024';
+    let resp: any;
+    try {
+      resp = await client.images.generate({
+        model,
+        prompt,
+        n: 1,
+        size: size as any,
+        response_format: 'b64_json' as any,
+      });
+    } catch {
+      // Vài model (vd gpt-image-1) không nhận response_format → thử lại không kèm.
+      try {
+        resp = await client.images.generate({ model, prompt, n: 1, size: size as any });
+      } catch (err: any) {
+        const detail = err?.error?.message || err?.message || String(err);
+        throw new ServiceUnavailableException(
+          `Yescale sinh ảnh lỗi (model "${model}"): ${detail}. Đặt env YESCALE_IMAGE_MODEL = model hỗ trợ tạo ảnh và đảm bảo tài khoản còn credit.`,
+        );
+      }
+    }
+    const d: any = resp?.data?.[0];
+    if (d?.b64_json) return { buf: Buffer.from(d.b64_json, 'base64'), ext: 'png' };
+    if (d?.url) {
+      const r = await fetch(d.url);
+      if (!r.ok) throw new ServiceUnavailableException('Tải ảnh AI về thất bại.');
+      return { buf: Buffer.from(await r.arrayBuffer()), ext: 'png' };
+    }
+    throw new ServiceUnavailableException('Yescale không trả về ảnh (thiếu b64_json/url).');
+  }
+
+  /**
+   * Render 1 bài "Đã đăng" (hoặc "Đã duyệt" = xem trước, noindex) thành HTML từ DB.
+   * Phục vụ nginx fallback: /blog/<slug>/ chưa có bản tĩnh → backend render ngay.
+   * Trả null nếu không có bài hợp lệ (router → 404).
+   */
+  async renderBlogHtml(slugOrId: string): Promise<string | null> {
+    const want = slugify(slugOrId);
+    const all = await this.baiVietRepo.find({ order: { updated_at: 'DESC' } });
+    const keyOf = (x: SeoBaiViet) => slugify(x.slug || x.tieu_de || `bai-${x.id}`);
+    const a = all.find(
+      (x) => keyOf(x) === want && (x.trang_thai === 'da_dang' || x.trang_thai === 'da_duyet'),
+    );
+    if (!a) return null;
+
+    const json = this.buildArticleJson(a);
+    const toDay = (d: Date | string | null | undefined) => {
+      const dt = d instanceof Date ? d : d ? new Date(d) : null;
+      return dt && !isNaN(dt.getTime()) ? dt.toISOString().slice(0, 10) : undefined;
+    };
+    // Bài liên quan: ưu tiên cùng chuyên mục, chỉ lấy bài ĐÃ ĐĂNG khác.
+    const others = all.filter((x) => x.id !== a.id && x.trang_thai === 'da_dang');
+    const sameCat = others.filter((x) => x.category && x.category === a.category);
+    const related = [...sameCat, ...others.filter((x) => !sameCat.includes(x))]
+      .slice(0, 4)
+      .map((x) => ({ slug: keyOf(x), title: x.tieu_de }));
+
+    return renderArticleHtml(
+      {
+        slug: json.slug,
+        title: String(json.title || a.tieu_de || ''),
+        description: (json.description as string) || undefined,
+        bodyMarkdown: a.noi_dung_md || '',
+        date: toDay(a.created_at),
+        updated: toDay(a.updated_at),
+        category: a.category || undefined,
+        cta: (json.cta as string) || undefined,
+        image: (json.image as string) || null,
+        keywords: (json.keywords as string[]) || undefined,
+        faq: (json.faq as { q: string; a: string }[]) || undefined,
+        sources: (json.sources as ({ title: string; url?: string } | string)[]) || undefined,
+        // Chỉ "Đã đăng" mới cho index; "Đã duyệt" (xem trước) → noindex.
+        index: a.trang_thai === 'da_dang',
+      },
+      related,
+    );
+  }
+
+  /** HTML 404 (có style blog) khi không tìm thấy bài. */
+  renderBlogNotFound(slug: string): string {
+    return renderNotFoundHtml(slug);
   }
 
   // ===========================================================================
@@ -1074,11 +1212,46 @@ function runPublishScript(scriptPath: string, articleObj: unknown): Promise<void
   });
 }
 
-// Ảnh bìa = sơ đồ đường kinh (ảnh sở hữu của web, public/kinhmach3d/images/meridians) — không rủi ro bản quyền.
+/** Prompt ảnh minh hoạ AI — mỹ thuật/biểu tượng, KHÔNG sơ đồ huyệt chính xác (an toàn YMYL). */
+function buildImagePrompt(title: string, heading: string): string {
+  return [
+    'Decorative editorial illustration for a Vietnamese Traditional Medicine (Dong Y) blog.',
+    `Article: "${title}". Section: "${heading}".`,
+    'Style: warm and elegant, soft natural light, earthy brown and cream palette,',
+    'motifs of medicinal herbs, gentle meridian energy lines, a calm traditional clinic.',
+    'No text, no watermark, no precise anatomical acupoint map. Symbolic and artistic.',
+  ].join(' ');
+}
+
+// Ảnh bìa = ảnh "của nhà" (public/kinhmach3d/images, không rủi ro bản quyền) KHỚP chủ đề bài.
 // kinh-01..12 theo thứ tự kinh chuẩn: 01 Phế · 02 Đại Trường · 03 Vị · 04 Tỳ · 05 Tâm · 06 Tiểu Trường ·
 // 07 Bàng Quang · 08 Thận · 09 Tâm Bào · 10 Tam Tiêu · 11 Đởm · 12 Can.
-const meridianCover = (i: number) =>
-  `/kinhmach3d/images/meridians/kinh-${String(i).padStart(2, '0')}-sodo.jpg`;
+const MERIDIAN_VARIANTS = ['sodo', 'chinh', 'biet', 'can', 'doc', 'ngang', 'gen'];
+const COVER_VARIANTS = ['sodo', 'chinh', 'ngang']; // biến thể "đẹp làm bìa" cho tầng 3
+const meridianImg = (idx: number, variant: string) =>
+  `/kinhmach3d/images/meridians/kinh-${String(idx).padStart(2, '0')}-${variant}.jpg`;
+
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+// Manifest tên huyệt → ảnh (sinh bởi frontend/scripts/_build-acu-index.mjs). Đọc 1 lần; lỗi/không có → [].
+// Chạy trên MÁY CÓ MÃ NGUỒN frontend (giống publish-article.mjs); trên server thiếu file thì degrade về kinh.
+let _acuIndex: [string, string][] | null = null;
+function getAcuIndex(): [string, string][] {
+  if (_acuIndex) return _acuIndex;
+  const p =
+    process.env.ACU_INDEX_PATH ||
+    pathResolve(process.cwd(), '..', 'frontend', 'public', 'blog-assets', 'acu-index.json');
+  try {
+    _acuIndex = existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8')) as [string, string][]) : [];
+  } catch {
+    _acuIndex = [];
+  }
+  return _acuIndex;
+}
 
 // Cụm chữ ĐẶC TRƯNG (đã bỏ dấu) → chỉ số đường kinh. Tránh âm tiết đơn dễ trùng (tâm, can, vị, thận…):
 // dùng bigram "kinh X"/"tạng X", tên kinh đầy đủ, huyệt phổ biến, và từ tiếng Anh.
@@ -1098,8 +1271,7 @@ const MERIDIAN_KEYWORDS: { idx: number; phrases: string[] }[] = [
 ];
 
 /**
- * Chọn ảnh bìa = sơ đồ đường kinh KHỚP chủ đề (dò tiêu đề + từ khoá + slug, khớp nguyên cụm).
- * Không khớp được kinh nào → phân bố ỔN ĐỊNH theo slug (không đổi mỗi lần build).
+ * Chọn ảnh bìa khớp chủ đề, 3 tầng: tên huyệt cụ thể → tên kinh (biến thể xoay) → sơ đồ phân bố theo slug.
  * LƯU Ý: bản xem trước ở frontend (SeoRadarView.vue → coverImageFor) phải khớp logic này.
  */
 function pickCoverImage(slug: string, tieuDe = '', tuKhoa = ''): string {
@@ -1107,13 +1279,22 @@ function pickCoverImage(slug: string, tieuDe = '', tuKhoa = ''): string {
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()} `;
-  for (const m of MERIDIAN_KEYWORDS) {
-    if (m.phrases.some((p) => hay.includes(` ${p} `))) return meridianCover(m.idx);
+  // Tầng 1: tên huyệt cụ thể (manifest đã sắp tên DÀI trước → cụm dài khớp trước).
+  // CHỈ chạy khi bài thực sự nói về "huyệt" — tránh bài khái niệm khớp nhầm (vd "tính vị" ≠ huyệt Ngũ Vị).
+  if (hay.includes(' huyet ')) {
+    for (const [name, file] of getAcuIndex()) {
+      if (hay.includes(` ${name} `)) return file;
+    }
   }
-  const s = slug || 'bai-viet';
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return meridianCover((h % 12) + 1);
+  // Tầng 2: tên kinh/tạng → 1 biến thể của đúng kinh đó (xoay theo slug).
+  for (const m of MERIDIAN_KEYWORDS) {
+    if (m.phrases.some((p) => hay.includes(` ${p} `))) {
+      return meridianImg(m.idx, MERIDIAN_VARIANTS[hashStr(slug || '') % MERIDIAN_VARIANTS.length]);
+    }
+  }
+  // Tầng 3: sơ đồ kinh phân bố ổn định theo slug (12 × 3 biến thể bìa). (>>> = dịch KHÔNG dấu.)
+  const h = hashStr(slug || 'bai-viet');
+  return meridianImg((h % 12) + 1, COVER_VARIANTS[(h >>> 4) % COVER_VARIANTS.length]);
 }
 
 /** Chuẩn hoá lỏng để so trùng: bỏ dấu, thường hoá, gộp khoảng trắng. */
