@@ -779,7 +779,8 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
       author: BLOG_AUTHOR,
       category: a.category || undefined,
       cta: a.cta || undefined,
-      image: pickCoverImage(slug, a.tieu_de || '', a.tu_khoa || ''), // ảnh bìa = sơ đồ đường kinh KHỚP chủ đề
+      // Ảnh bìa: ưu tiên ảnh bìa AI đã sinh (cover.*) nếu có; không thì sơ đồ đường kinh "của nhà" KHỚP chủ đề.
+      image: this.coverImageOnDisk(slug) || pickCoverImage(slug, a.tieu_de || '', a.tu_khoa || ''),
       keywords: keywords.length ? keywords : undefined,
       faq: faqArr.length ? faqArr : undefined,
       sources: sourcesArr.length ? sourcesArr : undefined,
