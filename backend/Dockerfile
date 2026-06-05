@@ -15,7 +15,10 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build \
+# nest build (tsc) ngốn RAM → trên VPS ít RAM, V8 tự abort "heap out of memory" (exit 134).
+# Nới trần heap để tsc đủ chỗ. LƯU Ý: nếu VPS RAM thấp (≤1GB) phải BẬT SWAP (xem DEPLOYMENT.md)
+# để backing, nếu không OS sẽ giết tiến trình (exit 137) dù đã nới trần.
+RUN NODE_OPTIONS=--max-old-space-size=2048 npm run build \
  && npm prune --omit=dev
 
 ############################
