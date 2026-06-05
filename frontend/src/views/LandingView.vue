@@ -2961,6 +2961,27 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
   .lp-brand {
     margin-right: auto;
   }
+  /* Co padding dọc của mọi section để trang bớt dài lê thê trên di động */
+  .lp-hero-inner,
+  .lp-model-inner,
+  .lp-section,
+  .lp-measure,
+  .lp-knowledge,
+  .lp-audience,
+  .lp-shift,
+  .lp-dials,
+  .lp-ladder,
+  .lp-learn,
+  .lp-cta-inner,
+  .lp-trust,
+  .lp-library {
+    padding-top: var(--space-10);
+    padding-bottom: var(--space-10);
+  }
+  /* Tiêu đề section sát nội dung hơn */
+  .lp-section-head {
+    margin-bottom: var(--space-8);
+  }
 }
 @media (max-width: 560px) {
   .lp-feature-grid {
@@ -2969,15 +2990,24 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
   .lp-k-grid {
     grid-template-columns: 1fr;
   }
+  .lp-hero-inner,
+  .lp-model-inner,
   .lp-section,
   .lp-measure,
   .lp-knowledge,
   .lp-audience,
+  .lp-shift,
+  .lp-dials,
+  .lp-ladder,
+  .lp-learn,
   .lp-cta-inner,
-  .lp-hero-inner,
-  .lp-model-inner {
-    padding-top: var(--space-12);
-    padding-bottom: var(--space-12);
+  .lp-trust,
+  .lp-library {
+    padding-top: var(--space-8);
+    padding-bottom: var(--space-8);
+  }
+  .lp-section-head {
+    margin-bottom: var(--space-6);
   }
   .lp-stats {
     gap: var(--space-5);

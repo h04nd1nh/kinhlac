@@ -143,6 +143,13 @@ export class SeoRouter {
     return { success: true, data };
   }
 
+  // Vẽ ẢNH BÌA AI cho cả bài (banner ngang khớp chủ đề) → lưu cover.* (đọc lại lúc Đăng).
+  @Post('bai-viet/:id/generate-cover')
+  async generateCover(@Param('id') id: string) {
+    const data = await this.service.generateCoverImage(+id);
+    return { success: true, data };
+  }
+
   @Put('bai-viet/:id')
   async updateBaiViet(@Param('id') id: string, @Body() dto: UpdateBaiVietDto) {
     const data = await this.service.updateBaiViet(+id, dto);

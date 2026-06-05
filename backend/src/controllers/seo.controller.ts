@@ -963,6 +963,55 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
     return { bai, heading: t.heading, remaining: targets.length - 1 };
   }
 
+  /** Thư mục gốc chứa ảnh blog (frontend/public/blog-images) — chỉ có trên máy CÓ MÃ NGUỒN frontend. */
+  private blogImagesDir(): string {
+    return (
+      this.config.get<string>('BLOG_IMAGES_DIR') ||
+      pathResolve(process.cwd(), '..', 'frontend', 'public', 'blog-images')
+    );
+  }
+
+  /** Đường dẫn web của ảnh bìa AI (cover.*) nếu đã sinh trên đĩa; không có thì null (→ dùng ảnh "của nhà"). */
+  private coverImageOnDisk(slug: string): string | null {
+    const dir = this.blogImagesDir();
+    for (const ext of ['png', 'jpg', 'jpeg', 'webp']) {
+      if (existsSync(pathResolve(dir, slug, `cover.${ext}`))) return `/blog-images/${slug}/cover.${ext}`;
+    }
+    return null;
+  }
+
+  /**
+   * Sinh ẢNH BÌA bằng AI cho cả bài (banner ngang khớp chủ đề) → lưu blog-images/<slug>/cover.<ext>.
+   * KHÔNG đụng nội dung/DB: ảnh bìa được "đọc từ đĩa" lúc Đăng (buildArticleJson) nên chỉ cần Đăng lại là áp dụng.
+   * CHỈ chạy trên MÁY CÓ MÃ NGUỒN frontend; cần tài khoản tạo ảnh còn credit (xem genImageBuffer).
+   */
+  async generateCoverImage(id: number): Promise<{ bai: SeoBaiViet; image: string }> {
+    const a = await this.getBaiViet(id);
+    const slug = slugify(a.slug || a.tieu_de || `bai-${a.id}`);
+    const baseDir = this.blogImagesDir();
+    if (!existsSync(pathResolve(baseDir, '..'))) {
+      throw new ServiceUnavailableException(
+        'Không thấy thư mục frontend/public — "Ảnh bìa AI" chỉ chạy trên MÁY CÓ MÃ NGUỒN frontend.',
+      );
+    }
+    const outDir = pathResolve(baseDir, slug);
+    mkdirSync(outDir, { recursive: true });
+    const { buf, ext } = await this.genImageBuffer(buildCoverPrompt(a.tieu_de || slug, a.tu_khoa || ''));
+    // Dọn ảnh bìa đuôi khác (tránh lẫn cover.png & cover.jpg → đọc nhầm bản cũ), rồi ghi bản mới.
+    for (const e of ['png', 'jpg', 'jpeg', 'webp']) {
+      const old = pathResolve(outDir, `cover.${e}`);
+      if (e !== ext && existsSync(old)) {
+        try {
+          unlinkSync(old);
+        } catch {
+          /* không xoá được bản cũ cũng không sao — bản mới vẫn được ưu tiên theo thứ tự đuôi */
+        }
+      }
+    }
+    writeFileSync(pathResolve(outDir, `cover.${ext}`), buf);
+    return { bai: a, image: `/blog-images/${slug}/cover.${ext}` };
+  }
+
   /** Tách danh sách model từ chuỗi env "a,b,c" → mảng (bỏ trùng/rỗng); rỗng thì dùng fallback. */
   private parseModels(raw: string | undefined, fallback: string[]): string[] {
     const list = (raw || '').split(',').map((s) => s.trim()).filter(Boolean);

@@ -364,6 +364,9 @@ const savingEditor = ref(false)
 const exportingId = ref<number | null>(null)
 const publishingId = ref<number | null>(null)
 const genImagesId = ref<number | null>(null)
+const genCoverId = ref<number | null>(null) // id bài đang vẽ ẢNH BÌA AI
+// Đường dẫn ảnh bìa AI (cover.*) của bài đang sửa — '' nghĩa là chưa có → dùng ảnh "của nhà".
+const customCover = ref('')
 
 // ===== Tiến trình khi Đăng (overlay: chạy bar tới khi xong → bật nút Xem) =====
 const pubModal = ref(false) // overlay tiến trình đang hiện
@@ -576,8 +579,27 @@ async function loadAcuIndex() {
     /* không có manifest → bỏ qua tầng huyệt, vẫn chạy tầng kinh */
   }
 }
+
+// Dò xem bài (theo slug) đã có ẢNH BÌA AI (cover.*) trên đĩa chưa → đặt customCover để xem trước.
+async function probeCover(a: BaiViet | null) {
+  customCover.value = ''
+  const slug = (a?.slug || '').trim()
+  if (!slug) return // chưa có slug → chưa thể có ảnh bìa AI
+  for (const ext of ['png', 'jpg', 'jpeg', 'webp']) {
+    try {
+      const r = await fetch(`/blog-images/${slug}/cover.${ext}`, { method: 'HEAD' })
+      if (r.ok) {
+        customCover.value = `/blog-images/${slug}/cover.${ext}`
+        return
+      }
+    } catch {
+      /* mạng lỗi → bỏ qua, coi như chưa có ảnh bìa AI */
+    }
+  }
+}
 function coverImageFor(a: BaiViet | null): string {
   if (!a) return ''
+  if (customCover.value) return customCover.value // ảnh bìa AI đã sinh → ưu tiên hiện
   const slug = a.slug || ''
   const hay = ` ${normLooseFE([a.tieu_de, a.tu_khoa, slug].filter(Boolean).join(' '))
     .replace(/[^a-z0-9]+/g, ' ')
@@ -604,8 +626,12 @@ function coverImageFor(a: BaiViet | null): string {
 // Mục An toàn Y khoa (YMYL) CHỈ cảnh báo, KHÔNG tự tick — người vẫn gật cuối (van an toàn).
 type KdAuto = { key: string; label: string; status: 'ok' | 'warn' | 'info'; lines: string[] }
 const autoReport = ref<KdAuto[] | null>(null)
-// Đổi bài đang sửa → xoá báo cáo cũ cho khỏi nhầm.
-watch(() => editing.value?.id, () => { autoReport.value = null })
+// Đổi bài đang sửa → xoá báo cáo cũ cho khỏi nhầm + dò lại ảnh bìa AI của bài mới.
+watch(() => editing.value?.id, () => {
+  autoReport.value = null
+  customCover.value = ''
+  if (editing.value) void probeCover(editing.value)
+})
 
 // Cụm chữ nguy hiểm cho nội dung Y tế — viết dạng KHÔNG dấu vì quét trên normLooseFE().
 const YMYL_RISK_PATTERNS: { re: RegExp; canh_bao: string }[] = [
@@ -618,6 +644,7 @@ const YMYL_RISK_PATTERNS: { re: RegExp; canh_bao: string }[] = [
 // Ảnh bìa khớp chủ đề khi tiêu đề/từ khoá trúng tên huyệt (Tầng 1) hoặc tên kinh/tạng (Tầng 2).
 function coverMatchedTopic(a: BaiViet | null): boolean {
   if (!a) return false
+  if (customCover.value) return true // ảnh bìa AI vẽ riêng theo chủ đề → coi như khớp
   const hay = ` ${normLooseFE([a.tieu_de, a.tu_khoa, a.slug].filter(Boolean).join(' '))
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -965,6 +992,33 @@ async function generateImages(a: BaiViet) {
     setTimeout(() => {
       if (genImagesId.value === null) imgProg.value = { ...imgProg.value, on: false }
     }, keep)
+  }
+}
+
+// ===== Sinh ẢNH BÌA AI riêng cho cả bài (banner ngang khớp chủ đề) =====
+async function generateCover(a: BaiViet) {
+  if (
+    !confirm(
+      `Vẽ ẢNH BÌA AI riêng cho bài "${a.tieu_de}"?\n\n` +
+        `• AI vẽ 1 ảnh bìa banner khớp chủ đề cả bài, lưu vào frontend/public/blog-images/${a.slug || '<slug>'}/cover.\n` +
+        `• Dùng nhà cung cấp ảnh ở backend (vd dall-e-3 qua Yescale — TRẢ PHÍ ~vài trăm đồng/ảnh, ~30–150 giây).\n` +
+        `• Sau khi vẽ xong, bấm Lưu rồi Đăng lại để ảnh bìa mới lên web.`,
+    )
+  )
+    return
+  genCoverId.value = a.id
+  try {
+    const res = await api.post<{ data: { bai: BaiViet; image: string } }>(
+      `/seo/bai-viet/${a.id}/generate-cover`,
+      {},
+    )
+    // Gắn ?t= để trình duyệt nạp lại ảnh mới (không dính cache bản cũ cùng tên).
+    customCover.value = `${res.data.image}?t=${Date.now()}`
+    flash('ok', 'Đã vẽ ảnh bìa AI. Giờ bấm Lưu rồi Đăng lại để áp dụng lên web.')
+  } catch (e: any) {
+    flash('err', String(e?.message || e || 'Vẽ ảnh bìa thất bại').slice(0, 220))
+  } finally {
+    genCoverId.value = null
   }
 }
 
@@ -1574,12 +1628,29 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
             ></textarea>
           </label>
 
-          <!-- Ảnh bìa tự chọn theo chủ đề (đổi bằng cách sửa tiêu đề/từ khoá) -->
+          <!-- Ảnh bìa: ưu tiên ảnh bìa AI vẽ riêng; chưa có thì dùng sơ đồ đường kinh "của nhà" theo chủ đề -->
           <div class="ed-field">
-            <span>Ảnh bìa <small>(tự chọn theo chủ đề — đổi bằng cách sửa tiêu đề / từ khoá)</small></span>
+            <span>Ảnh bìa
+              <small v-if="customCover">(ảnh bìa AI vẽ riêng theo chủ đề)</small>
+              <small v-else>(sơ đồ đường kinh "của nhà" — bấm “Vẽ ảnh bìa AI” để có ảnh riêng theo nội dung)</small>
+            </span>
             <div class="cover-prev">
               <img :src="coverImageFor(editing)" :alt="editing.tieu_de" class="cover-prev-img" loading="lazy" />
-              <code class="cover-prev-path">{{ coverImageFor(editing) }}</code>
+              <div class="cover-prev-meta">
+                <span class="cover-badge" :class="customCover ? 'cover-badge--ai' : 'cover-badge--house'">
+                  {{ customCover ? '✨ Ảnh bìa AI' : '🧭 Sơ đồ đường kinh' }}
+                </span>
+                <code class="cover-prev-path">{{ coverImageFor(editing) }}</code>
+                <button
+                  type="button"
+                  class="btn btn--xs btn--ghost"
+                  :disabled="genCoverId === editing.id"
+                  title="AI vẽ 1 ảnh bìa riêng khớp chủ đề cả bài (tốn credit AI)"
+                  @click="generateCover(editing)"
+                >
+                  {{ genCoverId === editing.id ? 'Đang vẽ ảnh bìa…' : (customCover ? '🔄 Vẽ lại ảnh bìa AI' : '✨ Vẽ ảnh bìa AI') }}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1917,7 +1988,14 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
   width: 160px; height: 84px; object-fit: cover; border-radius: var(--radius-md);
   border: 1px solid var(--brown-200); background: var(--brown-50); flex-shrink: 0;
 }
+.cover-prev-meta { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); min-width: 0; }
 .cover-prev-path { font-size: var(--font-size-xs); color: var(--text-subtle); word-break: break-all; }
+.cover-badge {
+  display: inline-block; font-size: var(--font-size-xs); font-weight: 600;
+  padding: 2px 8px; border-radius: var(--radius-sm); border: 1px solid transparent;
+}
+.cover-badge--ai { color: var(--brown-700); background: var(--cream-200, var(--brown-50)); border-color: var(--brown-300); }
+.cover-badge--house { color: var(--text-subtle); background: var(--brown-50); border-color: var(--brown-200); }
 
 .kd-box {
   margin: var(--space-3) 0; padding: var(--space-3); border: 1px solid var(--brown-200);

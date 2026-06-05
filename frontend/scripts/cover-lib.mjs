@@ -13,6 +13,15 @@ import { dirname, resolve } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const ACU_INDEX_PATH = resolve(here, '../public/blog-assets/acu-index.json')
+const BLOG_IMAGES_DIR = resolve(here, '../public/blog-images')
+
+// Ảnh bìa AI đã vẽ riêng cho bài (blog-images/<slug>/cover.*) — nếu có thì ƯU TIÊN hơn ảnh "của nhà".
+export function existingCoverFor(slug) {
+  for (const ext of ['png', 'jpg', 'jpeg', 'webp']) {
+    if (existsSync(resolve(BLOG_IMAGES_DIR, slug, `cover.${ext}`))) return `/blog-images/${slug}/cover.${ext}`
+  }
+  return null
+}
 
 // Nạp 1 lần (mảng [ten, path] đã sắp tên DÀI trước).
 let _acu = null

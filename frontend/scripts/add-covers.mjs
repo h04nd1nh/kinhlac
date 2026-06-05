@@ -10,7 +10,7 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve, join } from 'node:path'
-import { pickCover, loadAcuIndex } from './cover-lib.mjs'
+import { pickCover, loadAcuIndex, existingCoverFor } from './cover-lib.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const dir = resolve(here, '../content/blog')
@@ -50,7 +50,8 @@ for (const f of all) {
     continue
   }
   const slug = (fmField(fm, 'slug') || f.replace(/\.md$/, '')).trim()
-  const img = pickCover(slug, fmField(fm, 'title'), fmField(fm, 'keywords'), acu)
+  // Ưu tiên ảnh bìa AI đã vẽ riêng (cover.*); chưa có thì mới chọn ảnh "của nhà" theo chủ đề.
+  const img = existingCoverFor(slug) || pickCover(slug, fmField(fm, 'title'), fmField(fm, 'keywords'), acu)
 
   // gỡ image cũ (nếu --force) rồi chèn lại — đặt ngay sau dòng slug cho gọn.
   fm = fm
