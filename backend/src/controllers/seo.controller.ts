@@ -11,7 +11,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, IsNull, Repository } from 'typeorm';
 import OpenAI from 'openai';
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
 import { resolve as pathResolve } from 'node:path';
 import { promises as dns } from 'node:dns';
 import { isIP } from 'node:net';
@@ -1565,6 +1565,17 @@ function buildImagePrompt(title: string, heading: string): string {
     'Style: warm and elegant, soft natural light, earthy brown and cream palette,',
     'motifs of medicinal herbs, gentle meridian energy lines, a calm traditional clinic.',
     'No text, no watermark, no precise anatomical acupoint map. Symbolic and artistic.',
+  ].join(' ');
+}
+
+/** Prompt ẢNH BÌA AI — bố cục banner ngang KHỚP chủ đề cả bài (không theo từng mục); cùng tinh thần an toàn YMYL. */
+function buildCoverPrompt(title: string, tuKhoa = ''): string {
+  return [
+    'Wide hero cover illustration for a Vietnamese Traditional Medicine (Dong Y) blog article.',
+    `Article title: "${title}".${tuKhoa ? ` Topic: ${tuKhoa}.` : ''}`,
+    'Style: warm and elegant, soft natural light, earthy brown and cream palette,',
+    'motifs of medicinal herbs and a calm traditional clinic, gentle energy lines, banner composition with calm empty space.',
+    'No text, no letters, no watermark, no precise anatomical acupoint map. Symbolic and artistic.',
   ].join(' ');
 }
 

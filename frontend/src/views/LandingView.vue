@@ -2800,16 +2800,18 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
 .lp-footer-disclaimer strong {
   color: rgba(255, 255, 255, 0.72);
 }
-/* Chân trang trên di động: xếp dọc, canh trái, link giãn cách dễ bấm */
+/* Chân trang trên di động: xếp dọc, mỗi link một dòng cho gọn gàng */
 @media (max-width: 768px) {
   .lp-footer-inner {
     flex-direction: column;
     align-items: stretch;
-    gap: var(--space-5);
+    gap: var(--space-6);
     padding: var(--space-10) var(--space-5);
   }
   .lp-footer-nav {
-    gap: var(--space-2) var(--space-5);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
   }
   .lp-footer-nav a,
   .lp-footer-nav--legal a {
