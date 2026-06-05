@@ -294,6 +294,14 @@
           o.material = new THREE.MeshStandardMaterial({
             color: L.color, roughness: L.rough, metalness: 0.0, side: THREE.DoubleSide,
           });
+          // Cơ/Xương đẩy LÙI nhẹ trong depth-buffer (polygonOffset) để chỗ trùng/sát mặt da thì DA luôn
+          // thắng depth-test → đỡ "cơ thò ngoài da" lúc peel dở. (Chỗ da ĐỤC HẲN che kín xử lý bằng
+          // ẩn lớp trong applyLayers — chắc ăn hơn vì polygonOffset không che được chỗ nhô nhiều.)
+          if (id !== 'skin') {
+            o.material.polygonOffset = true;
+            o.material.polygonOffsetFactor = 1;
+            o.material.polygonOffsetUnits = 1;
+          }
           (layerMats[id] = layerMats[id] || []).push(o.material);
           (layerMeshes[id] = layerMeshes[id] || []).push(o);
           o.userData.layer = id;
@@ -708,13 +716,21 @@
 
   function applyLayers() {
     wake();
+    const opOf = id => (layerState[id] == null ? 1 : layerState[id]);
+    const skinOp = opOf('skin'), muscleOp = opOf('muscle');
     for (const L of LAYERS) {
       const mats = layerMats[L.id]; if (!mats) continue;
-      const op = layerState[L.id] == null ? 1 : layerState[L.id];
+      const op = opOf(L.id);
       mats.forEach(m => { m.transparent = op < 0.999; m.opacity = op; m.depthWrite = op > 0.5; m.needsUpdate = true; });
-      (layerMeshes[L.id] || []).forEach(o => { o.visible = op > 0.004; });   // lớp mờ hẳn → KHÔNG vẽ (bỏ overdraw lớp cơ/xương khuất sau da)
+      // Ẩn lớp khi: (a) chính nó mờ hẳn, HOẶC (b) bị lớp ngoài ĐỤC HẲN (op≥0.999) che kín. Da đục che Cơ &
+      // Xương; Cơ đục che thêm Xương. → diệt tận gốc "cơ/xương thò ngoài da" (model trùng/nhô mặt) mà vẫn
+      // bóc tách lớp như cũ: kéo Da xuống <100% là Cơ hiện lại ngay; kéo cả Da & Cơ xuống thì Xương hiện.
+      const coveredBySkin = L.id !== 'skin' && skinOp >= 0.999;
+      const coveredByMuscle = L.id === 'bone' && muscleOp >= 0.999;
+      const visible = op > 0.004 && !coveredBySkin && !coveredByMuscle;
+      (layerMeshes[L.id] || []).forEach(o => { o.visible = visible; });
     }
-    if (contactShadow) contactShadow.material.opacity = layerState.skin == null ? 1 : layerState.skin; // bóng mờ theo da
+    if (contactShadow) contactShadow.material.opacity = skinOp; // bóng mờ theo da
   }
   // dựng thanh trượt cho ĐÚNG những lớp model thực có (model 1-mesh => chỉ "Da")
   function renderLayerControls() {
@@ -1038,8 +1054,8 @@
         <h3>${esc(m.name)}</h3>
         <div class="dr-mer" style="color:${m.color}">${codes.length}${tot} huyệt · bấm huyệt → bay tới + chi tiết</div>
       </div>
-      <a class="dr-full" href="#meridian/${mer}">📖 Lý thuyết kinh đầy đủ →</a>
       <div class="dr-ptlist">${list}</div>
+      <a class="dr-full" href="#meridian/${mer}">📖 Lý thuyết kinh đầy đủ →</a>
       <div class="dr-detail" id="drDetail">${activeCode ? pointDetailHTML(activeCode) : '<p class="hint" style="padding:6px 2px">Chọn 1 huyệt ở danh sách trên để xem chi tiết.</p>'}</div>`;
     drawerMer = mer;
   }
