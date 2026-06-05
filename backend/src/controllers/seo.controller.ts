@@ -1,0 +1,1090 @@
+import {
+  BadRequestException,
+  HttpException,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
+import OpenAI from 'openai';
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { resolve as pathResolve } from 'node:path';
+
+import { SeoDoiThu } from '../models/seo-doi-thu.model';
+import { SeoUrl } from '../models/seo-url.model';
+import { SeoCum } from '../models/seo-cum.model';
+import { SeoBaiViet } from '../models/seo-bai-viet.model';
+import {
+  CreateDoiThuDto,
+  GenerateDraftDto,
+  UpdateBaiVietDto,
+} from '../models/seo.dto';
+
+// ---- Cấu hình AI (dùng lại hạ tầng Yescale như ai-suggest) ------------------
+const YESCALE_DEFAULT_BASE_URL = 'https://api.yescale.vip/v1';
+const YESCALE_DEFAULT_MODEL = 'deepseek-v3.2';
+
+// ---- Giới hạn an toàn (tránh crawl/đốt token quá tay) ----------------------
+const FETCH_TIMEOUT_MS = 15000;
+const MAX_SITEMAPS = 15; // số sitemap con tối đa đi sâu
+const MAX_URLS_PER_CRAWL = 300; // trần URL gom mỗi lần quét
+const MAX_PAGE_CHARS = 5000; // cắt bớt text trang đối thủ trước khi đưa cho AI
+const MAX_ANALYZE_BATCH = 30;
+const GAP_MAX_TOPICS = 120; // trần số chủ đề mỗi bên đưa vào gap analysis
+
+// Bối cảnh ngành của Kinhlac — để AI bóc đúng từ khoá liên quan tới ngách của mình.
+const BUSINESS_CONTEXT = `Lĩnh vực kinh doanh của chúng tôi (Kinhlac): Y học cổ truyền / Đông Y, tập trung ngách:
+- Đo nhiệt độ kinh lạc / chẩn đoán kinh lạc (phương pháp 24 tỉnh huyệt)
+- Huyệt vị, đường kinh, châm cứu (tra cứu + đồ hình 3D)
+- Vị thuốc, bài thuốc (tính vị quy kinh), biện chứng luận trị
+- Phần mềm số hoá / quản lý phòng khám Đông Y`;
+
+const EXTRACT_SYSTEM_PROMPT = `Bạn là thành viên của một đội ngũ SEO chuyên nghiệp trong lĩnh vực Y học cổ truyền (Đông Y).
+Nhiệm vụ: phân tích NỘI DUNG một bài blog của đối thủ (đã được trích sẵn text bên dưới) để giúp team xây chiến lược nội dung & từ khoá.
+
+Hãy xác định:
+- chu_de: chủ đề chính của bài blog (1 câu ngắn).
+- tu_khoa: 3 từ khoá SEO hàng đầu trong bài, liên quan tới lĩnh vực kinh doanh của chúng tôi. Kết hợp từ khoá dài (long tail) và ngắn (short tail). Từ khoá phải thực sự xuất hiện/đúng trọng tâm bài. Ghi cách nhau bởi dấu phẩy.
+- tom_tat: tóm tắt dạng gạch đầu dòng, mỗi dòng một ý phụ khác nhau (bắt đầu bằng "- ", phân tách bằng ký tự xuống dòng \\n). Ngắn gọn.
+
+QUY TẮC:
+- Chỉ trả về DUY NHẤT một JSON object: {"chu_de": "...", "tu_khoa": "...", "tom_tat": "- ...\\n- ..."}.
+- KHÔNG kèm văn bản giải thích, KHÔNG markdown, KHÔNG \`\`\`.
+- Tiếng Việt có dấu, viết hoa chữ cái đầu.
+- Nếu nội dung quá mỏng/không rõ, vẫn cố suy luận từ tiêu đề & mô tả; tuyệt đối không bịa số liệu.`;
+
+const GAP_SYSTEM_PROMPT = `Bạn là chuyên gia phân tích SEO ngành Y học cổ truyền (Đông Y).
+Nhiệm vụ: phân tích "khoảng trống nội dung" (content gap) giữa ĐỐI THỦ và CHÚNG TÔI, rồi đề xuất các CỤM CHỦ ĐỀ (content cluster) mới nên viết.
+
+Phương pháp:
+1. Tìm chủ đề/từ khoá mà đối thủ có nhưng chúng tôi còn thiếu hoặc yếu.
+2. Chủ đề càng nhiều đối thủ cùng làm = nhu cầu thị trường càng rõ → ưu tiên cao.
+3. Càng liên quan tới ngách lõi (đo kinh lạc, huyệt vị, bài thuốc, số hoá phòng khám đông y) càng tốt.
+
+Mỗi cụm chấm điểm:
+- diem_uu_tien: số nguyên 1..15 (tổng hợp: độ phổ biến + độ liên quan + giá trị cho người đọc).
+- tu_khoa_muc_tieu: 3-6 từ khoá, cách nhau dấu phẩy.
+- y_tuong_noi_dung: 2-4 ý tưởng bài viết cụ thể, cách nhau dấu chấm phẩy.
+- ly_do: 1 câu vì sao nên viết cụm này.
+
+QUY TẮC:
+- Chỉ trả về DUY NHẤT một JSON object: {"clusters": [ { "ten_cum": "...", "diem_uu_tien": 12, "tu_khoa_muc_tieu": "...", "y_tuong_noi_dung": "...", "ly_do": "..." } ]}.
+- Tối đa 10 cụm, sắp xếp diem_uu_tien giảm dần.
+- KHÔNG markdown, KHÔNG \`\`\`, KHÔNG văn bản ngoài JSON.
+- Tiếng Việt có dấu, thuật ngữ Đông Y chuẩn.`;
+
+const WRITE_SYSTEM_PROMPT = `Bạn là cây bút nội dung Y học cổ truyền (Đông Y) cho website Kinhlac (kinhlac.online) — ngách: đo nhiệt độ kinh lạc, huyệt vị, đường kinh, bài thuốc, số hoá phòng khám Đông Y.
+
+Viết MỘT bài blog chuẩn SEO bằng tiếng Việt theo brief được cung cấp.
+
+YÊU CẦU:
+- Độ dài 700–1300 từ. Văn phong gần gũi, dễ hiểu, có chuyên môn, thuyết phục.
+- Cấu trúc: 1 đoạn mở bài dẫn dắt → nhiều mục ## (H2) và ### (H3) → đoạn kết ngắn có lời mời hành động nhẹ nhàng.
+- TUYỆT ĐỐI KHÔNG viết tiêu đề H1 (#) và KHÔNG kèm phần Câu Hỏi Thường Gặp (FAQ) — hai phần đó được xử lý riêng.
+- Chèn từ khoá chính & phụ một cách tự nhiên, KHÔNG nhồi nhét.
+- KHÔNG bịa số liệu, liều lượng, phác đồ điều trị hay cam kết "chữa khỏi". Nếu nhắc tới điều trị/châm cứu cụ thể, diễn đạt ở mức tham khảo theo lý luận Đông Y và khuyên gặp thầy thuốc.
+- Dùng bảng hoặc gạch đầu dòng khi hợp lý để dễ đọc.
+
+ĐẦU RA: CHỈ Markdown thuần của thân bài, bắt đầu bằng đoạn mở bài. KHÔNG \`\`\`, KHÔNG JSON, KHÔNG lời mở đầu/giải thích nào khác.`;
+
+const META_SYSTEM_PROMPT = `Bạn là chuyên gia SEO. Đọc bài blog Đông Y đã viết và trả về metadata + phân loại an toàn nội dung.
+
+Trả về DUY NHẤT một JSON object đúng cấu trúc:
+{
+  "tieu_de": "tiêu đề hấp dẫn, chứa từ khoá chính, không đặt trong ngoặc kép",
+  "slug": "slug-khong-dau-4-den-6-tu",
+  "meta_description": "140-160 ký tự, chứa từ khoá chính, mời gọi",
+  "tu_khoa": ["từ khoá 1", "từ khoá 2", "..."],
+  "category": "1 chuyên mục ngắn (vd: Đo Kinh Lạc, Kinh Lạc, Huyệt Vị, Bài Thuốc, Số Hoá Phòng Khám)",
+  "cta": "chọn ĐÚNG một trong: /xem-ket-qua-do, /xem-3d, /xem-bai-thuoc, /thu-vien, /app",
+  "faq": [{"q": "câu hỏi", "a": "trả lời ngắn gọn"}],
+  "do_rui_ro": "an_toan hoặc rui_ro",
+  "ly_do_rui_ro": "1 câu giải thích"
+}
+
+PHÂN LOẠI do_rui_ro (van an toàn YMYL — y tế):
+- "rui_ro": bài CÓ lời khuyên chẩn đoán/điều trị cụ thể, liều lượng, phác đồ, hoặc hứa hẹn chữa khỏi bệnh.
+- "an_toan": bài chỉ là kiến thức tra cứu/dữ kiện (định nghĩa, vị trí huyệt, đường kinh, tính vị quy kinh, lý thuyết).
+
+QUY TẮC: faq có 2-4 câu. slug không dấu, không khoảng trắng (dùng dấu -). KHÔNG markdown, KHÔNG \`\`\`, chỉ JSON.`;
+
+const ALLOWED_CTA = new Set(['/xem-ket-qua-do', '/xem-3d', '/xem-bai-thuoc', '/thu-vien', '/app']);
+const BAI_VIET_TRANG_THAI = new Set(['nhap', 'da_duyet', 'bo_qua', 'da_dang']);
+const BLOG_AUTHOR = 'Ban Biên Tập Kinh Lạc';
+
+// Phase 3: từ khoá gốc của ngách (seed cho Google Suggest) + chu kỳ cron tuần.
+const DEFAULT_TREND_SEEDS = [
+  'đo kinh lạc',
+  'đo nhiệt độ kinh lạc',
+  'huyệt',
+  'bấm huyệt',
+  'kinh lạc',
+  'châm cứu',
+  'bài thuốc đông y',
+  'tính vị quy kinh',
+  'huyệt đạo',
+  '12 đường kinh',
+];
+const TREND_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const TREND_MAX_DRAFTS = 5; // trần số bài sinh mỗi lần (giới hạn thời gian + chi phí AI)
+
+@Injectable()
+export class SeoService implements OnModuleInit {
+  /** Cron tuần (opt-in): chỉ bật khi env SEO_TREND_CRON=true. */
+  private trendTimer: NodeJS.Timeout | null = null;
+  private lastTrendRun = 0;
+  private client: OpenAI | null = null;
+  private clientKey = '';
+  private clientBase = '';
+
+  constructor(
+    private readonly config: ConfigService,
+    @InjectRepository(SeoDoiThu)
+    private readonly doiThuRepo: Repository<SeoDoiThu>,
+    @InjectRepository(SeoUrl)
+    private readonly urlRepo: Repository<SeoUrl>,
+    @InjectRepository(SeoCum)
+    private readonly cumRepo: Repository<SeoCum>,
+    @InjectRepository(SeoBaiViet)
+    private readonly baiVietRepo: Repository<SeoBaiViet>,
+  ) {}
+
+  /** Bật cron tuần nếu SEO_TREND_CRON=true (mặc định TẮT — bấm tay trước, tự động sau). */
+  onModuleInit(): void {
+    if (this.config.get<string>('SEO_TREND_CRON') !== 'true') return;
+    // Đợi đủ 1 tuần kể từ lúc boot rồi mới chạy (tránh sinh bài mỗi lần restart).
+    this.lastTrendRun = Date.now();
+    const CHECK_MS = 6 * 60 * 60 * 1000; // 6h kiểm tra 1 lần
+    this.trendTimer = setInterval(() => void this.maybeRunWeekly(), CHECK_MS);
+    // eslint-disable-next-line no-console
+    console.log('[SEO cron] Đã bật cron tuần tự đăng theo xu hướng (SEO_TREND_CRON=true).');
+  }
+
+  private async maybeRunWeekly(): Promise<void> {
+    if (Date.now() - this.lastTrendRun < TREND_WEEK_MS) return;
+    this.lastTrendRun = Date.now();
+    try {
+      const cands = await this.discoverTrends();
+      const pick = cands.slice(0, 1).map((c) => c.keyword);
+      if (pick.length) {
+        await this.runTrendDrafts(pick);
+        // eslint-disable-next-line no-console
+        console.log('[SEO cron] Đã tạo nháp xu hướng:', pick.join(', '));
+      }
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.error('[SEO cron] lỗi:', e?.message || e);
+    }
+  }
+
+  // ===========================================================================
+  // ĐỐI THỦ
+  // ===========================================================================
+
+  /** Danh sách đối thủ kèm số URL theo trạng thái (để hiển thị tiến độ). */
+  async listDoiThu() {
+    const list = await this.doiThuRepo.find({ order: { created_at: 'ASC' } });
+    const counts = await this.urlRepo
+      .createQueryBuilder('u')
+      .select('u.doi_thu_id', 'doi_thu_id')
+      .addSelect('u.trang_thai', 'trang_thai')
+      .addSelect('COUNT(*)', 'c')
+      .groupBy('u.doi_thu_id')
+      .addGroupBy('u.trang_thai')
+      .getRawMany<{ doi_thu_id: number; trang_thai: string; c: string }>();
+
+    const byId = new Map<number, { tong: number; cho: number; da_phan_tich: number; loi: number }>();
+    for (const r of counts) {
+      const id = Number(r.doi_thu_id);
+      const entry = byId.get(id) || { tong: 0, cho: 0, da_phan_tich: 0, loi: 0 };
+      const n = Number(r.c) || 0;
+      entry.tong += n;
+      if (r.trang_thai === 'cho') entry.cho += n;
+      else if (r.trang_thai === 'da_phan_tich') entry.da_phan_tich += n;
+      else if (r.trang_thai === 'loi') entry.loi += n;
+      byId.set(id, entry);
+    }
+
+    return list.map((d) => ({
+      ...d,
+      thong_ke: byId.get(d.id) || { tong: 0, cho: 0, da_phan_tich: 0, loi: 0 },
+    }));
+  }
+
+  async createDoiThu(dto: CreateDoiThuDto): Promise<SeoDoiThu> {
+    const domain = normalizeDomain(dto.domain ?? '');
+    if (!domain) throw new BadRequestException('Domain không hợp lệ');
+    if (!/\.[a-z]{2,}$/i.test(domain)) {
+      throw new BadRequestException(`Domain "${domain}" trông không hợp lệ (thiếu phần đuôi như .com, .vn)`);
+    }
+
+    const existing = await this.doiThuRepo
+      .createQueryBuilder('d')
+      .where('lower(d.domain) = :domain', { domain })
+      .getOne();
+    if (existing) return existing;
+
+    const entity = this.doiThuRepo.create({
+      domain,
+      ten: dto.ten?.trim() || null,
+      la_cua_minh: !!dto.la_cua_minh,
+      ghi_chu: dto.ghi_chu?.trim() || null,
+    });
+    return this.doiThuRepo.save(entity);
+  }
+
+  async removeDoiThu(id: number): Promise<void> {
+    const d = await this.doiThuRepo.findOneBy({ id });
+    if (!d) throw new NotFoundException(`Đối thủ #${id} không tồn tại`);
+    await this.doiThuRepo.remove(d); // ON DELETE CASCADE xoá luôn seo_url
+  }
+
+  // ===========================================================================
+  // CRAWL SITEMAP
+  // ===========================================================================
+
+  /** Đọc sitemap của domain → gom URL blog → thêm vào seo_url (bỏ trùng). */
+  async crawlSitemap(doiThuId: number): Promise<{ found: number; added: number; domain: string }> {
+    const d = await this.doiThuRepo.findOneBy({ id: doiThuId });
+    if (!d) throw new NotFoundException(`Đối thủ #${doiThuId} không tồn tại`);
+
+    const urls = await this.collectUrlsFromSitemaps(d.domain);
+    if (!urls.length) {
+      throw new ServiceUnavailableException(
+        `Không tìm thấy URL nào trong sitemap của ${d.domain}. Có thể site chặn bot hoặc không có sitemap.xml.`,
+      );
+    }
+
+    // Bỏ những URL đã có trong DB (so toàn cục theo cột url).
+    const existing = await this.urlRepo
+      .createQueryBuilder('u')
+      .select('u.url', 'url')
+      .where('u.url IN (:...urls)', { urls })
+      .getRawMany<{ url: string }>();
+    const existingSet = new Set(existing.map((e) => e.url));
+
+    const toInsert = urls
+      .filter((u) => !existingSet.has(u))
+      .map((u) =>
+        this.urlRepo.create({ doi_thu_id: doiThuId, url: u, trang_thai: 'cho' as const }),
+      );
+
+    if (toInsert.length) {
+      // chunk để tránh câu INSERT quá lớn
+      const CHUNK = 100;
+      for (let i = 0; i < toInsert.length; i += CHUNK) {
+        await this.urlRepo.save(toInsert.slice(i, i + CHUNK));
+      }
+    }
+
+    return { found: urls.length, added: toInsert.length, domain: d.domain };
+  }
+
+  // ===========================================================================
+  // PHÂN TÍCH 1 URL (tải HTML → đưa text cho Yescale → lưu kết quả)
+  // ===========================================================================
+
+  async analyzeUrl(urlId: number): Promise<SeoUrl> {
+    const row = await this.urlRepo.findOneBy({ id: urlId });
+    if (!row) throw new NotFoundException(`URL #${urlId} không tồn tại`);
+
+    try {
+      const html = await fetchTextSafe(row.url);
+      if (!html) throw new Error('Không tải được nội dung trang (rỗng hoặc bị chặn).');
+
+      const { title, description, body } = htmlToText(html);
+      const pageText = [
+        title ? `TIÊU ĐỀ: ${title}` : '',
+        description ? `MÔ TẢ: ${description}` : '',
+        body ? `NỘI DUNG: ${body.slice(0, MAX_PAGE_CHARS)}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      if (pageText.replace(/\s/g, '').length < 40) {
+        throw new Error('Trang gần như không có chữ để phân tích.');
+      }
+
+      const result = await this.extractWithAi(row.url, pageText);
+
+      row.chu_de = result.chu_de || null;
+      row.tu_khoa = result.tu_khoa || null;
+      row.tom_tat = result.tom_tat || null;
+      row.trang_thai = 'da_phan_tich';
+      row.loi = null;
+      row.analyzed_at = new Date();
+      return await this.urlRepo.save(row);
+    } catch (err: any) {
+      row.trang_thai = 'loi';
+      row.loi = String(err?.error?.message || err?.message || err).slice(0, 500);
+      row.analyzed_at = new Date();
+      return await this.urlRepo.save(row);
+    }
+  }
+
+  /** Phân tích lần lượt N URL đang "chờ" của 1 đối thủ. */
+  async analyzeBatch(
+    doiThuId: number,
+    limit = 10,
+  ): Promise<{ analyzed: number; ok: number; loi: number }> {
+    const d = await this.doiThuRepo.findOneBy({ id: doiThuId });
+    if (!d) throw new NotFoundException(`Đối thủ #${doiThuId} không tồn tại`);
+
+    const take = Math.min(Math.max(1, limit || 10), MAX_ANALYZE_BATCH);
+    const pending = await this.urlRepo.find({
+      where: { doi_thu_id: doiThuId, trang_thai: 'cho' },
+      order: { id: 'ASC' },
+      take,
+    });
+
+    let ok = 0;
+    let loi = 0;
+    // Tuần tự để không đập quá nhiều request lên Yescale cùng lúc.
+    for (const row of pending) {
+      const updated = await this.analyzeUrl(row.id);
+      if (updated.trang_thai === 'da_phan_tich') ok++;
+      else loi++;
+    }
+    return { analyzed: pending.length, ok, loi };
+  }
+
+  async listUrls(doiThuId?: number, trangThai?: string): Promise<SeoUrl[]> {
+    const where: FindOptionsWhere<SeoUrl> = {};
+    if (doiThuId) where.doi_thu_id = doiThuId;
+    if (trangThai) where.trang_thai = trangThai as SeoUrl['trang_thai'];
+    return this.urlRepo.find({
+      where,
+      order: { trang_thai: 'ASC', id: 'ASC' },
+      take: 500,
+    });
+  }
+
+  async removeUrl(id: number): Promise<void> {
+    const row = await this.urlRepo.findOneBy({ id });
+    if (!row) throw new NotFoundException(`URL #${id} không tồn tại`);
+    await this.urlRepo.remove(row);
+  }
+
+  // ===========================================================================
+  // GAP ANALYSIS
+  // ===========================================================================
+
+  async listCum(): Promise<SeoCum[]> {
+    return this.cumRepo.find({ order: { diem_uu_tien: 'DESC', id: 'ASC' } });
+  }
+
+  /** So nội dung đối thủ ↔ của mình → AI đề xuất các cụm nên viết. Ghi đè các cụm 'de_xuat' cũ. */
+  async gapAnalysis(): Promise<SeoCum[]> {
+    const doiThus = await this.doiThuRepo.find();
+    const laMinh = new Map(doiThus.map((d) => [d.id, d.la_cua_minh]));
+
+    const analyzed = await this.urlRepo.find({ where: { trang_thai: 'da_phan_tich' } });
+    if (!analyzed.length) {
+      throw new BadRequestException(
+        'Chưa có URL nào được phân tích. Hãy quét sitemap và bấm "Phân tích" trước đã.',
+      );
+    }
+
+    const compTopics: string[] = [];
+    const myTopics: string[] = [];
+    for (const u of analyzed) {
+      const line = `- ${u.chu_de || '(không rõ)'} | từ khoá: ${u.tu_khoa || ''}`;
+      if (laMinh.get(u.doi_thu_id)) myTopics.push(line);
+      else compTopics.push(line);
+    }
+
+    if (!compTopics.length) {
+      throw new BadRequestException(
+        'Chưa có dữ liệu ĐỐI THỦ đã phân tích (mọi URL hiện thuộc site của mình). Thêm domain đối thủ và phân tích trước.',
+      );
+    }
+
+    const userPrompt = `${BUSINESS_CONTEXT}
+
+== CHỦ ĐỀ ĐỐI THỦ ĐANG LÀM (${Math.min(compTopics.length, GAP_MAX_TOPICS)} mục) ==
+${compTopics.slice(0, GAP_MAX_TOPICS).join('\n')}
+
+== CHỦ ĐỀ CHÚNG TÔI ĐÃ CÓ (${Math.min(myTopics.length, GAP_MAX_TOPICS)} mục) ==
+${myTopics.length ? myTopics.slice(0, GAP_MAX_TOPICS).join('\n') : '(chưa có bài nào — coi như đang trống)'}
+
+Hãy đề xuất các cụm chủ đề nên viết theo đúng định dạng JSON đã quy định.`;
+
+    const parsed = await this.chatJson(GAP_SYSTEM_PROMPT, userPrompt, 2500);
+    const clustersRaw = Array.isArray((parsed as any)?.clusters)
+      ? (parsed as any).clusters
+      : Array.isArray(parsed)
+        ? (parsed as any)
+        : [];
+
+    if (!clustersRaw.length) {
+      throw new ServiceUnavailableException('AI không trả về cụm nào hợp lệ. Thử lại sau.');
+    }
+
+    // Ghi đè các cụm 'de_xuat' cũ; giữ lại cụm đã chọn/đã viết.
+    await this.cumRepo.delete({ trang_thai: 'de_xuat' });
+
+    const entities = clustersRaw
+      .filter((c: any) => c && typeof c === 'object' && (c.ten_cum || c.cluster_name))
+      .slice(0, 10)
+      .map((c: any) =>
+        this.cumRepo.create({
+          ten_cum: String(c.ten_cum || c.cluster_name).trim().slice(0, 255),
+          diem_uu_tien: clampInt(c.diem_uu_tien ?? c.priority_score, 0, 15),
+          tu_khoa_muc_tieu: toCommaText(c.tu_khoa_muc_tieu ?? c.target_keywords),
+          y_tuong_noi_dung: toSemicolonText(c.y_tuong_noi_dung ?? c.content_opportunities),
+          ly_do: c.ly_do ? String(c.ly_do).trim() : null,
+          trang_thai: 'de_xuat' as const,
+        }),
+      );
+
+    await this.cumRepo.save(entities);
+    return this.listCum();
+  }
+
+  // ===========================================================================
+  // AI helpers (Yescale, OpenAI-compatible)
+  // ===========================================================================
+
+  private getClient(): OpenAI {
+    const apiKey = this.config.get<string>('YESCALE_API_KEY');
+    if (!apiKey) {
+      throw new ServiceUnavailableException('Chưa cấu hình YESCALE_API_KEY');
+    }
+    const baseURL =
+      this.config.get<string>('YESCALE_BASE_URL') || YESCALE_DEFAULT_BASE_URL;
+    if (!this.client || this.clientKey !== apiKey || this.clientBase !== baseURL) {
+      this.client = new OpenAI({ apiKey, baseURL });
+      this.clientKey = apiKey;
+      this.clientBase = baseURL;
+    }
+    return this.client;
+  }
+
+  private async chatJson(
+    system: string,
+    user: string,
+    maxTokens: number,
+  ): Promise<Record<string, unknown> | unknown[]> {
+    const client = this.getClient();
+    const model = this.config.get<string>('YESCALE_MODEL') || YESCALE_DEFAULT_MODEL;
+
+    let response;
+    try {
+      response = await client.chat.completions.create({
+        model,
+        temperature: 0.3,
+        max_tokens: maxTokens,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+      });
+    } catch (err: any) {
+      const status = typeof err?.status === 'number' ? err.status : 503;
+      const detail = err?.error?.message || err?.message || String(err);
+      throw new HttpException(`yescale lỗi: ${detail}`, status);
+    }
+
+    const content = response.choices?.[0]?.message?.content?.trim() ?? '';
+    if (!content) throw new ServiceUnavailableException('yescale trả về nội dung rỗng');
+    const parsed = parseJsonLoose(content);
+    if (!parsed) {
+      throw new ServiceUnavailableException(
+        `Không parse được JSON từ AI: ${content.slice(0, 200)}`,
+      );
+    }
+    return parsed;
+  }
+
+  private async extractWithAi(
+    url: string,
+    pageText: string,
+  ): Promise<{ chu_de: string; tu_khoa: string; tom_tat: string }> {
+    const user = `${BUSINESS_CONTEXT}
+
+URL bài blog đối thủ: ${url}
+
+NỘI DUNG ĐÃ TRÍCH:
+"""
+${pageText}
+"""
+
+Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
+
+    const parsed = (await this.chatJson(EXTRACT_SYSTEM_PROMPT, user, 800)) as Record<string, unknown>;
+    return {
+      chu_de: pickString(parsed, 'chu_de'),
+      tu_khoa: pickString(parsed, 'tu_khoa'),
+      tom_tat: pickString(parsed, 'tom_tat'),
+    };
+  }
+
+  // ===========================================================================
+  // Sitemap crawler
+  // ===========================================================================
+
+  private async getSitemapCandidates(domain: string): Promise<string[]> {
+    const candidates = new Set<string>();
+    const robots = await fetchTextSafe(`https://${domain}/robots.txt`);
+    if (robots) {
+      const re = /^\s*sitemap:\s*(\S+)/gim;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(robots))) candidates.add(m[1].trim());
+    }
+    candidates.add(`https://${domain}/sitemap.xml`);
+    candidates.add(`https://${domain}/sitemap_index.xml`);
+    return [...candidates];
+  }
+
+  private async collectUrlsFromSitemaps(domain: string): Promise<string[]> {
+    const seen = new Set<string>();
+    const pageUrls = new Set<string>();
+    const queue = await this.getSitemapCandidates(domain);
+    let fetched = 0;
+
+    while (queue.length && fetched < MAX_SITEMAPS && pageUrls.size < MAX_URLS_PER_CRAWL) {
+      const sm = queue.shift()!;
+      if (seen.has(sm)) continue;
+      seen.add(sm);
+      if (/\.gz($|\?)/i.test(sm)) continue; // bỏ qua sitemap nén (Phase 1 chưa giải nén)
+
+      const xml = await fetchTextSafe(sm);
+      fetched++;
+      if (!xml) continue;
+
+      const locs = extractLocs(xml);
+      const isIndex = /<sitemapindex[\s>]/i.test(xml);
+      if (isIndex) {
+        for (const loc of locs) if (!seen.has(loc)) queue.push(loc);
+      } else {
+        for (const loc of locs) {
+          if (isContentUrl(loc, domain)) pageUrls.add(loc);
+          if (pageUrls.size >= MAX_URLS_PER_CRAWL) break;
+        }
+      }
+    }
+    return [...pageUrls];
+  }
+
+  // ===========================================================================
+  // PHASE 2: LÒ VIẾT BÀI (sinh nháp blog → van YMYL → xuất .md)
+  // ===========================================================================
+
+  async listBaiViet(): Promise<SeoBaiViet[]> {
+    return this.baiVietRepo.find({ order: { updated_at: 'DESC' } });
+  }
+
+  async getBaiViet(id: number): Promise<SeoBaiViet> {
+    const a = await this.baiVietRepo.findOneBy({ id });
+    if (!a) throw new NotFoundException(`Bài viết #${id} không tồn tại`);
+    return a;
+  }
+
+  /** Sinh bản nháp blog từ 1 cụm (cum_id) hoặc từ chủ đề tự nhập. 2 bước: viết thân bài → bóc metadata + phân loại rủi ro. */
+  async generateDraft(dto: GenerateDraftDto): Promise<SeoBaiViet> {
+    let chuDe = (dto.chu_de || '').trim();
+    let tuKhoa = (dto.tu_khoa || '').trim();
+    let yTuong = '';
+    let cumId: number | null = null;
+
+    if (dto.cum_id) {
+      const cum = await this.cumRepo.findOneBy({ id: dto.cum_id });
+      if (!cum) throw new NotFoundException(`Cụm #${dto.cum_id} không tồn tại`);
+      cumId = cum.id;
+      chuDe = chuDe || cum.ten_cum;
+      tuKhoa = tuKhoa || cum.tu_khoa_muc_tieu || '';
+      yTuong = cum.y_tuong_noi_dung || '';
+    }
+    if (!chuDe) {
+      throw new BadRequestException('Thiếu chủ đề — chọn 1 cụm hoặc nhập chủ đề.');
+    }
+
+    const brief = [
+      `Chủ đề/cụm: ${chuDe}`,
+      `Từ khoá mục tiêu: ${tuKhoa || '(tự chọn cho phù hợp)'}`,
+      yTuong ? `Gợi ý nội dung: ${yTuong}` : '',
+      '',
+      BUSINESS_CONTEXT,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    // Bước 1: viết thân bài (markdown thuần).
+    const rawBody = await this.chatText(WRITE_SYSTEM_PROMPT, `Viết bài theo brief sau:\n\n${brief}`, 3500);
+    const noiDung = stripLeadingH1(rawBody);
+    if (noiDung.replace(/\s/g, '').length < 80) {
+      throw new ServiceUnavailableException('AI trả về bài quá ngắn. Thử lại.');
+    }
+
+    // Bước 2: bóc metadata + phân loại rủi ro (JSON).
+    const metaUser = `Brief:\n${brief}\n\nBÀI ĐÃ VIẾT:\n"""\n${noiDung.slice(0, 8000)}\n"""\n\nTrả về JSON metadata theo đúng quy tắc.`;
+    const meta = (await this.chatJson(META_SYSTEM_PROMPT, metaUser, 1200)) as Record<string, unknown>;
+
+    const tieuDe = (pickString(meta, 'tieu_de') || chuDe).slice(0, 500);
+    const slug = slugify(pickString(meta, 'slug') || tieuDe);
+    const rui: SeoBaiViet['do_rui_ro'] =
+      pickString(meta, 'do_rui_ro') === 'rui_ro' ? 'rui_ro' : 'an_toan';
+
+    const entity = this.baiVietRepo.create({
+      cum_id: cumId,
+      tieu_de: tieuDe,
+      slug,
+      meta_description: pickString(meta, 'meta_description') || null,
+      tu_khoa: toCommaText(meta['tu_khoa']) || tuKhoa || null,
+      category: pickString(meta, 'category') || null,
+      cta: normalizeCta(pickString(meta, 'cta')),
+      faq: normalizeFaqJson(meta['faq']),
+      noi_dung_md: noiDung,
+      do_rui_ro: rui,
+      ly_do_rui_ro: pickString(meta, 'ly_do_rui_ro') || null,
+      trang_thai: 'nhap',
+    });
+    const saved = await this.baiVietRepo.save(entity);
+
+    if (cumId) {
+      // Đánh dấu cụm đã được viết để khỏi trùng.
+      await this.cumRepo.update({ id: cumId }, { trang_thai: 'da_viet' });
+    }
+    return saved;
+  }
+
+  async updateBaiViet(id: number, dto: UpdateBaiVietDto): Promise<SeoBaiViet> {
+    const a = await this.getBaiViet(id);
+    if (dto.tieu_de !== undefined) a.tieu_de = dto.tieu_de.slice(0, 500);
+    if (dto.slug !== undefined) a.slug = slugify(dto.slug);
+    if (dto.meta_description !== undefined) a.meta_description = dto.meta_description || null;
+    if (dto.tu_khoa !== undefined) a.tu_khoa = dto.tu_khoa || null;
+    if (dto.category !== undefined) a.category = dto.category || null;
+    if (dto.cta !== undefined) a.cta = normalizeCta(dto.cta);
+    if (dto.faq !== undefined) a.faq = dto.faq || null;
+    if (dto.noi_dung_md !== undefined) a.noi_dung_md = dto.noi_dung_md;
+    if (dto.trang_thai !== undefined && BAI_VIET_TRANG_THAI.has(dto.trang_thai)) {
+      a.trang_thai = dto.trang_thai;
+    }
+    return this.baiVietRepo.save(a);
+  }
+
+  async removeBaiViet(id: number): Promise<void> {
+    const a = await this.getBaiViet(id);
+    await this.baiVietRepo.remove(a);
+  }
+
+  /** Dựng object JSON đúng "hợp đồng" publish-article.mjs (xem frontend/content/README.md). */
+  private buildArticleJson(a: SeoBaiViet): Record<string, unknown> & { slug: string } {
+    const slug = slugify(a.slug || a.tieu_de || `bai-${a.id}`);
+    const keywords = (a.tu_khoa || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    let faqArr: { q: string; a: string }[] = [];
+    try {
+      faqArr = a.faq ? JSON.parse(a.faq) : [];
+    } catch {
+      faqArr = [];
+    }
+    const ready = a.trang_thai === 'da_duyet' || a.trang_thai === 'da_dang';
+    const model = this.config.get<string>('YESCALE_MODEL') || YESCALE_DEFAULT_MODEL;
+
+    // undefined → JSON.stringify bỏ qua (thiếu field = dùng mặc định của bridge).
+    return {
+      slug,
+      title: a.tieu_de || '',
+      description: a.meta_description || '',
+      author: BLOG_AUTHOR,
+      category: a.category || undefined,
+      cta: a.cta || undefined,
+      keywords: keywords.length ? keywords : undefined,
+      faq: faqArr.length ? faqArr : undefined,
+      index: ready ? undefined : false, // chưa duyệt → noindex/chờ duyệt (van YMYL)
+      seoCumId: a.cum_id ?? undefined,
+      aiModel: `Yescale ${model}`,
+      body: a.noi_dung_md || '',
+    };
+  }
+
+  /** Xuất 1 bài thành JSON để tải về (đăng thủ công qua publish-article.mjs). */
+  async exportArticle(id: number): Promise<{ filename: string; content: string }> {
+    const a = await this.getBaiViet(id);
+    const article = this.buildArticleJson(a);
+    return { filename: `${article.slug}.json`, content: JSON.stringify(article, null, 2) };
+  }
+
+  /**
+   * "Đăng": tự ghi file content/blog/<slug>.md (qua publish-article.mjs) rồi chuyển trạng thái 'da_dang'.
+   * CHỈ chạy trên máy có mã nguồn frontend (máy đang code). Lên web thật vẫn cần build lại + deploy.
+   */
+  async publishArticle(id: number): Promise<{ slug: string; trang_thai: string; file: string }> {
+    const a = await this.getBaiViet(id);
+    if (a.trang_thai !== 'da_duyet' && a.trang_thai !== 'da_dang') {
+      throw new BadRequestException(
+        'Hãy đổi trạng thái bài sang "Đã duyệt" rồi mới Đăng (van an toàn YMYL).',
+      );
+    }
+    const article = this.buildArticleJson(a);
+    const scriptPath =
+      this.config.get<string>('PUBLISH_SCRIPT_PATH') ||
+      pathResolve(process.cwd(), '..', 'frontend', 'scripts', 'publish-article.mjs');
+
+    if (!existsSync(scriptPath)) {
+      throw new ServiceUnavailableException(
+        `Không tìm thấy publish-article.mjs (đã tìm: ${scriptPath}). Nút "Đăng" chỉ chạy trên MÁY CÓ MÃ NGUỒN frontend. Trên server hãy đăng bằng cách deploy.`,
+      );
+    }
+
+    await runPublishScript(scriptPath, article);
+    a.trang_thai = 'da_dang';
+    await this.baiVietRepo.save(a);
+    return { slug: article.slug, trang_thai: a.trang_thai, file: `frontend/content/blog/${article.slug}.md` };
+  }
+
+  // ===========================================================================
+  // PHASE 3: TỰ ĐĂNG THEO XU HƯỚNG (Google Suggest → viết nháp → hàng chờ duyệt)
+  // ===========================================================================
+
+  /** Quét gợi ý tìm kiếm thật từ Google Suggest theo các từ khoá gốc → chủ đề ứng viên (đã bỏ trùng với bài đã viết). */
+  async discoverTrends(seeds?: string[]): Promise<{ keyword: string }[]> {
+    const useSeeds = (seeds && seeds.length ? seeds : DEFAULT_TREND_SEEDS)
+      .map((s) => String(s).trim())
+      .filter(Boolean)
+      .slice(0, 12);
+
+    const collected = new Map<string, string>(); // normLoose -> chuỗi gốc
+    for (const seed of useSeeds) {
+      const sugs = await this.googleSuggest(seed);
+      for (const s of sugs) {
+        const norm = normLoose(s);
+        if (norm && norm.length > 3 && !collected.has(norm)) collected.set(norm, s);
+      }
+    }
+
+    // Bỏ những gợi ý đã viết rồi (so theo tiêu đề/slug đã chuẩn hoá).
+    const existing = await this.baiVietRepo.find({ select: ['tieu_de', 'slug'] });
+    const existingNorms = new Set<string>();
+    for (const e of existing) {
+      if (e.tieu_de) existingNorms.add(normLoose(e.tieu_de));
+      if (e.slug) existingNorms.add(normLoose(e.slug));
+    }
+
+    const out: { keyword: string }[] = [];
+    for (const [norm, original] of collected) {
+      if (existingNorms.has(norm)) continue;
+      out.push({ keyword: original });
+    }
+    return out.slice(0, 50);
+  }
+
+  /** Viết nháp hàng loạt từ các từ khoá đã chọn (trần TREND_MAX_DRAFTS). Lỗi 1 bài không dừng cả mẻ. */
+  async runTrendDrafts(keywords: string[]): Promise<SeoBaiViet[]> {
+    const list = (keywords || [])
+      .map((k) => String(k).trim())
+      .filter(Boolean)
+      .slice(0, TREND_MAX_DRAFTS);
+    if (!list.length) throw new BadRequestException('Chưa chọn từ khoá nào để viết.');
+
+    const out: SeoBaiViet[] = [];
+    for (const kw of list) {
+      try {
+        out.push(await this.generateDraft({ chu_de: kw }));
+      } catch (e: any) {
+        // eslint-disable-next-line no-console
+        console.error('[SEO trend] viết lỗi cho:', kw, '—', e?.message || e);
+      }
+    }
+    return out;
+  }
+
+  /** Gọi Google Suggest (miễn phí, không cần key) cho 1 từ khoá → mảng gợi ý. */
+  private async googleSuggest(q: string): Promise<string[]> {
+    const url = `https://suggestqueries.google.com/complete/search?client=firefox&hl=vi&gl=vn&q=${encodeURIComponent(q)}`;
+    const text = await fetchTextSafe(url);
+    if (!text) return [];
+    try {
+      const data = JSON.parse(text);
+      return Array.isArray(data) && Array.isArray(data[1]) ? data[1].map((x: any) => String(x)) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Gọi Yescale lấy văn bản thuần (cho bước viết bài). */
+  private async chatText(system: string, user: string, maxTokens: number): Promise<string> {
+    const client = this.getClient();
+    const model = this.config.get<string>('YESCALE_MODEL') || YESCALE_DEFAULT_MODEL;
+    let response;
+    try {
+      response = await client.chat.completions.create({
+        model,
+        temperature: 0.6,
+        max_tokens: maxTokens,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+      });
+    } catch (err: any) {
+      const status = typeof err?.status === 'number' ? err.status : 503;
+      const detail = err?.error?.message || err?.message || String(err);
+      throw new HttpException(`yescale lỗi: ${detail}`, status);
+    }
+    const content = response.choices?.[0]?.message?.content?.trim() ?? '';
+    if (!content) throw new ServiceUnavailableException('yescale trả về nội dung rỗng');
+    return content;
+  }
+}
+
+// =============================================================================
+// Hàm tiện ích (thuần, không phụ thuộc state)
+// =============================================================================
+
+/** Chuẩn hoá domain: bỏ http(s), www, path, port. */
+function normalizeDomain(input: string): string {
+  let s = (input || '').trim().toLowerCase();
+  if (!s) return '';
+  s = s.replace(/^https?:\/\//, '');
+  s = s.replace(/^www\./, '');
+  s = s.split('/')[0];
+  s = s.split('?')[0].split('#')[0];
+  s = s.replace(/:\d+$/, '');
+  return s.trim();
+}
+
+/** Fetch text với timeout + User-Agent giống trình duyệt; lỗi/timeout → trả ''. */
+async function fetchTextSafe(url: string): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (compatible; KinhlacSEOBot/1.0; +https://kinhlac.online)',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+    });
+    if (!res.ok) return '';
+    return await res.text();
+  } catch {
+    return '';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function extractLocs(xml: string): string[] {
+  const out: string[] = [];
+  const re = /<loc>\s*([\s\S]*?)\s*<\/loc>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml))) {
+    const u = decodeXmlEntities(m[1].trim());
+    if (u) out.push(u);
+  }
+  return out;
+}
+
+/** Loại bỏ URL ảnh/file & trang chủ; giữ lại các trang nội dung. */
+function isContentUrl(url: string, domain: string): boolean {
+  if (!/^https?:\/\//i.test(url)) return false;
+  if (/\.(jpe?g|png|gif|webp|svg|css|js|pdf|zip|rar|mp4|mp3|ico|xml|woff2?|ttf)(\?|$)/i.test(url)) {
+    return false;
+  }
+  // bỏ trang chủ trần
+  const stripped = url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '');
+  if (stripped === domain) return false;
+  return true;
+}
+
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'");
+}
+
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_, n) => {
+      try {
+        return String.fromCharCode(Number(n));
+      } catch {
+        return ' ';
+      }
+    });
+}
+
+/** HTML → text (tiêu đề, mô tả, thân bài đã bỏ thẻ). */
+function htmlToText(html: string): { title: string; description: string; body: string } {
+  const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').trim();
+  const description = (
+    html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i)?.[1] ||
+    html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([\s\S]*?)["']/i)?.[1] ||
+    ''
+  ).trim();
+
+  let body = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ');
+  body = decodeHtmlEntities(body).replace(/\s+/g, ' ').trim();
+
+  return {
+    title: decodeHtmlEntities(title),
+    description: decodeHtmlEntities(description),
+    body,
+  };
+}
+
+function pickString(obj: Record<string, unknown>, key: string): string {
+  const v = obj[key];
+  if (v == null) return '';
+  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean).join(', ');
+  return String(v).trim();
+}
+
+function clampInt(v: unknown, min: number, max: number): number {
+  const n = typeof v === 'number' ? v : parseInt(String(v ?? ''), 10);
+  if (!Number.isFinite(n)) return min;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+function toCommaText(v: unknown): string | null {
+  if (v == null) return null;
+  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean).join(', ') || null;
+  return String(v).trim() || null;
+}
+
+function toSemicolonText(v: unknown): string | null {
+  if (v == null) return null;
+  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean).join('; ') || null;
+  return String(v).trim() || null;
+}
+
+/** Bỏ ```fence``` bao ngoài + dòng tiêu đề H1 ở đầu (AI đôi khi thêm dù đã dặn). */
+function stripLeadingH1(md: string): string {
+  let s = (md || '').trim();
+  const fence = s.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i);
+  if (fence?.[1]) s = fence[1].trim();
+  s = s.replace(/^\s*#\s+.+\n+/, ''); // xoá 1 dòng H1 mở đầu nếu có
+  return s.trim();
+}
+
+/** Chạy publish-article.mjs (ghi content/blog/<slug>.md), đẩy JSON qua stdin. spawn arg-array → an toàn injection. */
+function runPublishScript(scriptPath: string, articleObj: unknown): Promise<void> {
+  return new Promise((resolveP, reject) => {
+    const child = spawn('node', [scriptPath, '--stdin']);
+    let err = '';
+    child.stderr.on('data', (d) => {
+      err += String(d);
+    });
+    child.on('error', (e) => reject(new Error(`Không chạy được node: ${e.message}`)));
+    child.on('close', (code) => {
+      if (code === 0) resolveP();
+      else reject(new Error(`publish-article.mjs lỗi (mã ${code}): ${err.slice(0, 300)}`));
+    });
+    try {
+      child.stdin.write(JSON.stringify(articleObj));
+      child.stdin.end();
+    } catch (e: any) {
+      reject(new Error(`Lỗi ghi stdin: ${e?.message || e}`));
+    }
+  });
+}
+
+/** Chuẩn hoá lỏng để so trùng: bỏ dấu, thường hoá, gộp khoảng trắng. */
+function normLoose(s: string): string {
+  return (s || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Chuyển tên/tiêu đề thành slug ASCII (không dấu, dùng -). */
+function slugify(s: string): string {
+  const out = (s || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return out || 'bai-viet';
+}
+
+/** Chỉ chấp nhận các đường dẫn CTA hợp lệ của pipeline blog; mặc định /xem-ket-qua-do. */
+function normalizeCta(v: string): string {
+  const s = (v || '').trim();
+  return ALLOWED_CTA.has(s) ? s : '/xem-ket-qua-do';
+}
+
+/** Chuẩn hoá mảng FAQ [{q,a}] → chuỗi JSON (hoặc null). */
+function normalizeFaqJson(v: unknown): string | null {
+  if (!Array.isArray(v)) return null;
+  const arr = v
+    .map((it) => {
+      if (!it || typeof it !== 'object') return null;
+      const o = it as Record<string, unknown>;
+      const q = String(o.q ?? o.question ?? '').trim();
+      const a = String(o.a ?? o.answer ?? '').trim();
+      return q && a ? { q, a } : null;
+    })
+    .filter(Boolean);
+  return arr.length ? JSON.stringify(arr) : null;
+}
+
+/** Parse JSON "lì đòn": thử trực tiếp → bóc ```fence``` → cắt {..} hoặc [..]. */
+function parseJsonLoose(raw: string): Record<string, unknown> | unknown[] | null {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    /* tiếp tục */
+  }
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence?.[1]) {
+    try {
+      return JSON.parse(fence[1]);
+    } catch {
+      /* tiếp tục */
+    }
+  }
+  const fObj = raw.indexOf('{');
+  const lObj = raw.lastIndexOf('}');
+  if (fObj >= 0 && lObj > fObj) {
+    try {
+      return JSON.parse(raw.slice(fObj, lObj + 1));
+    } catch {
+      /* tiếp tục */
+    }
+  }
+  const fArr = raw.indexOf('[');
+  const lArr = raw.lastIndexOf(']');
+  if (fArr >= 0 && lArr > fArr) {
+    try {
+      return JSON.parse(raw.slice(fArr, lArr + 1));
+    } catch {
+      /* tiếp tục */
+    }
+  }
+  return null;
+}

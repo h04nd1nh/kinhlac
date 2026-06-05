@@ -10,6 +10,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/services/api'
 import PublicTopBar from '@/components/PublicTopBar.vue'
+import MedicalDisclaimer from '@/components/MedicalDisclaimer.vue'
 import {
   rawUpper,
   rawLower,
@@ -350,6 +351,8 @@ onMounted(async () => {
           </div>
           <button class="dkq-cta-btn" @click="goLogin">Đăng Nhập Để Dùng →</button>
         </div>
+
+        <MedicalDisclaimer context="measurement" />
       </template>
     </div>
   </div>

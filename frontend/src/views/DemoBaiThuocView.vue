@@ -12,6 +12,7 @@ import { useRouter } from 'vue-router'
 import { api } from '@/services/api'
 import PublicTopBar from '@/components/PublicTopBar.vue'
 import BaiThuocAnalysis from '@/components/BaiThuocAnalysis.vue'
+import MedicalDisclaimer from '@/components/MedicalDisclaimer.vue'
 
 const router = useRouter()
 
@@ -162,6 +163,8 @@ onMounted(async () => {
           </div>
           <button class="dbt-cta-btn" @click="goLogin">Đăng Nhập Để Xem Tất Cả →</button>
         </div>
+
+        <MedicalDisclaimer context="formula" />
       </template>
     </div>
   </div>

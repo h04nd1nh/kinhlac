@@ -34,7 +34,7 @@ function enter() {
           <path d="M32 12C32 12 20 22 20 32C20 38.627 25.373 44 32 44C38.627 44 44 38.627 44 32C44 22 32 12 32 12Z" fill="var(--brown-600)" />
           <circle cx="32" cy="32" r="4" fill="var(--white)" />
         </svg>
-        <span class="ptb-brand-text">Y Học Cổ Truyền</span>
+        <span class="ptb-brand-text">Kinh Lạc Trương Gia</span>
       </button>
 
       <div class="ptb-center">
@@ -43,6 +43,7 @@ function enter() {
       </div>
 
       <div class="ptb-actions">
+        <a class="ptb-link" href="/blog/">Cẩm Nang</a>
         <button class="ptb-link" @click="goHome">← Trang Chủ</button>
         <button class="ptb-cta" @click="enter">{{ ctaLabel }}</button>
       </div>

@@ -96,7 +96,7 @@ async function handleLogin() {
             </button>
           </form>
 
-          <p class="form-footer">© 2026 Y Học Cổ Truyền</p>
+          <p class="form-footer">© 2026 Kinh Lạc Trương Gia</p>
         </div>
       </div>
     </div>

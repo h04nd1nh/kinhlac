@@ -19,7 +19,9 @@ COPY . .
 # Lý do: `npm run build` = `run-p type-check build-only` -> chạy vue-tsc + vite cùng lúc,
 # trên VPS RAM thấp (<= 2GB) sẽ bị OOM kill (exit 137).
 # Type-check là việc của dev/CI, không phải của bước deploy.
-RUN npm run build-only
+# Sinh sitemap (vào public/ TRƯỚC khi vite copy sang dist) -> build SPA
+# -> chèn meta SEO tĩnh vào dist/<route>/index.html (mini-prerender chạy thuần Node, không cần Chrome).
+RUN node scripts/gen-sitemap.mjs && npm run build-only && node scripts/prerender-seo.mjs && node scripts/build-blog.mjs
 
 ############################
 # 2. Phục vụ static bằng nginx

@@ -6,6 +6,9 @@
     // Extra safety for array and object lookups, but may have false positives.
     "noUncheckedIndexedAccess": true,
 
+    // Cho phép import trực tiếp file .json (dữ liệu SEO dùng chung: src/seo/route-seo.json).
+    "resolveJsonModule": true,
+
     // Path mapping for cleaner imports.
     "paths": {
       "@/*": ["./src/*"]

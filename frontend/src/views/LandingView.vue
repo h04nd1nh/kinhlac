@@ -340,7 +340,7 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
             <path d="M32 12C32 12 20 22 20 32C20 38.627 25.373 44 32 44C38.627 44 44 38.627 44 32C44 22 32 12 32 12Z" fill="var(--brown-600)" />
             <circle cx="32" cy="32" r="4" fill="var(--white)" />
           </svg>
-          <span class="lp-brand-text">Y Học Cổ Truyền</span>
+          <span class="lp-brand-text">Kinh Lạc Trương Gia</span>
         </div>
         <nav class="lp-nav-links">
           <button @click="scrollTo('model3d')">Đồ Hình 3D</button>
@@ -358,7 +358,7 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
     <section class="lp-hero" id="top">
       <div class="lp-hero-inner">
         <div class="lp-hero-copy">
-          <span class="lp-badge">Phần Mềm Y Học Cổ Truyền · Học Tập & Lâm Sàng</span>
+          <span class="lp-badge">Kinh Lạc Trương Gia · Phần Mềm Y Học Cổ Truyền · Học Tập & Lâm Sàng</span>
           <h1 class="lp-title">
             <span class="hl">Đông Y Nghìn Năm</span><br />Giờ Đọc Được Bằng Dữ Liệu
           </h1>
@@ -502,7 +502,7 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
       <div class="lp-section-head">
         <span class="lp-eyebrow">Đo Kinh Lạc · Big Data</span>
         <h2 class="lp-h2">Đo Nhiệt Độ Kinh Lạc, Cơ Thể Tự Kể Bạn Nghe Về Bệnh Của Mình.</h2>
-        <p class="lp-section-sub">Đo nhiệt 12 đường kinh → phần mềm lập bảng chỉ số, đối chiếu ngưỡng sinh lý, rồi tự gợi ý thể bệnh và pháp trị. Đông Y, nhưng đọc bằng dữ liệu.</p>
+        <p class="lp-section-sub">Đo nhiệt 12 đường kinh → phần mềm lập bảng chỉ số, đối chiếu ngưỡng sinh lý, rồi gợi ý thể bệnh và pháp trị <strong>để tham khảo</strong>. Đông Y, nhưng đọc bằng dữ liệu — kết quả hỗ trợ thầy thuốc biện chứng, không thay thế chẩn đoán.</p>
       </div>
 
       <!-- Dòng chảy 3 bước: Đo → Bảng chỉ số → Chẩn đoán -->
@@ -732,6 +732,47 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
       </div>
     </section>
 
+    <!-- ============ Nguồn gốc & Tin cậy (E-E-A-T / YMYL) ============ -->
+    <section class="lp-trust" id="nguon-goc">
+      <div class="lp-section-head">
+        <span class="lp-eyebrow">Nguồn Gốc &amp; Tin Cậy</span>
+        <h2 class="lp-h2">Ai Đứng Sau Kinh Lạc?</h2>
+        <p class="lp-section-sub">Một sản phẩm Y tế cần minh bạch về người thực hiện và nguồn tri thức. Đây là những gì đứng sau nền tảng.</p>
+      </div>
+      <div class="lp-trust-grid">
+        <article class="lp-trust-card">
+          <span class="lp-trust-ico" aria-hidden="true">👤</span>
+          <h3 class="lp-trust-title">Người Thực Hiện</h3>
+          <p class="lp-trust-text">
+            <strong>Trương Đình Trang</strong> — Y Sỹ Y Học Cổ Truyền (đang theo học), sáng lập
+            <strong>Kinh Lạc Trương Gia</strong>. Nội dung Y khoa được biên soạn và rà soát, đối chiếu y văn cổ truyền.
+          </p>
+        </article>
+        <article class="lp-trust-card">
+          <span class="lp-trust-ico" aria-hidden="true">📖</span>
+          <h3 class="lp-trust-title">Cảm Hứng Học Thuật</h3>
+          <p class="lp-trust-text">
+            Tính năng đo kinh lạc lấy cảm hứng từ cuốn <strong>"Biện Chứng Luận Trị"</strong> của lương y
+            <strong>Lê Văn Sửu</strong>. Phần lớn nền tảng là công trình phát triển riêng — đo kinh lạc chỉ là một tính năng nhỏ.
+          </p>
+        </article>
+        <article class="lp-trust-card">
+          <span class="lp-trust-ico" aria-hidden="true">🛡️</span>
+          <h3 class="lp-trust-title">Cam Kết An Toàn</h3>
+          <p class="lp-trust-text">
+            Mọi nội dung chỉ mang tính <strong>tham khảo &amp; học tập</strong>, không thay thế việc thăm khám,
+            chẩn đoán hay điều trị của thầy thuốc/bác sỹ có chuyên môn.
+          </p>
+        </article>
+      </div>
+      <nav class="lp-trust-links" aria-label="Trang thông tin & pháp lý">
+        <a href="/ve-chung-toi">Về Chúng Tôi</a>
+        <a href="/quy-trinh-bien-tap">Quy Trình Biên Tập</a>
+        <a href="/chinh-sach-bao-mat">Chính Sách Bảo Mật</a>
+        <a href="/dieu-khoan">Điều Khoản</a>
+      </nav>
+    </section>
+
     <!-- ============ Lời kêu gọi ============ -->
     <section class="lp-cta">
       <div class="lp-cta-inner">
@@ -785,9 +826,27 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
             <path d="M32 12C32 12 20 22 20 32C20 38.627 25.373 44 32 44C38.627 44 44 38.627 44 32C44 22 32 12 32 12Z" fill="rgba(255,255,255,.9)" />
             <circle cx="32" cy="32" r="4" fill="var(--brown-700)" />
           </svg>
-          <span class="lp-brand-text">Y Học Cổ Truyền</span>
+          <span class="lp-brand-text">Kinh Lạc Trương Gia</span>
         </div>
-        <p class="lp-footer-note">Hệ thống quản lý phòng khám Đông Y · © 2026</p>
+        <nav class="lp-footer-nav">
+          <a href="/blog/">Cẩm Nang</a>
+          <a href="/thu-vien">Từ Điển</a>
+          <a href="/xem-3d">Đồ Hình 3D</a>
+          <a href="/xem-ket-qua-do">Đo Kinh Lạc</a>
+          <a href="/xem-bai-thuoc">Bài Thuốc</a>
+        </nav>
+        <nav class="lp-footer-nav lp-footer-nav--legal" aria-label="Thông tin & pháp lý">
+          <a href="/ve-chung-toi">Về Chúng Tôi</a>
+          <a href="/lien-he">Liên Hệ</a>
+          <a href="/chinh-sach-bao-mat">Chính Sách Bảo Mật</a>
+          <a href="/dieu-khoan">Điều Khoản</a>
+          <a href="/quy-trinh-bien-tap">Quy Trình Biên Tập</a>
+        </nav>
+        <p class="lp-footer-disclaimer">
+          <strong>Miễn trừ y tế:</strong> Nội dung trên website chỉ mang tính tham khảo &amp; học tập,
+          không thay thế việc thăm khám, chẩn đoán hay điều trị của thầy thuốc/bác sỹ có chuyên môn.
+        </p>
+        <p class="lp-footer-note">Kinh Lạc Trương Gia · Phần Mềm Y Học Cổ Truyền · © 2026 · kinhlac.online</p>
       </div>
     </footer>
   </div>
@@ -2626,6 +2685,63 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
   text-wrap: pretty;
 }
 
+/* ---------- Nguồn gốc & Tin cậy (E-E-A-T) ---------- */
+.lp-trust {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-16) var(--space-6);
+}
+.lp-trust-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+  margin-top: var(--space-8);
+}
+.lp-trust-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-sm);
+}
+.lp-trust-ico {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.lp-trust-title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-brand);
+  margin: var(--space-3) 0 var(--space-2);
+}
+.lp-trust-text {
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
+  color: var(--text-muted);
+  margin: 0;
+}
+.lp-trust-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3) var(--space-5);
+  margin-top: var(--space-8);
+}
+.lp-trust-links a {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: underline;
+}
+.lp-trust-links a:hover {
+  color: var(--primary-dark);
+}
+@media (max-width: 768px) {
+  .lp-trust-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- Chân trang ---------- */
 .lp-footer {
   background: var(--brown-900);
@@ -2650,6 +2766,39 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
 .lp-footer-note {
   font-size: var(--font-size-sm);
   color: rgba(255, 255, 255, 0.6);
+}
+.lp-footer-nav {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.lp-footer-nav a {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+}
+.lp-footer-nav a:hover {
+  color: var(--white);
+}
+/* Hàng link pháp lý (YMYL) + miễn trừ y tế: chiếm trọn 1 dòng riêng */
+.lp-footer-nav--legal {
+  flex-basis: 100%;
+  padding-top: var(--space-5);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.lp-footer-nav--legal a {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.62);
+}
+.lp-footer-disclaimer {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.5);
+}
+.lp-footer-disclaimer strong {
+  color: rgba(255, 255, 255, 0.72);
 }
 
 /* ---------- Thư viện · Từ Điển ---------- */

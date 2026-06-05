@@ -26,7 +26,7 @@ export interface SeoData {
 }
 
 const DOMAIN = 'https://kinhlac.online'
-const SITE_NAME = 'Kinh Lạc'
+const SITE_NAME = 'Kinh Lạc Trương Gia'
 const DEFAULT_OG_IMAGE = `${DOMAIN}/og-default.png`
 
 function upsertMeta(attr: 'name' | 'property', key: string, content: string) {

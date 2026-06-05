@@ -74,6 +74,7 @@ const navItems = [
   { name: 'Triệu Chứng', routeName: 'symptoms', icon: 'clipboard' },
   { name: 'Pháp Trị', routeName: 'treatments', icon: 'shield' },
   { name: 'Quản Lý Người Dùng', routeName: 'users', icon: 'users' },
+  { name: 'SEO Radar', routeName: 'seo', icon: 'radar' },
 ]
 
 // Chỉ hiện những mục mà vai trò hiện tại được phép vào (routeName trùng key trang).
@@ -171,6 +172,8 @@ function handleLogout() {
             </svg>
             <!-- Users (quản lý người dùng) icon -->
             <svg v-if="item.icon === 'users'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-3.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a3 3 0 10-2.5-1.35"/></svg>
+            <!-- Radar (SEO Radar) icon -->
+            <svg v-if="item.icon === 'radar'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><path stroke-linecap="round" d="M12 12l6-4"/></svg>
           </span>
           <Transition name="fade-text">
             <span v-show="!isSidebarCollapsed" class="nav-label">{{ item.name }}</span>

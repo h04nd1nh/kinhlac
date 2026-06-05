@@ -19,6 +19,7 @@ export const APP_PAGES: AppPage[] = [
   { key: 'symptoms', label: 'Triệu Chứng' },
   { key: 'treatments', label: 'Pháp Trị' },
   { key: 'users', label: 'Quản Lý Người Dùng' },
+  { key: 'seo', label: 'SEO Radar' },
 ]
 
 // Các trang luôn mở cho người đã đăng nhập.

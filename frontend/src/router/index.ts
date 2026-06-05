@@ -7,6 +7,12 @@ const PublicKinhMach3DView = () => import('@/views/PublicKinhMach3DView.vue')
 const PublicTuDienView = () => import('@/views/PublicTuDienView.vue')
 const DemoKetQuaDoView = () => import('@/views/DemoKetQuaDoView.vue')
 const DemoBaiThuocView = () => import('@/views/DemoBaiThuocView.vue')
+// Trang "Tin Cậy" (YMYL/E-E-A-T) — công khai, có meta + prerender riêng.
+const VeChungToiView = () => import('@/views/VeChungToiView.vue')
+const LienHeView = () => import('@/views/LienHeView.vue')
+const ChinhSachBaoMatView = () => import('@/views/ChinhSachBaoMatView.vue')
+const DieuKhoanView = () => import('@/views/DieuKhoanView.vue')
+const QuyTrinhBienTapView = () => import('@/views/QuyTrinhBienTapView.vue')
 const DashboardLayout = () => import('@/views/DashboardLayout.vue')
 const HomeView = () => import('@/views/HomeView.vue')
 const PatientsView = () => import('@/views/PatientsView.vue')
@@ -23,6 +29,7 @@ const TreatmentsView = () => import('@/views/TreatmentsView.vue')
 const KinhMach3DView = () => import('@/views/KinhMach3DView.vue')
 const TuDienView = () => import('@/views/TuDienView.vue')
 const UsersView = () => import('@/views/UsersView.vue')
+const SeoRadarView = () => import('@/views/SeoRadarView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -63,6 +70,37 @@ const router = createRouter({
       path: '/thu-vien',
       name: 'thu-vien',
       component: PublicTuDienView,
+      meta: { requiresAuth: false },
+    },
+    // Trang "Tin Cậy" (YMYL) — công khai.
+    {
+      path: '/ve-chung-toi',
+      name: 've-chung-toi',
+      component: VeChungToiView,
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/lien-he',
+      name: 'lien-he',
+      component: LienHeView,
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/chinh-sach-bao-mat',
+      name: 'chinh-sach-bao-mat',
+      component: ChinhSachBaoMatView,
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/dieu-khoan',
+      name: 'dieu-khoan',
+      component: DieuKhoanView,
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/quy-trinh-bien-tap',
+      name: 'quy-trinh-bien-tap',
+      component: QuyTrinhBienTapView,
       meta: { requiresAuth: false },
     },
     {
@@ -143,6 +181,12 @@ const router = createRouter({
           name: 'users',
           component: UsersView,
           meta: { page: 'users' },
+        },
+        {
+          path: 'seo',
+          name: 'seo',
+          component: SeoRadarView,
+          meta: { page: 'seo' },
         },
         {
           path: 'patients/:id',

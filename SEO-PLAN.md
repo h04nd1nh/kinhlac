@@ -42,7 +42,7 @@ server trả về `frontend/index.html` gần như **trống** (`<div id="app">`
 ## 2. Bộ từ khoá + phân tích
 
 **Insight quan trọng:** sản phẩm chính là **bản web hoá của phương pháp "đo nhiệt độ kinh lạc" (24 tỉnh huyệt)**
-của lương y **Lê Văn Sửu** / KS **Đinh Lai Thịnh** — ngách đã được Báo Nhân Dân, VUSTA công nhận,
+của lương y **Lê Văn Sửu** — ngách đã được Báo Nhân Dân, VUSTA công nhận,
 **có người tìm nhưng RẤT ÍT đối thủ làm phần mềm**. Đây là "mũi nhọn" để lên top nhanh.
 
 ### 🟢 Cụm A — NGÁCH MŨI NHỌN (dễ top nhất, đánh TRƯỚC)
@@ -54,7 +54,7 @@ của lương y **Lê Văn Sửu** / KS **Đinh Lai Thịnh** — ngách đã đ
 | phần mềm đo kinh lạc / đo kinh lạc online | **Thấp** | Hầu như chưa ai làm web app → chiếm được |
 | chẩn đoán kinh lạc / kinh lạc chẩn | Thấp | Nội dung lý thuyết + công cụ |
 | 24 tỉnh huyệt / phương pháp đo nhiệt độ kinh lạc | Thấp | Long-tail chính xác |
-| Lê Văn Sửu / Đinh Lai Thịnh đo kinh lạc | **Rất thấp** | Từ khoá thương hiệu ngách, gắn uy tín nguồn gốc |
+| Lê Văn Sửu đo kinh lạc / biện chứng luận trị | **Rất thấp** | Từ khoá thương hiệu ngách, gắn uy tín nguồn gốc |
 
 ### 🟢 Cụm B — TRA CỨU / HỌC (cỗ máy traffic, tận dụng `/thu-vien` + `/xem-3d`)
 *Ý định: học, tra cứu. Long-tail KHỔNG LỒ. Đối thủ chỉ là PDF/sách & blog trường nghề → ta có 3D + tra cứu tương tác, hơn hẳn.*
@@ -185,9 +185,9 @@ Mô hình **Pillar–Cluster**: mỗi **trụ** = 1 trang lớn; các **bài nh�
 | Phase | Nội dung | Lợi ích | Rủi ro |
 |---|---|---|---|
 | **1. Nền tảng** | robots.txt, sitemap tự sinh, meta/OG/JSON-LD per-page | Fix lỗi gốc, share link đẹp, GSC nhận trang | Thấp |
-| **2. Prerender** | HTML sẵn cho trang công khai (guard component 3D) | Bot đọc được nội dung landing | TB |
-| **3. Blog** | Hệ blog Markdown + sinh HTML tĩnh + 10 bài đầu | Bắt đầu hút traffic | Thấp |
-| **4. Index tự động** | IndexNow + ping sitemap khi đăng | Index nhanh | Thấp |
+| **2. Prerender** ✅ | Mini-prerender chèn meta tĩnh (Node thuần, KHÔNG Chrome/vite-ssg) | Bot + Facebook/Zalo đọc đúng meta từng trang | Thấp (không đụng app) |
+| **3. Blog** ✅ | Hệ blog Markdown→HTML tĩnh + 10 bài đầu (nối module SEO Radar) | Bắt đầu hút traffic | Thấp |
+| **4. Index tự động** ✅ | IndexNow (`npm run indexnow`) chạy sau deploy | Index nhanh (Bing/Cốc Cốc…) | Thấp |
 | **5. Xu hướng** | Vòng lặp hằng tuần + van an toàn YMYL | Nội dung tự cập nhật | Thấp (có van) |
 
 **Đề xuất: bắt đầu Phase 1** — rủi ro thấp nhất, lợi ích lớn nhất, là nền cho mọi phase sau.
