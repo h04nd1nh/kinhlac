@@ -324,9 +324,13 @@
       scene.add(modelRoot);
 
       addContactShadow();
-      loadUserAnchors();                 // tải điểm CHẤM TAY đã lưu (nếu có) → ưu tiên khi vẽ
+      // Cách A — chống "nhấp nháy": ẩn lớp huyệt + đường kinh cho tới khi đã căn theo điểm Chấm Tay
+      // (xem revealAcuOverlay). Hình người vẫn hiện NGAY; chỉ huyệt/đường kinh chờ ~0,3s để khỏi nhảy vị trí.
+      dotsGroup.visible = false; linesGroup.visible = false;
+      setTimeout(revealAcuOverlay, 2000); // lưới an toàn: server lỗi/treo thì tối đa 2s vẫn hiện ra
+      loadUserAnchors();                 // tải điểm CHẤM TAY đã lưu (nếu có) → căn lại RỒI mới reveal
       placeAllPoints();
-      applyVisibility();                 // HIỆN model + chấm NGAY (đường kinh dựng trễ bên dưới)
+      applyVisibility();                 // đặt model + chấm (đường kinh dựng trễ); lớp huyệt còn ẩn tới reveal
       renderLayerControls();
       applyLayers();
       resetView();
@@ -986,16 +990,31 @@
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'user-anchors.json'; a.click();
     setEditStatus('Đã tải user-anchors.json (bản sao lưu tạm). Bình thường chỉ cần bấm 💾 Lưu để đồng bộ lên server.');
   }
+  // ── Cách A — chống "nhấp nháy" lúc mới mở ──
+  // Init ẩn lớp huyệt + đường kinh (xem chỗ gọi loadUserAnchors trong onModelLoaded). Chỉ HIỆN khi đã
+  // tải & căn theo điểm Chấm Tay XONG — hoặc khi không có chốt / lỗi mạng / hết-giờ-chờ — để người dùng
+  // không thấy đường kinh hiện ở vị trí mặc định rồi NHẢY về vị trí đã chấm.
+  let _acuRevealed = false;
+  function revealAcuOverlay() {
+    if (_acuRevealed) return;
+    _acuRevealed = true;
+    dotsGroup.visible = true; linesGroup.visible = true;
+    wake();                                           // render-on-demand: vẽ lại 1 nhịp để hiện ra
+  }
   function loadUserAnchors() {
     fetch(apiBase() + '/kinh-mach-3d/anchors').then(r => r.json()).then(j => {
       const pts = (j && j.points) || j || {};
       let n = 0; for (const k in pts) { if (pts[k] && typeof pts[k].x === 'number') { userPlaced[k] = pts[k]; n++; } }
       const nd = (j && j.needles) || {};              // HƯỚNG KIM tự chỉnh đã lưu → áp khi chọn huyệt
       for (const k in nd) { const v = nd[k]; if (v && typeof v.x === 'number') userNeedle[k] = { x: v.x, y: v.y, z: v.z }; }
-      if (!n) return;                                 // chưa có chốt → giữ toạ độ gold mặc định sẵn có
-      // căn theo chốt bằng solver (gold) như bản gốc; lỗi (mạng/đăng nhập) → fallback nội suy thô
-      recomputeGold((ok) => { if (!ok) { deriveAll(); if (inited && modelRoot && dotMeshes.length) rebuild(); } });
-    }).catch(() => { });
+      if (!n) { revealAcuOverlay(); return; }         // chưa có chốt → toạ độ mặc định là bản cuối → hiện luôn
+      // căn theo chốt bằng solver (gold) như bản gốc; lỗi (mạng/đăng nhập) → fallback nội suy thô.
+      // Dù thành công hay lỗi, CĂN XONG rồi mới revealAcuOverlay() → huyệt/đường kinh hiện ở ĐÚNG vị trí.
+      recomputeGold((ok) => {
+        if (!ok) { deriveAll(); if (inited && modelRoot && dotMeshes.length) rebuild(); }
+        revealAcuOverlay();
+      });
+    }).catch(() => { revealAcuOverlay(); });           // mạng/đăng nhập lỗi → vẫn hiện (giữ toạ độ mặc định)
   }
   // ===================================================
 
