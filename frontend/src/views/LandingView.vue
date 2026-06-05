@@ -676,6 +676,11 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
 
       <div class="lp-lib-cta">
         <button class="lp-btn lp-btn--primary lp-btn--lg" @click="openDemo('thu-vien')">Mở Thư Viện Tra Cứu →</button>
+        <!-- Link <a href> THẬT tới 2 trang hub tĩnh (Google bò được, khác button JS): đường vào /huyet/ /kinh/ -->
+        <div class="lp-lib-links">
+          <a class="lp-btn lp-btn--ghost lp-btn--lg" href="/huyet/">Tra Cứu 1.058 Huyệt →</a>
+          <a class="lp-btn lp-btn--ghost lp-btn--lg" href="/kinh/">12 Đường Kinh &amp; Đồ Hình →</a>
+        </div>
         <p class="lp-lib-note">Miễn phí · Không cần đăng nhập · Tra cứu &amp; xem huyệt trong 3D ngay</p>
       </div>
     </section>
@@ -2887,6 +2892,12 @@ const ytPlaylistPage = (id: string) => `https://www.youtube.com/playlist?list=${
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-10);
+}
+.lp-lib-links {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: center;
 }
 .lp-lib-note {
   font-size: var(--font-size-xs);

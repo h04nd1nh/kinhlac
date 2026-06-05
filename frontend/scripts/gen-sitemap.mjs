@@ -33,8 +33,8 @@ let nDict = 0
 for (const p of listDictPages()) {
   if (!p.index) continue
   routes.push({
-    path: `/${p.kind}/${p.slug}/`,
-    priority: p.kind === 'kinh' ? '0.7' : '0.6',
+    path: p.loc,
+    priority: p.kind === 'index' ? '0.8' : p.kind === 'kinh' ? '0.7' : '0.6',
     changefreq: 'monthly',
     lastmod: today,
   })

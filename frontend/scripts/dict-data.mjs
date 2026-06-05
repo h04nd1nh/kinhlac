@@ -147,12 +147,16 @@ export function kinhIndexable(m) {
 }
 
 /**
- * Liệt kê MỌI trang từ điển kèm cờ index — dùng cho sitemap & IndexNow.
- * (Chỉ lấy entry.index === true để đưa vào sitemap/ping; trang noindex vẫn được build nhưng KHÔNG đẩy bot.)
+ * Liệt kê MỌI trang từ điển kèm đường dẫn + cờ index — dùng cho sitemap & IndexNow.
+ * Gồm 2 trang HUB mục lục (/kinh/ , /huyet/) + từng trang kinh + từng trang huyệt.
+ * (Chỉ entry.index === true mới vào sitemap/ping; trang noindex vẫn build nhưng KHÔNG đẩy bot.)
  */
 export function listDictPages() {
-  const out = []
-  for (const m of meridianList) if (m && m.ten) out.push({ kind: 'kinh', slug: kinhSlugOf(m), index: kinhIndexable(m) })
-  for (const rec of records) if (rec && rec.ten) out.push({ kind: 'huyet', slug: rec._slug, index: huyetIndexable(rec) })
+  const out = [
+    { loc: '/kinh/', index: true, kind: 'index' }, // hub 20 đường kinh
+    { loc: '/huyet/', index: true, kind: 'index' }, // hub tra cứu huyệt (đường vào cho kỳ huyệt)
+  ]
+  for (const m of meridianList) if (m && m.ten) out.push({ loc: `/kinh/${kinhSlugOf(m)}/`, index: kinhIndexable(m), kind: 'kinh' })
+  for (const rec of records) if (rec && rec.ten) out.push({ loc: `/huyet/${rec._slug}/`, index: huyetIndexable(rec), kind: 'huyet' })
   return out
 }

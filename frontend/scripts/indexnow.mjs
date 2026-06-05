@@ -50,8 +50,8 @@ function collectUrls() {
     urls.push(`${DOMAIN}/blog/`)
     for (const p of posts) urls.push(`${DOMAIN}/blog/${p.slug}/`)
   }
-  // Từ điển: trang kinh + huyệt index:true (bỏ corrupt/mỏng). --blog để chỉ gửi blog.
-  if (!blogOnly) for (const p of listDictPages()) if (p.index) urls.push(`${DOMAIN}/${p.kind}/${p.slug}/`)
+  // Từ điển: 2 hub + trang kinh + huyệt index:true (bỏ corrupt/mỏng). --blog để chỉ gửi blog.
+  if (!blogOnly) for (const p of listDictPages()) if (p.index) urls.push(DOMAIN + p.loc)
   return urls
 }
 

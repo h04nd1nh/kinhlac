@@ -268,12 +268,82 @@ const DICT_STYLE = `<style>
   @media(max-width:560px){.dl-info-img{width:100%}}
 </style>`
 
+// ───────────────────────── TRANG HUB (mục lục — "đường vào") ────────────────
+const chip = (href, text, small) =>
+  `<li><a href="${escAttr(href)}">${escText(text)}${small ? ` <small>${escText(small)}</small>` : ''}</a></li>`
+
+function hubDoc({ title, h1, badge, intro, top = '', sections, url, desc }) {
+  const jsonLds = [
+    ld({ '@context': 'https://schema.org', '@type': 'CollectionPage', name: h1, inLanguage: 'vi', url }),
+    ld({
+      '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Trang Chủ', item: DOMAIN + '/' },
+        { '@type': 'ListItem', position: 2, name: 'Từ Điển', item: DOMAIN + '/thu-vien' },
+        { '@type': 'ListItem', position: 3, name: h1, item: url },
+      ],
+    }),
+  ]
+  return head({ title, description: desc, canonical: url, jsonLds, ogImage: GENERIC_OG, extraHead: DICT_STYLE }) +
+    `<body>${topbar}
+<main class="bl-main"><article class="bl-article dl-article">
+  <nav class="bl-crumb"><a href="/">Trang Chủ</a> › <a href="/thu-vien">Từ Điển</a> › <span>${escText(h1)}</span></nav>
+  <h1>${escText(h1)} <span class="dl-badge">${escText(badge)}</span></h1>
+  <p class="dl-lead">${escText(intro)}</p>
+  ${top}
+  ${sections}
+  <div class="bl-cta"><a href="/xem-3d">Khám Phá Đồ Hình Kinh Lạc 3D →</a></div>
+  ${disclaimer({ note: 'Thông tin kinh lạc – huyệt vị trên trang này' })}
+</article></main>
+${footer}</body></html>`
+}
+
+function kinhIndexPage() {
+  const items = meridianList.filter((m) => m && m.ten)
+    .map((m) => chip(`/kinh/${kinhSlugOf(m)}/`, m.ten, m.code)).join('')
+  return hubDoc({
+    title: `Hệ Kinh Mạch: 12 Đường Kinh & 8 Mạch — ${SITE}`,
+    desc: 'Danh mục đầy đủ 12 đường kinh chính và 8 mạch (Nhâm, Đốc, kỳ kinh bát mạch): đồ hình, huyệt vị, chủ trị theo y văn cổ truyền.',
+    url: `${DOMAIN}/kinh/`, h1: 'Hệ Kinh Mạch', badge: `${meridianList.length} đường`,
+    intro: 'Mười hai đường kinh chính và tám mạch (Nhâm, Đốc cùng kỳ kinh bát mạch) — bấm vào từng kinh để xem đồ hình, danh sách huyệt và chủ trị.',
+    sections: `<section class="dl-rel"><ul class="dl-rel-list">${items}</ul></section>`,
+  })
+}
+
+function huyetIndexPage() {
+  const kinhIds = new Set()
+  let sections = ''
+  for (const m of meridianList) {
+    if (!m || !m.ten) continue
+    const recs = (m.points || []).map((p) => recOfPoint(p)).filter(Boolean)
+    for (const r of recs) kinhIds.add(r.id)
+    if (!recs.length) continue
+    sections += `<section class="dl-rel"><h2><a href="/kinh/${escAttr(kinhSlugOf(m))}/">${escText(m.ten)}</a></h2><ul class="dl-rel-list">${recs.map((r) => chip(`/huyet/${r._slug}/`, r.ten)).join('')}</ul></section>`
+  }
+  // Kỳ huyệt / A Thị: KHÔNG nằm trên kinh nào → trang hub này là ĐƯỜNG VÀO duy nhất cho chúng.
+  const others = records.filter((r) => r && r.ten && !kinhIds.has(r.id))
+  if (others.length)
+    sections += `<section class="dl-rel"><h2>Kỳ Huyệt &amp; Huyệt Ngoài Kinh (${others.length})</h2><ul class="dl-rel-list">${others.map((r) => chip(`/huyet/${r._slug}/`, r.ten)).join('')}</ul></section>`
+  return hubDoc({
+    title: `Tra Cứu Huyệt Vị: ${records.length} Huyệt Theo Đường Kinh — ${SITE}`,
+    desc: `Danh mục ${records.length} huyệt vị châm cứu sắp theo 12 đường kinh và nhóm kỳ huyệt: vị trí, chủ trị, cách châm cứu theo y văn cổ truyền.`,
+    url: `${DOMAIN}/huyet/`, h1: 'Tra Cứu Huyệt Vị', badge: `${records.length} huyệt`,
+    intro: 'Toàn bộ huyệt vị sắp theo đường kinh; nhóm cuối là kỳ huyệt & huyệt ngoài kinh. Bấm tên huyệt để xem hồ sơ đầy đủ (vị trí, chủ trị, châm cứu).',
+    top: `<p><a href="/kinh/">→ Xem theo 12 đường kinh &amp; 8 mạch</a></p>`,
+    sections,
+  })
+}
+
 // ───────────────────────── Chạy ─────────────────────────────────────────────
 function writePage(kind, slug, html) {
   const dir = join(distDir, kind, slug)
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'index.html'), html, 'utf8')
 }
+
+// Hai trang HUB mục lục ("đường vào") — nhất là cho 727 kỳ huyệt vốn không nằm trên kinh nào.
+writePage('kinh', '', kinhIndexPage())
+writePage('huyet', '', huyetIndexPage())
 
 let nKinh = 0
 let nKinhNoindex = 0
