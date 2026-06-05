@@ -31,7 +31,7 @@ Việc **chẩn đoán theo kinh lạc** giúp ta xác định chính xác vị 
 
 ### Bước 1: Thu Thập Thông Tin Lâm Sàng Qua Đo Kinh Lạc
 
-Đây là bước quan trọng để có cái nhìn khách quan về tình trạng kinh lạc. Các phương pháp hiện đại như đo nhiệt độ kinh lạc tại các huyệt vị (ví dụ: phương pháp 24 tỉnh huyệt) cung cấp dữ liệu định lượng về sự hoạt động của từng đường kinh.
+Đây là bước quan trọng để có cái nhìn khách quan về tình trạng kinh lạc. Các phương pháp hiện đại như [đo nhiệt độ kinh lạc](/xem-ket-qua-do) tại các huyệt vị (ví dụ: phương pháp 24 tỉnh huyệt) cung cấp dữ liệu định lượng về sự hoạt động của từng đường kinh.
 
 *   **Nhiệt độ kinh lạc cao bất thường:** Thường chỉ ra tình trạng thực nhiệt, khí huyết thịnh, hoặc có sự viêm nhiễm, ứ trệ tại đường kinh đó.
 *   **Nhiệt độ kinh lạc thấp bất thường:** Có thể biểu thị tình trạng hư hàn, khí huyết suy yếu, hoặc kinh lạc bị tắc nghẽn do hàn thấp.
@@ -60,9 +60,9 @@ Sau khi đã biện chứng rõ ràng, chúng ta sẽ luận ra phương pháp �
 
 Các phương pháp điều trị có thể bao gồm:
 
-*   **Châm cứu:** Chọn các huyệt vị trên đường kinh bị ảnh hưởng để kích thích, điều hòa khí huyết. Việc lựa chọn huyệt vị có thể dựa trên đồ hình 3D chi tiết, kết hợp với kinh nghiệm của thầy thuốc.
+*   **Châm cứu:** Chọn các huyệt vị trên đường kinh bị ảnh hưởng để kích thích, điều hòa khí huyết. Việc lựa chọn huyệt vị có thể dựa trên [đồ hình 3D](/xem-3d) chi tiết, kết hợp với kinh nghiệm của thầy thuốc.
 *   **Xoa bóp, bấm huyệt:** Tác động trực tiếp lên các huyệt vị và đường kinh.
-*   **Bài thuốc Đông Y:** Sử dụng các vị thuốc có tính vị quy kinh phù hợp để tác động sâu vào hệ kinh lạc và tạng phủ.
+*   **Bài thuốc Đông Y:** Sử dụng các vị thuốc có [tính vị quy kinh](/xem-bai-thuoc) phù hợp để tác động sâu vào hệ kinh lạc và tạng phủ.
 *   **Dược châm, điện châm, thủy châm:** Các kỹ thuật nâng cao trong châm cứu.
 
 ## Ví Dụ Minh Họa Biện Chứng Luận Trị Theo Kinh Lạc
@@ -75,7 +75,7 @@ Các phương pháp điều trị có thể bao gồm:
 *   **Chẩn đoán theo kinh lạc:** Đo nhiệt độ kinh lạc có thể thấy kinh Đởm và/hoặc kinh Vị có nhiệt độ thấp hơn hoặc cao hơn so với bình thường, hoặc có sự chênh lệch lớn giữa các huyệt trên đường kinh. Hỏi bệnh có thể thấy các triệu chứng tương ứng với đường kinh Đởm (như đau sườn, dễ cáu giận).
 *   **Biện chứng:** Thường là Can Đởm phong nhiệt hoặc Đởm kinh thấp nhiệt.
 *   **Luận trị:** Thanh Can tả Đởm, sơ thông kinh lạc.
-*   **Phương pháp:** Châm các huyệt như Thái dương, Phong trì, Khúc trì, Đởm du, Nội đình... hoặc dùng bài thuốc như Đởm Tinh Thang (gia giảm).
+*   **Phương pháp:** Châm các huyệt như Thái dương, [Phong trì](/huyet/phong-tri/), [Khúc trì](/huyet/khuc-tri/), [Đởm du](/huyet/dom-du/), [Nội đình](/huyet/noi-dinh/)... hoặc dùng bài thuốc như Đởm Tinh Thang (gia giảm).
 
 ### 2. Tê Mỏi Tay Chân Do Kinh Tỳ Vị
 
@@ -83,7 +83,7 @@ Các phương pháp điều trị có thể bao gồm:
 *   **Chẩn đoán theo kinh lạc:** Đo nhiệt độ kinh lạc có thể thấy kinh Tỳ và/hoặc kinh Vị có nhiệt độ thấp, hoặc có sự ứ trệ khí huyết. Quan sát có thể thấy lưỡi nhợt, rêu lưỡi dày.
 *   **Biện chứng:** Tỳ Vị khí hư, thấp trệ kinh lạc.
 *   **Luận trị:** Kiện Tỳ, hóa thấp, hoạt lạc.
-*   **Phương pháp:** Châm các huyệt như Túc tam lý, Âm lăng tuyền, Huyết hải, Tam âm giao... hoặc dùng bài thuốc như Tứ quân tử thang (gia giảm thêm vị hoạt huyết hóa thấp).
+*   **Phương pháp:** Châm các huyệt như Túc tam lý, [Âm lăng tuyền](/huyet/am-lang-tuyen/), Huyết hải, [Tam âm giao](/huyet/tam-am-giao/)... hoặc dùng bài thuốc như Tứ quân tử thang (gia giảm thêm vị hoạt huyết hóa thấp).
 
 ### 3. Đau Cổ Vai Gáy Do Kinh Tam Tiêu Tiểu Trường
 

@@ -11,7 +11,7 @@ cta: "/thu-vien"
 keywords: ["huyệt túc tam lý","vị trí huyệt túc tam lý","tác dụng huyệt túc tam lý","huyệt ST36","kiện tỳ ích khí","cách bấm huyệt túc tam lý","huyệt Vị 36"]
 faq: [{"q":"Huyệt Túc Tam Lý nằm ở đâu?","a":"Huyệt nằm ở mặt trước ngoài cẳng chân, dưới hõm ngoài xương bánh chè khoảng 3 thốn và cách bờ trước xương chày khoảng 1 khoát ngón tay ra phía ngoài. Đây là huyệt thứ 36 của kinh Vị (ST36). Vì thốn đo theo tỷ lệ cơ thể từng người, nên đối chiếu thêm trên đồ hình 3D."},{"q":"Huyệt Túc Tam Lý có tác dụng gì?","a":"Theo Đông Y, huyệt có công năng kiện tỳ ích khí, hoà vị, thường được dùng để hỗ trợ điều hoà tiêu hoá (đầy bụng, chậm tiêu, ăn kém) và bồi bổ chính khí khi mệt mỏi, suy nhược. Đây là hỗ trợ, không phải đặc trị bệnh."},{"q":"Bấm huyệt Túc Tam Lý bao lâu là đủ?","a":"Có thể dùng đầu ngón cái day xoay tại huyệt khoảng 1–3 phút mỗi bên, lực vừa phải đến khi thấy tức nặng dễ chịu, ngày 1–2 lần. Tránh ấn quá mạnh gây đau chói."},{"q":"Ai không nên tự bấm huyệt Túc Tam Lý?","a":"Phụ nữ có thai, người bệnh nặng, mới phẫu thuật, sốt cao hoặc có bệnh lý nền nên tham khảo thầy thuốc trước. Không day bấm lên vùng da viêm nhiễm, lở loét và không tự ý châm cứu khi chưa được đào tạo."}]
 ---
-Trong số hàng nghìn huyệt vị trên cơ thể, **huyệt Túc Tam Lý** được xem là một trong những "huyệt vạn năng" của Đông Y, đặc biệt gắn liền với hệ tiêu hoá và việc bồi bổ chính khí. Bài viết này trình bày **vị trí huyệt Túc Tam Lý**, **tác dụng huyệt Túc Tam Lý** theo y văn phổ biến, cùng cách bấm cơ bản và những lưu ý an toàn cần biết trước khi áp dụng. Nội dung mang tính tham khảo, không thay thế chẩn đoán và chỉ định của thầy thuốc.
+Trong số hàng nghìn huyệt vị trên cơ thể, **huyệt [Túc Tam Lý](/huyet/tuc-tam-ly/)** được xem là một trong những "huyệt vạn năng" của Đông Y, đặc biệt gắn liền với hệ tiêu hoá và việc bồi bổ chính khí. Bài viết này trình bày **vị trí huyệt Túc Tam Lý**, **tác dụng huyệt Túc Tam Lý** theo y văn phổ biến, cùng cách bấm cơ bản và những lưu ý an toàn cần biết trước khi áp dụng. Nội dung mang tính tham khảo, không thay thế chẩn đoán và chỉ định của thầy thuốc.
 
 ## Huyệt Túc Tam Lý Là Gì?
 
@@ -26,7 +26,7 @@ Túc Tam Lý là huyệt thứ 36 trên đường **kinh Túc Dương Minh Vị*
 
 Cách xác định **vị trí huyệt Túc Tam Lý** phổ biến trong y văn:
 
-- Huyệt nằm ở mặt trước ngoài của cẳng chân, **dưới hõm ngoài xương bánh chè (độc tỵ) khoảng 3 thốn** (đơn vị đo theo cơ thể người bệnh).
+- Huyệt nằm ở mặt trước ngoài của cẳng chân, **dưới hõm ngoài xương bánh chè ([độc tỵ](/huyet/doc-ty/)) khoảng 3 thốn** (đơn vị đo theo cơ thể người bệnh).
 - Cách **bờ trước xương chày (mào chày) khoảng 1 khoát ngón tay (bề ngang ngón giữa)** ra phía ngoài, tương ứng vùng cơ chày trước.
 
 Mẹo định vị nhanh thường được hướng dẫn: ngồi gập gối, đặt lòng bàn tay lên xương bánh chè cùng bên, bốn ngón tay khép áp xuống dưới; đầu **ngón áp út (ngón đeo nhẫn)** chạm tới đâu, dịch ra ngoài bờ xương chày một khoát ngón tay là gần vùng huyệt. Khi ấn đúng vị trí thường có cảm giác tức nặng (đắc khí) lan theo cẳng chân.

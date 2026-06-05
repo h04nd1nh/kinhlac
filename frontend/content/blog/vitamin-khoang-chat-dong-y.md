@@ -67,12 +67,12 @@ Nguyên tắc "Dược thực đồng nguyên" (thuốc và thực phẩm cùng 
 
 Bên cạnh chế độ ăn uống, Đông Y còn có nhiều phương pháp hỗ trợ bổ sung vi chất và cân bằng cơ thể:
 
-*   **Châm cứu, bấm huyệt:** Việc tác động vào các huyệt vị trên đường kinh có thể giúp điều hòa khí huyết, tăng cường chức năng tạng phủ, từ đó cải thiện khả năng hấp thụ và chuyển hóa dinh dưỡng. Ví dụ, các huyệt trên đường kinh Tỳ, Vị có thể giúp cải thiện tiêu hóa và hấp thụ vitamin. Bạn có thể khám phá **đồ hình kinh lạc 3D** với hơn 1.000 huyệt vị trên Kinhlac.online để hiểu rõ hơn về hệ thống kinh mạch.
-*   **Sử dụng thuốc Đông Y:** Các bài thuốc Đông Y được bào chế từ thảo mộc có tính vị và quy kinh rõ ràng, giúp bồi bổ cơ thể, điều hòa âm dương và giải quyết gốc rễ của bệnh tật. Việc **phân tích bài thuốc theo tính vị quy kinh** cũng giúp chúng ta hiểu rõ hơn cơ chế tác động của chúng.
+*   **Châm cứu, bấm huyệt:** Việc tác động vào các huyệt vị trên đường kinh có thể giúp điều hòa khí huyết, tăng cường chức năng tạng phủ, từ đó cải thiện khả năng hấp thụ và chuyển hóa dinh dưỡng. Ví dụ, các huyệt trên đường kinh Tỳ, Vị có thể giúp cải thiện tiêu hóa và hấp thụ vitamin. Bạn có thể khám phá **[đồ hình kinh lạc 3D](/xem-3d)** với hơn 1.000 huyệt vị trên Kinhlac.online để hiểu rõ hơn về hệ thống kinh mạch.
+*   **Sử dụng thuốc Đông Y:** Các bài thuốc Đông Y được bào chế từ thảo mộc có tính vị và quy kinh rõ ràng, giúp bồi bổ cơ thể, điều hòa âm dương và giải quyết gốc rễ của bệnh tật. Việc **[phân tích bài thuốc](/xem-bai-thuoc) theo tính vị quy kinh** cũng giúp chúng ta hiểu rõ hơn cơ chế tác động của chúng.
 
 ### 3. Theo Dõi Sức Khỏe Kinh Lạc
 
-Một trong những phương pháp tiên tiến giúp đánh giá sự cân bằng năng lượng trong cơ thể và phát hiện sớm các vấn đề sức khỏe là đo nhiệt độ kinh lạc. Sự thay đổi nhiệt độ trên các đường kinh có thể phản ánh tình trạng khí huyết ứ trệ hay suy nhược, từ đó gián tiếp cho thấy sự mất cân bằng dinh dưỡng hoặc chức năng tạng phủ. Việc **xem kết quả đo nhiệt độ kinh lạc** dưới dạng biểu đồ sẽ giúp bạn có cái nhìn trực quan về tình trạng sức khỏe của mình.
+Một trong những phương pháp tiên tiến giúp đánh giá sự cân bằng năng lượng trong cơ thể và phát hiện sớm các vấn đề sức khỏe là [đo nhiệt độ kinh lạc](/xem-ket-qua-do). Sự thay đổi nhiệt độ trên các đường kinh có thể phản ánh tình trạng khí huyết ứ trệ hay suy nhược, từ đó gián tiếp cho thấy sự mất cân bằng dinh dưỡng hoặc chức năng tạng phủ. Việc **xem kết quả đo nhiệt độ kinh lạc** dưới dạng biểu đồ sẽ giúp bạn có cái nhìn trực quan về tình trạng sức khỏe của mình.
 
 ## Lời Kết
 

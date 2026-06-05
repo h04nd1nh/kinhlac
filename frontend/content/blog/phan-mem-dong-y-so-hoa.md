@@ -54,9 +54,9 @@ Một giải pháp [quản lý phòng khám đông y](/app) toàn diện sẽ t�
 
 Đây là điểm khác biệt quan trọng của các phần mềm dành riêng cho Đông Y.
 
-*   **Tra cứu huyệt vị, đường kinh:** Truy cập nhanh chóng thông tin về các huyệt vị, đường kinh trên cơ thể.
-*   **Đồ hình kinh lạc 3D:** Hình dung trực quan vị trí các kinh mạch và huyệt đạo, hỗ trợ việc chẩn đoán và tác động huyệt chính xác hơn. Tính năng xem 3D trên Kinhlac mang đến trải nghiệm sinh động và chân thực.
-*   **Đo nhiệt độ kinh lạc:** Một số phần mềm tiên tiến còn tích hợp hoặc cho phép kết nối với thiết bị đo nhiệt độ kinh lạc. Kết quả đo được hiển thị dưới dạng biểu đồ trực quan, giúp bác sĩ có cái nhìn khách quan về tình trạng kinh lạc của bệnh nhân, hỗ trợ chẩn đoán sớm và chính xác hơn. Bạn có thể khám phá cách xem kết quả đo nhiệt độ kinh lạc trên Kinhlac để hiểu rõ hơn.
+*   **[Tra cứu huyệt vị](/thu-vien), đường kinh:** Truy cập nhanh chóng thông tin về các huyệt vị, đường kinh trên cơ thể.
+*   **[Đồ hình kinh lạc 3D](/xem-3d):** Hình dung trực quan vị trí các kinh mạch và huyệt đạo, hỗ trợ việc chẩn đoán và tác động huyệt chính xác hơn. Tính năng xem 3D trên Kinhlac mang đến trải nghiệm sinh động và chân thực.
+*   **[Đo nhiệt độ kinh lạc](/xem-ket-qua-do):** Một số phần mềm tiên tiến còn tích hợp hoặc cho phép kết nối với thiết bị đo nhiệt độ kinh lạc. Kết quả đo được hiển thị dưới dạng biểu đồ trực quan, giúp bác sĩ có cái nhìn khách quan về tình trạng kinh lạc của bệnh nhân, hỗ trợ chẩn đoán sớm và chính xác hơn. Bạn có thể khám phá cách xem kết quả đo nhiệt độ kinh lạc trên Kinhlac để hiểu rõ hơn.
 
 ### 5. Báo Cáo Và Thống Kê Toàn Diện
 

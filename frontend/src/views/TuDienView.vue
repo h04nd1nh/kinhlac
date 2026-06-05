@@ -647,7 +647,9 @@ const acuDetailHtml = computed<string>(() => {
   const openMer = merInfo
     ? `<button class="td-merbtn" data-mer-i="${merInfo.i}" type="button">📖 Xem Trên Đường Kinh</button>`
     : ''
-  const actions = open3d || openMer ? `<div class="detail-actions">${open3d}${openMer}</div>` : ''
+  // Link <a href> THẬT sang trang TĨNH đầy đủ (cho SEO + chia sẻ) — /huyet/<slug>/ do build-dict sinh.
+  const fullPage = r.slug ? `<a class="td-fullbtn" href="/huyet/${esc(r.slug)}/">📄 Mở Trang Đầy Đủ →</a>` : ''
+  const actions = open3d || openMer || fullPage ? `<div class="detail-actions">${open3d}${openMer}${fullPage}</div>` : ''
 
   const imgSrc = r.image
   const photo = imgSrc
@@ -1484,6 +1486,8 @@ watch(() => [route.query.acu, route.query.mer], applyRouteQuery)
 .td-main :deep(.detail-actions) { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 .td-main :deep(.td-3dbtn), .td-main :deep(.td-merbtn) { display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px; border: 1px solid var(--brown-300); background: var(--brown-50); color: var(--brown-800); border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all var(--transition-fast); }
 .td-main :deep(.td-3dbtn):hover, .td-main :deep(.td-merbtn):hover { background: var(--brown-600); color: #fff; border-color: var(--brown-600); transform: translateY(-1px); }
+.td-main :deep(.td-fullbtn) { display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px; border: 1px solid var(--brown-600); background: var(--brown-600); color: #fff; border-radius: 999px; font-size: 13px; font-weight: 700; text-decoration: none; transition: all var(--transition-fast); }
+.td-main :deep(.td-fullbtn):hover { background: var(--brown-700); border-color: var(--brown-700); transform: translateY(-1px); }
 
 /* Thẻ mục: nhẹ nhàng, tiêu đề có icon-chip + nhãn in hoa */
 .td-main :deep(.field) { background: var(--surface); border: 1px solid var(--brown-100); border-radius: 14px; padding: 16px 22px 14px; margin: 16px 0; }

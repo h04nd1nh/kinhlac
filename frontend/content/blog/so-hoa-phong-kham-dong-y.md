@@ -66,7 +66,7 @@ Một vài lưu ý khi triển khai:
 
 Phần mềm và dữ liệu đo chỉ là công cụ **hỗ trợ** ra quyết định, không phải lời khẳng định "chữa khỏi" hay "đặc trị" bất kỳ bệnh nào. Mọi chẩn đoán và điều trị vẫn phải do thầy thuốc có chuyên môn đảm nhiệm. Các gợi ý về pháp trị, bài thuốc hay huyệt vị **cần được cân nhắc theo từng người bệnh**; không tự ý áp dụng cho các trường hợp bệnh nặng, người đang dùng thuốc Tây Y, hoặc phụ nữ có thai khi chưa có chỉ định của thầy thuốc.
 
-Riêng với bấm huyệt và châm cứu, luôn tham khảo người có chuyên môn trước khi thực hiện. Một số huyệt theo y văn cổ được lưu ý thận trọng hoặc tránh tác động mạnh ở phụ nữ có thai (ví dụ Hợp Cốc, Tam Âm Giao) — đây là lý do mọi can thiệp lên huyệt cần do thầy thuốc đánh giá, chứ không nên tự thực hiện theo phần mềm.
+Riêng với bấm huyệt và châm cứu, luôn tham khảo người có chuyên môn trước khi thực hiện. Một số huyệt theo y văn cổ được lưu ý thận trọng hoặc tránh tác động mạnh ở phụ nữ có thai (ví dụ [Hợp Cốc](/huyet/hop-coc/), [Tam Âm Giao](/huyet/tam-am-giao/)) — đây là lý do mọi can thiệp lên huyệt cần do thầy thuốc đánh giá, chứ không nên tự thực hiện theo phần mềm.
 
 ## Bắt Đầu Trải Nghiệm
 

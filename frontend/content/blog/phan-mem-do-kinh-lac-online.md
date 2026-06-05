@@ -64,7 +64,7 @@ Nền tảng có thể gợi ý pháp trị, bài thuốc hoặc huyệt vị, n
 
 - Các gợi ý chỉ mang tính **tham khảo theo Đông Y**, không phải chỉ định điều trị. Nền tảng **không** dùng để "chữa khỏi" hay "đặc trị" bất kỳ bệnh nào.
 - Trước khi áp dụng bất kỳ phương pháp châm cứu, bấm huyệt hay dùng thuốc nào, hãy **tham khảo thầy thuốc có chuyên môn**.
-- **Không tự ý áp dụng** cho người bệnh nặng, người đang dùng thuốc Tây Y, hay phụ nữ có thai khi chưa có chỉ định của thầy thuốc. Một số huyệt thường được lưu ý thận trọng trong thai kỳ (ví dụ Hợp Cốc, Tam Âm Giao) — chỉ thực hiện khi có hướng dẫn của người có chuyên môn.
+- **Không tự ý áp dụng** cho người bệnh nặng, người đang dùng thuốc Tây Y, hay phụ nữ có thai khi chưa có chỉ định của thầy thuốc. Một số huyệt thường được lưu ý thận trọng trong thai kỳ (ví dụ [Hợp Cốc](/huyet/hop-coc/), [Tam Âm Giao](/huyet/tam-am-giao/)) — chỉ thực hiện khi có hướng dẫn của người có chuyên môn.
 - Khi thông tin chưa chắc chắn, hãy diễn đạt thận trọng và ưu tiên hỏi ý kiến chuyên gia thay vì kết luận vội.
 
 Tóm lại, **đo kinh lạc** là một tính năng hữu ích trong nền tảng Kinh Lạc Trương Gia: giúp bạn số hoá phép đo nhiệt độ, đọc kết quả bằng biểu đồ và đồ hình 3D, đồng thời tra cứu tiện lợi — tất cả đều có thể trải nghiệm miễn phí trước khi dùng cho công việc thật. Hãy bắt đầu từ trang [kết quả đo mẫu](/xem-ket-qua-do) để cảm nhận sự khác biệt so với cách làm thủ công.

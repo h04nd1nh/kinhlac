@@ -58,12 +58,12 @@ Ghi nhớ nhanh: 6 đường kinh ở **tay** (Phế, Đại Trường, Tâm, Ti
 
 Theo bộ **24 tỉnh huyệt** ở trên, lần lượt định vị tỉnh huyệt của từng đường kinh tại đầu ngón tay, ngón chân. Một vài mốc dễ tìm:
 
-- **Phế – Thiếu Thương:** góc ngoài chân móng ngón tay cái.
-- **Đại Trường – Thương Dương:** góc ngoài chân móng ngón tay trỏ.
-- **Tâm – Thiếu Xung:** góc trong chân móng ngón tay út.
-- **Tỳ – Ẩn Bạch:** góc trong chân móng ngón chân cái.
-- **Can – Đại Đôn:** góc ngoài chân móng ngón chân cái.
-- **Bàng Quang – Chí Âm:** góc ngoài chân móng ngón chân út.
+- **Phế – [Thiếu Thương](/huyet/thieu-thuong/):** góc ngoài chân móng ngón tay cái.
+- **Đại Trường – [Thương Dương](/huyet/thuong-duong/):** góc ngoài chân móng ngón tay trỏ.
+- **Tâm – [Thiếu Xung](/huyet/thieu-xung/):** góc trong chân móng ngón tay út.
+- **Tỳ – [Ẩn Bạch](/huyet/an-bach/):** góc trong chân móng ngón chân cái.
+- **Can – [Đại Đôn](/huyet/dai-don/):** góc ngoài chân móng ngón chân cái.
+- **Bàng Quang – [Chí Âm](/huyet/chi-am/):** góc ngoài chân móng ngón chân út.
 
 Để tra cứu vị trí, đường đi và công năng của từng huyệt một cách trực quan, bạn có thể mở [đồ hình kinh lạc 3D](/xem-3d) hoặc tìm trong [thư viện Đông Y](/thu-vien).
 

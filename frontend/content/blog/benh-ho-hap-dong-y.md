@@ -53,11 +53,11 @@ Nhiều loại **thuốc nam trị ho** đã được ông cha ta đúc kết v�
 
 Ngoài việc sử dụng dược liệu, Đông Y còn ứng dụng **xoa bóp, bấm huyệt** để hỗ trợ điều trị và phòng ngừa bệnh hô hấp. Các huyệt vị trên đường kinh Phế và Thận có vai trò quan trọng:
 
-*   **Huyệt Phế Du (Vị trí: 1.3 thốn sau mỏm gai đốt sống lưng D3):** Giúp bổ phế khí, điều hòa hô hấp, giảm ho, suyễn.
-*   **Huyệt Thiên Đột (Vị trí: Giữa trên hõm ức):** Tác động vào huyệt này giúp khai thông đường thở, giảm ho, nấc, khó thở.
+*   **Huyệt [Phế Du](/huyet/phe-du/) (Vị trí: 1.3 thốn sau mỏm gai đốt sống lưng D3):** Giúp bổ phế khí, điều hòa hô hấp, giảm ho, suyễn.
+*   **Huyệt [Thiên Đột](/huyet/thien-dot/) (Vị trí: Giữa trên hõm ức):** Tác động vào huyệt này giúp khai thông đường thở, giảm ho, nấc, khó thở.
 *   **Huyệt Thái Uyển (Vị trí: Lõm dưới mỏm xương cánh tay, trên nếp gấp khuỷu tay):** Là huyệt hợp của kinh Phế, có tác dụng trị ho, suyễn, đau ngực.
-*   **Huyệt Khổng Tuyền (Vị trí: Nếp gấp khuỷu tay, phía ngoài, trên huyệt Khúc Trì 1 thốn):** Giúp trị ho, hen suyễn, viêm họng.
-*   **Huyệt Khí Hải (Vị trí: Dưới rốn 1.5 thốn):** Bổ thận khí, ích tinh, điều hòa khí huyết toàn thân, hỗ trợ điều trị các chứng suy nhược, hen suyễn do thận hư.
+*   **Huyệt Khổng Tuyền (Vị trí: Nếp gấp khuỷu tay, phía ngoài, trên huyệt [Khúc Trì](/huyet/khuc-tri/) 1 thốn):** Giúp trị ho, hen suyễn, viêm họng.
+*   **Huyệt [Khí Hải](/huyet/khi-hai/) (Vị trí: Dưới rốn 1.5 thốn):** Bổ thận khí, ích tinh, điều hòa khí huyết toàn thân, hỗ trợ điều trị các chứng suy nhược, hen suyễn do thận hư.
 
 Việc xác định chính xác vị trí huyệt và kỹ thuật tác động là rất quan trọng. Nếu bạn muốn hình dung rõ hơn về các huyệt vị và đường kinh, hãy khám phá [đồ hình kinh lạc 3D với hơn 1.000 huyệt vị](/xem-3d) để có cái nhìn trực quan nhất.
 

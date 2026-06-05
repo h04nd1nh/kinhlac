@@ -57,7 +57,7 @@ Thoái hóa khớp thường liên quan đến sự suy giảm chức năng củ
 
 ### Phân Tích Bài Thuốc Theo Tính Vị Quy Kinh – Nền Tảng Khoa Học Của Đông Y
 
-Mỗi bài thuốc Đông Y đều được xây dựng dựa trên nguyên tắc "tính vị quy kinh". Tính vị của một vị thuốc bao gồm **tính** (hàn, nhiệt, ôn, lương) và **vị** (cay, ngọt, đắng, mặn, chua). Nguyên tắc này cho biết tác dụng của thuốc và nó đi vào kinh lạc, tạng phủ nào của cơ thể.
+Mỗi bài thuốc Đông Y đều được xây dựng dựa trên nguyên tắc "[tính vị quy kinh](/xem-bai-thuoc)". Tính vị của một vị thuốc bao gồm **tính** (hàn, nhiệt, ôn, lương) và **vị** (cay, ngọt, đắng, mặn, chua). Nguyên tắc này cho biết tác dụng của thuốc và nó đi vào kinh lạc, tạng phủ nào của cơ thể.
 
 Ví dụ, trong bài thuốc Ôn Kinh Tán Hàn, Quế chi có tính ôn, vị cay, quy vào kinh Tâm, Phế, Bàng quang, giúp ôn thông kinh mạch, khu phong tán hàn. Độc hoạt có tính ôn, vị cay, quy vào kinh Can, Thận, Bàng quang, giúp khu phong, tán hàn, giảm đau khớp ở vùng lưng gối.
 

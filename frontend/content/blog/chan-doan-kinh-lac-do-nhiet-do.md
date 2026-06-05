@@ -12,7 +12,7 @@ image: "/kinhmach3d/images/meridians/kinh-07-chinh.jpg"
 seoCumId: 1
 aiModel: "Yescale gemini-2.5-flash-lite"
 ---
-Trong Y học cổ truyền (Đông Y), sức khỏe con người được ví như một dòng chảy năng lượng tinh tế, vận hành thông qua hệ thống kinh lạc. Sự cân bằng và thông suốt của dòng chảy này là yếu tố then chốt quyết định trạng thái khỏe mạnh. Khi có bất kỳ sự tắc nghẽn hay rối loạn nào trên hệ thống kinh lạc, cơ thể sẽ biểu hiện ra những dấu hiệu bất thường, mà một trong những phương pháp phát hiện sớm và hiệu quả là **đo nhiệt độ kinh lạc**. Đây là một kỹ thuật chẩn đoán độc đáo, mang đậm triết lý Đông Y, giúp thầy thuốc "nhìn" thấy những thay đổi tinh vi bên trong cơ thể mà các phương pháp thông thường có thể bỏ sót.
+Trong Y học cổ truyền (Đông Y), sức khỏe con người được ví như một dòng chảy năng lượng tinh tế, vận hành thông qua hệ thống kinh lạc. Sự cân bằng và thông suốt của dòng chảy này là yếu tố then chốt quyết định trạng thái khỏe mạnh. Khi có bất kỳ sự tắc nghẽn hay rối loạn nào trên hệ thống kinh lạc, cơ thể sẽ biểu hiện ra những dấu hiệu bất thường, mà một trong những phương pháp phát hiện sớm và hiệu quả là **[đo nhiệt độ kinh lạc](/xem-ket-qua-do)**. Đây là một kỹ thuật chẩn đoán độc đáo, mang đậm triết lý Đông Y, giúp thầy thuốc "nhìn" thấy những thay đổi tinh vi bên trong cơ thể mà các phương pháp thông thường có thể bỏ sót.
 
 ## Nguyên Lý Đo Nhiệt Độ Kinh Lạc Theo Phương Pháp 24 Tỉnh Huyệt
 
@@ -38,12 +38,12 @@ Bằng cách đo và so sánh nhiệt độ của các huyệt vị này với n
 
 2.  **Xác định các huyệt vị cần đo:**
     *   Theo phương pháp **24 tỉnh huyệt**, chúng ta sẽ tập trung vào các huyệt nằm ở đầu chi và khuỷu tay, đầu gối. Ví dụ:
-        *   **Kinh Phổi:** Thiếu Thương (ở kẽ ngón cái và ngón trỏ).
-        *   **Kinh Đại Trường:** Thương Dương (ở góc ngoài móng ngón trỏ).
-        *   **Kinh Vị:** Lệ Đoài (ở góc ngoài móng ngón chân thứ hai).
-        *   **Kinh Tỳ:** Ẩn Bạch (ở góc trong móng ngón chân cái).
-        *   **Kinh Tâm:** Thiếu Xung (ở góc ngoài móng ngón út).
-        *   **Kinh Tiểu Trường:** Thiếu Trạch (ở góc ngoài móng ngón út).
+        *   **Kinh Phổi:** [Thiếu Thương](/huyet/thieu-thuong/) (ở kẽ ngón cái và ngón trỏ).
+        *   **Kinh Đại Trường:** [Thương Dương](/huyet/thuong-duong/) (ở góc ngoài móng ngón trỏ).
+        *   **Kinh Vị:** [Lệ Đoài](/huyet/le-doai/) (ở góc ngoài móng ngón chân thứ hai).
+        *   **Kinh Tỳ:** [Ẩn Bạch](/huyet/an-bach/) (ở góc trong móng ngón chân cái).
+        *   **Kinh Tâm:** [Thiếu Xung](/huyet/thieu-xung/) (ở góc ngoài móng ngón út).
+        *   **Kinh Tiểu Trường:** [Thiếu Trạch](/huyet/thieu-trach/) (ở góc ngoài móng ngón út).
         *   **Kinh Bàng Quang:** Chí Âm (ở góc ngoài móng ngón chân út).
         *   **Kinh Thận:** Dũng Tuyền (ở 1/3 trước lòng bàn chân).
         *   **Kinh Tâm Bao:** Trung Xung (ở giữa ngón giữa).
