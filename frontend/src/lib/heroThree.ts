@@ -15,11 +15,22 @@
  */
 
 const BASE = `${import.meta.env.BASE_URL || '/'}kinhmach3d/`
-const THREE_SRC = `${BASE}vendor/three.min.js`
-const GLTF_SRC = `${BASE}vendor/GLTFLoader.js`
-const MESHOPT_SRC = `${BASE}vendor/meshopt_decoder.js`
-const COORDS_SRC = `${BASE}data/acu-coords3d.js`
-const MODEL_SRC = `${BASE}models/body-layers.glb`
+
+// ── PHÁ CACHE (?v=<số build>) ──
+// Các asset 3D (three.min.js, acu-coords3d.js, body-layers.glb…) GIỮ NGUYÊN TÊN qua mỗi lần deploy, mà
+// nginx phục vụ chúng kèm cache dài → trình duyệt đã tải sẽ KHÔNG hỏi lại server, nên file cập nhật
+// (vd toạ độ đường kinh mới) "không lên". acuMap3d.ts đã gắn ?v=<ver> để khắc phục; heroThree TRƯỚC ĐÂY
+// QUÊN — nên banner trang chủ dễ kẹt bản cũ. Dùng chung __ACU_ASSET_VER__ (Vite define, = số build) như acuMap3d.
+declare const __ACU_ASSET_VER__: string
+const ASSET_VER = typeof __ACU_ASSET_VER__ !== 'undefined' ? __ACU_ASSET_VER__ : ''
+/** Gắn ?v=<ver> để mỗi build ra URL mới → trình duyệt coi là file mới, bỏ qua bản cache cũ. */
+const ver = (p: string) => (ASSET_VER ? `${p}?v=${ASSET_VER}` : p)
+
+const THREE_SRC = ver(`${BASE}vendor/three.min.js`)
+const GLTF_SRC = ver(`${BASE}vendor/GLTFLoader.js`)
+const MESHOPT_SRC = ver(`${BASE}vendor/meshopt_decoder.js`)
+const COORDS_SRC = ver(`${BASE}data/acu-coords3d.js`)
+const MODEL_SRC = ver(`${BASE}models/body-layers.glb`)
 
 // Kích thước ước lượng (byte) — chỉ dùng làm mẫu số cho thanh % khi máy chủ KHÔNG gửi Content-Length.
 const SIZE_HINT: Record<string, number> = {

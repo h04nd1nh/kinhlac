@@ -150,7 +150,7 @@
   // Model 1-mesh hiện tại không khớp tên cơ/xương -> rơi về 'skin' => vẫn chạy y như cũ.
   // Khi xuất model Z-Anatomy: đặt tên collection top-level đúng "skin" / "muscle" / "bone".
   const LAYERS = [
-    { id: 'skin',   label: 'Da',    color: 0xe8d2c0, rough: 0.62, match: /(^|[_\-\s.])(skin|body|surface|integument|da)/i },
+    { id: 'skin',   label: 'Da',    color: 0xe1aa80, rough: 0.66, match: /(^|[_\-\s.])(skin|body|surface|integument|da)/i }, // tông da ấm, khoẻ, bớt sáng để lộ khối (cũ 0xe8d2c0 nhợt). Đổi hex/rough nếu muốn sáng-tối/mịn-nhám hơn.
     { id: 'muscle', label: 'Cơ',    color: 0x9c4a40, rough: 0.55, match: /(^|[_\-\s.])(muscle|musc|musculus|myo)/i },
     { id: 'bone',   label: 'Xương', color: 0xeae0c8, rough: 0.50, match: /(^|[_\-\s.])(bone|skelet|osseous|vertebr|cranium|skull|costa|pelvis|femur)/i },
   ];
@@ -210,10 +210,11 @@
     stage.appendChild(renderer.domElement);
 
     // ánh sáng: bán cầu nền + đèn key/fill + viền sáng lạnh (rim) → cảm giác có khối
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x97a2b0, 0.95));
-    const key = new THREE.DirectionalLight(0xfff4e8, 0.85); key.position.set(1.2, 2.0, 2.2); scene.add(key);
-    const fill = new THREE.DirectionalLight(0xdfeaff, 0.35); fill.position.set(-1.5, 0.8, -1.0); scene.add(fill);
-    const rim = new THREE.DirectionalLight(0xbfd3ff, 0.7); rim.position.set(0, 1.4, -2.6); scene.add(rim);
+    // Giảm ambient (Hemisphere) + tăng key, giảm fill → bóng sâu hơn để LỘ RÕ đường nét/khối cơ thể (đỡ "phẳng").
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8a95a5, 0.55));
+    const key = new THREE.DirectionalLight(0xfff4e8, 1.15); key.position.set(1.2, 2.0, 2.2); scene.add(key);
+    const fill = new THREE.DirectionalLight(0xdfeaff, 0.22); fill.position.set(-1.5, 0.8, -1.0); scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xbfd3ff, 0.8); rim.position.set(0, 1.4, -2.6); scene.add(rim);
     scene.add(dotsGroup); scene.add(linesGroup); scene.add(flowGroup); scene.add(needleGroup);
 
     controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -325,7 +326,19 @@
       updateCount();
       if (pendingFocus) { const c = pendingFocus, o = pendingOpts; pendingFocus = pendingOpts = null; setTimeout(() => focusPoint(c, o), 120); }
       buildLinesDeferred();              // dựng đường kinh TỪNG KINH mỗi khung → model hiện tức thì, đường rải dần
-    }, undefined, err => {
+      window.ACU_MODEL_READY = true;     // báo Vue tắt MÀN CHỜ TO (kể cả lần sau vào lại — engine singleton)
+      if (typeof window.ACU_ON_MODEL_READY === 'function') window.ACU_ON_MODEL_READY();
+    }, xhr => {
+      // % tải model cho màn chờ to (đỡ sốt ruột). Chỉ khi server gửi Content-Length (xhr.total>0). Model đã
+      // preload nên có thể nhảy nhanh tới ~99% rồi đứng chút lúc giải nén — vẫn rõ hơn là đứng im "Đang tải…".
+      if (xhr && xhr.lengthComputable && xhr.total) {
+        const pct = Math.min(99, Math.round((xhr.loaded / xhr.total) * 100));
+        drawer.innerHTML = '<div class="dr-welcome"><p class="hint">Đang tải mô hình 3D… ' + pct + '%</p></div>';
+        if (typeof window.ACU_ON_MODEL_PROGRESS === 'function') window.ACU_ON_MODEL_PROGRESS(pct);
+      }
+    }, err => {
+      window.ACU_MODEL_READY = true;     // lỗi cũng phải tắt màn chờ, đừng để treo
+      if (typeof window.ACU_ON_MODEL_READY === 'function') window.ACU_ON_MODEL_READY();
       drawer.innerHTML = '<p class="empty-note">Không tải được mô hình 3D (' + esc(String(err && err.message || err)) + ').</p>';
     });
   }
@@ -1049,11 +1062,7 @@
 
   function drawerWelcome() {
     drawerMer = null;
-    drawer.innerHTML = `<div class="dr-welcome">
-      <h3>Đồ hình kinh lạc 3D</h3>
-      <p>Kéo để xoay cơ thể, cuộn để phóng to. Bấm một <b>đường kinh</b> ở chú giải → hiện danh sách huyệt; bấm 1 huyệt → bay tới + chi tiết.</p>
-      <p class="hint">Hoặc bấm thẳng một <b>chấm huyệt</b> trên cơ thể · trượt Da · Cơ · Xương để bóc tách lớp.</p>
-    </div>`;
+    drawer.innerHTML = ''; // bỏ khối hướng dẫn chào mừng theo yêu cầu — drawer để trống tới khi chọn 1 đường kinh.
   }
 
   function updateCount() {

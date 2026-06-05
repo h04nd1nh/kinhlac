@@ -72,7 +72,10 @@ const HOST_HTML = `
   </div>
   <div class="map-body">
     <div class="map-stage" id="mapStage">
-      <span class="map-credit">Mô hình giải phẫu: BodyParts3D © DBCLS — CC-BY-SA 2.1 JP</span>
+      <div class="map-credit" tabindex="0" role="note" aria-label="Nguồn mô hình giải phẫu">
+        <span class="map-credit-i" aria-hidden="true">&#9432;</span>
+        <span class="map-credit-text">Mô hình giải phẫu: BodyParts3D © DBCLS · CC BY-SA 2.1 JP</span>
+      </div>
       <div class="hf-inset" id="hfInset"></div>
     </div>
     <aside class="map-drawer" id="mapDrawer">

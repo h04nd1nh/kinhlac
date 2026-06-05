@@ -698,7 +698,14 @@ Hãy đề xuất các cụm chủ đề nên viết theo đúng định dạng 
     const baseURL =
       this.config.get<string>('YESCALE_BASE_URL') || YESCALE_DEFAULT_BASE_URL;
     if (!this.client || this.clientKey !== apiKey || this.clientBase !== baseURL) {
-      this.client = new OpenAI({ apiKey, baseURL });
+      this.client = new OpenAI({
+        apiKey,
+        baseURL,
+        // Yescale viết bài dài (3500 token) có thể chậm; chặn MỖI lần gọi ở YESCALE_TIMEOUT_MS
+        // (mặc định 280s) và TẮT retry của SDK (mặc định 2) — retry nhân đôi thời gian → dễ 504.
+        timeout: Number(this.config.get<string>('YESCALE_TIMEOUT_MS')) || 280_000,
+        maxRetries: Number(this.config.get<string>('YESCALE_MAX_RETRIES')) || 0,
+      });
       this.clientKey = apiKey;
       this.clientBase = baseURL;
     }

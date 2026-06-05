@@ -7,7 +7,25 @@ const route = useRoute()
 const router = useRouter()
 const mountPoint = ref<HTMLElement | null>(null)
 const loading = ref(true)
+const progress = ref(0) // % tải model cho màn chờ to (0 = chưa có số → chỉ hiện spinner)
 const error = ref<string | null>(null)
+
+// Kênh tiến trình từ engine map3d.js (đặt trên window) → màn chờ to của Vue.
+interface AcuWin {
+  ACU_MODEL_READY?: boolean
+  ACU_ON_MODEL_PROGRESS?: (pct: number) => void
+  ACU_ON_MODEL_READY?: () => void
+  AcuMap?: { focus: (c: string) => void }
+}
+let safetyTimer: ReturnType<typeof setTimeout> | null = null
+function finishLoading() {
+  progress.value = 100
+  loading.value = false
+  if (safetyTimer) {
+    clearTimeout(safetyTimer)
+    safetyTimer = null
+  }
+}
 // Mobile: nút gạt ẩn mô hình 3D để danh sách kinh/huyệt chiếm trọn chiều cao.
 // Ẩn bằng display:none là an toàn — onResize của engine có guard `if(!w||!h)return`,
 // và ResizeObserver trên #mapStage tự chỉnh lại canvas khi hiện mô hình trở lại.
@@ -57,6 +75,21 @@ function onHashNav() {
 }
 
 onMounted(async () => {
+  const w = window as unknown as AcuWin
+  if (w.ACU_MODEL_READY) {
+    // Model đã tải sẵn từ lần trước (engine singleton) → khỏi hiện màn chờ.
+    loading.value = false
+  } else {
+    // Engine báo % khi tải model + báo "xong" → màn chờ to hiện % rồi tự ẩn.
+    w.ACU_ON_MODEL_PROGRESS = (pct: number) => {
+      progress.value = Math.max(progress.value, Math.min(99, pct))
+    }
+    w.ACU_ON_MODEL_READY = finishLoading
+    // Phòng hờ: nếu engine không báo "xong" (vd khung 0px nên model chưa tải), 30s sau vẫn ẩn màn chờ.
+    safetyTimer = setTimeout(() => {
+      loading.value = false
+    }, 30000)
+  }
   try {
     if (mountPoint.value) await mountAcuMap(mountPoint.value)
     window.addEventListener('hashchange', onHashNav)
@@ -64,11 +97,10 @@ onMounted(async () => {
     // Mở từ "Từ Điển" với ?focus=<mã huyệt> → bay tới huyệt đó (engine đã sẵn sàng sau mountAcuMap).
     const focus = route.query.focus
     const code = Array.isArray(focus) ? focus[0] : focus
-    if (code) (window as unknown as { AcuMap?: { focus: (c: string) => void } }).AcuMap?.focus(code)
+    if (code) w.AcuMap?.focus(code)
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : String(e)
-  } finally {
-    loading.value = false
+    finishLoading()
   }
 })
 
@@ -76,6 +108,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('hashchange', onHashNav)
   window.removeEventListener('keydown', onKeydown)
   document.body.style.overflow = '' // phòng khi rời trang lúc đang phóng to
+  if (safetyTimer) {
+    clearTimeout(safetyTimer)
+    safetyTimer = null
+  }
+  // Gỡ callback để engine không gọi vào component đã huỷ ở lần điều hướng sau.
+  const w = window as unknown as AcuWin
+  w.ACU_ON_MODEL_PROGRESS = undefined
+  w.ACU_ON_MODEL_READY = undefined
   unmountAcuMap()
 })
 </script>
@@ -121,7 +161,7 @@ onBeforeUnmount(() => {
 
       <div v-if="loading" class="km3d-loading">
         <div class="km3d-spinner" aria-hidden="true"></div>
-        <p>Đang tải đồ hình kinh lạc 3D…</p>
+        <p>Đang tải đồ hình kinh lạc 3D…<span v-if="progress > 0"> {{ progress }}%</span></p>
       </div>
     </div>
   </div>

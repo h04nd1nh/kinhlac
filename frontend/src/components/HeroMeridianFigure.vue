@@ -93,6 +93,47 @@ const merOf = (code: string) => code.replace(/\d+$/, '')
 const numOf = (code: string) => +code.replace(/\D/g, '')
 const isBilateral = (mer: string) => mer !== 'CV' && mer !== 'GV'
 
+// ── Chốt "Chấm Tay" (DB) → đè lên toạ độ tĩnh để banner KHỚP vị trí huyệt đã chỉnh tay ──
+// Trang "Kinh Mạch 3D" lưu vị trí Chấm Tay vào DB, CHUẨN-HOÁ theo bodyHeight — ĐÚNG hệ mà limbPoint() ở đây
+// dùng, nên đè thẳng vào C.points[mã] là khớp. acu-coords3d.js (file tĩnh) không có các chỉnh đó. Nạp chốt qua
+// API /kinh-mach-3d/anchors (đã @Public → chạy cả khi CHƯA đăng nhập, cho landing công khai). Lỗi/anonymous/
+// rỗng → bỏ qua, vẫn vẽ toạ độ tĩnh như cũ. LƯU Ý: KHÔNG chạy solver "Căn Tổng Thể" (cần đăng nhập) ở đây →
+// banner chỉ DỜI đúng các huyệt đã chấm, không nội suy "gold" giữa các chốt như trang Kinh Mạch 3D.
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+type Vec3 = { x: number; y: number; z: number }
+let anchorOverride: Record<string, Vec3> | null = null
+let anchorsPromise: Promise<Record<string, Vec3> | null> | null = null
+
+/** Tải bộ chốt Chấm Tay từ API; trả { mã: {x,y,z} } hoặc null nếu lỗi/không có (không bao giờ ném lỗi). */
+function fetchAnchors(): Promise<Record<string, Vec3> | null> {
+  return fetch(`${API_BASE}/kinh-mach-3d/anchors`)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      const pts = (j && j.points) as Record<string, Vec3> | null
+      if (!pts) return null
+      const out: Record<string, Vec3> = {}
+      for (const k in pts) {
+        const p = pts[k]
+        if (p && typeof p.x === 'number' && typeof p.y === 'number' && typeof p.z === 'number') {
+          out[k] = { x: p.x, y: p.y, z: p.z }
+        }
+      }
+      return Object.keys(out).length ? out : null
+    })
+    .catch(() => null)
+}
+
+/** C.points đã đè chốt Chấm Tay (nếu có): giữ nguyên cờ gốc, ép snap:false ở điểm bị đè (đặt ĐÚNG điểm). */
+function withAnchors(base: Any): Any {
+  if (!anchorOverride) return base
+  const merged: Any = { ...base }
+  for (const code in anchorOverride) {
+    const a = anchorOverride[code]
+    if (a) merged[code] = { ...(base[code] || {}), x: a.x, y: a.y, z: a.z, snap: false }
+  }
+  return merged
+}
+
 // ── Raycast: đặt huyệt THÂN/ĐẦU theo (h, az, dir) lên bề mặt (port từ engine surfacePoint) ──
 function surfacePoint(h: number, az: number, dir?: string): Any | null {
   const y = bodyMinY + h * bodyHeight
@@ -279,7 +320,7 @@ function buildMeridiansDeferred() {
     revealCanvas() // vẫn hiện thân người dù thiếu đường kinh
     return
   }
-  const placed = C.points
+  const placed = withAnchors(C.points) // đè chốt Chấm Tay (DB) lên toạ độ tĩnh, nếu có
   const codes = Object.keys(placed)
   const groups: Record<string, { mer: string; num: number; pos: Any }[]> = {}
   let idx = 0
@@ -462,6 +503,7 @@ function parseModel(buf: ArrayBuffer): Promise<void> {
 async function init(modelBuf: ArrayBuffer) {
   const el = host.value
   if (!el) return
+  anchorsPromise = fetchAnchors() // nạp chốt Chấm Tay SONG SONG với việc tải/parse model (không chặn)
   const w = Math.max(1, el.clientWidth)
   const h = Math.max(1, el.clientHeight)
 
@@ -517,6 +559,9 @@ async function init(modelBuf: ArrayBuffer) {
   // Render ngầm (canvas còn opacity 0) trong lúc dựng; revealCanvas() chỉ mờ-hiện khi ĐÃ đủ
   // thân + đường kinh → cả khối hiện cùng lúc (không "thân trước, đường kinh sau").
   raf = requestAnimationFrame(loop)
+  // Đợi chốt Chấm Tay (đã fetch song song ở trên) rồi mới dựng đường kinh để đè đúng vị trí.
+  anchorOverride = await anchorsPromise
+  if (!alive) return
   buildMeridiansDeferred()
 }
 

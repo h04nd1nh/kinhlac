@@ -68,7 +68,11 @@
 .acu3d .map-stage { position: relative; flex: 1; min-width: 0; background: #eef1f4; overflow: hidden; touch-action: none; }
 .acu3d .map-stage canvas { display: block; cursor: grab; }
 .acu3d .map-stage canvas:active { cursor: grabbing; }
-.acu3d .map-credit { position: absolute; left: 10px; bottom: 8px; z-index: 2; font-size: 10.5px; color: var(--muted); background: rgba(255,255,255,.6); padding: 2px 7px; border-radius: 6px; pointer-events: none; }
+/* Ghi công model (BodyParts3D, CC-BY-SA — BẮT BUỘC giữ): thu thành nút ⓘ nhỏ, rê/chạm mới hiện đủ. */
+.acu3d .map-credit { position: absolute; left: 10px; bottom: 8px; z-index: 2; display: inline-flex; align-items: center; cursor: help; outline: none; }
+.acu3d .map-credit-i { width: 18px; height: 18px; display: grid; place-items: center; font-size: 13px; line-height: 1; color: var(--muted); background: rgba(255,255,255,.6); border-radius: 50%; }
+.acu3d .map-credit-text { display: none; margin-left: 6px; font-size: 10.5px; color: var(--muted); background: rgba(255,255,255,.92); padding: 2px 8px; border-radius: 6px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.acu3d .map-credit:hover .map-credit-text, .acu3d .map-credit:focus-within .map-credit-text { display: inline-block; }
 /* Panel Chấm Tay — DOCK vào đầu sidebar phải (không nổi đè lên mô hình 3D). */
 .acu3d .map-edit-panel { flex: none; width: auto; background: #f0fdf4; border: 0; border-bottom: 1px solid var(--border); border-left: 3px solid #22c55e; border-radius: 0; padding: 12px 14px; font-size: 12.5px; }
 .acu3d .map-edit-panel .mep-title { font-weight: 700; color: #15803d; margin-bottom: 6px; }
