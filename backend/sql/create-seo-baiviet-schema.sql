@@ -30,3 +30,6 @@ CREATE TABLE IF NOT EXISTS seo_bai_viet (
 
 CREATE INDEX IF NOT EXISTS idx_seo_bai_viet_trang_thai ON seo_bai_viet (trang_thai);
 CREATE INDEX IF NOT EXISTS idx_seo_bai_viet_cum        ON seo_bai_viet (cum_id);
+
+-- Bổ sung sau (idempotent): nguồn tham khảo uy tín (E-E-A-T) — JSON [{title, url?}] → frontmatter `sources`.
+ALTER TABLE seo_bai_viet ADD COLUMN IF NOT EXISTS nguon_tham_khao TEXT;

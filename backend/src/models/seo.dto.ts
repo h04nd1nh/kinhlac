@@ -30,6 +30,7 @@ export interface UpdateBaiVietDto {
   category?: string;
   cta?: string;
   faq?: string;
+  nguon_tham_khao?: string;
   noi_dung_md?: string;
   trang_thai?: 'nhap' | 'da_duyet' | 'bo_qua' | 'da_dang';
 }

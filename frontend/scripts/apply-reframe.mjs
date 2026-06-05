@@ -24,6 +24,10 @@ const decode = (s) =>
     .replace(/&#x27;/g, "'")
     .replace(/&amp;/g, '&')
 
+// Sửa lỗi đánh máy thương hiệu: đúng là "Kinh Lạc Trương Gia" (họ Trương), KHÔNG phải "Trường Gia".
+const fixBrand = (s) => String(s ?? '').replace(/Trường Gia/g, 'Trương Gia')
+const clean = (s) => fixBrand(decode(s))
+
 const here = dirname(fileURLToPath(import.meta.url))
 const blogDir = resolve(here, '../content/blog')
 
@@ -51,10 +55,10 @@ for (const r of results) {
   }
   let fm = m[1]
   let body = m[2]
-  if (r.newTitle) fm = fm.replace(/^title:.*$/m, 'title: ' + JSON.stringify(decode(r.newTitle)))
+  if (r.newTitle) fm = fm.replace(/^title:.*$/m, 'title: ' + JSON.stringify(clean(r.newTitle)))
   if (r.newDescription)
-    fm = fm.replace(/^description:.*$/m, 'description: ' + JSON.stringify(decode(r.newDescription)))
-  if (r.newBody) body = decode(r.newBody).trim() + '\n'
+    fm = fm.replace(/^description:.*$/m, 'description: ' + JSON.stringify(clean(r.newDescription)))
+  if (r.newBody) body = clean(r.newBody).trim() + '\n'
   writeFileSync(file, fm + body, 'utf8')
   n++
   console.log(`  ✓ ${r.slug}: ${r.notes || 'đã sửa'}`)

@@ -10,7 +10,7 @@ cta: "/xem-ket-qua-do"
 keywords: ["đo nhiệt độ kinh lạc","24 tỉnh huyệt","đo kinh lạc","tỉnh huyệt","12 đường kinh","chẩn đoán Đông Y"]
 faq: [{"q":"Đo nhiệt độ kinh lạc có đau không?","a":"Không. Phương pháp chỉ đo nhiệt độ tại đầu ngón tay, ngón chân (các tỉnh huyệt), không châm hay gây tổn thương da nên hoàn toàn không đau."},{"q":"24 tỉnh huyệt nằm ở đâu?","a":"Tỉnh huyệt là nhóm huyệt ở đầu các ngón tay và ngón chân, nơi Đông Y xem là khí của mỗi đường kinh khởi phát hoặc tận cùng. Đo cả hai bên trái – phải của 12 đường kinh cho ra bộ 24 điểm số liệu đại diện."},{"q":"Kết quả đo kinh lạc có thay được chẩn đoán của bác sỹ không?","a":"Không. Đây là công cụ hỗ trợ biện chứng theo Đông Y, cung cấp dữ liệu tham khảo. Mọi chẩn đoán và điều trị vẫn cần thầy thuốc có chuyên môn đánh giá."},{"q":"Tôi xem thử kết quả đo ở đâu?","a":"Bạn có thể xem mẫu kết quả đo và biểu đồ trực quan công khai tại trang /xem-ket-qua-do mà không cần đăng nhập."}]
 ---
-**Đo nhiệt độ kinh lạc** là phương pháp dùng nhiệt độ tại **24 tỉnh huyệt** ở đầu ngón tay và ngón chân để suy luận trạng thái hàn/nhiệt, hư/thực của **12 đường kinh** trong cơ thể. Đây là một hướng số hoá chẩn đoán theo Đông Y: thay vì chỉ bắt mạch và quan sát bằng cảm quan, người thầy thuốc có thêm một bộ số liệu khách quan để tham khảo. Bài viết này giải thích nguyên lý **đo kinh lạc**, lịch sử hình thành, ai nên dùng, và cách đọc kết quả đo sao cho dễ hiểu với cả sinh viên Y lẫn y bác sỹ.
+**Đo nhiệt độ kinh lạc** là cách dùng nhiệt độ tại **24 tỉnh huyệt** ở đầu ngón tay và ngón chân để suy luận trạng thái hàn/nhiệt, hư/thực của **12 đường kinh** trong cơ thể. Đây là một hướng số hoá chẩn đoán theo Đông Y: thay vì chỉ bắt mạch và quan sát bằng cảm quan, người thầy thuốc có thêm một bộ số liệu khách quan để tham khảo. Trên nền tảng Đông Y số hoá **Kinh Lạc Trương Gia** (gọi tắt là **Kinh Lạc**), đo kinh lạc là một trong nhiều tính năng hỗ trợ biện chứng. Bài viết này giải thích nguyên lý **đo kinh lạc**, lịch sử hình thành, ai nên dùng, và cách đọc kết quả đo sao cho dễ hiểu với cả sinh viên Y lẫn y bác sỹ.
 
 ## Đo Nhiệt Độ Kinh Lạc Là Gì?
 
@@ -29,7 +29,7 @@ Cách diễn giải số liệu, nói một cách đơn giản, dựa trên hai 
 - **Cân bằng trái – phải:** một đường kinh khoẻ thường có nhiệt độ hai bên tương đối cân. Chênh lệch lớn gợi ý mất cân bằng cần chú ý.
 - **So với mức trung bình của cơ thể:** nhiệt độ cao bất thường thường được quy về **nhiệt/thực**, thấp bất thường thường quy về **hàn/hư**.
 
-Từ bản đồ nhiệt độ này, phần mềm hoặc người thầy thuốc có kinh nghiệm sẽ khái quát thành các **thể bệnh** theo Đông Y, rồi gợi ý **pháp trị** (nguyên tắc điều trị) và tham khảo **bài thuốc** phù hợp. Toàn bộ chuỗi suy luận vẫn đặt dưới sự đánh giá của thầy thuốc.
+Từ bản đồ nhiệt độ này, nền tảng Kinh Lạc cùng người thầy thuốc có kinh nghiệm sẽ khái quát thành các **thể bệnh** theo Đông Y, rồi gợi ý **pháp trị** (nguyên tắc điều trị) và tham khảo **bài thuốc** phù hợp. Toàn bộ chuỗi suy luận vẫn đặt dưới sự đánh giá của thầy thuốc.
 
 > Lưu ý quan trọng: mọi gợi ý về châm cứu, bấm huyệt hay dùng thuốc đều cần tham khảo thầy thuốc có chuyên môn. Không tự ý áp dụng cho người bệnh nặng, trẻ nhỏ hoặc phụ nữ có thai khi chưa có chỉ định.
 
@@ -37,11 +37,11 @@ Từ bản đồ nhiệt độ này, phần mềm hoặc người thầy thuốc
 
 Ý tưởng đọc trạng thái kinh lạc qua tín hiệu đo được ở đầu ngón tay, ngón chân không phải mới: nhiều trường phái châm cứu thế kỷ 20 đã nghiên cứu đo điện trở hoặc nhiệt độ ở các tỉnh huyệt, nguyên huyệt để hỗ trợ chẩn đoán.
 
-Tại Việt Nam, phương pháp **đo nhiệt độ kinh lạc** gắn với công trình của lương y **Lê Văn Sửu** — người hệ thống hoá cách đo và luận giải theo lý luận kinh lạc cổ truyền. Trên nền tảng đó, quy trình ngày nay đã được **số hoá**: chuẩn hoá điểm đo, lưu trữ số liệu và trình bày kết quả thành biểu đồ trực quan thay vì bảng số khô khan. Sự kết hợp giữa **y lý Đông Y** và **kỹ thuật đo lường** chính là điểm cốt lõi giúp phương pháp trở nên dễ dùng và dễ kiểm chứng hơn.
+Tại Việt Nam, hướng đọc kinh lạc qua nhiệt độ đầu ngón được nhiều người biết đến qua các tài liệu kinh lạc cổ truyền. Riêng tính năng **đo nhiệt độ kinh lạc** trên nền tảng Kinh Lạc **lấy cảm hứng từ cuốn sách Biện Chứng Luận Trị** của lương y **Lê Văn Sửu** — một tài liệu hệ thống hoá cách biện chứng theo lý luận kinh lạc. Trên tinh thần đó, phần đo lường được **số hoá** trong Kinh Lạc: chuẩn hoá điểm đo, lưu trữ số liệu và trình bày kết quả thành biểu đồ trực quan thay vì bảng số khô khan. Sự kết hợp giữa **y lý Đông Y** và **kỹ thuật đo lường** chính là điểm cốt lõi giúp tính năng này trở nên dễ dùng và dễ kiểm chứng hơn.
 
 ## Ai Nên Dùng Đo Kinh Lạc?
 
-Phương pháp này phù hợp với nhiều nhóm:
+Tính năng này phù hợp với nhiều nhóm:
 
 - **Sinh viên Y, học viên Đông Y:** trực quan hoá lý thuyết 12 đường kinh và quy luật hàn – nhiệt – hư – thực bằng số liệu thật, dễ học hơn so với chỉ đọc sách.
 - **Y bác sỹ, lương y đang hành nghề:** thêm một kênh dữ liệu khách quan để đối chiếu với mạch chẩn và khám lâm sàng, hỗ trợ biện chứng và theo dõi tiến triển qua nhiều lần đo.
@@ -63,4 +63,4 @@ Bạn có thể xem trực tiếp một mẫu kết quả tại [demo kết qu�
 - Theo Đông Y, các huyệt và đường kinh được dùng để biện chứng và định hướng điều trị; mọi tác động (châm, cứu, bấm huyệt, dùng thuốc) cần có chỉ định và theo dõi của người có chuyên môn.
 - Với bệnh cấp tính, bệnh nặng, người đang mang thai hoặc trẻ nhỏ, tuyệt đối không tự áp dụng khi chưa được thầy thuốc đánh giá.
 
-Hiểu đúng nguyên lý **24 tỉnh huyệt** và cách đọc số liệu sẽ giúp bạn khai thác phương pháp **đo kinh lạc** một cách an toàn và hiệu quả. Bước tiếp theo, hãy [xem thử kết quả đo mẫu](/xem-ket-qua-do) để cảm nhận rõ cách Đông Y có thể "đọc bằng dữ liệu".
+Hiểu đúng nguyên lý **24 tỉnh huyệt** và cách đọc số liệu sẽ giúp bạn khai thác tính năng **đo kinh lạc** một cách an toàn và hiệu quả. Bước tiếp theo, hãy [xem thử kết quả đo mẫu](/xem-ket-qua-do) để cảm nhận rõ cách Đông Y có thể "đọc bằng dữ liệu".

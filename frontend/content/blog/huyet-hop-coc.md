@@ -49,7 +49,7 @@ Theo các tài liệu châm cứu phổ biến, Hợp Cốc **thường được
 - Cảm mạo, sốt, đau mỏi vùng cổ gáy.
 - Đau mỏi cổ tay, ngón tay theo đường kinh đi qua.
 
-Lưu ý rằng phác đồ châm cứu thực tế luôn cần phối hợp nhiều huyệt và biện chứng theo từng người bệnh. Đây là lý do người làm lâm sàng cần công cụ hỗ trợ biện chứng. Phần mềm [Kinh Lạc](/app) số hoá phương pháp đo nhiệt độ kinh lạc — đo nhiệt độ 24 tỉnh huyệt ở đầu ngón tay, chân để suy ra trạng thái hàn/nhiệt, hư/thực của 12 đường kinh, từ đó gợi ý thể bệnh và pháp trị. Bạn có thể xem trước [demo kết quả đo](/xem-ket-qua-do) để hình dung cách dữ liệu được trình bày thành biểu đồ.
+Lưu ý rằng phác đồ châm cứu thực tế luôn cần phối hợp nhiều huyệt và biện chứng theo từng người bệnh. Đây là lý do người làm lâm sàng cần công cụ hỗ trợ biện chứng. [Kinh Lạc](/app) là một nền tảng Đông Y số hoá giúp tra cứu huyệt vị, kinh lạc, bài thuốc và hỗ trợ biện chứng. Trong số các tính năng, công cụ **đo nhiệt độ kinh lạc** — đo nhiệt độ 24 tỉnh huyệt ở đầu ngón tay, chân để tham khảo trạng thái hàn/nhiệt, hư/thực của 12 đường kinh — gợi ý thể bệnh và pháp trị để thầy thuốc cân nhắc. Bạn có thể xem trước [demo kết quả đo](/xem-ket-qua-do) để hình dung cách dữ liệu được trình bày thành biểu đồ.
 
 ## Cách Bấm Huyệt Hợp Cốc Tại Nhà
 

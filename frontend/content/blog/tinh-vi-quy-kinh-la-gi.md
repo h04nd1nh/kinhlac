@@ -47,7 +47,7 @@ Sự kết hợp tính và vị quyết định tác dụng cụ thể: cùng v�
 
 **Quy Kinh** trả lời câu hỏi: tác dụng của vị thuốc tập trung vào tạng phủ hay đường kinh nào? Một vị thuốc có thể quy về một hoặc nhiều kinh. Hiểu quy kinh giúp thầy thuốc "nhắm đích": cùng mục tiêu hỗ trợ giảm ho, nhưng vị quy kinh Phế thường được ưu tiên hơn khi chứng bệnh thuộc về Phế.
 
-Đây cũng là điểm giao thoa thú vị với phương pháp **đo nhiệt độ kinh lạc**: khi biết trạng thái hàn/nhiệt, hư/thực của 12 đường kinh, ta có thêm một cơ sở khách quan để đối chiếu với quy kinh của từng vị thuốc trong bài. Bạn có thể xem trực quan 12 đường kinh và hơn 1.000 huyệt trên [đồ hình kinh lạc 3D](/xem-3d), và thử một [kết quả đo mẫu](/xem-ket-qua-do) để hình dung dữ liệu kinh lạc trông như thế nào.
+Đây cũng là điểm giao thoa thú vị với việc **đo nhiệt độ kinh lạc**: khi biết trạng thái hàn/nhiệt, hư/thực của 12 đường kinh, ta có thêm một cơ sở khách quan để đối chiếu với quy kinh của từng vị thuốc trong bài. Bạn có thể xem trực quan 12 đường kinh và hơn 1.000 huyệt trên [đồ hình kinh lạc 3D](/xem-3d), và thử một [kết quả đo mẫu](/xem-ket-qua-do) để hình dung dữ liệu kinh lạc trông như thế nào.
 
 ## Quân - Thần - Tá - Sứ: Cấu Trúc Của Một Bài Thuốc
 
@@ -68,7 +68,7 @@ Khi mỗi vị thuốc đã có dữ liệu tính vị quy kinh, ta có thể t�
 - **Radar Ngũ Vị:** cho thấy vị nào chiếm ưu thế (cay, ngọt, chua, đắng, mặn).
 - **Radar Quy Kinh:** cho thấy bài thuốc "đổ về" những tạng phủ / đường kinh nào.
 
-Thay vì đọc thủ công từng dòng, biểu đồ radar giúp bạn nắm "hình dạng" của một bài thuốc trong vài giây: bài này thiên ôn hay thiên lương, vị nào dẫn dắt, quy kinh tập trung ở đâu. Đây là cách phần mềm **Kinh Lạc** số hoá tri thức Đông Y — lấy cảm hứng từ phương pháp đo nhiệt độ kinh lạc gắn với lương y Lê Văn Sửu — để người học và thầy thuốc đối chiếu nhanh hơn.
+Thay vì đọc thủ công từng dòng, biểu đồ radar giúp bạn nắm "hình dạng" của một bài thuốc trong vài giây: bài này thiên ôn hay thiên lương, vị nào dẫn dắt, quy kinh tập trung ở đâu. Đây là một trong những cách **Kinh Lạc** — nền tảng Đông Y số hoá — biến tri thức tính vị quy kinh thành dữ liệu trực quan để người học và thầy thuốc đối chiếu nhanh hơn. Bên cạnh phân tích bài thuốc, nền tảng còn có tính năng đo nhiệt độ kinh lạc (lấy cảm hứng từ cuốn sách Biện Chứng Luận Trị của lương y Lê Văn Sửu), giúp bổ sung thêm một góc nhìn dữ liệu về trạng thái 12 đường kinh.
 
 Bạn có thể trải nghiệm trực tiếp tại trang [demo phân tích bài thuốc](/xem-bai-thuoc), nơi một bài thuốc được hiển thị thành radar Tứ Khí, Ngũ Vị, Quy Kinh kèm bảng tính vị quy kinh của từng vị. Muốn tra cứu thêm vị thuốc, huyệt vị hay kinh mạch, hãy ghé [từ điển Đông Y công khai](/thu-vien).
 

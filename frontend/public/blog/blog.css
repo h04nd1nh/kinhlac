@@ -118,10 +118,55 @@ a:hover { text-decoration: underline; }
 .bl-foot-in p { margin: 6px 0; }
 .bl-foot-note { font-size: 12px; font-style: italic; }
 
-@media (max-width: 600px) {
+/* ---------- Mobile ---------- */
+@media (max-width: 640px) {
   body { font-size: 16px; }
-  .bl-article { padding: 22px 18px; }
-  .bl-article h1 { font-size: 26px; }
-  .bl-nav { gap: 12px; font-size: 13px; }
+
+  /* Top bar gọn, không tràn ngang (chỉ giữ nút "Vào Phần Mềm"; điều hướng khác qua breadcrumb + footer) */
+  .bl-top-in { height: 54px; padding: 0 14px; gap: 10px; }
+  .bl-brand { font-size: 16px; }
+  .bl-nav { gap: 10px; font-size: 13px; }
   .bl-nav a:not(.bl-nav-cta) { display: none; }
+  .bl-nav-cta { padding: 7px 12px; }
+
+  .bl-main { padding: 18px 14px 48px; }
+  .bl-crumb { margin-bottom: 14px; }
+
+  /* Bài viết */
+  .bl-article { padding: 20px 16px; border-radius: 12px; }
+  .bl-cat { margin-bottom: 12px; }
+  .bl-article h1 { font-size: 25px; }
+  .bl-meta { margin: 0 0 18px; }
+  .bl-byline { padding: 12px 14px; }
+  .bl-hero-img { border-radius: 10px; margin-bottom: 18px; }
+  .bl-body { font-size: 16.5px; }
+  .bl-body h2 { font-size: 21px; margin: 28px 0 10px; }
+  .bl-body h3 { font-size: 18px; }
+  /* Bảng rộng -> cuộn ngang trong khung thay vì tràn cả trang */
+  .bl-body table { display: block; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* URL/nguồn dài không phá vỡ layout */
+  .bl-body a, .bl-sources li { overflow-wrap: anywhere; word-break: break-word; }
+
+  .bl-faq, .bl-related, .bl-sources { margin-top: 26px; padding-top: 16px; }
+  .bl-faq h2, .bl-related h2, .bl-sources h2 { font-size: 18px; }
+  .bl-faq details { padding: 10px 14px; }
+  .bl-disclaimer { padding: 14px 15px; }
+
+  /* CTA full-width dễ chạm tay */
+  .bl-cta { margin: 28px 0 6px; }
+  .bl-cta a { display: block; text-align: center; padding: 14px 18px; font-size: 15.5px; }
+
+  /* Trang danh sách */
+  .bl-hero { margin: 10px 0 24px; }
+  .bl-hero h1 { font-size: 28px; }
+  .bl-grid { grid-template-columns: 1fr; gap: 14px; }
+  .bl-card { padding: 16px 18px; }
+  .bl-card-thumb { width: calc(100% + 36px); margin: -16px -18px 12px; height: 160px; }
+}
+
+/* Màn rất nhỏ (≤380px): tránh brand + CTA chen nhau */
+@media (max-width: 380px) {
+  .bl-brand { font-size: 15px; }
+  .bl-nav-cta { padding: 6px 10px; font-size: 12.5px; }
+  .bl-article h1 { font-size: 23px; }
 }

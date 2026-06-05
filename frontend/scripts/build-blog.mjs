@@ -99,9 +99,13 @@ function articlePage(a, all) {
   const ctaPath = a.cta && CTA_LABELS[a.cta] ? a.cta : '/xem-ket-qua-do'
   const ctaLabel = CTA_LABELS[ctaPath]
 
-  const sameCat = all.filter((x) => x.slug !== a.slug && x.category === a.category)
-  const others = all.filter((x) => x.slug !== a.slug && x.category !== a.category)
-  const related = [...sameCat, ...others].slice(0, 3)
+  // Dệt mạng nội bộ blog↔blog: ưu tiên cùng CỤM (cluster) → cùng chuyên mục → còn lại.
+  // Nhóm theo cụm tạo liên kết 2 chiều tự nhiên (các bài cùng cụm trỏ qua lại nhau) → tăng topical authority.
+  const pool = all.filter((x) => x.slug !== a.slug)
+  const sameCluster = a.cluster ? pool.filter((x) => x.cluster === a.cluster) : []
+  const sameCat = pool.filter((x) => x.category === a.category && !sameCluster.includes(x))
+  const others = pool.filter((x) => !sameCluster.includes(x) && !sameCat.includes(x))
+  const related = [...sameCluster, ...sameCat, ...others].slice(0, 4)
   const relatedHtml = related.length
     ? `<section class="bl-related"><h2>Bài Liên Quan</h2><ul>${related
         .map((r) => `<li><a href="/blog/${escAttr(r.slug)}/">${escText(r.title)}</a></li>`)

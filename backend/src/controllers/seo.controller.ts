@@ -89,6 +89,18 @@ YÊU CẦU:
 - KHÔNG bịa số liệu, liều lượng, phác đồ điều trị hay cam kết "chữa khỏi". Nếu nhắc tới điều trị/châm cứu cụ thể, diễn đạt ở mức tham khảo theo lý luận Đông Y và khuyên gặp thầy thuốc.
 - Dùng bảng hoặc gạch đầu dòng khi hợp lý để dễ đọc.
 
+LIÊN KẾT NỘI BỘ (BẮT BUỘC — đây là điểm cốt lõi):
+- Chèn 2–4 liên kết Markdown dạng [chữ neo](đường-dẫn) trỏ tới các TRANG TÍNH NĂNG của Kinhlac, đặt tự nhiên ngay trong câu văn (không gom thành một danh sách cuối bài).
+- Chữ neo phải đa dạng, mô tả đúng trang đích; KHÔNG dùng "tại đây", "nhấn vào đây".
+- Mỗi liên kết một đường dẫn KHÁC nhau. CHỈ được dùng đúng các đường dẫn sau:
+  • /xem-ket-qua-do — demo đọc kết quả đo nhiệt độ kinh lạc thành biểu đồ.
+  • /xem-3d — đồ hình kinh lạc 3D hơn 1.000 huyệt.
+  • /xem-bai-thuoc — phân tích bài thuốc theo tính vị quy kinh (biểu đồ radar).
+  • /thu-vien — từ điển tra cứu huyệt vị, kinh mạch, vị thuốc.
+  • /app — vào dùng thử phần mềm.
+- Ưu tiên các trang liên quan nhất tới chủ đề bài. Mục tiêu: mọi liên kết đều dẫn người đọc về tính năng phần mềm.
+- TUYỆT ĐỐI KHÔNG chèn liên kết ra website ngoài trong thân bài (nguồn tham khảo được xử lý riêng ở bước sau).
+
 ĐẦU RA: CHỈ Markdown thuần của thân bài, bắt đầu bằng đoạn mở bài. KHÔNG \`\`\`, KHÔNG JSON, KHÔNG lời mở đầu/giải thích nào khác.`;
 
 const META_SYSTEM_PROMPT = `Bạn là chuyên gia SEO. Đọc bài blog Đông Y đã viết và trả về metadata + phân loại an toàn nội dung.
@@ -102,6 +114,7 @@ Trả về DUY NHẤT một JSON object đúng cấu trúc:
   "category": "1 chuyên mục ngắn (vd: Đo Kinh Lạc, Kinh Lạc, Huyệt Vị, Bài Thuốc, Số Hoá Phòng Khám)",
   "cta": "chọn ĐÚNG một trong: /xem-ket-qua-do, /xem-3d, /xem-bai-thuoc, /thu-vien, /app",
   "faq": [{"q": "câu hỏi", "a": "trả lời ngắn gọn"}],
+  "nguon_tham_khao": [{"ten": "tên nguồn uy tín", "url": "URL nếu CHẮC CHẮN đúng, không chắc thì bỏ trống"}],
   "do_rui_ro": "an_toan hoặc rui_ro",
   "ly_do_rui_ro": "1 câu giải thích"
 }
@@ -109,6 +122,12 @@ Trả về DUY NHẤT một JSON object đúng cấu trúc:
 PHÂN LOẠI do_rui_ro (van an toàn YMYL — y tế):
 - "rui_ro": bài CÓ lời khuyên chẩn đoán/điều trị cụ thể, liều lượng, phác đồ, hoặc hứa hẹn chữa khỏi bệnh.
 - "an_toan": bài chỉ là kiến thức tra cứu/dữ kiện (định nghĩa, vị trí huyệt, đường kinh, tính vị quy kinh, lý thuyết).
+
+NGUỒN THAM KHẢO (nguon_tham_khao — để tăng độ tin cậy E-E-A-T cho nội dung y tế):
+- Đề xuất 2-4 nguồn uy tín phù hợp nội dung bài, ƯU TIÊN nguồn Đông Y/y tế chính thống của Việt Nam, ví dụ:
+  Sách "Biện Chứng Luận Trị" của lương y Lê Văn Sửu; "Hải Thượng Y Tông Tâm Lĩnh" của Hải Thượng Lãn Ông; "Hoàng Đế Nội Kinh"; Viện Y học cổ truyền Trung ương; Bệnh viện Y học cổ truyền; Bộ Y tế; Liên hiệp các Hội KH&KT Việt Nam (VUSTA); giáo trình YHCT của các trường Y - Dược.
+- TUYỆT ĐỐI KHÔNG BỊA URL. Nếu không chắc chắn URL chính xác, để "url" rỗng và chỉ ghi "ten" (tên sách/cơ quan). Thà thiếu URL còn hơn URL sai/chết.
+- Chỉ nêu nguồn thật sự liên quan tới nội dung bài; không liệt kê nguồn cho có.
 
 QUY TẮC: faq có 2-4 câu. slug không dấu, không khoảng trắng (dùng dấu -). KHÔNG markdown, KHÔNG \`\`\`, chỉ JSON.`;
 
@@ -614,9 +633,9 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
       .filter(Boolean)
       .join('\n');
 
-    // Bước 1: viết thân bài (markdown thuần).
+    // Bước 1: viết thân bài (markdown thuần). Lọc link ngoài để AI không bịa URL (chỉ giữ link nội bộ).
     const rawBody = await this.chatText(WRITE_SYSTEM_PROMPT, `Viết bài theo brief sau:\n\n${brief}`, 3500);
-    const noiDung = stripLeadingH1(rawBody);
+    const noiDung = sanitizeBodyLinks(stripLeadingH1(rawBody));
     if (noiDung.replace(/\s/g, '').length < 80) {
       throw new ServiceUnavailableException('AI trả về bài quá ngắn. Thử lại.');
     }
@@ -639,6 +658,7 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
       category: pickString(meta, 'category') || null,
       cta: normalizeCta(pickString(meta, 'cta')),
       faq: normalizeFaqJson(meta['faq']),
+      nguon_tham_khao: normalizeSourcesJson(meta['nguon_tham_khao']),
       noi_dung_md: noiDung,
       do_rui_ro: rui,
       ly_do_rui_ro: pickString(meta, 'ly_do_rui_ro') || null,
@@ -662,6 +682,7 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
     if (dto.category !== undefined) a.category = dto.category || null;
     if (dto.cta !== undefined) a.cta = normalizeCta(dto.cta);
     if (dto.faq !== undefined) a.faq = dto.faq || null;
+    if (dto.nguon_tham_khao !== undefined) a.nguon_tham_khao = dto.nguon_tham_khao || null;
     if (dto.noi_dung_md !== undefined) a.noi_dung_md = dto.noi_dung_md;
     if (dto.trang_thai !== undefined && BAI_VIET_TRANG_THAI.has(dto.trang_thai)) {
       a.trang_thai = dto.trang_thai;
@@ -687,6 +708,12 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
     } catch {
       faqArr = [];
     }
+    let sourcesArr: ({ title: string; url?: string } | string)[] = [];
+    try {
+      sourcesArr = a.nguon_tham_khao ? JSON.parse(a.nguon_tham_khao) : [];
+    } catch {
+      sourcesArr = [];
+    }
     const ready = a.trang_thai === 'da_duyet' || a.trang_thai === 'da_dang';
     const model = this.config.get<string>('YESCALE_MODEL') || YESCALE_DEFAULT_MODEL;
 
@@ -700,6 +727,7 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
       cta: a.cta || undefined,
       keywords: keywords.length ? keywords : undefined,
       faq: faqArr.length ? faqArr : undefined,
+      sources: sourcesArr.length ? sourcesArr : undefined,
       index: ready ? undefined : false, // chưa duyệt → noindex/chờ duyệt (van YMYL)
       seoCumId: a.cum_id ?? undefined,
       aiModel: `Yescale ${model}`,
@@ -1036,6 +1064,47 @@ function slugify(s: string): string {
 function normalizeCta(v: string): string {
   const s = (v || '').trim();
   return ALLOWED_CTA.has(s) ? s : '/xem-ket-qua-do';
+}
+
+/**
+ * Trong THÂN BÀI chỉ giữ liên kết nội bộ (đường dẫn bắt đầu bằng "/").
+ * Link ra ngoài (http, mailto, neo #) bị gỡ về chữ thường — chống AI bịa URL trong bài.
+ * Ảnh `![..](..)` được giữ nguyên (không động vào).
+ */
+function sanitizeBodyLinks(md: string): string {
+  return (md || '').replace(
+    /(!?)\[([^\]]+)\]\(\s*([^)\s]+)[^)]*\)/g,
+    (full, bang: string, text: string, url: string) => {
+      if (bang) return full; // ảnh → giữ nguyên
+      if (url.startsWith('/')) return full; // link nội bộ → giữ
+      return text; // link ngoài / mailto / neo → bỏ link, giữ chữ neo
+    },
+  );
+}
+
+/** Chuẩn hoá mảng nguồn tham khảo → chuỗi JSON [{title, url?}] (hoặc null). KHÔNG giữ url không phải http(s). */
+function normalizeSourcesJson(v: unknown): string | null {
+  if (!Array.isArray(v)) return null;
+  const arr = v
+    .map((it) => {
+      if (typeof it === 'string') {
+        const t = it.trim();
+        return t ? { title: t } : null;
+      }
+      if (it && typeof it === 'object') {
+        const o = it as Record<string, unknown>;
+        const title = String(o.ten ?? o.title ?? o.name ?? '').trim();
+        const url = String(o.url ?? o.link ?? '').trim();
+        if (!title && !url) return null;
+        return url && /^https?:\/\//i.test(url)
+          ? { title: title || url, url }
+          : { title: title || url };
+      }
+      return null;
+    })
+    .filter(Boolean)
+    .slice(0, 6);
+  return arr.length ? JSON.stringify(arr) : null;
 }
 
 /** Chuẩn hoá mảng FAQ [{q,a}] → chuỗi JSON (hoặc null). */

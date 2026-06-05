@@ -79,9 +79,11 @@ Với **châm cứu hay cứu ngải**, đây là thủ thuật y khoa và **b�
 - Người có bệnh lý nền (rối loạn đông máu, tiểu đường biến chứng bàn chân...) nên hỏi ý kiến thầy thuốc trước khi day bấm hoặc châm cứu.
 - Bấm huyệt chỉ mang tính **hỗ trợ**; với bệnh nặng hoặc kéo dài, cần đi khám để được chẩn đoán và điều trị đúng.
 
-## Góc Nhìn Số Hoá Về Kinh Lạc
+## Tra Cứu Tam Âm Giao Trên Nền Tảng Đông Y Số Hoá
 
-Phần mềm **Kinh Lạc** số hoá phương pháp **đo nhiệt độ kinh lạc** của lương y Lê Văn Sửu: đo nhiệt độ 24 tỉnh huyệt ở đầu ngón tay, ngón chân để suy ra trạng thái **hàn/nhiệt, hư/thực** của 12 đường kinh, từ đó gợi ý thể bệnh, pháp trị và bài thuốc. Trạng thái của kinh Tỳ, Thận, Can — ba kinh giao hội tại Tam Âm Giao — đều có thể được biểu diễn trực quan bằng biểu đồ.
+**Kinh Lạc Trương Gia** (gọi tắt **Kinh Lạc**) là một nền tảng Đông Y số hoá, đưa kinh mạch, huyệt vị, chứng bệnh, pháp trị và bài thuốc vào cùng một hệ thống dữ liệu để học và tra cứu trực quan. Một huyệt giao hội như Tam Âm Giao có thể được nhìn trong nhiều lớp dữ liệu cùng lúc: vị trí trên đồ hình, ba kinh âm liên quan (Tỳ, Thận, Can), và mối liên hệ với các bài thuốc, pháp trị tương ứng.
+
+Trong số nhiều tính năng của nền tảng, **đo nhiệt độ kinh lạc** là một công cụ hữu ích: đo nhiệt độ 24 tỉnh huyệt ở đầu ngón tay, ngón chân để suy ra trạng thái **hàn/nhiệt, hư/thực** của 12 đường kinh, từ đó tham khảo gợi ý thể bệnh, pháp trị và bài thuốc. Cách tiếp cận đo kinh lạc này lấy **cảm hứng từ cuốn sách _Biện Chứng Luận Trị_ của lương y Lê Văn Sửu**. Trạng thái của kinh Tỳ, Thận, Can — ba kinh giao hội tại Tam Âm Giao — đều có thể được biểu diễn trực quan bằng biểu đồ.
 
 Bạn có thể trải nghiệm thử:
 
@@ -89,6 +91,6 @@ Bạn có thể trải nghiệm thử:
 - Tra cứu huyệt vị, kinh mạch trong [thư viện – từ điển Đông Y](/thu-vien) công khai.
 - Tìm hiểu cách [phân tích bài thuốc theo tính vị quy kinh](/xem-bai-thuoc) bằng biểu đồ radar.
 
-Hiểu đúng vị trí và tác dụng của Tam Âm Giao là bước nền tảng; kết hợp với công cụ số hoá sẽ giúp việc học và thực hành kinh lạc trở nên trực quan và có dữ liệu hơn.
+Hiểu đúng vị trí và tác dụng của Tam Âm Giao là bước nền tảng; kết hợp với một nền tảng số hoá sẽ giúp việc học và thực hành kinh lạc trở nên trực quan và có dữ liệu hơn.
 
 *Bài viết mang tính tham khảo, không thay thế chẩn đoán và điều trị của thầy thuốc. Vui lòng tham khảo ý kiến chuyên môn trước khi áp dụng, đặc biệt với phụ nữ có thai và người mắc bệnh nặng.*

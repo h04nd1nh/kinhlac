@@ -8,6 +8,7 @@
     "sitemap": "node scripts/gen-sitemap.mjs",
     "prerender": "node scripts/prerender-seo.mjs",
     "build-blog": "node scripts/build-blog.mjs",
+    "blog:relink": "node scripts/relink-blog.mjs",
     "indexnow": "node scripts/indexnow.mjs",
     "link-images": "node scripts/link-blog-images.mjs",
     "prebuild": "node scripts/gen-sitemap.mjs",

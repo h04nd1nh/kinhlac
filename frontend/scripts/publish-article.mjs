@@ -9,8 +9,8 @@
 //
 // JSON 1 bài chấp nhận các field (alias DB ở ngoặc):
 //   slug, title, description, body|markdownBody (body_markdown), date, author,
-//   category, cluster, cta, keywords[], faq[{q,a}], index (false=noindex/chờ duyệt),
-//   image, seoCumId (seo_cum_id), aiModel (ai_model)
+//   category, cluster, cta, keywords[], faq[{q,a}], sources[string|{title,url}],
+//   index (false=noindex/chờ duyệt), image, seoCumId (seo_cum_id), aiModel (ai_model)
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { writeArticle } from './blog-lib.mjs'
@@ -66,6 +66,15 @@ for (const a of list) {
     cta: a.cta || undefined,
     keywords: Array.isArray(a.keywords) ? a.keywords.map(decode) : undefined,
     faq: Array.isArray(a.faq) ? a.faq.map((f) => ({ q: decode(f.q), a: decode(f.a) })) : undefined,
+    sources: Array.isArray(a.sources)
+      ? a.sources
+          .map((s) =>
+            typeof s === 'string'
+              ? decode(s)
+              : { title: decode(s.title || s.ten || s.url || ''), ...(s.url ? { url: String(s.url).trim() } : {}) },
+          )
+          .filter((s) => (typeof s === 'string' ? s : s.title))
+      : undefined,
     index: a.index === false ? false : undefined, // chỉ ghi khi false (noindex / chờ duyệt)
     image: a.image || undefined,
     seoCumId: a.seoCumId ?? a.seo_cum_id ?? undefined,

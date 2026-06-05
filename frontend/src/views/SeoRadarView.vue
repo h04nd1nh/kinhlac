@@ -258,6 +258,7 @@ interface BaiViet {
   category: string | null
   cta: string | null
   faq: string | null
+  nguon_tham_khao: string | null
   noi_dung_md: string
   do_rui_ro: 'an_toan' | 'rui_ro'
   ly_do_rui_ro: string | null
@@ -344,6 +345,36 @@ function closeEditor() {
   editing.value = null
 }
 
+// Nguồn tham khảo lưu dạng JSON [{title,url?}] nhưng cho sửa thân thiện: mỗi dòng "Tên | URL".
+const nguonText = computed<string>({
+  get() {
+    const a = editing.value
+    if (!a?.nguon_tham_khao) return ''
+    try {
+      const arr = JSON.parse(a.nguon_tham_khao)
+      return (Array.isArray(arr) ? arr : [])
+        .map((s: any) =>
+          typeof s === 'string' ? s : [s.title || s.ten || '', s.url || ''].filter(Boolean).join(' | '),
+        )
+        .join('\n')
+    } catch {
+      return a.nguon_tham_khao
+    }
+  },
+  set(v: string) {
+    if (!editing.value) return
+    const arr = v
+      .split('\n')
+      .map((ln) => ln.trim())
+      .filter(Boolean)
+      .map((ln) => {
+        const [title, url] = ln.split('|').map((s) => s.trim())
+        return url ? { title, url } : { title }
+      })
+    editing.value.nguon_tham_khao = arr.length ? JSON.stringify(arr) : null
+  },
+})
+
 async function saveEditor() {
   if (!editing.value) return
   savingEditor.value = true
@@ -356,6 +387,7 @@ async function saveEditor() {
       tu_khoa: e.tu_khoa,
       category: e.category,
       cta: e.cta,
+      nguon_tham_khao: e.nguon_tham_khao,
       noi_dung_md: e.noi_dung_md,
       trang_thai: e.trang_thai,
     })
@@ -871,6 +903,16 @@ onMounted(() => {
             <textarea v-model="editing.meta_description" class="inp ta" rows="2"></textarea>
           </label>
           <label class="ed-field"><span>Từ khoá (cách nhau dấu phẩy)</span><input v-model="editing.tu_khoa" class="inp" /></label>
+          <label class="ed-field">
+            <span>Nguồn tham khảo <small>(mỗi dòng: <b>Tên | URL</b> — để trống URL nếu chưa chắc; tăng độ tin cậy E-E-A-T)</small></span>
+            <textarea
+              v-model="nguonText"
+              class="inp ta"
+              rows="3"
+              spellcheck="false"
+              placeholder="Lê Văn Sửu — Biện Chứng Luận Trị&#10;Viện Y học cổ truyền Trung ương | https://..."
+            ></textarea>
+          </label>
           <div class="ed-row">
             <label class="ed-field">
               <span>CTA</span>

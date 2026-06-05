@@ -35,7 +35,7 @@ Thay vì chép tay từng vị, bạn chọn bài thuốc từ thư viện, đi�
 
 ### Đo Kinh Lạc Thành Dữ Liệu
 
-Đây là điểm khiến số hoá đặc biệt hữu ích với Đông Y. Phương pháp **đo nhiệt độ kinh lạc** — đo tại các tỉnh huyệt ở đầu ngón tay, ngón chân (12 đường kinh đo cả hai bên, tổng cộng 24 điểm) — cho phép tham chiếu trạng thái hàn/nhiệt, hư/thực của 12 đường kinh. Đây là hướng đo gắn với công trình của lương y Lê Văn Sửu trong nghiên cứu kinh lạc. Khi số hoá, mỗi lần đo trở thành một bộ số liệu hiển thị dưới dạng biểu đồ trực quan, làm cơ sở tham khảo để gợi ý thể bệnh, pháp trị và bài thuốc.
+Đây là một tính năng khiến nền tảng số hoá đặc biệt hữu ích với Đông Y. Phương pháp **đo nhiệt độ kinh lạc** — đo tại các tỉnh huyệt ở đầu ngón tay, ngón chân (12 đường kinh đo cả hai bên, tổng cộng 24 điểm) — cho phép tham chiếu trạng thái hàn/nhiệt, hư/thực của 12 đường kinh. Cách triển khai tính năng này lấy cảm hứng từ cuốn sách *Biện Chứng Luận Trị* của lương y Lê Văn Sửu. Khi số hoá, mỗi lần đo trở thành một bộ số liệu hiển thị dưới dạng biểu đồ trực quan, làm cơ sở tham khảo để gợi ý thể bệnh, pháp trị và bài thuốc.
 
 Quan trọng: kết quả đo là công cụ **hỗ trợ biện chứng**, giúp thầy thuốc có thêm dữ liệu khách quan, chứ không thay thế tứ chẩn và phán đoán lâm sàng. Bạn có thể trải nghiệm cách kết quả hiển thị tại trang [demo kết quả đo](/xem-ket-qua-do).
 
@@ -69,4 +69,4 @@ Riêng với bấm huyệt và châm cứu, luôn tham khảo người có chuy�
 
 ## Bắt Đầu Trải Nghiệm
 
-Cách nhanh nhất để hình dung là tự xem thử. Bạn có thể khám phá các trang công khai — [đồ hình kinh lạc 3D](/xem-3d), [demo kết quả đo](/xem-ket-qua-do), [thư viện tra cứu](/thu-vien) — rồi bước vào [phần mềm Kinh Lạc](/app) để bắt đầu số hoá phòng khám của mình. Số hoá không phải là từ bỏ truyền thống, mà là giúp tri thức Đông Y được lưu giữ, tra cứu và phát huy tốt hơn trong thực hành hằng ngày.
+Cách nhanh nhất để hình dung là tự xem thử. Bạn có thể khám phá các trang công khai — [đồ hình kinh lạc 3D](/xem-3d), [demo kết quả đo](/xem-ket-qua-do), [thư viện tra cứu](/thu-vien) — rồi bước vào [nền tảng Kinh Lạc](/app) để bắt đầu số hoá phòng khám của mình. Số hoá không phải là từ bỏ truyền thống, mà là giúp tri thức Đông Y được lưu giữ, tra cứu và phát huy tốt hơn trong thực hành hằng ngày.

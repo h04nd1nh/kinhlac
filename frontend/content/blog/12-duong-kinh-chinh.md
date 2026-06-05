@@ -23,7 +23,7 @@ Theo y văn, 12 chính kinh có những đặc điểm chung sau:
 - Khí huyết lưu chuyển theo một vòng tuần hoàn khép kín, nối tiếp nhau theo giờ trong ngày (học thuyết Tý Ngọ lưu chú).
 - Đường kinh phân bố đối xứng hai bên cơ thể.
 
-Khi khí huyết trong một đường kinh mất cân bằng (hàn/nhiệt, hư/thực), Đông Y cho rằng tạng phủ liên quan có thể biểu hiện rối loạn. Đây cũng chính là nguyên lý mà phương pháp **đo nhiệt độ kinh lạc** dựa vào để hỗ trợ đánh giá tình trạng cơ thể, mang tính tham khảo.
+Khi khí huyết trong một đường kinh mất cân bằng (hàn/nhiệt, hư/thực), Đông Y cho rằng tạng phủ liên quan có thể biểu hiện rối loạn. Đây cũng chính là nguyên lý mà tính năng **đo nhiệt độ kinh lạc** dựa vào để hỗ trợ đánh giá tình trạng cơ thể, mang tính tham khảo.
 
 ## Phân Nhóm 12 Đường Kinh Chính
 
@@ -79,9 +79,9 @@ Khí huyết lưu chuyển nối tiếp từ kinh này sang kinh kế tiếp, t�
 
 ## Ứng Dụng: Từ Đồ Hình Đến Đo Nhiệt Độ Kinh Lạc
 
-Hiểu lộ trình 12 chính kinh không chỉ phục vụ học thuật. Phương pháp **đo nhiệt độ kinh lạc** (dựa trên nghiên cứu của lương y Lê Văn Sửu) đo nhiệt độ tại 24 tỉnh huyệt ở đầu ngón tay, ngón chân — chính là các điểm đầu/cuối của 12 đường kinh. Từ chênh lệch nhiệt độ, hệ thống ước lượng trạng thái **hàn/nhiệt, hư/thực** của từng kinh theo Đông Y, rồi gợi ý thể bệnh, pháp trị và bài thuốc để tham khảo, hỗ trợ định hướng cho thầy thuốc.
+Hiểu lộ trình 12 chính kinh không chỉ phục vụ học thuật mà còn là nền tảng cho các công cụ Đông Y số hóa. **Kinh Lạc Trương Gia** là một nền tảng Đông Y số hóa, trong đó **đo nhiệt độ kinh lạc** là một tính năng giúp số hóa việc quan sát trạng thái kinh lạc. Tính năng này lấy cảm hứng từ cuốn sách *Biện Chứng Luận Trị* của lương y Lê Văn Sửu: hệ thống đo nhiệt độ tại 24 tỉnh huyệt ở đầu ngón tay, ngón chân — chính là các điểm đầu/cuối của 12 đường kinh. Từ chênh lệch nhiệt độ, phần mềm ước lượng trạng thái **hàn/nhiệt, hư/thực** của từng kinh theo Đông Y, rồi gợi ý thể bệnh, pháp trị và bài thuốc để tham khảo, hỗ trợ định hướng cho thầy thuốc.
 
-Bạn có thể trải nghiệm các công cụ công khai sau:
+Bên cạnh đo nhiệt độ kinh lạc, nền tảng còn có thư viện huyệt vị, đồ hình kinh lạc 3D và nhiều công cụ tra cứu khác. Bạn có thể trải nghiệm các phần công khai sau:
 
 - Xem [kết quả đo mẫu](/xem-ket-qua-do) để hình dung cách dữ liệu kinh lạc hiển thị thành biểu đồ.
 - Tra cứu huyệt vị, đường kinh trong [thư viện từ điển](/thu-vien).

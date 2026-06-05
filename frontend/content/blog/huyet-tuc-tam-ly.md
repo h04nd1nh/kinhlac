@@ -43,7 +43,7 @@ Theo Đông Y, **tác dụng huyệt Túc Tam Lý** xoay quanh công năng **ki�
 
 Cần nhấn mạnh: những công năng trên là **hỗ trợ điều hoà theo lý luận Đông Y**, không phải "đặc trị" hay "chữa khỏi" bệnh. Với bệnh lý tiêu hoá kéo dài hoặc nghi ngờ tổn thương thực thể, người bệnh nên đi khám để được chẩn đoán đúng.
 
-Trong thực hành hiện đại, công năng của một huyệt thường được đặt trong bức tranh **hàn / nhiệt, hư / thực của 12 đường kinh**. Phần mềm Kinh Lạc số hoá phương pháp đo nhiệt độ kinh lạc của lương y Lê Văn Sửu, giúp hình dung trạng thái kinh Vị qua biểu đồ — bạn có thể xem [demo kết quả đo](/xem-ket-qua-do) để hiểu cách dữ liệu gợi ý thể bệnh và pháp trị.
+Trong thực hành hiện đại, công năng của một huyệt thường được đặt trong bức tranh **hàn / nhiệt, hư / thực của 12 đường kinh**. Kinh Lạc là một nền tảng Đông Y số hoá, trong đó **đo nhiệt độ kinh lạc** là một tính năng giúp hình dung trạng thái kinh Vị qua biểu đồ; tính năng này lấy cảm hứng từ cuốn sách *Biện Chứng Luận Trị* của lương y Lê Văn Sửu. Bạn có thể xem [demo kết quả đo](/xem-ket-qua-do) để hiểu cách dữ liệu gợi ý thể bệnh và pháp trị.
 
 ## Cách Bấm Huyệt Túc Tam Lý
 

@@ -43,6 +43,10 @@ export class SeoBaiViet {
   @Column({ type: 'text', nullable: true })
   faq: string | null;
 
+  /** JSON [{title, url?}] nguồn tham khảo uy tín (E-E-A-T) → xuất ra frontmatter `sources`. */
+  @Column({ type: 'text', nullable: true })
+  nguon_tham_khao: string | null;
+
   @Column({ type: 'text', default: '' })
   noi_dung_md: string;
 
