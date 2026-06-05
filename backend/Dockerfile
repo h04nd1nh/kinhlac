@@ -6,7 +6,8 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --no-audit --no-fund
+# --mount=type=cache: giữ kho gói (~/.npm) giữa các lần build → `npm ci` sau nhanh hơn. Cần BuildKit.
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 ############################
 # 2. Build TypeScript -> dist/

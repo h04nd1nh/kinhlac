@@ -12,7 +12,9 @@ ARG VITE_API_URL=/api
 ENV VITE_API_URL=${VITE_API_URL}
 
 COPY package*.json ./
-RUN npm ci --no-audit --no-fund
+# --mount=type=cache: giữ lại kho gói đã tải (~/.npm) giữa các lần build → `npm ci`
+# các lần sau KHỎI tải lại từ mạng → nhanh hơn nhiều, nhẹ I/O. Cần BuildKit (đã bật trong deploy.sh).
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 COPY . .
 # Dùng CHUNG bộ bước với `npm run build` (blog:pre + blog:post) → 1 nguồn sự thật, không lệch.

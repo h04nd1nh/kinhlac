@@ -14,13 +14,15 @@
  * Hiệu năng: hero dùng vòng CosmicWheel (SVG nhẹ); hình người 3D nặng đặt ở khu "Đồ Hình 3D" phía
  * dưới, tự lazy-load khi cuộn tới (kể cả trên điện thoại — vòng SVG chỉ là phương án dự phòng).
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import CosmicWheel from '@/components/CosmicWheel.vue'
 import HeroMeridianFigure from '@/components/HeroMeridianFigure.vue'
 import BanXoayBienChung from '@/components/BanXoayBienChung.vue'
-import BaiThuocAnalysis from '@/components/BaiThuocAnalysis.vue'
+// Nạp ĐỘNG: chart.js (nặng) chỉ tải khi component phân tích bài thuốc thực sự được dựng,
+// nên KHÔNG còn nằm trong chunk trang chủ → trang chủ tải nhẹ & nhanh hơn.
+const BaiThuocAnalysis = defineAsyncComponent(() => import('@/components/BaiThuocAnalysis.vue'))
 import { api } from '@/services/api'
 import {
   rawUpper,

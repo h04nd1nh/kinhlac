@@ -133,9 +133,30 @@ docker compose exec backend npx ts-node src/seed-admin.ts
 
 ## 6. Build & chạy
 
+> ⚠️ **VPS RAM thấp (≤ 2GB): tạo swap TRƯỚC khi build, nếu không build dễ treo cứng máy.**
+> Chỉ cần làm **một lần** cho mỗi VPS:
+> ```bash
+> sudo bash setup-swap.sh        # tạo swap 4GB + giữ qua reboot
+> ```
+
+Build & khởi động. Có **hai cách** — chọn theo RAM của VPS:
+
 ```bash
+# CÁCH KHUYẾN NGHỊ (RAM thấp): build TỪNG image một → đỉnh RAM thấp, không treo.
+bash deploy.sh
+
+# Cách cũ (chỉ dùng khi VPS RAM ≥ 4GB): build cả 2 image CÙNG LÚC → nhanh hơn nhưng tốn RAM gấp đôi.
 docker compose up -d --build
 ```
+
+> `deploy.sh` tự: `git pull` → build backend rồi build frontend (tuần tự) → `up -d` → dọn image cũ.
+> Nó bật sẵn BuildKit để cache `npm` (lần build sau nhanh hơn nhiều).
+>
+> **Nếu SSH hay rớt khi build** (VPS RAM thấp), chạy ở chế độ nền để rớt SSH không cắt build:
+> ```bash
+> nohup bash deploy.sh > deploy.log 2>&1 &
+> tail -f deploy.log     # xem tiến độ; Ctrl-C chỉ thoát xem, build vẫn chạy
+> ```
 
 Kiểm tra:
 
@@ -190,9 +211,10 @@ Không mở `3001` ra ngoài — backend đã ở trong docker network nội b�
 ## 9. Vận hành thường ngày
 
 ```bash
-# Update code
-git pull
-docker compose up -d --build
+# Update code + build lại (RAM thấp, build tuần tự, không treo) — KHUYẾN NGHỊ
+bash deploy.sh
+
+# (Cách cũ, chỉ khi VPS RAM ≥ 4GB:  git pull && docker compose up -d --build)
 
 # Log
 docker compose logs -f backend
@@ -216,6 +238,7 @@ PGPASSWORD='<DB_PASSWORD>' pg_dump \
 
 | Triệu chứng                                       | Nguyên nhân thường gặp                                                                            |
 |---------------------------------------------------|----------------------------------------------------------------------------------------------------|
+| Build treo cứng máy / `Killed` / `exit 137`/`134` | VPS hết RAM khi build. Tạo swap (`sudo bash setup-swap.sh`) **và** build tuần tự (`bash deploy.sh`). |
 | Backend báo `ECONNREFUSED` / `timeout` tới Aiven  | IP của VPS chưa thêm vào **Allowed IP addresses** trong Aiven console.                            |
 | Backend báo `no pg_hba.conf entry … SSL off`      | Đã set `DB_SSL=false` trong `backend/.env`. Bỏ dòng đó để dùng SSL mặc định.                      |
 | Frontend trả 502 khi gọi `/api/*`                 | Backend chưa healthy hoặc chưa connect được Aiven. Xem `docker compose logs backend`.             |

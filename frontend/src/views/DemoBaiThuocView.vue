@@ -7,12 +7,13 @@
  * (Ngũ Vị · Quy Kinh · Thăng–Giáng–Phù–Trầm) + bảng Quân–Thần–Tá–Sứ — chế độ chỉ-xem.
  * Muốn tra cứu toàn bộ kho bài thuốc → mời đăng nhập.
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/services/api'
 import PublicTopBar from '@/components/PublicTopBar.vue'
 import AppBreadcrumb from '@/components/AppBreadcrumb.vue'
-import BaiThuocAnalysis from '@/components/BaiThuocAnalysis.vue'
+// Nạp ĐỘNG để chart.js (nặng) không bị gộp vào chunk tải sớm của trang.
+const BaiThuocAnalysis = defineAsyncComponent(() => import('@/components/BaiThuocAnalysis.vue'))
 import MedicalDisclaimer from '@/components/MedicalDisclaimer.vue'
 
 const router = useRouter()

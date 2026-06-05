@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import * as XLSX from 'xlsx'
+// xlsx (~nặng) nạp ĐỘNG trong 2 hàm Xuất/Nhập Excel bên dưới (`await import('xlsx')`),
+// để không gộp vào chunk component này — chỉ tải khi người dùng bấm nút.
 import { api } from '@/services/api'
 
 interface ViThuoc { id: number; ten_vi_thuoc: string }
@@ -548,10 +549,11 @@ function splitCsv(raw: unknown): string[] {
   return out
 }
 
-function exportToExcel() {
+async function exportToExcel() {
   if (isExporting.value) return
   isExporting.value = true
   try {
+    const XLSX = await import('xlsx')
     const rows: Record<string, string | number>[] = []
     for (const nl of nhomLonList.value) {
       const nhomNhoArr = nl.nhomNhoList ?? []
@@ -673,6 +675,7 @@ async function onImportFileChange(ev: Event) {
   }
 
   try {
+    const XLSX = await import('xlsx')
     const buf = await file.arrayBuffer()
     const wb = XLSX.read(buf, { type: 'array' })
     const sheetName = wb.SheetNames[0]

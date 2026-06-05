@@ -14,7 +14,8 @@ function benhTayYHref(id: number): string {
     query: { tab: 'benh-tay-y', btyId: id },
   }).href
 }
-import * as XLSX from 'xlsx'
+// xlsx (~nặng) được nạp ĐỘNG ngay trong hàm Xuất/Nhập Excel bên dưới — xem `await import('xlsx')`.
+// Nhờ vậy thư viện này KHÔNG nằm trong chunk trang Quản Lý Thuốc, chỉ tải khi người dùng bấm nút.
 import {
   Chart,
   RadarController,
@@ -1034,6 +1035,7 @@ async function btExportToExcel() {
   if (btIsExporting.value) return
   btIsExporting.value = true
   try {
+    const XLSX = await import('xlsx')
     const all = await fetchAllBaiThuocLite()
     const rows: Record<string, string>[] = []
     for (const bt of all) {
@@ -1112,6 +1114,7 @@ async function btImportFromExcel(file: File) {
   const missingTcNames = new Map<string, string>()
 
   try {
+    const XLSX = await import('xlsx')
     const buf = await file.arrayBuffer()
     const wb = XLSX.read(buf, { type: 'array' })
     const sheetName = wb.SheetNames[0]
