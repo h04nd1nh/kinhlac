@@ -35,8 +35,14 @@ const POLLINATIONS_MODEL = env.POLLINATIONS_MODEL || 'flux'
 const POLLINATIONS_TOKEN = env.POLLINATIONS_TOKEN || ''
 const IMG_BASE = (env.IMAGE_API_BASE || env.YESCALE_BASE_URL || 'https://api.yescale.vip/v1').replace(/\/$/, '')
 const IMG_KEY = env.IMAGE_API_KEY || env.YESCALE_API_KEY || ''
-const IMAGE_MODEL = env.IMAGE_MODEL || env.YESCALE_IMAGE_MODEL || 'dall-e-3'
+const IMAGE_MODEL = env.IMAGE_MODEL || env.YESCALE_IMAGE_MODEL || '' // RỖNG = không chạy nhánh đồng bộ (đã bỏ dall-e-3)
 const IMAGE_SIZE = env.IMAGE_SIZE || '1024x1024'
+// Model MEDIA dạng "task" (gpt-image-2…) — bất đồng bộ submit→poll→CDN (giống backend genImageYescaleTask).
+const TASK_MODELS = (env.YESCALE_TASK_MODELS || env.IMAGE_TASK_MODELS || '').split(',').map((s) => s.trim()).filter(Boolean)
+const TASK_QUALITY = (env.YESCALE_TASK_QUALITY || 'medium').toLowerCase()
+const TASK_BACKGROUND = (env.YESCALE_TASK_BACKGROUND || 'opaque').toLowerCase()
+const TASK_BASE = (env.YESCALE_TASK_BASE_URL || IMG_BASE.replace(/\/v\d+$/, '')).replace(/\/$/, '')
+const TASK_TIMEOUT_MS = Number(env.YESCALE_TASK_TIMEOUT_MS) || 180000
 if (PROVIDER !== 'pollinations' && !IMG_KEY) {
   console.error('❌ Provider OpenAI-compatible nhưng thiếu IMAGE_API_KEY (hoặc YESCALE_API_KEY). Dừng.')
   process.exit(1)
@@ -71,9 +77,74 @@ function hashStr(s) {
   return h
 }
 
-// → { buf, ext }. Mặc định Pollinations; provider khác = OpenAI-compatible (together/openai/yescale).
+// → { buf, ext }. Chuỗi dự phòng: model task (gpt-image-2…) → OpenAI-compat (chỉ khi khai báo IMAGE_MODEL) → Pollinations.
 async function genImage(prompt) {
-  return PROVIDER === 'pollinations' ? genPollinations(prompt) : genOpenAICompat(prompt)
+  const attempts = []
+  if (IMG_KEY) for (const m of TASK_MODELS) attempts.push(() => genYescaleTask(prompt, m))
+  if (IMG_KEY && IMAGE_MODEL) attempts.push(() => genOpenAICompat(prompt))
+  if (PROVIDER === 'pollinations') attempts.unshift(() => genPollinations(prompt))
+  else attempts.push(() => genPollinations(prompt))
+  let lastErr
+  for (const run of attempts) {
+    try {
+      return await run()
+    } catch (e) {
+      lastErr = e
+      console.warn('  nguồn ảnh lỗi → thử nguồn kế:', e.message)
+    }
+  }
+  throw lastErr || new Error('không có nguồn ảnh nào khả dụng')
+}
+
+// Yescale Media "task": submit → poll → tải ảnh CDN. Endpoint KHÔNG nằm dưới /v1.
+async function genYescaleTask(prompt, model) {
+  const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${IMG_KEY}` }
+  const sub = await fetch(`${TASK_BASE}/task/submit`, {
+    method: 'POST',
+    headers: H,
+    body: JSON.stringify({ model, prompt, config: { size: IMAGE_SIZE, quality: TASK_QUALITY, background: TASK_BACKGROUND } }),
+  })
+  const subText = await sub.text()
+  if (!sub.ok && sub.status !== 202) throw new Error(`task submit ${model}: HTTP ${sub.status} ${subText.slice(0, 160)}`)
+  let j
+  try {
+    j = JSON.parse(subText)
+  } catch {
+    throw new Error('task submit không trả JSON')
+  }
+  const taskId = j?.task_id || j?.data?.task_id || j?.id
+  if (!taskId) throw new Error('task không có task_id')
+  const started = Date.now()
+  while (Date.now() - started < TASK_TIMEOUT_MS) {
+    await new Promise((r) => setTimeout(r, 3000))
+    let pr
+    try {
+      pr = await fetch(`${TASK_BASE}/task/${taskId}`, { headers: H })
+    } catch {
+      continue
+    }
+    if (pr.status === 404) continue
+    let pj
+    try {
+      pj = JSON.parse(await pr.text())
+    } catch {
+      continue
+    }
+    const status = String(pj?.status || pj?.data?.status || '').toUpperCase()
+    if (status === 'SUCCESS' || status === 'COMPLETED') {
+      const url = pj?.task_result?.url || pj?.data?.task_result?.url || pj?.result?.url || pj?.url
+      if (!url) throw new Error(`task ${model} xong nhưng thiếu url`)
+      const ir = await fetch(url)
+      if (!ir.ok) throw new Error('tải ảnh CDN thất bại')
+      const low = url.toLowerCase()
+      return {
+        buf: Buffer.from(await ir.arrayBuffer()),
+        ext: low.includes('.png') ? 'png' : low.includes('.webp') ? 'webp' : 'jpg',
+      }
+    }
+    if (['FAILED', 'FAILURE', 'ERROR'].includes(status)) throw new Error(`task ${model} thất bại`)
+  }
+  throw new Error(`task ${model} quá thời gian ${Math.round(TASK_TIMEOUT_MS / 1000)}s`)
 }
 
 async function genPollinations(prompt) {

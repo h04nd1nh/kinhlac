@@ -1271,15 +1271,15 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
           run: () => this.genImageYescaleTask(prompt, taskBase, key1, m, report),
         });
 
-      // 1b) Model ảnh ĐỒNG BỘ (dall-e-3…) qua /images/generations (kiểu cũ).
-      const models1 = this.parseModels(
-        this.config.get<string>('YESCALE_IMAGE_MODELS') || this.config.get<string>('IMAGE_MODELS'),
-        [
-          this.config.get<string>('IMAGE_MODEL') ||
-            this.config.get<string>('YESCALE_IMAGE_MODEL') ||
-            'dall-e-3',
-        ],
-      );
+      // 1b) Model ảnh ĐỒNG BỘ (OpenAI-compatible /images/generations) — CHỈ chạy khi KHAI BÁO RÕ
+      // (YESCALE_IMAGE_MODELS / IMAGE_MODELS / IMAGE_MODEL). Mặc định RỖNG (đã bỏ hẳn dall-e-3).
+      const syncModelStr =
+        this.config.get<string>('YESCALE_IMAGE_MODELS') ||
+        this.config.get<string>('IMAGE_MODELS') ||
+        this.config.get<string>('IMAGE_MODEL') ||
+        this.config.get<string>('YESCALE_IMAGE_MODEL') ||
+        '';
+      const models1 = this.parseModels(syncModelStr, []);
       for (const m of models1)
         compat.push({ label: `chính "${m}"`, run: () => this.genImageOpenAICompat(prompt, base1, key1, m) });
     }
@@ -1468,15 +1468,17 @@ Trả về JSON {chu_de, tu_khoa, tom_tat} theo đúng quy tắc.`;
   ): Promise<{ buf: Buffer; ext: string }> {
     if (!key) throw new ServiceUnavailableException('Thiếu API key cho Yescale task.');
     const size = this.config.get<string>('IMAGE_SIZE') || '1024x1024';
-    // gpt-image-2 BẮT BUỘC config.quality (low/medium/high) — thiếu là lỗi VALIDATION_ERROR.
+    // gpt-image-2 BẮT BUỘC config.quality; gpt-image-1.5/gpt-image còn BẮT BUỘC config.background
+    // (opaque/transparent/auto) — thiếu là VALIDATION_ERROR. Gửi cả hai (gpt-image-2 cũng nhận background).
     const quality = (this.config.get<string>('YESCALE_TASK_QUALITY') || 'medium').toLowerCase();
+    const background = (this.config.get<string>('YESCALE_TASK_BACKGROUND') || 'opaque').toLowerCase();
     const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` };
 
     // 1) Gửi việc
     const subRes = await fetch(`${taskBase}/task/submit`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ model, prompt, config: { size, quality } }),
+      body: JSON.stringify({ model, prompt, config: { size, quality, background } }),
     });
     const subText = await subRes.text();
     if (!subRes.ok && subRes.status !== 202) {

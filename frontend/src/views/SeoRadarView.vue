@@ -970,9 +970,9 @@ async function generateImages(a: BaiViet) {
   if (
     !confirm(
       `Sinh ${total} ảnh minh hoạ (AI) cho bài "${a.tieu_de}"?\n\n` +
-        `• Mỗi mục lớn (## H2) 1 ảnh, lưu vào frontend/public/blog-images/ trên máy này.\n` +
-        `• Dùng nhà cung cấp ảnh cấu hình ở backend (hiện tại: dall-e-3 qua Yescale — TRẢ PHÍ ~vài trăm đồng/ảnh).\n` +
-        `• Mỗi ảnh ~30–150 giây tuỳ nhà cung cấp (dall-e-3 đang ~2 phút/ảnh). Có thanh tiến trình — cứ để chạy.`,
+        `• Mỗi mục lớn (## H2) 1 ảnh, lưu vào thư mục blog-images/ (cấu hình BLOG_IMAGES_DIR ở backend).\n` +
+        `• Dùng model ảnh cấu hình ở backend (hiện tại: gpt-image-2 qua Yescale — TRẢ PHÍ).\n` +
+        `• Mỗi ảnh ~30–120 giây. Có thanh tiến trình % thật — cứ để chạy, đừng đóng tab.`,
     )
   )
     return
@@ -1067,7 +1067,7 @@ async function generateCover(a: BaiViet) {
     !confirm(
       `Vẽ ẢNH BÌA AI riêng cho bài "${a.tieu_de}"?\n\n` +
         `• AI vẽ 1 ảnh bìa banner khớp chủ đề cả bài, lưu vào frontend/public/blog-images/${a.slug || '<slug>'}/cover.\n` +
-        `• Dùng nhà cung cấp ảnh ở backend (vd dall-e-3 qua Yescale — TRẢ PHÍ ~vài trăm đồng/ảnh, ~30–150 giây).\n` +
+        `• Dùng model ảnh ở backend (hiện tại: gpt-image-2 qua Yescale — TRẢ PHÍ, ~30–120 giây).\n` +
         `• Sau khi vẽ xong, bấm Lưu rồi Đăng lại để ảnh bìa mới lên web.`,
     )
   )
@@ -2099,7 +2099,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
             <p class="gen-prog-note">
               <template v-if="imgProg.status === 'running'">
                 ⏱ Ảnh này: <b>{{ imgProg.secImg }}s</b> · Tổng: <b>{{ imgProg.secTotal }}s</b>.
-                dall-e-3 thường ~2 phút/ảnh — vẫn đang chạy, đừng đóng tab.
+                Mỗi ảnh ~30–120 giây (gpt-image-2) — vẫn đang chạy, đừng đóng tab.
               </template>
               <template v-else-if="imgProg.status === 'done'">
                 Xong sau {{ imgProg.secTotal }}s. Ảnh đã chèn vào bài — bấm <b>Lưu</b> rồi <b>Đăng</b>.

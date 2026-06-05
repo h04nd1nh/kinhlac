@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { KinhMach3dService } from '../controllers/kinh-mach-3d.controller';
 import { JwtAuthGuard } from '../middlewares/auth/jwt-auth.guard';
+import { Public } from '../middlewares/auth/public.decorator';
 
 /**
  * API cho tính năng "Chấm Tay" của Đồ Hình Kinh Lạc 3D.
@@ -14,7 +15,13 @@ import { JwtAuthGuard } from '../middlewares/auth/jwt-auth.guard';
 export class KinhMach3dRouter {
   constructor(private readonly service: KinhMach3dService) {}
 
-  /** Tải bộ chốt đã lưu (mở — để bản đồ hiển thị cho mọi người đăng nhập). */
+  /**
+   * Tải bộ chốt đã lưu — CÔNG KHAI (@Public): bản đồ hiển thị cho mọi người.
+   * JwtAuthGuard là guard TOÀN CỤC (app.module.ts), nên KHÔNG có @Public thì
+   * endpoint này trả 401. Frontend loadUserAnchors() đọc KHÔNG kèm token →
+   * 401 bị nuốt im lặng → chốt Chấm Tay đã lưu không tải lại được (về vị trí cũ).
+   */
+  @Public()
   @Get('anchors')
   getAnchors() {
     return this.service.getAnchors();
