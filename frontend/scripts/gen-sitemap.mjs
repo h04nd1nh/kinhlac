@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { readArticles } from './blog-lib.mjs'
+import { listDictPages } from './dict-data.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const seo = JSON.parse(readFileSync(resolve(here, '../src/seo/route-seo.json'), 'utf8'))
@@ -27,6 +28,19 @@ if (posts.length) {
   }
 }
 
+// 3) Từ điển: trang kinh (trụ) + huyệt (nhánh) — CHỈ trang index:true (bỏ corrupt/mỏng → không spam Google).
+let nDict = 0
+for (const p of listDictPages()) {
+  if (!p.index) continue
+  routes.push({
+    path: `/${p.kind}/${p.slug}/`,
+    priority: p.kind === 'kinh' ? '0.7' : '0.6',
+    changefreq: 'monthly',
+    lastmod: today,
+  })
+  nDict++
+}
+
 const urls = routes
   .map(
     (r) => `  <url>
@@ -46,4 +60,4 @@ ${urls}
 
 const out = resolve(here, '../public/sitemap.xml')
 writeFileSync(out, xml, 'utf8')
-console.log(`✓ sitemap.xml: ${routes.length} URL (${posts.length} bài blog) → ${out}`)
+console.log(`✓ sitemap.xml: ${routes.length} URL (${posts.length} bài blog · ${nDict} từ điển) → ${out}`)

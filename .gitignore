@@ -25,3 +25,8 @@ backend/tmp/*
 Caddyfile
 
 kinhmach_demo
+
+# Khóa Service Account của Google Cloud — TUYỆT ĐỐI không đẩy lên GitHub
+# (file dạng <project>-<hash>.json chứa private key, lộ là mất tài khoản)
+kinhlac-*.json
+*-service-account*.json
