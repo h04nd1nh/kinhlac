@@ -1,5 +1,5 @@
 ---
-title: "Tính Vị Quy Kinh Là Gì? Đọc Một Bài Thuốc Đông Y Bằng Dữ Liệu"
+title: "Tính Vị Quy Kinh Là Gì? Đọc Bài Thuốc Bằng Dữ Liệu"
 description: "Tính vị quy kinh là gì? Hiểu Tứ Khí, Ngũ Vị, Quy Kinh và cấu trúc Quân-Thần-Tá-Sứ để đọc một bài thuốc Đông Y trực quan bằng biểu đồ radar."
 slug: "tinh-vi-quy-kinh-la-gi"
 date: "2026-06-05"

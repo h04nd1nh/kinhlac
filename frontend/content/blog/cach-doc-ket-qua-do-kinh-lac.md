@@ -1,5 +1,5 @@
 ---
-title: "Cách Đọc Kết Quả Đo Kinh Lạc: Kinh Cường, Kinh Nhược & Bát Cương"
+title: "Đọc Kết Quả Đo Kinh Lạc: Kinh Cường, Kinh Nhược, Bát Cương"
 description: "Hướng dẫn đọc kết quả đo kinh lạc: hiểu kinh cường, kinh nhược, suy ra Bát Cương và thể bệnh từ bảng nhiệt độ 12 đường kinh chi trên, chi dưới."
 slug: "cach-doc-ket-qua-do-kinh-lac"
 date: "2026-06-05"

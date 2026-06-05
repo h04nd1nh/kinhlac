@@ -1,5 +1,5 @@
 ---
-title: "Đo Kinh Lạc - Cảm Hứng Từ Sách Biện Chứng Luận Trị (Lê Văn Sửu)"
+title: "Đo Kinh Lạc: Cảm Hứng Từ Sách Biện Chứng Luận Trị"
 description: "Tìm hiểu tính năng đo kinh lạc trong nền tảng Kinh Lạc: nguyên lý đo nhiệt độ tại tỉnh huyệt, lấy cảm hứng từ sách Biện Chứng Luận Trị của Lê Văn Sửu."
 slug: "phuong-phap-le-van-suu"
 date: "2026-06-05"

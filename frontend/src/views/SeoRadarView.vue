@@ -269,6 +269,40 @@ const baiVietList = ref<BaiViet[]>([])
 const genBusy = ref<number | null>(null) // cum_id đang sinh, -1 = viết tự do
 const freeChuDe = ref('')
 const freeTuKhoa = ref('')
+
+// Tiến trình ước lượng cho "Viết nháp" (AI chạy 2 lượt: viết thân bài → rà soát YMYL + bóc metadata).
+// Backend xử lý đồng bộ trong 1 request nên KHÔNG có % thật — đây là ước lượng theo thời gian cho đỡ sốt ruột.
+const genProgress = ref(0)
+const genStage = ref('')
+let genTimer: ReturnType<typeof setInterval> | null = null
+
+function startGenProgress() {
+  genProgress.value = 0
+  genStage.value = 'Đang gửi yêu cầu tới AI…'
+  const t0 = Date.now()
+  const EST = 40000 // ~40s cho 2 lượt gọi AI
+  if (genTimer) clearInterval(genTimer)
+  genTimer = setInterval(() => {
+    const elapsed = Date.now() - t0
+    // Tiến tới tối đa 95% theo đường cong (không chạm 100 tới khi có kết quả thật).
+    genProgress.value = Math.min(95, Math.round((1 - Math.exp(-elapsed / (EST * 0.55))) * 100))
+    if (genProgress.value < 8) genStage.value = 'Đang gửi yêu cầu tới AI…'
+    else if (genProgress.value < 58) genStage.value = 'Bước 1/2 · Đang viết thân bài + chèn link nội bộ…'
+    else genStage.value = 'Bước 2/2 · Đang rà soát an toàn (YMYL) & bóc tiêu đề, mô tả, nguồn…'
+  }, 350)
+}
+
+function stopGenProgress() {
+  if (genTimer) {
+    clearInterval(genTimer)
+    genTimer = null
+  }
+  genProgress.value = 100
+  genStage.value = 'Hoàn tất!'
+  setTimeout(() => {
+    if (genBusy.value === null) genProgress.value = 0
+  }, 900)
+}
 const editing = ref<BaiViet | null>(null)
 const savingEditor = ref(false)
 const exportingId = ref<number | null>(null)
@@ -301,7 +335,8 @@ async function loadBaiViet() {
 
 async function genFromCum(c: Cum) {
   genBusy.value = c.id
-  flash('info', `AI đang viết nháp cho cụm "${c.ten_cum}" (1-2 phút)…`)
+  startGenProgress()
+  flash('info', `AI đang viết nháp cho cụm "${c.ten_cum}" (~30–60 giây)…`)
   try {
     const res = await api.post<{ data: BaiViet }>('/seo/bai-viet/generate', { cum_id: c.id })
     flash('ok', `Đã tạo nháp: "${res.data.tieu_de}".`)
@@ -311,6 +346,7 @@ async function genFromCum(c: Cum) {
     flash('err', e.message || 'Viết nháp thất bại')
   } finally {
     genBusy.value = null
+    stopGenProgress()
   }
 }
 
@@ -320,7 +356,8 @@ async function genFree() {
     return
   }
   genBusy.value = -1
-  flash('info', `AI đang viết nháp cho "${freeChuDe.value}"…`)
+  startGenProgress()
+  flash('info', `AI đang viết nháp cho "${freeChuDe.value}" (~30–60 giây)…`)
   try {
     const res = await api.post<{ data: BaiViet }>('/seo/bai-viet/generate', {
       chu_de: freeChuDe.value.trim(),
@@ -335,6 +372,7 @@ async function genFree() {
     flash('err', e.message || 'Viết nháp thất bại')
   } finally {
     genBusy.value = null
+    stopGenProgress()
   }
 }
 
@@ -739,6 +777,19 @@ onMounted(() => {
 
     <!-- ===== TAB LÒ VIẾT BÀI ===== -->
     <div v-show="tab === 'viet'" class="tabwrap">
+      <!-- Tiến trình khi AI đang viết nháp (ước lượng theo thời gian) -->
+      <div v-if="genBusy !== null" class="gen-prog" role="status" aria-live="polite">
+        <div class="gen-prog-head">
+          <span class="gen-spin" aria-hidden="true"></span>
+          <span class="gen-prog-stage">{{ genStage }}</span>
+          <span class="gen-prog-pct">{{ genProgress }}%</span>
+        </div>
+        <div class="gen-bar"><div class="gen-bar-fill" :style="{ width: genProgress + '%' }"></div></div>
+        <p class="gen-prog-note">
+          AI đang viết &amp; rà soát bài (~30–60 giây). Đừng đóng tab. % là ước lượng theo thời gian, không phải tiến độ thật.
+        </p>
+      </div>
+
       <!-- Viết từ cụm gợi ý -->
       <section class="card">
         <div class="card-head"><h3>Viết bài từ cụm gợi ý</h3></div>
@@ -1097,6 +1148,17 @@ onMounted(() => {
 .cand:hover { background: var(--brown-50); }
 .cand.on { background: var(--brown-50); border-color: var(--brown-400); color: var(--brown-800); font-weight: 600; }
 .cand input { flex-shrink: 0; }
+
+/* Tiến trình "Viết nháp" */
+.gen-prog { background: var(--brown-50); border: 1px solid var(--brown-200); border-radius: var(--radius-md); padding: var(--space-4); }
+.gen-prog-head { display: flex; align-items: center; gap: var(--space-2); }
+.gen-prog-stage { flex: 1; font-size: var(--font-size-sm); font-weight: 600; color: var(--brown-800); }
+.gen-prog-pct { font-size: var(--font-size-sm); font-weight: 800; color: var(--brown-700); font-variant-numeric: tabular-nums; }
+.gen-bar { margin-top: var(--space-2); height: 8px; border-radius: var(--radius-full); background: var(--brown-100); overflow: hidden; }
+.gen-bar-fill { height: 100%; border-radius: var(--radius-full); background: linear-gradient(90deg, var(--brown-500), var(--brown-700)); transition: width .35s ease; }
+.gen-prog-note { margin-top: var(--space-2); font-size: var(--font-size-xs); color: var(--text-subtle); line-height: 1.5; }
+.gen-spin { width: 16px; height: 16px; flex-shrink: 0; border: 2px solid var(--brown-200); border-top-color: var(--brown-600); border-radius: 50%; animation: gen-spin 0.8s linear infinite; }
+@keyframes gen-spin { to { transform: rotate(360deg); } }
 
 .fade-enter-active, .fade-leave-active { transition: opacity var(--transition-base); }
 .fade-enter-from, .fade-leave-to { opacity: 0; }

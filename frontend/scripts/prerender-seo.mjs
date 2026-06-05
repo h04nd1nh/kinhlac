@@ -78,7 +78,7 @@ for (const page of seo.pages) {
   html = setTitle(html, page.title)
   html = setMeta(html, 'name', 'description', page.description)
   if (page.keywords?.length) html = setMeta(html, 'name', 'keywords', page.keywords.join(', '))
-  html = setMeta(html, 'name', 'robots', 'index, follow')
+  html = setMeta(html, 'name', 'robots', page.index === false ? 'noindex, nofollow' : 'index, follow')
   html = setCanonical(html, url)
   html = setMeta(html, 'property', 'og:title', page.title)
   html = setMeta(html, 'property', 'og:description', page.description)

@@ -11,7 +11,7 @@ faq: [{"q":"Nguyên lý của phương pháp đo nhiệt độ kinh lạc là g�
 seoCumId: 1
 aiModel: "Yescale gemini-2.5-flash-lite"
 ---
-Trong Y học cổ truyền (Đông Y), sức khỏe con người được ví như một dòng chảy năng lượng tinh tế, vận hành thông qua hệ thống kinh lạc. Sự cân bằng và thông suốt của dòng chảy này là yếu tố then chốt quyết định trạng thái khỏe mạnh. Khi có bất kỳ sự tắc nghẽn hay rối loạn nào trên hệ thống kinh lạc, cơ thể sẽ biểu hiện ra những dấu hiệu bất thường, mà một trong những phương pháp phát hiện sớm và hiệu quả là **đo nhiệt độ kinh lạc**. Đây là một kỹ thuật chẩn đoán độc đáo, mang đậm triết lý Đông Y, giúp thầy thuốc "nhìn" thấy những thay đổi tinh vi bên trong cơ thể mà các phương pháp thông thường có thể bỏ sót.
+Trong Y học cổ truyền (Đông Y), sức khỏe con người được ví như một dòng chảy năng lượng tinh tế, vận hành thông qua hệ thống kinh lạc. Sự cân bằng và thông suốt của dòng chảy này là yếu tố then chốt quyết định trạng thái khỏe mạnh. Khi có bất kỳ sự tắc nghẽn hay rối loạn nào trên hệ thống kinh lạc, cơ thể sẽ biểu hiện ra những dấu hiệu bất thường, mà một trong những phương pháp phát hiện sớm và hiệu quả là **[đo nhiệt độ kinh lạc](/xem-ket-qua-do)**. Đây là một kỹ thuật chẩn đoán độc đáo, mang đậm triết lý Đông Y, giúp thầy thuốc "nhìn" thấy những thay đổi tinh vi bên trong cơ thể mà các phương pháp thông thường có thể bỏ sót.
 
 ## Nguyên Lý Đo Nhiệt Độ Kinh Lạc Theo Phương Pháp 24 Tỉnh Huyệt
 
