@@ -300,7 +300,7 @@ function writeFromGap(c: Cum) {
 }
 
 // ===== Phase 2: Lò Viết Bài =====
-type Tab = 'radar' | 'viet' | 'trend'
+type Tab = 'radar' | 'viet' | 'trend' | 'gsc'
 const tab = ref<Tab>('radar')
 
 interface BaiViet {
@@ -1102,6 +1102,167 @@ async function runTrendDrafts() {
   }
 }
 
+// ===========================================================================
+// GOOGLE SEARCH CONSOLE (tab GSC) — dữ liệu THẬT từ Google
+// ===========================================================================
+interface GscSite {
+  siteUrl: string
+  permissionLevel: string
+}
+interface GscStatus {
+  connected: boolean
+  reason?: string
+  mode?: 'oauth' | 'service_account'
+  account?: string
+  siteUrl?: string
+  hasAccess?: boolean
+  permissionLevel?: string | null
+  sites?: GscSite[]
+}
+interface GscPerfRow {
+  key: string
+  clicks: number
+  impressions: number
+  ctr: number
+  position: number
+}
+interface GscSummary {
+  range: { startDate: string; endDate: string }
+  totals: { clicks: number; impressions: number; ctr: number; position: number }
+  byDate: { date: string; clicks: number; impressions: number; position: number }[]
+}
+interface GscCannibal {
+  query: string
+  clicks: number
+  impressions: number
+  soTrang: number
+  pages: GscPerfRow[]
+}
+interface GscSitemap {
+  path: string
+  lastSubmitted: string | null
+  lastDownloaded: string | null
+  isPending: boolean
+  isSitemapsIndex: boolean
+  warnings: number
+  errors: number
+  contents: { type: string; submitted: number; indexed: number }[]
+}
+
+const gscStatus = ref<GscStatus | null>(null)
+const gscChecking = ref(false)
+const gscDays = ref(28)
+const gscLoading = ref(false)
+const gscLoaded = ref(false)
+const gscSummary = ref<GscSummary | null>(null)
+const gscQueries = ref<GscPerfRow[]>([])
+const gscPages = ref<GscPerfRow[]>([])
+const gscCannibal = ref<GscCannibal[]>([])
+const gscSitemaps = ref<GscSitemap[]>([])
+const gscMetric = ref<'clicks' | 'impressions'>('clicks') // chỉ số vẽ biểu đồ
+const newSitemap = ref('https://kinhlac.online/sitemap.xml')
+const submittingSitemap = ref(false)
+const inspectUrlInput = ref('https://kinhlac.online/')
+const inspecting = ref(false)
+const inspectResult = ref<Record<string, any> | null>(null)
+
+// Đã kết nối VÀ có quyền trên đúng property → mới hiện dữ liệu.
+const gscConnected = computed(() => !!gscStatus.value?.connected && !!gscStatus.value?.hasAccess)
+// Cột cao nhất để chuẩn hoá chiều cao biểu đồ.
+const gscChartMax = computed(() => {
+  const rows = gscSummary.value?.byDate || []
+  const vals = rows.map((d) => (gscMetric.value === 'clicks' ? d.clicks : d.impressions))
+  return Math.max(1, ...vals)
+})
+
+function fmtNum(n: number | undefined): string {
+  return (n ?? 0).toLocaleString('vi-VN')
+}
+function fmtPct(ctr: number | undefined): string {
+  return ((ctr ?? 0) * 100).toFixed(1) + '%'
+}
+function fmtPos(p: number | undefined): string {
+  return (p ?? 0).toFixed(1)
+}
+function barHeight(d: { clicks: number; impressions: number }): string {
+  const v = gscMetric.value === 'clicks' ? d.clicks : d.impressions
+  return Math.max(2, (v / gscChartMax.value) * 100) + '%'
+}
+
+async function checkGscStatus() {
+  gscChecking.value = true
+  try {
+    const res = await api.get<{ success: boolean; data: GscStatus }>('/seo/gsc/status')
+    gscStatus.value = res.data
+    if (gscConnected.value && !gscLoaded.value) await loadGscData()
+  } catch (e: any) {
+    gscStatus.value = { connected: false, reason: e.message || 'Không gọi được API (backend tắt?)' }
+  } finally {
+    gscChecking.value = false
+  }
+}
+
+async function loadGscData() {
+  if (!gscConnected.value) return
+  gscLoading.value = true
+  const d = gscDays.value
+  try {
+    const [sum, q, p, c, sm] = await Promise.all([
+      api.get<{ data: GscSummary }>(`/seo/gsc/summary?days=${d}`),
+      api.get<{ data: GscPerfRow[] }>(`/seo/gsc/top-queries?days=${d}&limit=50`),
+      api.get<{ data: GscPerfRow[] }>(`/seo/gsc/top-pages?days=${d}&limit=50`),
+      api.get<{ data: GscCannibal[] }>(`/seo/gsc/cannibalization?days=${d}`),
+      api.get<{ data: GscSitemap[] }>(`/seo/gsc/sitemaps`),
+    ])
+    gscSummary.value = sum.data
+    gscQueries.value = q.data
+    gscPages.value = p.data
+    gscCannibal.value = c.data
+    gscSitemaps.value = sm.data
+    gscLoaded.value = true
+  } catch (e: any) {
+    flash('err', e.message || 'Tải dữ liệu GSC thất bại')
+  } finally {
+    gscLoading.value = false
+  }
+}
+
+async function submitNewSitemap() {
+  if (!newSitemap.value.trim()) return
+  submittingSitemap.value = true
+  try {
+    await api.post('/seo/gsc/sitemaps', { feedpath: newSitemap.value.trim() })
+    flash('ok', 'Đã gửi sitemap cho Google.')
+    const sm = await api.get<{ data: GscSitemap[] }>(`/seo/gsc/sitemaps`)
+    gscSitemaps.value = sm.data
+  } catch (e: any) {
+    flash('err', e.message || 'Gửi sitemap thất bại')
+  } finally {
+    submittingSitemap.value = false
+  }
+}
+
+async function runInspect() {
+  if (!inspectUrlInput.value.trim()) return
+  inspecting.value = true
+  inspectResult.value = null
+  try {
+    const res = await api.post<{ data: Record<string, any> }>('/seo/gsc/inspect', {
+      url: inspectUrlInput.value.trim(),
+    })
+    inspectResult.value = res.data
+  } catch (e: any) {
+    flash('err', e.message || 'Kiểm tra URL thất bại')
+  } finally {
+    inspecting.value = false
+  }
+}
+
+// Vào tab GSC lần đầu → tự kiểm tra kết nối (lazy).
+watch(tab, (t) => {
+  if (t === 'gsc' && !gscStatus.value) checkGscStatus()
+})
+
 // ESC = đóng nhanh overlay đang mở (chuẩn a11y). Ưu tiên overlay "Đăng" trước editor.
 function onGlobalKeydown(e: KeyboardEvent) {
   if (e.key !== 'Escape') return
@@ -1147,6 +1308,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
       <button type="button" role="tab" :aria-selected="tab === 'radar'" class="tab" :class="{ on: tab === 'radar' }" @click="tab = 'radar'">🛰️ Radar Đối Thủ</button>
       <button type="button" role="tab" :aria-selected="tab === 'viet'" class="tab" :class="{ on: tab === 'viet' }" @click="tab = 'viet'">✍️ Lò Viết Bài</button>
       <button type="button" role="tab" :aria-selected="tab === 'trend'" class="tab" :class="{ on: tab === 'trend' }" @click="tab = 'trend'">📈 Xu Hướng</button>
+      <button type="button" role="tab" :aria-selected="tab === 'gsc'" class="tab" :class="{ on: tab === 'gsc' }" @click="tab = 'gsc'">🔍 Search Console</button>
     </div>
 
     <!-- ===== TAB RADAR ===== -->
@@ -1550,6 +1712,204 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
     </div>
     <!-- /TAB XU HƯỚNG -->
 
+    <!-- ===== TAB GOOGLE SEARCH CONSOLE ===== -->
+    <div v-show="tab === 'gsc'" class="tabwrap">
+      <!-- Trạng thái kết nối -->
+      <section class="card">
+        <div class="card-head">
+          <h3>Kết nối Google Search Console</h3>
+          <button class="btn btn--sm btn--ghost" :disabled="gscChecking" @click="checkGscStatus">
+            {{ gscChecking ? 'Đang kiểm tra…' : '🔄 Kiểm tra kết nối' }}
+          </button>
+        </div>
+
+        <div v-if="!gscStatus" class="muted">Đang kiểm tra kết nối…</div>
+
+        <div v-else-if="gscConnected" class="gsc-banner gsc-ok">
+          ✅ Đã kết nối — property <b>{{ gscStatus.siteUrl }}</b>, quyền <b>{{ gscStatus.permissionLevel }}</b>
+          <span class="muted">({{ gscStatus.mode === 'oauth' ? 'OAuth' : 'Service Account' }})</span>
+        </div>
+
+        <div v-else class="gsc-banner gsc-warn">
+          <template v-if="gscStatus.connected && !gscStatus.hasAccess">
+            ⚠️ Đã nối tới Google nhưng tài khoản <b>chưa có quyền</b> trên <b>{{ gscStatus.siteUrl }}</b>.
+            <div v-if="gscStatus.sites && gscStatus.sites.length" class="muted" style="margin-top: var(--space-2)">
+              Property tài khoản thấy:
+              <span v-for="s in gscStatus.sites" :key="s.siteUrl"><code>{{ s.siteUrl }}</code> ({{ s.permissionLevel }}) </span>
+              — nếu đúng cái khác, đặt lại <code>GSC_SITE_URL</code> trong .env.
+            </div>
+          </template>
+          <template v-else>
+            ⏳ Chưa kết nối. {{ gscStatus.reason }}
+            <div class="muted" style="margin-top: var(--space-2)">
+              Hoàn tất cấp quyền trong Search Console (xem <code>backend/GSC-SETUP.md</code>) rồi bấm “Kiểm tra kết nối”.
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <!-- Khi đã kết nối → hiện dữ liệu thật -->
+      <template v-if="gscConnected">
+        <!-- Thanh điều khiển thời gian -->
+        <section class="card">
+          <div class="gsc-controls">
+            <label class="gsc-ctl-lbl">Khoảng thời gian:
+              <select v-model.number="gscDays" class="inp inp--sm inp--num" @change="loadGscData">
+                <option :value="7">7 ngày</option>
+                <option :value="28">28 ngày</option>
+                <option :value="90">90 ngày</option>
+              </select>
+            </label>
+            <button class="btn btn--sm btn--primary" :disabled="gscLoading" @click="loadGscData">
+              {{ gscLoading ? 'Đang tải…' : '🔄 Tải lại dữ liệu' }}
+            </button>
+            <span v-if="gscSummary" class="muted">{{ gscSummary.range.startDate }} → {{ gscSummary.range.endDate }} · GSC trễ ~2-3 ngày</span>
+          </div>
+        </section>
+
+        <!-- Tổng quan + biểu đồ "website là thực thể sống" -->
+        <section v-if="gscSummary" class="card">
+          <div class="card-head"><h3>Tổng quan — website đang lớn lên</h3></div>
+          <div class="gsc-stats">
+            <div class="gsc-stat"><span class="gsc-stat-num">{{ fmtNum(gscSummary.totals.clicks) }}</span><span class="gsc-stat-lbl">Lượt nhấp</span></div>
+            <div class="gsc-stat"><span class="gsc-stat-num">{{ fmtNum(gscSummary.totals.impressions) }}</span><span class="gsc-stat-lbl">Lượt hiển thị</span></div>
+            <div class="gsc-stat"><span class="gsc-stat-num">{{ fmtPct(gscSummary.totals.ctr) }}</span><span class="gsc-stat-lbl">CTR</span></div>
+            <div class="gsc-stat"><span class="gsc-stat-num">{{ fmtPos(gscSummary.totals.position) }}</span><span class="gsc-stat-lbl">Vị trí TB</span></div>
+          </div>
+
+          <div class="gsc-chart-head">
+            <span class="muted">Diễn biến theo ngày</span>
+            <div class="gsc-metric-toggle">
+              <button class="btn btn--sm btn--ghost" :class="{ on: gscMetric === 'clicks' }" @click="gscMetric = 'clicks'">Nhấp</button>
+              <button class="btn btn--sm btn--ghost" :class="{ on: gscMetric === 'impressions' }" @click="gscMetric = 'impressions'">Hiển thị</button>
+            </div>
+          </div>
+          <div v-if="gscSummary.byDate.length" class="gsc-chart">
+            <div
+              v-for="d in gscSummary.byDate"
+              :key="d.date"
+              class="gsc-bar"
+              :style="{ height: barHeight(d) }"
+              :title="`${d.date}: ${gscMetric === 'clicks' ? d.clicks : d.impressions} ${gscMetric === 'clicks' ? 'nhấp' : 'hiển thị'}`"
+            ></div>
+          </div>
+          <p v-else class="muted">Chưa có dữ liệu theo ngày (site mới hoặc chưa có lượt tìm kiếm — kết nối vẫn OK).</p>
+        </section>
+
+        <!-- Top từ khoá -->
+        <section class="card">
+          <div class="card-head"><h3>Top từ khoá ({{ gscQueries.length }})</h3></div>
+          <div v-if="gscQueries.length" class="table-wrap">
+            <table class="tbl">
+              <thead><tr><th>Từ khoá</th><th class="gsc-num">Nhấp</th><th class="gsc-num">Hiển thị</th><th class="gsc-num">CTR</th><th class="gsc-num">Vị trí</th></tr></thead>
+              <tbody>
+                <tr v-for="r in gscQueries" :key="r.key">
+                  <td>{{ r.key }}</td>
+                  <td class="gsc-num">{{ fmtNum(r.clicks) }}</td>
+                  <td class="gsc-num">{{ fmtNum(r.impressions) }}</td>
+                  <td class="gsc-num">{{ fmtPct(r.ctr) }}</td>
+                  <td class="gsc-num">{{ fmtPos(r.position) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else class="muted">Chưa có từ khoá nào trong khoảng này.</p>
+        </section>
+
+        <!-- Top trang -->
+        <section class="card">
+          <div class="card-head"><h3>Top trang ({{ gscPages.length }})</h3></div>
+          <div v-if="gscPages.length" class="table-wrap">
+            <table class="tbl">
+              <thead><tr><th>Trang</th><th class="gsc-num">Nhấp</th><th class="gsc-num">Hiển thị</th><th class="gsc-num">CTR</th><th class="gsc-num">Vị trí</th></tr></thead>
+              <tbody>
+                <tr v-for="r in gscPages" :key="r.key">
+                  <td class="gsc-url"><a :href="r.key" target="_blank" rel="noopener">{{ r.key }}</a></td>
+                  <td class="gsc-num">{{ fmtNum(r.clicks) }}</td>
+                  <td class="gsc-num">{{ fmtNum(r.impressions) }}</td>
+                  <td class="gsc-num">{{ fmtPct(r.ctr) }}</td>
+                  <td class="gsc-num">{{ fmtPos(r.position) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else class="muted">Chưa có trang nào nhận traffic trong khoảng này.</p>
+        </section>
+
+        <!-- Từ khoá bị "ăn thịt" -->
+        <section class="card">
+          <div class="card-head"><h3>🔪 Từ khoá bị “ăn thịt” ({{ gscCannibal.length }})</h3></div>
+          <p class="muted">Những từ khoá mà <b>nhiều trang</b> của bạn cùng tranh nhau → Google bối rối, thứ hạng loãng. Nên gộp/điều hướng về 1 trang chủ lực.</p>
+          <div v-if="gscCannibal.length" class="gsc-cannibal">
+            <details v-for="c in gscCannibal" :key="c.query" class="gsc-can">
+              <summary>
+                <b>{{ c.query }}</b>
+                <span class="gsc-can-meta">{{ c.soTrang }} trang tranh · {{ fmtNum(c.impressions) }} hiển thị · {{ fmtNum(c.clicks) }} nhấp</span>
+              </summary>
+              <table class="tbl">
+                <thead><tr><th>Trang</th><th class="gsc-num">Nhấp</th><th class="gsc-num">Hiển thị</th><th class="gsc-num">Vị trí</th></tr></thead>
+                <tbody>
+                  <tr v-for="p in c.pages" :key="p.key">
+                    <td class="gsc-url"><a :href="p.key" target="_blank" rel="noopener">{{ p.key }}</a></td>
+                    <td class="gsc-num">{{ fmtNum(p.clicks) }}</td>
+                    <td class="gsc-num">{{ fmtNum(p.impressions) }}</td>
+                    <td class="gsc-num">{{ fmtPos(p.position) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </details>
+          </div>
+          <p v-else class="muted">🎉 Không phát hiện từ khoá nào bị nhiều trang tranh nhau.</p>
+        </section>
+
+        <!-- Sitemap -->
+        <section class="card">
+          <div class="card-head"><h3>Sitemap</h3></div>
+          <div class="gsc-controls">
+            <input v-model="newSitemap" class="inp" placeholder="https://kinhlac.online/sitemap.xml" />
+            <button class="btn btn--sm btn--accent" :disabled="submittingSitemap" @click="submitNewSitemap">
+              {{ submittingSitemap ? 'Đang gửi…' : '📤 Gửi sitemap' }}
+            </button>
+          </div>
+          <div v-if="gscSitemaps.length" class="table-wrap" style="margin-top: var(--space-3)">
+            <table class="tbl">
+              <thead><tr><th>Đường dẫn</th><th>Tải gần nhất</th><th class="gsc-num">Cảnh báo</th><th class="gsc-num">Lỗi</th></tr></thead>
+              <tbody>
+                <tr v-for="s in gscSitemaps" :key="s.path">
+                  <td class="gsc-url"><a :href="s.path" target="_blank" rel="noopener">{{ s.path }}</a></td>
+                  <td>{{ s.lastDownloaded ? s.lastDownloaded.slice(0, 10) : (s.isPending ? 'Đang chờ' : '—') }}</td>
+                  <td class="gsc-num">{{ s.warnings }}</td>
+                  <td class="gsc-num" :class="{ 'gsc-err': s.errors > 0 }">{{ s.errors }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else class="muted" style="margin-top: var(--space-3)">Chưa có sitemap nào. Gửi <code>https://kinhlac.online/sitemap.xml</code> ở trên.</p>
+        </section>
+
+        <!-- Kiểm tra URL đã index -->
+        <section class="card">
+          <div class="card-head"><h3>Kiểm tra URL đã được Google index chưa</h3></div>
+          <div class="gsc-controls">
+            <input v-model="inspectUrlInput" class="inp" placeholder="https://kinhlac.online/blog/..." />
+            <button class="btn btn--sm btn--primary" :disabled="inspecting" @click="runInspect">
+              {{ inspecting ? 'Đang hỏi Google…' : '🔍 Kiểm tra' }}
+            </button>
+          </div>
+          <div v-if="inspectResult" class="gsc-banner" :class="inspectResult.verdict === 'PASS' ? 'gsc-ok' : 'gsc-warn'" style="margin-top: var(--space-3)">
+            <div><b>Kết luận:</b> {{ inspectResult.verdict || '—' }} — {{ inspectResult.coverageState || '' }}</div>
+            <div class="muted" style="margin-top: var(--space-1)">
+              Lần crawl gần nhất: {{ inspectResult.lastCrawlTime ? inspectResult.lastCrawlTime.slice(0, 10) : '—' }} ·
+              Robots: {{ inspectResult.robotsTxtState || '—' }} ·
+              Canonical (Google): {{ inspectResult.googleCanonical || '—' }}
+            </div>
+            <a v-if="inspectResult.inspectionLink" :href="inspectResult.inspectionLink" target="_blank" rel="noopener" class="muted">Xem chi tiết trong Search Console →</a>
+          </div>
+        </section>
+      </template>
+    </div>
+    <!-- /TAB GOOGLE SEARCH CONSOLE -->
+
     <!-- Modal sửa bản nháp -->
     <div v-if="editing" class="ed-overlay" @click.self="closeEditor">
       <div class="ed-modal" role="dialog" aria-modal="true" aria-labelledby="ed-title">
@@ -1931,6 +2291,48 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
 .tab.on { color: var(--brown-800); border-bottom-color: var(--brown-600); }
 .tab:not(.on):hover { color: var(--brown-700); }
 .tabwrap { display: flex; flex-direction: column; gap: var(--space-5); }
+
+/* ===== Tab Google Search Console ===== */
+.gsc-banner { padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); font-size: var(--font-size-sm); line-height: 1.55; }
+.gsc-ok { background: var(--success-bg); color: var(--success-fg); border: 1px solid var(--success); }
+.gsc-warn { background: var(--warning-bg); color: var(--warning-fg); border: 1px solid var(--warning); }
+.gsc-banner code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: var(--radius-sm); }
+
+.gsc-controls { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.gsc-ctl-lbl { display: flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-sm); color: var(--text-muted); }
+.gsc-controls .inp { flex: 1; min-width: 220px; }
+
+/* Thẻ số tổng quan */
+.gsc-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
+.gsc-stat { display: flex; flex-direction: column; gap: 2px; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--brown-50); }
+.gsc-stat-num { font-size: 22px; font-weight: 800; color: var(--brown-800); }
+.gsc-stat-lbl { font-size: var(--font-size-xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: .03em; }
+
+/* Biểu đồ cột theo ngày — "website là thực thể sống" */
+.gsc-chart-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
+.gsc-metric-toggle { display: flex; gap: var(--space-2); }
+.gsc-metric-toggle .btn.on { background: var(--brown-600); color: #fff; border-color: var(--brown-600); }
+.gsc-chart { display: flex; align-items: flex-end; gap: 2px; height: 120px; padding: var(--space-2); background: var(--brown-50); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+.gsc-bar { flex: 1 1 0; min-width: 2px; background: var(--brown-500); border-radius: 2px 2px 0 0; transition: height var(--transition-fast), background var(--transition-fast); }
+.gsc-bar:hover { background: var(--brown-800); }
+
+/* Cột số căn phải */
+.tbl th.gsc-num, .tbl td.gsc-num { text-align: right; white-space: nowrap; }
+.gsc-err { color: var(--danger); font-weight: 700; }
+.gsc-url { max-width: 320px; }
+.gsc-url a { color: var(--brown-700); word-break: break-all; }
+
+/* Từ khoá bị ăn thịt */
+.gsc-cannibal { display: flex; flex-direction: column; gap: var(--space-2); }
+.gsc-can { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); }
+.gsc-can > summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; list-style: none; }
+.gsc-can > summary::-webkit-details-marker { display: none; }
+.gsc-can > summary b { color: var(--brown-800); }
+.gsc-can > summary::before { content: '▸'; color: var(--brown-600); font-size: 12px; margin-right: var(--space-2); }
+.gsc-can[open] > summary::before { content: '▾'; }
+.gsc-can-meta { font-size: var(--font-size-xs); color: var(--text-subtle); white-space: nowrap; }
+.gsc-can[open] { background: var(--brown-50); }
+.gsc-can table { margin-top: var(--space-2); }
 
 /* Editor modal */
 .ed-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(28,24,18,.5); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
