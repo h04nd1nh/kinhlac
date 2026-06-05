@@ -61,8 +61,9 @@ interface PerfRow {
 @Injectable()
 export class GscService {
   private sc: searchconsole_v1.Searchconsole | null = null;
-  private cachedEmail = '';
-  private cachedKeySig = ''; // chữ ký để biết khi nào cần tạo lại client
+  private cachedSig = ''; // chữ ký để biết khi nào cần tạo lại client
+  private authMode: 'oauth' | 'service_account' = 'service_account';
+  private authWho = ''; // tài khoản/email đang dùng — để hiện trong thông báo
 
   constructor(private readonly config: ConfigService) {}
 
@@ -129,19 +130,48 @@ export class GscService {
     return 'https://kinhlac.online/';
   }
 
-  /** Tạo (hoặc tái dùng) client Search Console đã xác thực. */
-  private client(): searchconsole_v1.Searchconsole {
+  /**
+   * Dựng đối tượng xác thực. ƯU TIÊN OAuth (đăng nhập bằng tài khoản chủ sở hữu),
+   * không có thì fallback Service Account. Ném lỗi gọn nếu chưa cấu hình gì.
+   */
+  private buildAuth(): {
+    auth: InstanceType<typeof google.auth.OAuth2> | InstanceType<typeof google.auth.GoogleAuth>;
+    sig: string;
+    mode: 'oauth' | 'service_account';
+    who: string;
+  } {
+    const cid = this.config.get<string>('GSC_OAUTH_CLIENT_ID');
+    const csec = this.config.get<string>('GSC_OAUTH_CLIENT_SECRET');
+    const rt = this.config.get<string>('GSC_OAUTH_REFRESH_TOKEN');
+    if (cid && csec && rt) {
+      const o = new google.auth.OAuth2(cid, csec);
+      o.setCredentials({ refresh_token: rt });
+      // Tài khoản đăng nhập (vd trangtruong.dig@gmail.com) đã có sẵn quyền trên property.
+      return { auth: o, sig: `oauth:${cid}:${rt.length}`, mode: 'oauth', who: 'tài khoản OAuth đã uỷ quyền' };
+    }
+    // Fallback: Service Account (cần được thêm vào Search Console mới có quyền).
     const sa = this.loadServiceAccount();
-    const sig = `${sa.client_email}:${sa.private_key.length}`;
-    if (this.sc && this.cachedKeySig === sig) return this.sc;
-
     const auth = new google.auth.GoogleAuth({
       credentials: { client_email: sa.client_email, private_key: sa.private_key },
       scopes: SCOPES,
     });
-    this.sc = google.searchconsole({ version: 'v1', auth });
-    this.cachedEmail = sa.client_email;
-    this.cachedKeySig = sig;
+    return {
+      auth,
+      sig: `sa:${sa.client_email}:${sa.private_key.length}`,
+      mode: 'service_account',
+      who: sa.client_email,
+    };
+  }
+
+  /** Tạo (hoặc tái dùng) client Search Console đã xác thực. */
+  private client(): searchconsole_v1.Searchconsole {
+    const { auth, sig, mode, who } = this.buildAuth();
+    if (this.sc && this.cachedSig === sig) return this.sc;
+    // googleapis nhận cả OAuth2 lẫn GoogleAuth làm 'auth'.
+    this.sc = google.searchconsole({ version: 'v1', auth: auth as never });
+    this.cachedSig = sig;
+    this.authMode = mode;
+    this.authWho = who;
     return this.sc;
   }
 
@@ -156,10 +186,15 @@ export class GscService {
       let hint = '';
       if (status === 403) {
         hint =
-          ` — Service account "${this.cachedEmail}" chưa được cấp quyền cho property "${this.siteUrl()}".` +
-          ' Vào Search Console → Cài đặt → Người dùng và quyền → thêm email này (xem GSC-SETUP.md).';
-      } else if (status === 401) {
-        hint = ' — Key xác thực sai/hết hạn. Kiểm tra lại GSC_SERVICE_ACCOUNT.';
+          this.authMode === 'oauth'
+            ? ` — Tài khoản OAuth chưa có quyền trên property "${this.siteUrl()}". Đăng nhập đúng tài khoản chủ sở hữu khi lấy refresh token.`
+            : ` — Service account "${this.authWho}" chưa được cấp quyền cho property "${this.siteUrl()}".` +
+              ' Vào Search Console → Cài đặt → Người dùng và quyền → thêm email này (xem GSC-SETUP.md).';
+      } else if (status === 401 || status === 400) {
+        hint =
+          this.authMode === 'oauth'
+            ? ' — Refresh token sai/hết hạn. Chạy lại tmp/gsc-oauth.mjs để lấy token mới (token chế độ "Testing" hết hạn sau 7 ngày → hãy Publish app).'
+            : ' — Key xác thực sai/hết hạn. Kiểm tra lại khoá service account.';
       } else if (status === 404) {
         hint = ` — Không tìm thấy property "${this.siteUrl()}". Kiểm tra GSC_SITE_URL khớp đúng property trong Search Console.`;
       }
@@ -171,12 +206,15 @@ export class GscService {
   // 0) TRẠNG THÁI KẾT NỐI (gọi đầu tiên để kiểm tra đã nối được chưa)
   // ===========================================================================
 
-  /** Liệt kê property service account nhìn thấy + xác nhận property cấu hình có quyền không. */
+  /** Liệt kê property tài khoản nhìn thấy + xác nhận property cấu hình có quyền không. */
   async status() {
     // Báo lỗi cấu hình SỚM, gọn (không ném 500) để frontend hiện đúng nguyên nhân.
-    let email: string;
+    let mode: 'oauth' | 'service_account';
+    let who: string;
     try {
-      email = this.loadServiceAccount().client_email;
+      const a = this.buildAuth();
+      mode = a.mode;
+      who = a.who;
     } catch (e: any) {
       return { connected: false, reason: e?.message || 'Chưa cấu hình', siteUrl: this.siteUrl() };
     }
@@ -191,11 +229,12 @@ export class GscService {
     const matched = sites.find((s) => s.siteUrl === target);
     return {
       connected: true,
-      email,
+      mode, // 'oauth' | 'service_account'
+      account: who,
       siteUrl: target,
       hasAccess: !!matched,
       permissionLevel: matched?.permissionLevel || null,
-      sites, // toàn bộ property email này thấy — để bạn copy đúng GSC_SITE_URL nếu đặt sai
+      sites, // toàn bộ property tài khoản này thấy — để bạn copy đúng GSC_SITE_URL nếu đặt sai
     };
   }
 

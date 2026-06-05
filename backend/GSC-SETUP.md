@@ -82,6 +82,45 @@ GSC_SITE_URL=sc-domain:kinhlac.online
 
 ---
 
+## CÁCH C — OAuth (dùng khi KHÔNG thêm được service account vào Search Console)
+
+Nếu Search Console báo "không tìm thấy email" khi thêm service account (hay gặp với tài khoản mới),
+hãy dùng OAuth: **đăng nhập trực tiếp bằng tài khoản chủ sở hữu** (đã có sẵn quyền) — khỏi cần thêm ai.
+
+### Bước C1 — Màn hình đồng ý (OAuth consent screen)
+1. Google Cloud Console → chọn dự án **`kinhlac`** (dự án đã bật Search Console API).
+2. **APIs & Services → OAuth consent screen**:
+   - User Type: **External** → Create.
+   - Điền App name (vd "Kinh Lạc GSC"), User support email + Developer email = email của bạn → Save.
+   - (Scopes có thể bỏ qua bước thêm — script tự xin quyền khi đăng nhập.)
+   - **Test users**: thêm `trangtruong.dig@gmail.com`.
+   - **QUAN TRỌNG để token sống lâu**: bấm **PUBLISH APP** (chuyển sang "In production").
+     Để ở "Testing" cũng chạy được nhưng **refresh token hết hạn sau 7 ngày**.
+
+### Bước C2 — Tạo OAuth Client ID
+1. **APIs & Services → Credentials → Create Credentials → OAuth client ID**.
+2. Application type: **Desktop app** → đặt tên → **Create**.
+3. Bảng hiện ra **Client ID** và **Client secret** → copy cả hai.
+
+### Bước C3 — Điền .env rồi lấy refresh token
+1. Trong `backend/.env`, điền 2 dòng:
+   ```env
+   GSC_OAUTH_CLIENT_ID=<client id vừa copy>
+   GSC_OAUTH_CLIENT_SECRET=<client secret vừa copy>
+   ```
+2. Chạy lệnh (trong thư mục `backend`):
+   ```
+   node tmp/gsc-oauth.mjs
+   ```
+3. Trình duyệt tự mở (hoặc copy link nó in ra) → **đăng nhập `trangtruong.dig@gmail.com`**.
+   - Gặp cảnh báo "Google chưa xác minh ứng dụng" → bấm **Nâng cao / Advanced → Đi tới (an toàn)**. (Bình thường với app của chính mình.)
+   - Bấm **Cho phép / Allow**.
+4. Quay lại terminal → nó in dòng `GSC_OAUTH_REFRESH_TOKEN=...` → **dán nốt vào `backend/.env`**.
+
+Xong! Code thấy đủ 3 biến `GSC_OAUTH_*` sẽ tự dùng OAuth (ưu tiên hơn service account).
+
+---
+
 ## Kiểm tra đã kết nối được chưa
 
 1. Khởi động lại backend (`npm run start:dev` trong thư mục `backend`).
