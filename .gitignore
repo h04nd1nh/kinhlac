@@ -30,3 +30,7 @@ kinhmach_demo
 # (file dạng <project>-<hash>.json chứa private key, lộ là mất tài khoản)
 kinhlac-*.json
 *-service-account*.json
+
+# Thư mục ẢNH AI sinh trên server (bind mount Docker — xem docker-compose.yml).
+# Ảnh nằm trên ổ VPS, persistent qua các lần deploy; KHÔNG đẩy vào git (phình repo).
+/data/

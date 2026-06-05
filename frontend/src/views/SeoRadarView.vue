@@ -923,12 +923,13 @@ const imgProg = ref<{
 }>({ on: false, done: 0, total: 0, stage: '', secImg: 0, secTotal: 0, pct: 0, status: 'running', errMsg: '' })
 
 // Tiến trình vẽ ẢNH BÌA (1 ảnh) — % thật từ gpt-image-2 qua poll /img-progress.
-const coverProg = ref<{ on: boolean; pct: number; stage: string; status: 'running' | 'done' | 'error' }>({
-  on: false,
-  pct: 0,
-  stage: '',
-  status: 'running',
-})
+const coverProg = ref<{
+  on: boolean
+  pct: number
+  stage: string
+  status: 'running' | 'done' | 'error'
+  errMsg: string
+}>({ on: false, pct: 0, stage: '', status: 'running', errMsg: '' })
 
 // Đồng hồ chạy THẬT trong lúc vẽ (mỗi ảnh ~90–150s → cần nhịp đập để không tưởng bị treo).
 const EST_PER_IMG = 120 // giây/ảnh ước lượng (CHỈ dùng khi chưa có % thật từ task)
@@ -1072,7 +1073,7 @@ async function generateCover(a: BaiViet) {
   )
     return
   genCoverId.value = a.id
-  coverProg.value = { on: true, pct: 0, stage: 'Bắt đầu…', status: 'running' }
+  coverProg.value = { on: true, pct: 0, stage: 'Bắt đầu…', status: 'running', errMsg: '' }
   const t0 = Date.now()
   // Poll % THẬT trong lúc chờ; chưa có data thì ước lượng theo thời gian (~90s). Bar chỉ tiến, không lùi.
   let coverPoll: ReturnType<typeof setInterval> | null = setInterval(() => {
@@ -1102,11 +1103,12 @@ async function generateCover(a: BaiViet) {
     )
     // Gắn ?t= để trình duyệt nạp lại ảnh mới (không dính cache bản cũ cùng tên).
     customCover.value = `${res.data.image}?t=${Date.now()}`
-    coverProg.value = { on: true, pct: 100, stage: '✅ Xong', status: 'done' }
+    coverProg.value = { on: true, pct: 100, stage: '✅ Xong', status: 'done', errMsg: '' }
     flash('ok', 'Đã vẽ ảnh bìa AI. Giờ bấm Lưu rồi Đăng lại để áp dụng lên web.')
   } catch (e: any) {
-    coverProg.value = { ...coverProg.value, status: 'error', stage: '⚠️ Lỗi' }
-    flash('err', String(e?.message || e || 'Vẽ ảnh bìa thất bại').slice(0, 220))
+    const msg = String(e?.message || e || 'Vẽ ảnh bìa thất bại').slice(0, 300)
+    coverProg.value = { ...coverProg.value, status: 'error', stage: '⚠️ Lỗi', errMsg: msg }
+    flash('err', msg.slice(0, 220))
   } finally {
     if (coverPoll) {
       clearInterval(coverPoll)
@@ -2186,6 +2188,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
               <div v-if="coverProg.status !== 'error'" class="gen-bar">
                 <div class="gen-bar-fill" :style="{ width: coverProg.pct + '%' }"></div>
               </div>
+              <p v-else class="gen-prog-note"><b>Lý do:</b> {{ coverProg.errMsg }}</p>
             </div>
           </div>
 
