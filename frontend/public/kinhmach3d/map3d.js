@@ -355,9 +355,52 @@
     });
   }
 
+  // ── CACHE toạ độ bề mặt (chống TREO + tải NHANH) ──
+  // raycast "dán huyệt vào da" rất nặng (~3000 tia × 30K tam giác ≈ 9s/lần). Kết quả CHỈ phụ thuộc
+  // toạ độ NGUỒN + mô hình (cố định trong phiên) → cache theo khoá = toạ độ nguồn. Nhờ vậy:
+  //  • Lưu/căn chốt (rebuild) chỉ raycast lại VÀI huyệt đã đổi, phần còn lại lấy cache → HẾT TREO.
+  //  • Lưu localStorage theo phiên-bản-build (ACU_ASSET_VER) → lần tải SAU (cùng build) khỏi raycast → TẢI NHANH.
+  // AN TOÀN: khoá là toạ độ nguồn ĐẦY ĐỦ (không trùng khoá khác huyệt) + trả CLONE → KHÔNG lệch huyệt.
+  const _ptCache = new Map();
+  let _ptCacheLoaded = false, _ptCacheDirty = false;
+  function _ptVerKey() { return 'acu3d_pts:' + (window.ACU_ASSET_VER || '0'); }
+  function _ptCacheLoad() {
+    if (_ptCacheLoaded) return; _ptCacheLoaded = true;
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {       // dọn cache của các build CŨ (mỗi build 1 khoá)
+        const k = localStorage.key(i);
+        if (k && k.indexOf('acu3d_pts:') === 0 && k !== _ptVerKey()) localStorage.removeItem(k);
+      }
+      const raw = localStorage.getItem(_ptVerKey()); if (!raw) return;
+      const o = JSON.parse(raw);
+      for (const k in o) { const a = o[k]; if (a && a.length === 6) _ptCache.set(k, { pos: new THREE.Vector3(a[0], a[1], a[2]), n: new THREE.Vector3(a[3], a[4], a[5]) }); }
+    } catch (e) { /* localStorage bị chặn/hỏng → bỏ qua, cache trong RAM vẫn chạy */ }
+  }
+  function _ptCacheSave() {
+    if (!_ptCacheDirty) return; _ptCacheDirty = false;
+    try {
+      const o = {}; _ptCache.forEach((v, k) => { o[k] = [v.pos.x, v.pos.y, v.pos.z, v.n.x, v.n.y, v.n.z]; });
+      localStorage.setItem(_ptVerKey(), JSON.stringify(o));
+    } catch (e) { /* đầy/chặn → thôi, vẫn còn cache RAM */ }
+  }
+  // Bọc memo. Trả CLONE để người gọi (.copy/.clone/kéo-thả) KHÔNG thể làm hỏng giá trị trong cache.
+  function surfacePoint(h, az, dir) {
+    _ptCacheLoad();
+    const ck = 'S' + bodyHeight.toFixed(2) + ':' + h + ',' + az + ',' + dir;
+    let v = _ptCache.get(ck);
+    if (v === undefined) { v = _surfacePointRaw(h, az, dir); if (v) { _ptCache.set(ck, v); _ptCacheDirty = true; } }
+    return v ? { pos: v.pos.clone(), n: v.n.clone() } : v;
+  }
+  function limbPoint(p) {
+    _ptCacheLoad();
+    const ck = 'L' + bodyHeight.toFixed(2) + ':' + (p.x || 0) + ',' + (p.y || 0) + ',' + (p.z || 0) + ',' + (p.snap === false ? 'n' : 'y') + ',' + (p.snapDir || '-');
+    let v = _ptCache.get(ck);
+    if (v === undefined) { v = _limbPointRaw(p); if (v) { _ptCache.set(ck, v); _ptCacheDirty = true; } }
+    return v ? { pos: v.pos.clone(), n: v.n.clone() } : v;
+  }
   // ---- đặt huyệt THÂN/ĐẦU bằng raycast hướng vào trục dọc thân ----
   const _o = new THREE.Vector3(), _t = new THREE.Vector3(), _d = new THREE.Vector3();
-  function surfacePoint(h, az, dir) {
+  function _surfacePointRaw(h, az, dir) {
     const y = bodyMinY + h * bodyHeight, azr = az * Math.PI / 180;
     if (dir === 'top') {
       _o.set(Math.sin(azr) * 0.04 * bodyHeight, bodyMinY + bodyHeight * 1.25, Math.cos(azr) * 0.06 * bodyHeight);
@@ -383,7 +426,7 @@
   const _SNAP_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
   // huyệt MẶT TRƯỚC THÂN (ngực/bụng): chỉ dán từ phía TRƯỚC → khỏi bị tia bên kéo ra vai/sườn.
   const _SNAP_FRONT = [[0, 0, 1]], _SNAP_BACK = [[0, 0, -1]];
-  function limbPoint(p) {
+  function _limbPointRaw(p) {
     _LP.set((p.x || 0) * bodyHeight, bodyMinY + (p.y || 0) * bodyHeight, (p.z || 0) * bodyHeight);
     if (p.snap === false) {                        // không "dán da" → pháp tuyến XẤP XỈ: toả ra ngoài từ trục dọc thân
       const out = new THREE.Vector3(_LP.x, 0, _LP.z);
@@ -455,6 +498,7 @@
       }
     }
     if (missed.length) console.warn('map3d: trượt raycast', missed.join(','));
+    _ptCacheSave();   // lưu cache toạ độ bề mặt cho lần tải sau (chỉ ghi nếu có điểm mới raycast)
   }
 
   // xoá toàn bộ chấm (giữ _dotGeo dùng lại) — cho lúc bật/tắt soi gương.
