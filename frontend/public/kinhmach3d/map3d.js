@@ -324,23 +324,22 @@
       scene.add(modelRoot);
 
       addContactShadow();
-      // Cách A — chống "nhấp nháy": ẩn lớp huyệt + đường kinh cho tới khi đã căn theo điểm Chấm Tay
-      // (xem revealAcuOverlay). Hình người vẫn hiện NGAY; chỉ huyệt/đường kinh chờ ~0,3s để khỏi nhảy vị trí.
+      // Cách A (tải nhanh + hết nhảy): KHÔNG đặt huyệt/đường kinh ngay ở đây nữa.
+      // Ẩn lớp huyệt/đường kinh; loadUserAnchors() sẽ đặt CHÚNG ĐÚNG 1 LẦN ở vị trí cuối
+      // (gold nếu có chốt · mặc định nếu không) rồi mới hiện → tránh đặt 2 lần (đỡ ~1/2 thời gian) + hết nhảy.
       dotsGroup.visible = false; linesGroup.visible = false;
-      console.log('[ACU-DEBUG] ẨN lúc', Math.round(performance.now()), 'ms · dotsGroup.visible =', dotsGroup.visible);
-      setTimeout(() => revealAcuOverlay('het-gio-2s'), 2000); // lưới an toàn: server lỗi/treo thì tối đa 2s vẫn hiện ra
-      loadUserAnchors();                 // tải điểm CHẤM TAY đã lưu (nếu có) → căn lại RỒI mới reveal
-      placeAllPoints();
-      applyVisibility();                 // đặt model + chấm (đường kinh dựng trễ); lớp huyệt còn ẩn tới reveal
+      // Phao cứu sinh CUỐI (15s): nếu loadUserAnchors vì lỗi hiếm không tới được reveal, vẫn đặt 1 lần & hiện.
+      setTimeout(() => { ensurePlacedOnce(); revealAcuOverlay('het-gio-luoi-cuoi'); }, 15000);
+      loadUserAnchors();                 // tải chốt → căn → ĐẶT HUYỆT 1 LẦN → reveal (xem hàm bên dưới)
+      applyVisibility();
       renderLayerControls();
       applyLayers();
       resetView();
       drawerWelcome();
       updateCount();
       if (pendingFocus) { const c = pendingFocus, o = pendingOpts; pendingFocus = pendingOpts = null; setTimeout(() => focusPoint(c, o), 120); }
-      buildLinesDeferred();              // dựng đường kinh TỪNG KINH mỗi khung → model hiện tức thì, đường rải dần
-      window.ACU_MODEL_READY = true;     // báo Vue tắt MÀN CHỜ TO (kể cả lần sau vào lại — engine singleton)
-      if (typeof window.ACU_ON_MODEL_READY === 'function') window.ACU_ON_MODEL_READY();
+      // ACU_MODEL_READY (tắt MÀN CHỜ TO) dời vào revealAcuOverlay → giữ màn chờ tới khi huyệt SẴN SÀNG,
+      // không hiện hình người trống. (Lần sau vào lại: cờ đã true nên không hiện màn chờ.)
     }, xhr => {
       // % tải model cho màn chờ to (đỡ sốt ruột). Chỉ khi server gửi Content-Length (xhr.total>0). Model đã
       // preload nên có thể nhảy nhanh tới ~99% rồi đứng chút lúc giải nén — vẫn rõ hơn là đứng im "Đang tải…".
@@ -991,33 +990,45 @@
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'user-anchors.json'; a.click();
     setEditStatus('Đã tải user-anchors.json (bản sao lưu tạm). Bình thường chỉ cần bấm 💾 Lưu để đồng bộ lên server.');
   }
-  // ── Cách A — chống "nhấp nháy" lúc mới mở ──
-  // Init ẩn lớp huyệt + đường kinh (xem chỗ gọi loadUserAnchors trong onModelLoaded). Chỉ HIỆN khi đã
-  // tải & căn theo điểm Chấm Tay XONG — hoặc khi không có chốt / lỗi mạng / hết-giờ-chờ — để người dùng
-  // không thấy đường kinh hiện ở vị trí mặc định rồi NHẢY về vị trí đã chấm.
+  // ── Cách A — tải nhanh + chống "nhấp nháy" lúc mới mở ──
+  // Đặt huyệt + dựng đường kinh ĐÚNG 1 LẦN (gọi từ mọi nhánh kết thúc của loadUserAnchors / phao 15s).
+  // Trước đây đặt 2 lần (mặc định lúc init + căn-theo-chốt) → tốn ~gấp đôi + gây nhảy. Cờ _placedOnce chống gọi lại.
+  let _placedOnce = false;
+  function ensurePlacedOnce() {
+    if (_placedOnce) return;
+    _placedOnce = true;
+    placeAllPoints(); applyVisibility(); buildLinesDeferred();
+    if (selectedCode && dotByCode[selectedCode] && dotByCode[selectedCode].visible) placeNeedle(dotByCode[selectedCode]);
+  }
+  // HIỆN lớp huyệt/đường kinh (sau khi ĐÃ đặt 1 lần ở vị trí cuối) + tắt MÀN CHỜ TO. Chỉ chạy 1 lần.
   let _acuRevealed = false;
   function revealAcuOverlay(reason) {
-    console.log('[ACU-DEBUG] HIỆN lúc', Math.round(performance.now()), 'ms · do:', reason || '?', '· đã-hiện-trước-đó:', _acuRevealed);
     if (_acuRevealed) return;
     _acuRevealed = true;
     dotsGroup.visible = true; linesGroup.visible = true;
     wake();                                           // render-on-demand: vẽ lại 1 nhịp để hiện ra
+    console.log('[ACU-DEBUG] HIỆN xong lúc', Math.round(performance.now()), 'ms · do:', reason || '?'); // TẠM: đo tốc độ, sẽ gỡ
+    window.ACU_MODEL_READY = true;                    // báo Vue tắt MÀN CHỜ TO khi huyệt đã sẵn sàng
+    if (typeof window.ACU_ON_MODEL_READY === 'function') window.ACU_ON_MODEL_READY();
   }
   function loadUserAnchors() {
-    fetch(apiBase() + '/kinh-mach-3d/anchors').then(r => r.json()).then(j => {
-      const pts = (j && j.points) || j || {};
-      let n = 0; for (const k in pts) { if (pts[k] && typeof pts[k].x === 'number') { userPlaced[k] = pts[k]; n++; } }
-      const nd = (j && j.needles) || {};              // HƯỚNG KIM tự chỉnh đã lưu → áp khi chọn huyệt
-      for (const k in nd) { const v = nd[k]; if (v && typeof v.x === 'number') userNeedle[k] = { x: v.x, y: v.y, z: v.z }; }
-      console.log('[ACU-DEBUG] anchors xong lúc', Math.round(performance.now()), 'ms · số chốt n =', n);
-      if (!n) { revealAcuOverlay('khong-co-chot'); return; }   // chưa có chốt → toạ độ mặc định là bản cuối → hiện luôn
-      // căn theo chốt bằng solver (gold) như bản gốc; lỗi (mạng/đăng nhập) → fallback nội suy thô.
-      // Dù thành công hay lỗi, CĂN XONG rồi mới revealAcuOverlay() → huyệt/đường kinh hiện ở ĐÚNG vị trí.
-      recomputeGold((ok) => {
-        if (!ok) { deriveAll(); if (inited && modelRoot && dotMeshes.length) rebuild(); }
-        revealAcuOverlay('da-can-theo-chot');
-      });
-    }).catch((e) => { console.log('[ACU-DEBUG] anchors LỖI:', e && e.message); revealAcuOverlay('loi-mang'); });
+    let settled = false;
+    // Mọi đường thoát đều đi qua đây: đặt huyệt ĐÚNG 1 LẦN (ở vị trí cuối) rồi HIỆN. Chạy 1 lần nhờ cờ settled.
+    const done = (reason) => { if (settled) return; settled = true; ensurePlacedOnce(); revealAcuOverlay(reason); };
+    try {
+      const ac = new AbortController();
+      const tid = setTimeout(() => ac.abort(), 6000);   // /anchors quá 6s → coi như lỗi → đặt mặc định, không treo
+      fetch(apiBase() + '/kinh-mach-3d/anchors', { signal: ac.signal }).then(r => r.json()).then(j => {
+        const pts = (j && j.points) || j || {};
+        let n = 0; for (const k in pts) { if (pts[k] && typeof pts[k].x === 'number') { userPlaced[k] = pts[k]; n++; } }
+        const nd = (j && j.needles) || {};            // HƯỚNG KIM tự chỉnh đã lưu → áp khi chọn huyệt
+        for (const k in nd) { const v = nd[k]; if (v && typeof v.x === 'number') userNeedle[k] = { x: v.x, y: v.y, z: v.z }; }
+        console.log('[ACU-DEBUG] anchors xong lúc', Math.round(performance.now()), 'ms · số chốt n =', n); // TẠM
+        if (!n) { done('khong-co-chot'); return; }    // không chốt → đặt MẶC ĐỊNH 1 lần (đúng, khỏi căn)
+        // có chốt → CĂN theo chốt (solver gold) rồi mới đặt 1 lần ở GOLD; solver lỗi → nội suy thô.
+        recomputeGold((ok) => { if (!ok) deriveAll(); done('da-can-theo-chot'); });
+      }).catch(() => done('anchors-loi/timeout')).finally(() => clearTimeout(tid));
+    } catch (e) { done('loi-dong-bo'); }
   }
   // ===================================================
 
