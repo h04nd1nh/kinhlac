@@ -1,4 +1,4 @@
-package com.example.app_kinhlac
+package com.trangtd.kinhlac
 
 import io.flutter.embedding.android.FlutterActivity
 
